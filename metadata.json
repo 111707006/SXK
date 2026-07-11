@@ -1,0 +1,6 @@
+{
+  "name": "森心康儿童发展评估平台",
+  "description": "基于9维3层评估理念的专业儿童康复筛查系统，集成AI神经网络智能生成评估报告与家庭指导方案，并提供康复设备商城及物流订单追踪系统。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

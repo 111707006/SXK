@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import tcb from '@cloudbase/node-sdk';
@@ -8,7 +7,7 @@ import tcb from '@cloudbase/node-sdk';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Raised limit so base64-encoded audio clips (<=10MB) can reach the ASR endpoint
 app.use(express.json({ limit: '15mb' }));
@@ -932,6 +931,9 @@ app.post('/api/db/save', async (req, res) => {
 // Vite & Static file configurations
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    // Dynamic import so `vite` (a devDependency) is never required in production,
+    // where hosting platforms may prune devDependencies after build.
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

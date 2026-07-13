@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: sxk
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DASHSCOPE_API_KEY
+        sync: false
+      - key: QWEN_REPORT_MODEL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CLOUDBASE_SECRET_ID
+        sync: false
+      - key: CLOUDBASE_SECRET_KEY
+        sync: false
+      - key: CLOUDBASE_ENV_ID
+        sync: false

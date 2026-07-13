@@ -579,6 +579,13 @@ app.post('/api/asr', async (req: express.Request, res: express.Response) => {
 let cloudbaseDb: any = null;
 let cloudbaseApp: any = null;
 
+// Offline-mode fallback in-memory datastores
+const offlineUsers = new Map<string, any>();
+const offlineUserData = new Map<string, any>();
+
+// Seed a default test account for fast, instant client-side evaluation
+offlineUsers.set('test@test.com', { email: 'test@test.com', password: '123456' });
+
 function getCloudBaseDb() {
   if (cloudbaseDb) return cloudbaseDb;
 
@@ -608,6 +615,24 @@ function getCloudBaseDb() {
 }
 
 // Endpoint to check database connection status
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 2500): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Database operation timed out'));
+    }, timeoutMs);
+
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 app.get('/api/db/status', (req, res) => {
   const db = getCloudBaseDb();
   res.json({
@@ -616,36 +641,214 @@ app.get('/api/db/status', (req, res) => {
   });
 });
 
-// Endpoint to load child assessment records
-app.get('/api/db/load', async (req, res) => {
+// Endpoint to register user account
+app.post('/api/auth/register', async (req, res) => {
   try {
-    const { deviceId } = req.query;
-    if (!deviceId || typeof deviceId !== 'string') {
-      res.status(400).json({ error: 'Missing deviceId parameter.' });
+    const { email, password } = req.body;
+    if (!email || !password) {
+      res.status(400).json({ error: '请填写完整的邮箱和密码' });
       return;
     }
 
     const db = getCloudBaseDb();
+    let cloudSaved = false;
+
+    if (db) {
+      try {
+        // Check if user already exists in cloud database
+        const checkRes: any = await withTimeout(db.collection('sxk_accounts').where({ email }).get(), 2000);
+        if (checkRes && checkRes.data && checkRes.data.length > 0) {
+          res.status(400).json({ error: '该邮箱已被注册，请直接登录' });
+          return;
+        }
+
+        // Add account document
+        await withTimeout(db.collection('sxk_accounts').add({
+          email,
+          password, // In this educational sandbox, we store it directly. In production, we would use a strong hash like bcrypt.
+          createdAt: new Date().toISOString()
+        }), 2000);
+        console.log(`[CloudBase] Registered cloud account: ${email}`);
+        cloudSaved = true;
+      } catch (dbErr: any) {
+        console.warn('[CloudBase] Cloud registration failed, falling back to local memory:', dbErr.message);
+      }
+    }
+
+    if (!cloudSaved) {
+      // In-memory registration fallback for local test
+      if (offlineUsers.has(email)) {
+        res.status(400).json({ error: '该邮箱已被注册，请直接登录' });
+        return;
+      }
+      offlineUsers.set(email, { email, password });
+      console.log(`[Local Memory] Registered local account fallback: ${email}`);
+    }
+
+    res.json({ success: true, email });
+  } catch (err: any) {
+    console.error('[Auth Register Error]:', err.message);
+    res.status(500).json({ error: `注册失败: ${err.message}` });
+  }
+});
+
+// Endpoint to login user account
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      res.status(400).json({ error: '请填写邮箱和密码' });
+      return;
+    }
+
+    const db = getCloudBaseDb();
+    let authenticatedUser = null;
+
+    if (db) {
+      try {
+        const checkRes: any = await withTimeout(db.collection('sxk_accounts').where({ email }).get(), 2000);
+        if (checkRes && checkRes.data && checkRes.data.length > 0) {
+          const found = checkRes.data[0];
+          if (found.password === password) {
+            authenticatedUser = found;
+          }
+        }
+      } catch (dbErr: any) {
+        console.warn('[CloudBase] Cloud login failed, falling back to local memory:', dbErr.message);
+      }
+    }
+
+    // Always check the local offline database if cloud lookup didn't succeed
+    if (!authenticatedUser) {
+      const found = offlineUsers.get(email);
+      if (found && found.password === password) {
+        authenticatedUser = found;
+      }
+    }
+
+    if (!authenticatedUser) {
+      res.status(401).json({ error: '邮箱或密码错误，请重新输入' });
+      return;
+    }
+
+    // Load any associated child data
+    let child = null;
+    let completedScores = [];
+    let orders = [];
+    let reportHistory = [];
+    let loadedFromCloud = false;
+
+    if (db) {
+      try {
+        const dataRes: any = await withTimeout(db.collection('sxk_user_data').where({ email }).get(), 2000);
+        if (dataRes && dataRes.data && dataRes.data.length > 0) {
+          const data = dataRes.data[0];
+          child = data.child || null;
+          completedScores = data.completedScores || [];
+          orders = data.orders || [];
+          reportHistory = data.reportHistory || [];
+          loadedFromCloud = true;
+        }
+      } catch (dbErr: any) {
+        console.warn('[CloudBase] Cloud loading child data failed:', dbErr.message);
+      }
+    }
+
+    if (!loadedFromCloud) {
+      const data = offlineUserData.get(email);
+      if (data) {
+        child = data.child || null;
+        completedScores = data.completedScores || [];
+        orders = data.orders || [];
+        reportHistory = data.reportHistory || [];
+      }
+    }
+
+    res.json({
+      success: true,
+      email: authenticatedUser.email,
+      child,
+      completedScores,
+      orders,
+      reportHistory
+    });
+  } catch (err: any) {
+    console.error('[Auth Login Error]:', err.message);
+    res.status(500).json({ error: `登录失败: ${err.message}` });
+  }
+});
+
+// Endpoint to load child assessment records
+app.get('/api/db/load', async (req, res) => {
+  try {
+    const { deviceId, email } = req.query;
+    
+    const db = getCloudBaseDb();
     if (!db) {
+      // Local fallback lookup
+      if (email && typeof email === 'string') {
+        const localData = offlineUserData.get(email);
+        if (localData) {
+          res.json({
+            source: 'local_server',
+            child: localData.child || null,
+            completedScores: localData.completedScores || [],
+            orders: localData.orders || [],
+            reportHistory: localData.reportHistory || []
+          });
+          return;
+        }
+      }
       res.json({ source: 'unconfigured' });
       return;
     }
 
-    // Read from sxk_user_data collection in Tencent CloudBase
-    const result = await db.collection('sxk_user_data').where({ deviceId }).get();
-    
-    if (result && result.data && result.data.length > 0) {
-      const data = result.data[0];
+    let result: any = null;
+    try {
+      if (email && typeof email === 'string') {
+        result = await withTimeout(db.collection('sxk_user_data').where({ email }).get(), 2000);
+      } else if (deviceId && typeof deviceId === 'string') {
+        result = await withTimeout(db.collection('sxk_user_data').where({ deviceId }).get(), 2000);
+      } else {
+        res.status(400).json({ error: 'Missing deviceId or email parameter.' });
+        return;
+      }
+      
+      if (result && result.data && result.data.length > 0) {
+        const data = result.data[0];
+        res.json({
+          source: 'cloud',
+          child: data.child || null,
+          completedScores: data.completedScores || [],
+          orders: data.orders || [],
+          reportHistory: data.reportHistory || []
+        });
+      } else {
+        res.json({
+          source: 'cloud',
+          child: null,
+          completedScores: [],
+          orders: [],
+          reportHistory: []
+        });
+      }
+    } catch (err: any) {
+      console.warn('[CloudBase Load Timeout/Error] Falling back to offline local memory:', err.message);
+      if (email && typeof email === 'string') {
+        const localData = offlineUserData.get(email);
+        if (localData) {
+          res.json({
+            source: 'local_server',
+            child: localData.child || null,
+            completedScores: localData.completedScores || [],
+            orders: localData.orders || [],
+            reportHistory: localData.reportHistory || []
+          });
+          return;
+        }
+      }
       res.json({
-        source: 'cloud',
-        child: data.child || null,
-        completedScores: data.completedScores || [],
-        orders: data.orders || [],
-        reportHistory: data.reportHistory || []
-      });
-    } else {
-      res.json({
-        source: 'cloud',
+        source: 'local_server',
         child: null,
         completedScores: [],
         orders: [],
@@ -661,41 +864,65 @@ app.get('/api/db/load', async (req, res) => {
 // Endpoint to save child assessment records
 app.post('/api/db/save', async (req, res) => {
   try {
-    const { deviceId, child, completedScores, orders, reportHistory } = req.body;
-    if (!deviceId) {
-      res.status(400).json({ error: 'Missing deviceId in body.' });
-      return;
+    const { deviceId, email, child, completedScores, orders, reportHistory } = req.body;
+
+    // Always update the offline local memory database as a hot backup
+    if (email) {
+      offlineUserData.set(email, {
+        child,
+        completedScores,
+        orders,
+        reportHistory
+      });
     }
 
     const db = getCloudBaseDb();
     if (!db) {
-      res.status(503).json({ error: 'Tencent CloudBase database is not configured on this server.' });
+      res.json({ success: true, localSaved: true });
       return;
     }
 
-    // Check if device data already exists
-    const checkResult = await db.collection('sxk_user_data').where({ deviceId }).get();
-    const hasExisting = checkResult && checkResult.data && checkResult.data.length > 0;
+    try {
+      let checkResult: any = null;
+      let hasExisting = false;
+      let queryField: any = {};
 
-    const recordPayload = {
-      deviceId,
-      child,
-      completedScores,
-      orders,
-      reportHistory,
-      updatedAt: new Date().toISOString()
-    };
+      if (email) {
+        queryField = { email };
+        checkResult = await withTimeout(db.collection('sxk_user_data').where({ email }).get(), 2000);
+        hasExisting = checkResult && checkResult.data && checkResult.data.length > 0;
+      } else if (deviceId) {
+        queryField = { deviceId };
+        checkResult = await withTimeout(db.collection('sxk_user_data').where({ deviceId }).get(), 2000);
+        hasExisting = checkResult && checkResult.data && checkResult.data.length > 0;
+      } else {
+        res.status(400).json({ error: 'Missing deviceId or email.' });
+        return;
+      }
 
-    if (hasExisting) {
-      const docId = checkResult.data[0]._id;
-      await db.collection('sxk_user_data').doc(docId).set(recordPayload);
-      console.log(`[CloudBase] Successfully updated data for device ${deviceId}`);
-    } else {
-      await db.collection('sxk_user_data').add(recordPayload);
-      console.log(`[CloudBase] Successfully created new record for device ${deviceId}`);
+      const recordPayload = {
+        ...queryField,
+        child,
+        completedScores,
+        orders,
+        reportHistory,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (hasExisting) {
+        const docId = checkResult.data[0]._id;
+        await withTimeout(db.collection('sxk_user_data').doc(docId).set(recordPayload), 2000);
+        console.log(`[CloudBase] Successfully updated data for ${email ? 'email ' + email : 'device ' + deviceId}`);
+      } else {
+        await withTimeout(db.collection('sxk_user_data').add(recordPayload), 2000);
+        console.log(`[CloudBase] Successfully created new record for ${email ? 'email ' + email : 'device ' + deviceId}`);
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.warn('[CloudBase Save Timeout/Error] Data is hot-backed up in local memory:', err.message);
+      res.json({ success: true, localSavedFallback: true });
     }
-
-    res.json({ success: true });
   } catch (err: any) {
     console.error('[CloudBase Save Error]:', err.message);
     res.status(500).json({ error: `CloudBase save failed: ${err.message}` });

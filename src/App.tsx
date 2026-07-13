@@ -15,6 +15,7 @@ import LanguageSpecialAssessment from './components/LanguageSpecialAssessment';
 import T1Screening from './components/T1Screening';
 import EditProfileModal from './components/EditProfileModal';
 import SpecializedReportView from './components/SpecializedReportView';
+import AuthScreen from './components/AuthScreen';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
 import { formatAge } from './utils/dateUtils';
 import { 
@@ -52,6 +53,8 @@ export default function App() {
   // Profile editing modal open/close
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
+  const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem('senxinkang_user_email'));
+
   const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   const [dbEnvId, setDbEnvId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<boolean>(false);
@@ -74,9 +77,6 @@ export default function App() {
     currentOrders: Order[],
     currentHistory: AssessmentRecord[]
   ) => {
-    // Only attempt save if cloudbase is configured
-    if (dbConfigured === false) return;
-    
     const deviceId = getOrCreateDeviceId();
     try {
       setSyncing(true);
@@ -87,6 +87,7 @@ export default function App() {
         },
         body: JSON.stringify({
           deviceId,
+          email: userEmail,
           child: currentChild,
           completedScores: currentScores,
           orders: currentOrders,
@@ -101,14 +102,14 @@ export default function App() {
         setSyncError(null);
       }
     } catch (err: any) {
-      console.warn('Tencent CloudBase Sync Error:', err.message);
+      console.warn('Sync Error:', err.message);
       setSyncError(err.message || '网络连接异常');
     } finally {
       setSyncing(false);
     }
   };
 
-  // Load from local storage and sync with Tencent CloudBase on mount
+  // Load from local storage and sync with Cloud Database on mount
   useEffect(() => {
     let localChild: Child | null = null;
     let localScores: DimensionScore[] = [];
@@ -144,7 +145,7 @@ export default function App() {
       console.error('Error hydrating state from localStorage:', e);
     }
 
-    // 2. Fetch connection status & sync with Tencent CloudBase
+    // 2. Fetch connection status & sync with Database
     const initCloudSync = async () => {
       try {
         const statusResp = await fetch('/api/db/status');
@@ -154,44 +155,50 @@ export default function App() {
         setDbConfigured(statusData.configured);
         setDbEnvId(statusData.envId);
 
-        if (statusData.configured) {
-          const deviceId = getOrCreateDeviceId();
-          const loadResp = await fetch(`/api/db/load?deviceId=${deviceId}`);
-          if (!loadResp.ok) return;
-          const loadData = await loadResp.json();
+        const activeEmail = localStorage.getItem('senxinkang_user_email');
+        const deviceId = getOrCreateDeviceId();
+        const queryParam = activeEmail ? `email=${encodeURIComponent(activeEmail)}` : `deviceId=${deviceId}`;
 
-          if (loadData.source === 'cloud') {
-            if (loadData.child || loadData.completedScores?.length > 0) {
-              // Cloud has data: sync to client and localStorage
-              setChild(loadData.child);
-              setCompletedScores(loadData.completedScores || []);
-              setOrders(loadData.orders || []);
-              setReportHistory(loadData.reportHistory || []);
+        const loadResp = await fetch(`/api/db/load?${queryParam}`);
+        if (!loadResp.ok) return;
+        const loadData = await loadResp.json();
 
-              if (loadData.child) localStorage.setItem('senxinkang_child', JSON.stringify(loadData.child));
-              localStorage.setItem('senxinkang_scores', JSON.stringify(loadData.completedScores || []));
-              localStorage.setItem('senxinkang_orders', JSON.stringify(loadData.orders || []));
-              localStorage.setItem('senxinkang_history', JSON.stringify(loadData.reportHistory || []));
-            } else if (localChild || localScores.length > 0) {
-              // Cloud is empty but client has local data: sync local data up to cloud
-              setSyncing(true);
-              await fetch('/api/db/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  deviceId,
-                  child: localChild,
-                  completedScores: localScores,
-                  orders: localOrders,
-                  reportHistory: localHistory
-                })
-              });
-              setSyncing(false);
+        if (loadData.source === 'cloud' || loadData.source === 'local_server') {
+          if (loadData.child || loadData.completedScores?.length > 0) {
+            // Server has data: sync to client and localStorage
+            setChild(loadData.child);
+            setCompletedScores(loadData.completedScores || []);
+            setOrders(loadData.orders || []);
+            setReportHistory(loadData.reportHistory || []);
+
+            if (loadData.child) {
+              localStorage.setItem('senxinkang_child', JSON.stringify(loadData.child));
+            } else {
+              localStorage.removeItem('senxinkang_child');
             }
+            localStorage.setItem('senxinkang_scores', JSON.stringify(loadData.completedScores || []));
+            localStorage.setItem('senxinkang_orders', JSON.stringify(loadData.orders || []));
+            localStorage.setItem('senxinkang_history', JSON.stringify(loadData.reportHistory || []));
+          } else if (localChild || localScores.length > 0) {
+            // Server is empty but client has local data: sync local data up
+            setSyncing(true);
+            await fetch('/api/db/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                deviceId,
+                email: activeEmail,
+                child: localChild,
+                completedScores: localScores,
+                orders: localOrders,
+                reportHistory: localHistory
+              })
+            });
+            setSyncing(false);
           }
         }
       } catch (err) {
-        console.warn('Failed to synchronize with cloud database on load:', err);
+        console.warn('Failed to synchronize with database on load:', err);
         setSyncing(false);
       }
     };
@@ -199,12 +206,61 @@ export default function App() {
     initCloudSync();
   }, []);
 
-  // Save states to local storage and sync to Tencent CloudBase
+  // Handler for successful authentication (registration or login)
+  const handleAuthSuccess = (
+    email: string,
+    cloudChild: Child | null,
+    cloudScores: DimensionScore[],
+    cloudOrders: Order[],
+    cloudHistory: AssessmentRecord[]
+  ) => {
+    setUserEmail(email);
+    localStorage.setItem('senxinkang_user_email', email);
+
+    // Update child profile, assessment scores, orders, and reports in state
+    setChild(cloudChild);
+    setCompletedScores(cloudScores);
+    setOrders(cloudOrders);
+    setReportHistory(cloudHistory);
+
+    // Save locally
+    if (cloudChild) {
+      localStorage.setItem('senxinkang_child', JSON.stringify(cloudChild));
+    } else {
+      localStorage.removeItem('senxinkang_child');
+    }
+    localStorage.setItem('senxinkang_scores', JSON.stringify(cloudScores));
+    localStorage.setItem('senxinkang_orders', JSON.stringify(cloudOrders));
+    localStorage.setItem('senxinkang_history', JSON.stringify(cloudHistory));
+
+    // Send back to dashboard dashboard
+    setCurrentView('dashboard');
+  };
+
+  // Save states to local storage and sync to Database
   const handleSaveChild = (newChild: Child) => {
     setChild(newChild);
     localStorage.setItem('senxinkang_child', JSON.stringify(newChild));
     setCurrentView('t1_screening'); // Auto onboarding to T1 screening!
-    syncToCloud(newChild, completedScores, orders, reportHistory);
+    
+    // Explicit save to trigger background sync
+    try {
+      const deviceId = getOrCreateDeviceId();
+      fetch('/api/db/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId,
+          email: userEmail,
+          child: newChild,
+          completedScores,
+          orders,
+          reportHistory
+        })
+      });
+    } catch (e) {
+      console.warn('Silent save failed:', e);
+    }
   };
 
   const handleUpdateChild = (updatedChild: Child) => {
@@ -230,16 +286,20 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (confirm('确认登出当前少儿档案并返回登记首页吗？您的数据安全保存在云端。')) {
+    if (confirm('确认登出当前邮箱并返回登录首页吗？您的数据安全保存在云端。')) {
       setChild(null);
       setCompletedScores([]);
       setOrders([]);
       setReportHistory([]);
+      setUserEmail(null);
+      
       localStorage.removeItem('senxinkang_child');
       localStorage.removeItem('senxinkang_scores');
       localStorage.removeItem('senxinkang_orders');
       localStorage.removeItem('senxinkang_history');
+      localStorage.removeItem('senxinkang_user_email');
       localStorage.removeItem('senxinkang_device_id');
+      
       setCurrentView('dashboard');
       setIsCustomerDropdownOpen(false);
     }
@@ -338,7 +398,7 @@ export default function App() {
           </div>
 
           {/* Navigation and switch views controls */}
-          {child && (
+          {child ? (
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <nav className="flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40">
                 <button
@@ -574,7 +634,7 @@ export default function App() {
                           className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition duration-200 active:scale-[0.98] shadow-sm cursor-pointer"
                         >
                           <LogOut size={13} className="shrink-0 text-rose-600" />
-                          <span>登出并返回首页</span>
+                          <span>登出账户</span>
                         </button>
                       </div>
 
@@ -583,20 +643,35 @@ export default function App() {
                 )}
               </div>
             </div>
-          )}
+          ) : userEmail ? (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-brand-charcoal/60 font-medium">
+                当前账户: <span className="font-bold text-brand-forest">{userEmail}</span>
+              </span>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <LogOut size={12} className="text-rose-600" />
+                <span>退出登录</span>
+              </button>
+            </div>
+          ) : null}
         </div>
       </header>
 
       {/* Main Container Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!child ? (
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
+        {!userEmail ? (
+          <AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} />
+        ) : !child ? (
           /* Profile Registry form shown when child is unconfigured */
-          <div className="py-12 animate-fade-in text-center">
+          <div className="py-12 animate-fade-in text-center w-full">
             <h2 className="text-2xl md:text-3xl font-black text-brand-forest tracking-tight max-w-lg mx-auto leading-tight mb-4">
               欢迎使用 <span className="text-brand-moss">森心康</span> 儿童数字测听与康复分层诊断系统
             </h2>
             <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
-              基于 9 维发育图态与 3 层评估体系，辅以智能传感器介入与 AI 神经网络计算。立即登记创建儿童成长档案，开启全方位脑功能筛查。
+              您的账户 (<span className="font-bold text-brand-forest">{userEmail}</span>) 已成功连线。为了开启全方位脑功能筛查，请填写您孩子的基本信息，登记创建成长档案。
             </p>
             <ChildProfileForm currentChild={child} onSave={handleSaveChild} />
           </div>

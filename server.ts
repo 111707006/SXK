@@ -3,6 +3,7 @@ import path from 'path';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import tcb from '@cloudbase/node-sdk';
+import axios from 'axios';
 
 dotenv.config();
 
@@ -44,34 +45,43 @@ function getDashScopeKey(): string | null {
   return key;
 }
 
-async function callQwenJSON(model: string, systemPrompt: string, userPrompt: string): Promise<any> {
-  const key = getDashScopeKey();
-  if (!key) throw new Error('DASHSCOPE_API_KEY is not configured.');
-
-  const resp = await fetch(DASHSCOPE_COMPAT_URL, {
-    method: 'POST',
+// Uses axios (not global fetch) because @cloudbase/node-sdk pulls in web-streams-polyfill,
+// which replaces the global ReadableStream and makes undici's fetch throw
+// `webidl.is.ReadableStream` on some Node versions. axios goes through http/https directly.
+async function postDashScope(key: string, payload: any): Promise<{ status: number; data: any }> {
+  const resp = await axios.post(DASHSCOPE_COMPAT_URL, payload, {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${key}`
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      response_format: { type: 'json_object' },
-      // Flagship Qwen models default to deep-thinking mode, far too slow for a synchronous report request
-      enable_thinking: false
-    })
+    timeout: 120000,
+    maxBodyLength: Infinity,
+    validateStatus: () => true
+  });
+  return { status: resp.status, data: resp.data };
+}
+
+async function callQwenJSON(model: string, systemPrompt: string, userPrompt: string): Promise<any> {
+  const key = getDashScopeKey();
+  if (!key) throw new Error('DASHSCOPE_API_KEY is not configured.');
+
+  const resp = await postDashScope(key, {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    response_format: { type: 'json_object' },
+    // Flagship Qwen models default to deep-thinking mode, far too slow for a synchronous report request
+    enable_thinking: false
   });
 
-  if (!resp.ok) {
-    const errText = await resp.text();
+  if (resp.status < 200 || resp.status >= 300) {
+    const errText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
     throw new Error(`DashScope ${model} request failed (${resp.status}): ${errText.slice(0, 300)}`);
   }
 
-  const raw = await resp.json();
+  const raw = resp.data;
   const content = raw.choices?.[0]?.message?.content;
   if (!content) throw new Error('DashScope returned empty content.');
   const cleaned = content.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -537,22 +547,15 @@ app.post('/api/asr', async (req: express.Request, res: express.Response) => {
       content: [{ type: 'input_audio', input_audio: { data: audioData } }]
     }];
 
-    const resp = await fetch(DASHSCOPE_COMPAT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`
-      },
-      body: JSON.stringify({ model: QWEN_ASR_MODEL, messages })
-    });
+    const resp = await postDashScope(key, { model: QWEN_ASR_MODEL, messages });
 
-    if (!resp.ok) {
-      const errText = await resp.text();
+    if (resp.status < 200 || resp.status >= 300) {
+      const errText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
       res.status(502).json({ error: `Qwen ASR request failed (${resp.status}): ${errText.slice(0, 300)}` });
       return;
     }
 
-    const raw = await resp.json();
+    const raw = resp.data;
     const message = raw.choices?.[0]?.message;
     const text = typeof message?.content === 'string'
       ? message.content

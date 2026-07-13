@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import tcb from '@cloudbase/node-sdk';
 
 dotenv.config();
 
@@ -571,6 +572,133 @@ app.post('/api/asr', async (req: express.Request, res: express.Response) => {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Unknown ASR error.' });
+  }
+});
+
+// Tencent CloudBase (腾讯云开发) integration
+let cloudbaseDb: any = null;
+let cloudbaseApp: any = null;
+
+function getCloudBaseDb() {
+  if (cloudbaseDb) return cloudbaseDb;
+
+  const secretId = process.env.CLOUDBASE_SECRET_ID;
+  const secretKey = process.env.CLOUDBASE_SECRET_KEY;
+  const envId = process.env.CLOUDBASE_ENV_ID;
+
+  if (!secretId || !secretKey || !envId) {
+    console.log('[CloudBase] Credentials not fully configured. Running in offline/localStorage mode.');
+    return null;
+  }
+
+  try {
+    const cloudbaseObj = tcb.init ? tcb : (tcb as any).default || tcb;
+    cloudbaseApp = cloudbaseObj.init({
+      secretId,
+      secretKey,
+      env: envId,
+    });
+    cloudbaseDb = cloudbaseApp.database();
+    console.log(`[CloudBase] Successfully initialized database connection for Env: ${envId}`);
+    return cloudbaseDb;
+  } catch (err: any) {
+    console.error('[CloudBase] Initialization error:', err.message);
+    return null;
+  }
+}
+
+// Endpoint to check database connection status
+app.get('/api/db/status', (req, res) => {
+  const db = getCloudBaseDb();
+  res.json({
+    configured: db !== null,
+    envId: process.env.CLOUDBASE_ENV_ID || null,
+  });
+});
+
+// Endpoint to load child assessment records
+app.get('/api/db/load', async (req, res) => {
+  try {
+    const { deviceId } = req.query;
+    if (!deviceId || typeof deviceId !== 'string') {
+      res.status(400).json({ error: 'Missing deviceId parameter.' });
+      return;
+    }
+
+    const db = getCloudBaseDb();
+    if (!db) {
+      res.json({ source: 'unconfigured' });
+      return;
+    }
+
+    // Read from sxk_user_data collection in Tencent CloudBase
+    const result = await db.collection('sxk_user_data').where({ deviceId }).get();
+    
+    if (result && result.data && result.data.length > 0) {
+      const data = result.data[0];
+      res.json({
+        source: 'cloud',
+        child: data.child || null,
+        completedScores: data.completedScores || [],
+        orders: data.orders || [],
+        reportHistory: data.reportHistory || []
+      });
+    } else {
+      res.json({
+        source: 'cloud',
+        child: null,
+        completedScores: [],
+        orders: [],
+        reportHistory: []
+      });
+    }
+  } catch (err: any) {
+    console.error('[CloudBase Load Error]:', err.message);
+    res.status(500).json({ error: `CloudBase load failed: ${err.message}` });
+  }
+});
+
+// Endpoint to save child assessment records
+app.post('/api/db/save', async (req, res) => {
+  try {
+    const { deviceId, child, completedScores, orders, reportHistory } = req.body;
+    if (!deviceId) {
+      res.status(400).json({ error: 'Missing deviceId in body.' });
+      return;
+    }
+
+    const db = getCloudBaseDb();
+    if (!db) {
+      res.status(503).json({ error: 'Tencent CloudBase database is not configured on this server.' });
+      return;
+    }
+
+    // Check if device data already exists
+    const checkResult = await db.collection('sxk_user_data').where({ deviceId }).get();
+    const hasExisting = checkResult && checkResult.data && checkResult.data.length > 0;
+
+    const recordPayload = {
+      deviceId,
+      child,
+      completedScores,
+      orders,
+      reportHistory,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (hasExisting) {
+      const docId = checkResult.data[0]._id;
+      await db.collection('sxk_user_data').doc(docId).set(recordPayload);
+      console.log(`[CloudBase] Successfully updated data for device ${deviceId}`);
+    } else {
+      await db.collection('sxk_user_data').add(recordPayload);
+      console.log(`[CloudBase] Successfully created new record for device ${deviceId}`);
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[CloudBase Save Error]:', err.message);
+    res.status(500).json({ error: `CloudBase save failed: ${err.message}` });
   }
 });
 

@@ -274,6 +274,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [isPlayingModel, setIsPlayingModel] = useState(false);
+  const [isPlayingRecord, setIsPlayingRecord] = useState(false);
 
   // AI loading and output
   const [isLoading, setIsLoading] = useState(false);
@@ -303,6 +304,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sigCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -402,7 +404,33 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
   const handleSelectQuestion = (idx: number) => {
     setCurrentIdx(idx);
     setUploadStatus(null);
+    
+    // Stop playing recorded audio if any
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    setIsPlayingRecord(false);
+    
+    // Cancel any standard TTS speech
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsPlayingModel(false);
   };
+
+  // Clean up speech synthesis and audio player on unmount
+  useEffect(() => {
+    return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Auto record simulated inputs for ALL 10 questions to speed up testing
   const handleAutoFillAllQuestions = () => {
@@ -597,10 +625,110 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
   // Play model prompt
   const handlePlayModel = () => {
-    setIsPlayingModel(true);
-    setTimeout(() => {
+    if (isPlayingModel) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       setIsPlayingModel(false);
-    }, 1500);
+      return;
+    }
+
+    // Stop recording playback if playing
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    setIsPlayingRecord(false);
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(currentQ.prompt);
+      utterance.lang = 'zh-CN';
+      utterance.pitch = 1.0;
+      utterance.rate = 0.85; // Slightly slower, clean demonstration rate
+      
+      utterance.onstart = () => setIsPlayingModel(true);
+      utterance.onend = () => setIsPlayingModel(false);
+      utterance.onerror = () => setIsPlayingModel(false);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setIsPlayingModel(true);
+      setTimeout(() => {
+        setIsPlayingModel(false);
+      }, 1500);
+    }
+  };
+
+  // Play the user's recorded or uploaded audio
+  const handlePlayRecord = () => {
+    if (!currentQState || !currentQState.audioUrl) return;
+
+    if (isPlayingRecord) {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setIsPlayingRecord(false);
+      return;
+    }
+
+    // Stop standard model playback if playing
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsPlayingModel(false);
+
+    const isMockUrl = !currentQState.audioUrl.startsWith('blob:') && 
+                      !currentQState.audioUrl.startsWith('http') && 
+                      !currentQState.audioUrl.startsWith('data:');
+
+    if (!isMockUrl) {
+      // Real audio URL playback
+      const audio = new Audio(currentQState.audioUrl);
+      audioPlayerRef.current = audio;
+      setIsPlayingRecord(true);
+      
+      audio.play().catch(err => {
+        console.warn('Real audio playback failed, falling back to synthesis:', err);
+        // Fallback to high pitch synthesis if audio fails to load
+        playSynthesisChildVoice();
+      });
+      
+      audio.onended = () => {
+        setIsPlayingRecord(false);
+        audioPlayerRef.current = null;
+      };
+      audio.onerror = () => {
+        setIsPlayingRecord(false);
+        audioPlayerRef.current = null;
+      };
+    } else {
+      // Mock/simulated voice playback using high pitch speech synthesis (simulates child voice)
+      playSynthesisChildVoice();
+    }
+  };
+
+  const playSynthesisChildVoice = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(currentQState.transcript || currentQ.prompt);
+      utterance.lang = 'zh-CN';
+      utterance.pitch = 1.6; // High child pitch
+      utterance.rate = 0.8;  // Slower, child speech rate
+      
+      utterance.onstart = () => setIsPlayingRecord(true);
+      utterance.onend = () => setIsPlayingRecord(false);
+      utterance.onerror = () => setIsPlayingRecord(false);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setIsPlayingRecord(true);
+      setTimeout(() => {
+        setIsPlayingRecord(false);
+      }, 1500);
+    }
   };
 
   // Draw signature event helpers
@@ -939,9 +1067,24 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     {isRecording ? `录制中 (00:0${recordingSeconds}s)... 点击停止` : '点击麦克风开启录音，或上传该题音频文件'}
                   </span>
                   {currentQState.recorded && (
-                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-brand-sage/30 border border-brand-moss/40 text-[9px] font-bold text-brand-forest rounded">
-                      <Check size={10} strokeWidth={3} /> 音频已成功匹配此题
-                    </span>
+                    <div className="mt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-sage/30 border border-brand-moss/40 text-[9px] font-bold text-brand-forest rounded">
+                        <Check size={10} strokeWidth={3} /> 音频已成功匹配此题
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handlePlayRecord}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition active:scale-95 shadow-sm border ${
+                          isPlayingRecord
+                            ? 'bg-amber-500 text-white border-amber-500 animate-pulse'
+                            : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300'
+                        }`}
+                        title="播放录音回放"
+                      >
+                        {isPlayingRecord ? <Pause size={10} /> : <Volume2 size={10} />}
+                        {isPlayingRecord ? '正在播放回放...' : '听录音回放'}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

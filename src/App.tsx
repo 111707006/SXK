@@ -52,36 +52,166 @@ export default function App() {
   // Profile editing modal open/close
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
-  // Load from local storage on mount
+  const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
+  const [dbEnvId, setDbEnvId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  // Helper to get or create device ID
+  const getOrCreateDeviceId = (): string => {
+    let id = localStorage.getItem('senxinkang_device_id');
+    if (!id) {
+      id = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      localStorage.setItem('senxinkang_device_id', id);
+    }
+    return id;
+  };
+
+  // Helper to sync state to cloud
+  const syncToCloud = async (
+    currentChild: Child | null,
+    currentScores: DimensionScore[],
+    currentOrders: Order[],
+    currentHistory: AssessmentRecord[]
+  ) => {
+    // Only attempt save if cloudbase is configured
+    if (dbConfigured === false) return;
+    
+    const deviceId = getOrCreateDeviceId();
+    try {
+      setSyncing(true);
+      const resp = await fetch('/api/db/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          deviceId,
+          child: currentChild,
+          completedScores: currentScores,
+          orders: currentOrders,
+          reportHistory: currentHistory
+        })
+      });
+      if (!resp.ok) {
+        throw new Error(`Sync failed with status ${resp.status}`);
+      }
+      const data = await resp.json();
+      if (data.success) {
+        setSyncError(null);
+      }
+    } catch (err: any) {
+      console.warn('Tencent CloudBase Sync Error:', err.message);
+      setSyncError(err.message || '网络连接异常');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Load from local storage and sync with Tencent CloudBase on mount
   useEffect(() => {
+    let localChild: Child | null = null;
+    let localScores: DimensionScore[] = [];
+    let localOrders: Order[] = [];
+    let localHistory: AssessmentRecord[] = [];
+
+    // 1. Initial hydration from localStorage (instant rendering)
     try {
       const storedChild = localStorage.getItem('senxinkang_child');
-      if (storedChild) setChild(JSON.parse(storedChild));
+      if (storedChild) {
+        localChild = JSON.parse(storedChild);
+        setChild(localChild);
+      }
 
       const storedScores = localStorage.getItem('senxinkang_scores');
-      if (storedScores) setCompletedScores(JSON.parse(storedScores));
+      if (storedScores) {
+        localScores = JSON.parse(storedScores);
+        setCompletedScores(localScores);
+      }
 
       const storedOrders = localStorage.getItem('senxinkang_orders');
-      if (storedOrders) setOrders(JSON.parse(storedOrders));
+      if (storedOrders) {
+        localOrders = JSON.parse(storedOrders);
+        setOrders(localOrders);
+      }
 
       const storedHistory = localStorage.getItem('senxinkang_history');
-      if (storedHistory) setReportHistory(JSON.parse(storedHistory));
+      if (storedHistory) {
+        localHistory = JSON.parse(storedHistory);
+        setReportHistory(localHistory);
+      }
     } catch (e) {
       console.error('Error hydrating state from localStorage:', e);
     }
+
+    // 2. Fetch connection status & sync with Tencent CloudBase
+    const initCloudSync = async () => {
+      try {
+        const statusResp = await fetch('/api/db/status');
+        if (!statusResp.ok) return;
+        const statusData = await statusResp.json();
+        
+        setDbConfigured(statusData.configured);
+        setDbEnvId(statusData.envId);
+
+        if (statusData.configured) {
+          const deviceId = getOrCreateDeviceId();
+          const loadResp = await fetch(`/api/db/load?deviceId=${deviceId}`);
+          if (!loadResp.ok) return;
+          const loadData = await loadResp.json();
+
+          if (loadData.source === 'cloud') {
+            if (loadData.child || loadData.completedScores?.length > 0) {
+              // Cloud has data: sync to client and localStorage
+              setChild(loadData.child);
+              setCompletedScores(loadData.completedScores || []);
+              setOrders(loadData.orders || []);
+              setReportHistory(loadData.reportHistory || []);
+
+              if (loadData.child) localStorage.setItem('senxinkang_child', JSON.stringify(loadData.child));
+              localStorage.setItem('senxinkang_scores', JSON.stringify(loadData.completedScores || []));
+              localStorage.setItem('senxinkang_orders', JSON.stringify(loadData.orders || []));
+              localStorage.setItem('senxinkang_history', JSON.stringify(loadData.reportHistory || []));
+            } else if (localChild || localScores.length > 0) {
+              // Cloud is empty but client has local data: sync local data up to cloud
+              setSyncing(true);
+              await fetch('/api/db/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  deviceId,
+                  child: localChild,
+                  completedScores: localScores,
+                  orders: localOrders,
+                  reportHistory: localHistory
+                })
+              });
+              setSyncing(false);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to synchronize with cloud database on load:', err);
+        setSyncing(false);
+      }
+    };
+
+    initCloudSync();
   }, []);
 
-  // Save states to local storage
+  // Save states to local storage and sync to Tencent CloudBase
   const handleSaveChild = (newChild: Child) => {
     setChild(newChild);
     localStorage.setItem('senxinkang_child', JSON.stringify(newChild));
     setCurrentView('t1_screening'); // Auto onboarding to T1 screening!
+    syncToCloud(newChild, completedScores, orders, reportHistory);
   };
 
   const handleUpdateChild = (updatedChild: Child) => {
     setChild(updatedChild);
     localStorage.setItem('senxinkang_child', JSON.stringify(updatedChild));
     setIsEditingProfile(false);
+    syncToCloud(updatedChild, completedScores, orders, reportHistory);
   };
 
   const handleClearProfile = () => {
@@ -95,6 +225,23 @@ export default function App() {
       localStorage.removeItem('senxinkang_orders');
       localStorage.removeItem('senxinkang_history');
       setCurrentView('dashboard');
+      syncToCloud(null, [], [], []);
+    }
+  };
+
+  const handleLogout = () => {
+    if (confirm('确认登出当前少儿档案并返回登记首页吗？您的数据安全保存在云端。')) {
+      setChild(null);
+      setCompletedScores([]);
+      setOrders([]);
+      setReportHistory([]);
+      localStorage.removeItem('senxinkang_child');
+      localStorage.removeItem('senxinkang_scores');
+      localStorage.removeItem('senxinkang_orders');
+      localStorage.removeItem('senxinkang_history');
+      localStorage.removeItem('senxinkang_device_id');
+      setCurrentView('dashboard');
+      setIsCustomerDropdownOpen(false);
     }
   };
 
@@ -108,12 +255,13 @@ export default function App() {
     setCompletedScores(finalScores);
     localStorage.setItem('senxinkang_scores', JSON.stringify(finalScores));
     
+    let updatedHistory = reportHistory;
     if (result.tierId === 'T3' && shouldGoBack && child) {
       // Generate specialized clinical diagnostic report for this dimension!
       const newRecord = generateSpecializedReportRecord(child, finalScores, result.dimensionId, result);
       
       // Save report to history
-      const updatedHistory = [...reportHistory.filter(r => r.id !== newRecord.id), newRecord];
+      updatedHistory = [...reportHistory.filter(r => r.id !== newRecord.id), newRecord];
       setReportHistory(updatedHistory);
       localStorage.setItem('senxinkang_history', JSON.stringify(updatedHistory));
 
@@ -126,12 +274,14 @@ export default function App() {
       setCurrentView('dashboard');
       setSelectedDimensionId(null);
     }
+    syncToCloud(child, finalScores, orders, updatedHistory);
   };
 
   const handlePlaceOrder = (newOrder: Order) => {
     const updatedOrders = [...orders, newOrder];
     setOrders(updatedOrders);
     localStorage.setItem('senxinkang_orders', JSON.stringify(updatedOrders));
+    syncToCloud(child, completedScores, updatedOrders, reportHistory);
   };
 
   const handleUpdateOrderStatus = (updatedOrder: Order) => {
@@ -141,6 +291,7 @@ export default function App() {
       updatedList[index] = updatedOrder;
       setOrders(updatedList);
       localStorage.setItem('senxinkang_orders', JSON.stringify(updatedList));
+      syncToCloud(child, completedScores, updatedList, reportHistory);
     }
   };
 
@@ -148,6 +299,7 @@ export default function App() {
     const updatedHistory = [...reportHistory.filter(r => r.id !== record.id), record];
     setReportHistory(updatedHistory);
     localStorage.setItem('senxinkang_history', JSON.stringify(updatedHistory));
+    syncToCloud(child, completedScores, orders, updatedHistory);
   };
 
   // Find active dimension config
@@ -164,8 +316,24 @@ export default function App() {
               <span>森</span>
             </div>
             <div className="text-left">
-              <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">森心康儿童发展评估平台</h1>
-              <div className="text-[10px] text-brand-charcoal/60 font-medium">9维3层脑功能神经网络评估 · 数字化物理辅助 OT/PT 体系</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">森心康儿童发展评估平台</h1>
+                {dbConfigured !== null && (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider ${
+                    dbConfigured 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${dbConfigured ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                    {dbConfigured ? '腾讯云数据库已连线' : '本地单机模式'}
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-brand-charcoal/60 font-medium flex items-center gap-1.5 mt-0.5">
+                <span>9维3层脑功能神经网络评估 · 数字化物理辅助 OT/PT 体系</span>
+                {syncing && <span className="text-brand-moss animate-spin text-[11px]" title="正在云端保存中...">⏳</span>}
+                {syncError && <span className="text-red-500 text-[9px] font-bold" title={syncError}>⚠️ 同步失败</span>}
+              </div>
             </div>
           </div>
 
@@ -395,6 +563,66 @@ export default function App() {
                             ))}
                           </div>
                         )}
+                      </div>
+
+                      {/* 4. Tencent CloudBase Database Sync Status & Guide */}
+                      <div className="pt-3.5 pb-1 space-y-2.5">
+                        <div className="flex items-center justify-between text-brand-forest">
+                          <h4 className="font-extrabold flex items-center gap-1.5">
+                            <Activity size={13} className="text-brand-moss" />
+                            腾讯云云开发 (CloudBase)
+                          </h4>
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                            dbConfigured ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {dbConfigured ? '云端已同步' : '本地暂存模式'}
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-brand-stone/40 space-y-1.5 text-[10px] leading-relaxed">
+                          <div className="flex justify-between font-bold text-brand-charcoal/80">
+                            <span>设备同步标识 (DeviceId)</span>
+                          </div>
+                          <div className="font-mono bg-white p-1 rounded border border-brand-stone/30 text-[9px] text-brand-charcoal select-all truncate">
+                            {getOrCreateDeviceId()}
+                          </div>
+
+                          {dbConfigured ? (
+                            <p className="text-[9px] text-emerald-700 font-medium">
+                              平台已成功与腾讯云开发连线。所有少儿档案、筛查进度和商城订单将在您的私有环境 (环境ID: <span className="font-mono bg-emerald-100/50 px-1 rounded">{dbEnvId}</span>) 内进行持久化云端存储。
+                            </p>
+                          ) : (
+                            <div className="space-y-1 text-[9px] text-brand-charcoal/60">
+                              <p className="text-amber-700 font-bold">
+                                💡 如何启动私有云端持久化存储？
+                              </p>
+                              <p>
+                                1. 请在您的平台 Secrets 设置中配置以下环境变量：
+                              </p>
+                              <p className="font-mono bg-white p-1 rounded border border-brand-stone/20 text-brand-charcoal/80 font-semibold space-y-0.5">
+                                • CLOUDBASE_SECRET_ID<br/>
+                                • CLOUDBASE_SECRET_KEY<br/>
+                                • CLOUDBASE_ENV_ID
+                              </p>
+                              <p>
+                                2. 在腾讯云云开发控制台，为您选择的环境手动建立名为 <span className="font-mono bg-amber-50 text-amber-900 px-1 py-0.5 rounded border border-amber-200">sxk_user_data</span> 的数据库集合。
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 5. Logout Profile Button */}
+                      <div className="pt-3.5 pb-0.5">
+                        <button
+                          type="button"
+                          id="logout-profile-btn"
+                          onClick={handleLogout}
+                          className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition duration-200 active:scale-[0.98] shadow-sm cursor-pointer"
+                        >
+                          <LogOut size={13} className="shrink-0 text-rose-600" />
+                          <span>登出并返回首页</span>
+                        </button>
                       </div>
 
                     </div>

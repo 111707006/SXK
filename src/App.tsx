@@ -565,53 +565,6 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* 4. Tencent CloudBase Database Sync Status & Guide */}
-                      <div className="pt-3.5 pb-1 space-y-2.5">
-                        <div className="flex items-center justify-between text-brand-forest">
-                          <h4 className="font-extrabold flex items-center gap-1.5">
-                            <Activity size={13} className="text-brand-moss" />
-                            腾讯云云开发 (CloudBase)
-                          </h4>
-                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
-                            dbConfigured ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {dbConfigured ? '云端已同步' : '本地暂存模式'}
-                          </span>
-                        </div>
-
-                        <div className="bg-slate-50 p-2.5 rounded-xl border border-brand-stone/40 space-y-1.5 text-[10px] leading-relaxed">
-                          <div className="flex justify-between font-bold text-brand-charcoal/80">
-                            <span>设备同步标识 (DeviceId)</span>
-                          </div>
-                          <div className="font-mono bg-white p-1 rounded border border-brand-stone/30 text-[9px] text-brand-charcoal select-all truncate">
-                            {getOrCreateDeviceId()}
-                          </div>
-
-                          {dbConfigured ? (
-                            <p className="text-[9px] text-emerald-700 font-medium">
-                              平台已成功与腾讯云开发连线。所有少儿档案、筛查进度和商城订单将在您的私有环境 (环境ID: <span className="font-mono bg-emerald-100/50 px-1 rounded">{dbEnvId}</span>) 内进行持久化云端存储。
-                            </p>
-                          ) : (
-                            <div className="space-y-1 text-[9px] text-brand-charcoal/60">
-                              <p className="text-amber-700 font-bold">
-                                💡 如何启动私有云端持久化存储？
-                              </p>
-                              <p>
-                                1. 请在您的平台 Secrets 设置中配置以下环境变量：
-                              </p>
-                              <p className="font-mono bg-white p-1 rounded border border-brand-stone/20 text-brand-charcoal/80 font-semibold space-y-0.5">
-                                • CLOUDBASE_SECRET_ID<br/>
-                                • CLOUDBASE_SECRET_KEY<br/>
-                                • CLOUDBASE_ENV_ID
-                              </p>
-                              <p>
-                                2. 在腾讯云云开发控制台，为您选择的环境手动建立名为 <span className="font-mono bg-amber-50 text-amber-900 px-1 py-0.5 rounded border border-amber-200">sxk_user_data</span> 的数据库集合。
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
                       {/* 5. Logout Profile Button */}
                       <div className="pt-3.5 pb-0.5">
                         <button

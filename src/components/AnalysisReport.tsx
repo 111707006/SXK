@@ -111,6 +111,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         throw new Error('网络应答异常，请重试');
       }
 
+      const ct = response.headers.get('content-type');
+      if (!ct || !ct.includes('application/json')) {
+        throw new Error('服务器响应格式不正确，未能生成AI评估报告');
+      }
+
       const data = await response.json();
       if (data.error) {
         throw new Error(data.error);

@@ -57,6 +57,7 @@ function getGeminiClient(): GoogleGenAI {
 const DASHSCOPE_COMPAT_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
 const QWEN_REPORT_MODEL = process.env.QWEN_REPORT_MODEL || 'qwen3.7-max';
 const QWEN_ASR_MODEL = process.env.QWEN_ASR_MODEL || 'qwen3-asr-flash';
+const QWEN_VL_MODEL = process.env.QWEN_VL_MODEL || 'qwen3-vl-plus';
 
 function getDashScopeKey(): string | null {
   const key = process.env.DASHSCOPE_API_KEY || process.env.ALI_LLM_API_KEY;
@@ -121,6 +122,35 @@ async function generateReportJSON(systemInstruction: string, prompt: string): Pr
       return { report: await callQwenJSON(QWEN_REPORT_MODEL, systemInstruction, prompt), aiEngine: QWEN_REPORT_MODEL };
     }
   }
+}
+
+// Vision call: send an ordered list of base64 JPEG frames + a prompt to qwen3-vl,
+// treating the frames as a sampled video sequence. Returns parsed JSON.
+async function callQwenVision(frames: string[], prompt: string): Promise<any> {
+  const key = getDashScopeKey();
+  if (!key) throw new Error('DASHSCOPE_API_KEY is not configured.');
+
+  const content: any[] = [{ type: 'text', text: prompt }];
+  frames.forEach(f => content.push({ type: 'image_url', image_url: { url: f } }));
+
+  const resp = await postDashScope(key, {
+    model: QWEN_VL_MODEL,
+    messages: [{ role: 'user', content }]
+  });
+
+  if (resp.status < 200 || resp.status >= 300) {
+    const errText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+    throw new Error(`Qwen VL request failed (${resp.status}): ${errText.slice(0, 300)}`);
+  }
+
+  const raw = resp.data;
+  const msg = raw.choices?.[0]?.message?.content;
+  const text = typeof msg === 'string'
+    ? msg
+    : Array.isArray(msg) ? msg.map((c: any) => c.text || '').join('') : '';
+  if (!text) throw new Error('Qwen VL returned empty content.');
+  const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+  return JSON.parse(cleaned);
 }
 
 // Fallback high-fidelity simulation engine when API key is missing
@@ -462,6 +492,65 @@ app.post('/api/specialized-report', async (req: express.Request, res: express.Re
     }
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Unknown specialized report error.' });
+  }
+});
+
+// API endpoint for CPMV-20 motion item scoring from sampled video frames (qwen3-vl)
+app.post('/api/motion-eval', async (req: express.Request, res: express.Response) => {
+  try {
+    const { frames, item, child } = req.body;
+    if (!Array.isArray(frames) || frames.length === 0 || !item || !item.name) {
+      res.status(400).json({ error: 'Missing frames or item definition.' });
+      return;
+    }
+
+    const key = getDashScopeKey();
+    if (!key) {
+      // No key → let the frontend keep the item for manual scoring
+      res.json({ score: null, isAiGenerated: false });
+      return;
+    }
+
+    const ageInfo = child ? `受评儿童约 ${child.ageMonth} 个月（${child.gender === 'boy' ? '男' : '女'}）。` : '';
+    const prompt = `你是一位资深小儿脑瘫康复评估治疗师，正在依据「脑瘫儿童动作影像筛查(CPMV-20)」量表，判读一段动作视频抽取的连续帧序列（按时间先后排列）。${ageInfo}
+
+评估项目：${item.name}
+指令要求：${item.cmd || ''}
+临床观察要点：${item.watch}
+量化观察指标：${item.ai}
+
+评分锚点：
+- 2 分（完成良好）：${item.s2}
+- 1 分（可完成但质量异常）：${item.s1}
+- 0 分（无法完成）：${item.s0}
+
+请仔细观察这些帧中孩子的动作质量，严格对照上面的评分锚点，客观判读该项得分。若画面不足以判断，score 用 null。
+你必须只返回以下 JSON（不要任何额外文字或\`\`\`标记）：
+{
+  "score": 0或1或2或null,
+  "observation": "结合观察要点，用 60-120 字客观描述你在画面中看到的动作表现与评分理由",
+  "flags": ["从以下键中选出观察到的异常，没有则空数组：tremor(震颤/抖动), assoc(联合动作/镜像), comp(代偿动作), worseL(左侧较差), worseR(右侧较差)"]
+}`;
+
+    try {
+      const result = await callQwenVision(frames, prompt);
+      const validScore = result.score === 0 || result.score === 1 || result.score === 2 ? result.score : null;
+      const validFlags = Array.isArray(result.flags)
+        ? result.flags.filter((f: any) => ['tremor', 'assoc', 'comp', 'worseL', 'worseR'].includes(f))
+        : [];
+      res.json({
+        score: validScore,
+        observation: typeof result.observation === 'string' ? result.observation : '',
+        flags: validFlags,
+        isAiGenerated: true,
+        model: QWEN_VL_MODEL
+      });
+    } catch (aiErr: any) {
+      console.warn('Motion-eval VL analysis failed, frontend will keep manual scoring:', aiErr.message);
+      res.json({ score: null, isAiGenerated: false });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Unknown motion evaluation error.' });
   }
 });
 

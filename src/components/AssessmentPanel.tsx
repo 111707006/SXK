@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DimensionConfig, Question, DimensionScore, Child, AssessmentRecord } from '../types';
 import { transcribeWithQwenASR } from '../utils/asr';
+import MotionVideoAssessment from './MotionVideoAssessment';
 import { 
   ArrowLeft, Clock, Save, Info, AlertTriangle, CheckCircle2,
   Mic, Square, Play, Pause, Upload, FileAudio, FileVideo, 
@@ -786,6 +787,15 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
             </button>
           </div>
         </div>
+      ) : dimension.id === 'gross_motor' ? (
+        /* ============ T3 VIEW · CPMV-20 动作影像判读 (gross_motor) ============ */
+        <MotionVideoAssessment
+          child={child}
+          existingScores={existingScores}
+          dimensionId={dimension.id}
+          dimensionName={dimension.name}
+          onSaveResult={onSaveResult}
+        />
       ) : (
         /* ======================== T3 VIEW ======================== */
         <div className="space-y-6">

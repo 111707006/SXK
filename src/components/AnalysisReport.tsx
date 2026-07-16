@@ -4,7 +4,8 @@ import { formatAge } from '../utils/dateUtils';
 import { 
   ArrowLeft, Brain, Sparkles, CheckCircle2, AlertTriangle, AlertCircle, 
   RefreshCw, Layers, ShieldAlert, Award, Compass, HeartHandshake, Printer,
-  Activity, MessageSquare, Smile, BookOpen, Target, Home, Heart, Calendar, User, Phone, Check, Info
+  Activity, MessageSquare, Smile, BookOpen, Target, Home, Heart, Calendar, User, Phone, Check, Info,
+  ClipboardCheck, ArrowRight
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
 import { 
@@ -40,6 +41,58 @@ const SPECIALISTS = [
     slots: ['周三上午', '周五上午', '周日上午']
   }
 ];
+
+const DOMAIN_DETAILS: Record<string, {
+  ability: string;
+  familyAdvice: string;
+  scales: string[];
+}> = {
+  gross_motor: {
+    ability: "指大肌肉群参与的运动能力，包括身体平衡、姿势控制、双侧肢体协调、跳跃及上下楼梯等。它是儿童探索世界、进行复杂身体活动的基石。",
+    familyAdvice: "每日安排至少 30 分钟大肢体活动。在安全床垫上练习侧翻滚或爬行；使用充气软墩设计小障碍跨越路线，牵着孩子单手练习单脚跳。",
+    scales: ["感觉统合-动作发展评估（线上）", "粗大动作里程碑核对（发展筛查量表）", "GMFM-66 （明显粗大动作困难时）", "物理治疗 PT", "作业治疗 OT"]
+  },
+  fine_motor: {
+    ability: "指对外界物理感觉刺激（光线、声音、材质）的调节、对身体动作的精细微调以及手眼协调操作，包括拿筷捏粒、折纸剪线等双手小肌肉协调运动。",
+    familyAdvice: "多给孩子捏橡皮泥、穿引鞋带或穿彩珠，练习手指精细对捏。洗澡时鼓励使用不同触觉材质的玩具，在玩耍中逐步降低防卫性敏感。",
+    scales: ["WeeFIM 精细操作指数", "儿童感觉统合发展评定量表", "感觉防卫性专科筛查", "作业治疗 OT"]
+  },
+  sensory: {
+    ability: "在遭遇挫折、面对抚养人离别或起居环境变迁时的自我情绪适应与平复能力，以及日常生活作息节律的稳定性和配合表现。",
+    familyAdvice: "建立固定的作息时间表。当孩子发脾气时，家长保持平稳，通过深呼吸或抱枕安抚；使用情绪色卡引导孩子口头表达“我现在有些生气”。",
+    scales: ["CBCL 儿童行为量表", "Achenbach 情绪稳健度筛查", "ADHD 多动缺陷心理筛查", "心理沙盘与行为矫正"]
+  },
+  language: {
+    ability: "口语词汇理解、长短句表达、人称代词辨别使用、多步骤口头指令执行以及语序逻辑的清晰度。这涉及 Broca 区及 Wernicke 区的突触偶联。",
+    familyAdvice: "跟孩子对话时，放慢语速并伴随清晰的面部口型。多让孩子表达生理需求，而不是拉着父母手去指；鼓励其参与两步骤日常家务指令。",
+    scales: ["CELF-5 临床语言功能评估（中文版）", "CRRC 语言发育迟缓检查法", "儿童构音障碍专项评估", "言语治疗 ST"]
+  },
+  social_emotional: {
+    ability: "共同关注能力（视线随人手指点）、名字呼唤响应、同伴合作嬉戏意愿、分享展示玩具及眼神持续接触等社会交往特质。",
+    familyAdvice: "呼唤孩子名字并保持 3 秒以上自然眼神对视，给予赞许。开展多来回的乒乓社交游戏（如互相推接皮球），训练眼神与肢体呼应。",
+    scales: ["ADOS-2 自闭症诊断观察量表", "M-CHAT-R 婴幼儿孤独症筛查", "SRS-2 社交反应量表", "社交融合互动课（SCERTS）"]
+  },
+  cognitive: {
+    ability: "指对事物的逻辑辨别、形状分类、大小对比、瞬时记忆以及类比逻辑推理能力。它直接反映了大脑皮层高级功能区突触网络的可塑性。",
+    familyAdvice: "在桌前引导孩子玩“长方配孔、异色分类”形状配对玩具。可利用 3 个不透明杯子，当面移动藏物让孩子追踪寻找，锻炼工作记忆。",
+    scales: ["Bayley-4 贝利婴幼儿发展量表", "Griffiths 葛斐氏发育评估", "WISC-V 韦氏儿童智力量表", "认知专项评估与训练指导"]
+  },
+  attention: {
+    ability: "大脑前额叶皮层对无关干扰因子的抑制、动作执行规划、自我冲动抑制以及在活动中保持稳定注意力的心智调控能力。",
+    familyAdvice: "在静音室内进行绘本阅读，减少视觉环境杂乱。进行“指令听哨对射”游戏：听到一声哨音前移，听到两声哨音静坐，训练反应抑制。",
+    scales: ["SNAP-IV 评定量表（家长及教师版）", "Conners 儿童行为问卷", "CPT 持续性注意力测验", "注意力集中特训方案"]
+  },
+  self_care: {
+    ability: "日常生活活动（ADL）的独立性，包括独立用勺/筷进食、配合洗手刷牙、穿脱衣物鞋袜、拉松紧带如厕及马桶规范冲洗全流程。",
+    familyAdvice: "利用“穿衣扣合工作台”练习拉链与按扣。让孩子全程自主进食（允许少量洒出），并在上洗手间时由大人口型提示规范洗手闭环。",
+    scales: ["WeeFIM 儿童日常生活独立功能评定", "ADL 日常生活活动能力量表", "适应行为评定量表", "生活自理指导 OT"]
+  },
+  family_env: {
+    ability: "指对新知识、儿歌模仿、规则流程记忆和新游戏技巧的理解与学成效率。也受家庭环境中亲子伴读与赋能支持氛围的影响。",
+    familyAdvice: "睡前半小时开展“无手机”的高质量伴谈与共读，多鼓励孩子重述绘本中的简单场景，用描述性肯定语强化孩子的探索兴趣。",
+    scales: ["儿童学习适应性测验 (AAT)", "少儿多元智能诊断问卷", "阅读与读写障碍早期筛查", "家庭环境支持度评估 (HOME)"]
+  }
+};
 
 const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => {
   switch (name) {
@@ -86,6 +139,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [parentPhone, setParentPhone] = useState<string>('');
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'success'>('idle');
   const [activePill, setActivePill] = useState<string | null>(null);
+  const [showAllDomains, setShowAllDomains] = useState(false);
 
   const delayList = completedScores.filter(s => s.status === 'delay');
   const borderlineList = completedScores.filter(s => s.status === 'borderline');
@@ -109,6 +163,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
       if (!response.ok) {
         throw new Error('网络应答异常，请重试');
+      }
+
+      const ct = response.headers.get('content-type');
+      if (!ct || !ct.includes('application/json')) {
+        throw new Error('服务器响应格式不正确，未能生成AI评估报告');
       }
 
       const data = await response.json();
@@ -369,6 +428,322 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             <p className="text-xs text-brand-charcoal leading-relaxed font-semibold">
               {aiReport.summary}
             </p>
+          </div>
+
+          {/* SECTION 1: ALERT BANNER */}
+          {(() => {
+            const redNames = completedScores
+              .filter(s => (8 - s.score) >= 5)
+              .map(s => s.dimensionName);
+            const yellowNames = completedScores
+              .filter(s => (8 - s.score) >= 3 && (8 - s.score) <= 4)
+              .map(s => s.dimensionName);
+            
+            if (redNames.length === 0 && yellowNames.length === 0) {
+              return (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-3 text-xs font-semibold leading-relaxed">
+                  <CheckCircle2 className="text-emerald-600 shrink-0 mt-0.5" size={16} />
+                  <div>
+                    建议维持当前的常规筛查观察。本次筛查结果显示所有 9 项发育领域表现大致良好，神经系统联动与行为适应能力发育平衡，请配合日常亲子伴读及益智活动继续保持。
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="p-4 bg-rose-50 border border-rose-200 text-rose-950 rounded-2xl flex items-start gap-3 text-xs leading-relaxed font-medium">
+                <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={16} />
+                <div>
+                  <span className="font-bold text-rose-800">建议尽快进入第二层「量表评估中心」。</span>
+                  本次筛查在{' '}
+                  {redNames.length > 0 && (
+                    <>
+                      <span className="font-bold text-rose-600">{redNames.join('、')}</span>{' '}
+                      显示明显<span className="font-bold text-rose-600">需关注</span>
+                    </>
+                  )}
+                  {redNames.length > 0 && yellowNames.length > 0 && '，另有 '}
+                  {yellowNames.length > 0 && (
+                    <>
+                      <span className="font-bold text-amber-600">{yellowNames.join('、')}</span>{' '}
+                      <span className="font-bold text-amber-600">需留意</span>
+                    </>
+                  )}
+                  。
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* SECTION 2: 9宫格明细 */}
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
+                <Layers size={15} className="text-brand-moss" />
+                9 维度筛查结果明细
+              </h3>
+              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">条形图代表该领域的「关注分」（0-8分，分数越高越需关注）</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {DIMENSIONS_DATA.map((dim) => {
+                const score = completedScores.find(s => s.dimensionId === dim.id);
+                if (!score) return null;
+                const concernScore = 8 - score.score;
+                let statusBadge = "大致良好";
+                let badgeClass = "bg-emerald-50 border-emerald-200 text-emerald-700";
+                let fillClass = "bg-emerald-500";
+                let actionText = "继续观察";
+                let actionClass = "text-emerald-600";
+
+                if (concernScore >= 5) {
+                  statusBadge = "需关注";
+                  badgeClass = "bg-rose-50 border-rose-200 text-rose-700 font-bold";
+                  fillClass = "bg-rose-500";
+                  actionText = "第二层评估";
+                  actionClass = "text-rose-600 font-bold";
+                } else if (concernScore >= 3) {
+                  statusBadge = "需留意";
+                  badgeClass = "bg-amber-50 border-amber-200 text-amber-700 font-bold";
+                  fillClass = "bg-amber-500";
+                  actionText = "第二层评估";
+                  actionClass = "text-amber-600 font-bold";
+                }
+
+                return (
+                  <div key={dim.id} className="relative overflow-hidden bg-white border border-brand-stone/70 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                    <div className={`absolute top-0 left-0 right-0 h-1 ${concernScore >= 5 ? 'bg-rose-500' : concernScore >= 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-brand-forest">{dim.name}</span>
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full border ${badgeClass}`}>{statusBadge}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-brand-charcoal/70">
+                        <span>关注分: <strong className="font-extrabold">{concernScore}</strong> / 8</span>
+                        <span className={`text-[9px] ${actionClass}`}>{actionText} →</span>
+                      </div>
+
+                      <div className="w-full h-1.5 bg-brand-cream/50 rounded-full overflow-hidden border border-brand-stone/30">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${fillClass}`} 
+                          style={{ width: `${(concernScore / 8) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="flex justify-center gap-4 text-[9px] text-brand-charcoal/60 pt-1">
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> 大致良好 (继续观察)
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> 需留意 (进入第二层评估)
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> 需关注 (建议进入第二层评估)
+              </span>
+            </div>
+          </div>
+
+          {/* SECTION 3: 重点问题标注 KEY FINDINGS */}
+          {(() => {
+            const sortedScores = [...completedScores]
+              .map(s => {
+                const concernScore = 8 - s.score;
+                let severityLabel = "大致良好";
+                let severityColor = "bg-emerald-500 text-white";
+                let listBg = "hover:bg-emerald-50/20";
+                let severityVal = 1;
+
+                if (concernScore >= 6) {
+                  severityLabel = "需重点关注";
+                  severityColor = "bg-rose-600 text-white";
+                  listBg = "bg-rose-50/10 hover:bg-rose-50/20";
+                  severityVal = 4;
+                } else if (concernScore === 5) {
+                  severityLabel = "需关注";
+                  severityColor = "bg-amber-500 text-white";
+                  listBg = "bg-amber-50/10 hover:bg-amber-50/20";
+                  severityVal = 3;
+                } else if (concernScore >= 3) {
+                  severityLabel = "临界";
+                  severityColor = "bg-amber-400 text-brand-charcoal";
+                  listBg = "bg-yellow-50/10 hover:bg-yellow-50/20";
+                  severityVal = 2;
+                }
+
+                return {
+                  ...s,
+                  concernScore,
+                  severityLabel,
+                  severityColor,
+                  listBg,
+                  severityVal
+                };
+              })
+              .sort((a, b) => b.concernScore - a.concernScore || b.severityVal - a.severityVal);
+
+            const redCount = sortedScores.filter(s => s.concernScore >= 5).length;
+            const yellowCount = sortedScores.filter(s => s.concernScore >= 3 && s.concernScore <= 4).length;
+            const attentionCount = redCount + yellowCount;
+
+            const getRecText = (id: string, concern: number) => {
+              if (concern <= 2) return "发育正常，建议继续进行家庭常规观察与良性刺激。";
+              switch(id) {
+                case 'cognitive': return "建议进入第二层评估（心理/智力，如贝利或葛斐氏发育评估）";
+                case 'social_emotional': return "建议进入第二层评估（心理/社交行为，如 ADOS-2 或 M-CHAT-R 评估）";
+                case 'sensory': return "建议进入第二层评估（心理/行为情绪筛查，如 CBCL 或沙盘分析）";
+                case 'attention': return "建议进入第二层评估（心理/执行功能，如 SNAP-IV 评定或持续性注意力测验）";
+                case 'language': return "建议进入第二层评估（言语发育筛查 ST，如 CELF-5 评估）";
+                case 'fine_motor': return "建议留意并持续进行精细手眼协调与感觉处理游戏训练";
+                case 'gross_motor': return "建议留意并持续进行粗大动作抗阻与肢体平衡协调锻炼";
+                case 'family_env': return "建议留意并提供多元化的家庭赋能环境与高质量伴读刺激";
+                case 'self_care': return "建议留意并引导孩子自主练习个人洗漱及起居衣物穿戴自理";
+                default: return "建议留意并持续观察";
+              }
+            };
+
+            return (
+              <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">
+                <div className="border-b border-brand-cream pb-2.5">
+                  <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
+                    <ClipboardCheck size={15} className="text-brand-moss" />
+                    重点问题标注 Key Findings - 依严重程度排序
+                  </h3>
+                  <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
+                    共评测 9 项发育维度，检测到 <span className="font-bold text-rose-600">{attentionCount} 项</span> 需留意/关注领域（其中 <span className="font-bold text-rose-600">{redCount} 项</span> 需重点关注）
+                  </p>
+                </div>
+
+                <div className="divide-y divide-brand-cream/40">
+                  {sortedScores.map((item, idx) => (
+                    <div key={item.dimensionId} className={`flex items-center justify-between py-3 px-2 rounded-xl transition ${item.listBg}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-xs ${item.severityColor}`}>
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-brand-forest">{item.dimensionName}</span>
+                            <span className={`text-[9px] px-1.5 py-0.25 rounded font-extrabold ${
+                              item.concernScore >= 5 ? 'bg-rose-100 text-rose-700' :
+                              item.concernScore >= 3 ? 'bg-amber-100 text-amber-700' :
+                              'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {item.severityLabel}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-brand-charcoal/60 mt-0.5">
+                            {getRecText(item.dimensionId, item.concernScore)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="text-right shrink-0 pl-4">
+                        <span className="text-xs font-extrabold text-brand-forest">关注分 {item.concernScore}</span>
+                        <span className="text-[10px] text-brand-charcoal/40 block">/ 8</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* SECTION 4: 标记领域说明与第二层建议量表 */}
+          <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">
+            <div className="border-b border-brand-cream pb-2.5">
+              <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
+                <BookOpen size={15} className="text-brand-moss" />
+                标记领域说明与第二层建议量表
+              </h3>
+              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">针对有延迟风险的领域，提供深度评测指导及临床建议推荐量表</p>
+            </div>
+
+            <div className="space-y-4">
+              {(() => {
+                const filtered = DIMENSIONS_DATA.map(dim => {
+                  const s = completedScores.find(score => score.dimensionId === dim.id);
+                  const concernScore = s ? (8 - s.score) : 0;
+                  return { dim, s, concernScore };
+                });
+
+                const attentionItems = filtered.filter(item => item.concernScore >= 3);
+                const itemsToRender = showAllDomains || attentionItems.length === 0 ? filtered : attentionItems;
+
+                return (
+                  <>
+                    {itemsToRender.map(({ dim, s, concernScore }) => {
+                      const details = DOMAIN_DETAILS[dim.id];
+                      if (!details) return null;
+
+                      let statusLabel = "大致良好";
+                      let badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                      if (concernScore >= 5) {
+                        statusLabel = "需关注";
+                        badgeStyle = "bg-rose-50 text-rose-700 border-rose-200 font-bold";
+                      } else if (concernScore >= 3) {
+                        statusLabel = "需留意";
+                        badgeStyle = "bg-amber-50 text-amber-700 border-amber-200 font-bold";
+                      }
+
+                      return (
+                        <div key={dim.id} className="p-4 bg-brand-cream/5 border border-brand-stone/70 rounded-2xl space-y-3.5 shadow-sm hover:border-brand-moss/40 transition">
+                          <div className="flex items-center justify-between border-b border-brand-cream/40 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-sm text-brand-forest">{dim.name}</span>
+                              <span className={`text-[10px] px-2 py-0.5 rounded border ${badgeStyle}`}>{statusLabel}</span>
+                            </div>
+                            <span className="text-xs font-bold text-brand-forest/80">关注分: <strong className="text-brand-forest font-extrabold">{concernScore}</strong> / 8</span>
+                          </div>
+
+                          <div className="text-xs space-y-2.5">
+                            <div>
+                              <span className="font-bold text-brand-forest block text-[11px] mb-0.5">💡 这项能力:</span>
+                              <p className="text-brand-charcoal/80 leading-relaxed text-[11px]">{details.ability}</p>
+                            </div>
+                            <div>
+                              <span className="font-bold text-brand-forest block text-[11px] mb-0.5">🏡 家庭观察与居家干预建议:</span>
+                              <p className="text-brand-charcoal/80 leading-relaxed text-[11px]">{details.familyAdvice}</p>
+                            </div>
+                            <div>
+                              <span className="font-bold text-brand-moss block text-[11px] mb-1.5">📋 第二层（量表评估中心）建议量表与发展特训:</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {details.scales.map((scale, sIdx) => (
+                                  <span 
+                                    key={sIdx} 
+                                    className="px-2.5 py-1 bg-brand-sage/10 text-brand-forest border border-brand-moss/20 rounded-lg text-[10px] font-semibold flex items-center gap-1 hover:bg-brand-sage/20 transition cursor-default"
+                                  >
+                                    <span>{scale}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {attentionItems.length > 0 && (
+                      <div className="flex justify-center pt-2">
+                        <button
+                          onClick={() => setShowAllDomains(!showAllDomains)}
+                          className="px-5 py-2.5 bg-brand-forest text-white hover:bg-brand-forest/90 text-xs font-extrabold rounded-full shadow-md transition transform active:scale-95 cursor-pointer flex items-center gap-1.5"
+                        >
+                          {showAllDomains ? "收起展示" : `显示全部 9 项领域 (${filtered.length}项)`}
+                          <ArrowRight size={14} className={showAllDomains ? "rotate-270" : "rotate-90"} />
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
           </div>
 
           {/* New Visual Section 1: Overall Peer Development Level Comparison (Inspired by Attachment) */}

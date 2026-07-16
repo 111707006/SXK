@@ -40,6 +40,8 @@ async function transcribeWithQwenASR(audioBlob: Blob, contextPrompt: string): Pr
       body: JSON.stringify({ audioData: dataUrl, context: `儿童正在朗读："${contextPrompt}"` })
     });
     if (!resp.ok) return null;
+    const ct = resp.headers.get('content-type');
+    if (!ct || !ct.includes('application/json')) return null;
     const result = await resp.json();
     return result.text ? String(result.text) : null;
   } catch (err) {
@@ -827,6 +829,11 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
       if (!response.ok) {
         throw new Error('Alibaba Qwen deep language evaluation request failed.');
+      }
+
+      const ct = response.headers.get('content-type');
+      if (!ct || !ct.includes('application/json')) {
+        throw new Error('服务器响应格式不正确，未能完成语言智能评估。');
       }
 
       const result = await response.json();

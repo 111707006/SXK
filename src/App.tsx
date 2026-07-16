@@ -97,6 +97,10 @@ export default function App() {
       if (!resp.ok) {
         throw new Error(`Sync failed with status ${resp.status}`);
       }
+      const ct = resp.headers.get('content-type');
+      if (!ct || !ct.includes('application/json')) {
+        throw new Error('服务器响应格式不正确(期望JSON格式)');
+      }
       const data = await resp.json();
       if (data.success) {
         setSyncError(null);
@@ -150,6 +154,8 @@ export default function App() {
       try {
         const statusResp = await fetch('/api/db/status');
         if (!statusResp.ok) return;
+        const statusCt = statusResp.headers.get('content-type');
+        if (!statusCt || !statusCt.includes('application/json')) return;
         const statusData = await statusResp.json();
         
         setDbConfigured(statusData.configured);
@@ -161,6 +167,8 @@ export default function App() {
 
         const loadResp = await fetch(`/api/db/load?${queryParam}`);
         if (!loadResp.ok) return;
+        const loadCt = loadResp.headers.get('content-type');
+        if (!loadCt || !loadCt.includes('application/json')) return;
         const loadData = await loadResp.json();
 
         if (loadData.source === 'cloud' || loadData.source === 'local_server') {
@@ -257,6 +265,8 @@ export default function App() {
           orders,
           reportHistory
         })
+      }).catch(err => {
+        console.warn('Silent background save failed:', err);
       });
     } catch (e) {
       console.warn('Silent save failed:', e);

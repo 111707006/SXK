@@ -16,3 +16,8 @@ Thumbs.db
 
 # Local tooling
 .claude/
+
+# Preview files
+.preview
+.cozeproj/reduction
+.codegraph

@@ -4,14 +4,33 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import tcb from '@cloudbase/node-sdk';
 import axios from 'axios';
+import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
 dotenv.config();
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.DEPLOY_RUN_PORT || process.env.PORT) || 5000;
 
 // Raised limit so base64-encoded audio clips (<=10MB) can reach the ASR endpoint
 app.use(express.json({ limit: '15mb' }));
+
+// ── coze-coding-dev-sdk LLM client ──
+const llmConfig = new Config();
+const llmClient = new LLMClient(llmConfig);
+const LLM_REPORT_MODEL = 'doubao-seed-2-0-pro-260215';
+const LLM_QWEN_MODEL = 'qwen-3-5-plus-260215';
+
+async function callLLMJSON(systemPrompt: string, userPrompt: string, model: string = LLM_REPORT_MODEL): Promise<any> {
+  const response = await llmClient.invoke(
+    [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    { model, temperature: 0.7 }
+  );
+  const cleaned = response.content.replace(/```json/gi, '').replace(/```/g, '').trim();
+  return JSON.parse(cleaned);
+}
 
 // Initialize Gemini client lazily to avoid crashing on start if GEMINI_API_KEY is not defined yet
 let aiClient: GoogleGenAI | null = null;
@@ -273,74 +292,92 @@ ${scoresSummaryStr}
   }
 }`;
 
-    // Engine 1: Alibaba Qwen via DashScope (primary)
+    // Engine 1: Qwen 3.5 Plus via SDK (primary)
     try {
-      reportData = await callQwenJSON(QWEN_REPORT_MODEL, reportSystemInstruction, qwenPrompt);
+      reportData = await callLLMJSON(reportSystemInstruction, qwenPrompt, LLM_QWEN_MODEL);
       isAiGenerated = true;
-      aiEngine = QWEN_REPORT_MODEL;
-    } catch (qwenErr: any) {
-      console.warn(`Qwen (${QWEN_REPORT_MODEL}) report generation failed, trying Gemini:`, qwenErr.message);
+      aiEngine = LLM_QWEN_MODEL;
+    } catch (qwenSdkErr: any) {
+      console.warn(`Qwen SDK (${LLM_QWEN_MODEL}) report generation failed, trying Doubao:`, qwenSdkErr.message);
 
-      // Engine 2: Google Gemini (secondary)
+      // Engine 2: Doubao Seed via SDK (secondary)
       try {
-      const gClient = getGeminiClient();
-      const response = await gClient.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: basePrompt,
-        config: {
-          systemInstruction: 'You are a compassionate pediatric neuro-rehabilitation expert. You strictly return output as a single, valid JSON block exactly matching the instructed schema, with no markdown codeblocks, no front/end spacing, in Chinese language.',
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: {
-                type: Type.STRING,
-                description: '一句话总结该名受测少儿此时的核心脑成长特征，字数在60-120格内。'
-              },
-              neuralPathwayAnalysis: {
-                type: Type.STRING,
-                description: '深入剖析患儿当前的脑软硬件网络状态、感觉中枢协调性、前额皮层控制环等神经反射弧健康状态（100-250字）。'
-              },
-              rehabSuggestions: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: '输出具有极强指导力、适合由康复师或家长辅导的长效临床训练或物理康复训练方案建议列表（3至4条）。'
-              },
-              homeGuidance: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: '设计可在客厅、卧室、游乐园便捷操演的、富有趣味游戏性质、结合运动腰带或脑控智能头戴设备的家庭场景协作活动（3条）。'
-              },
-              prognosisPrediction: {
-                type: Type.STRING,
-                description: '中肯预判在实施针对性家庭训练康复3-6个月后的预后脑环路康复轨迹图景与心理辅导话术（100字左右）。'
-              },
-              criticalMetrics: {
-                type: Type.OBJECT,
-                properties: {
-                  neuralPlasticity: { type: Type.INTEGER, description: '脑神经可 plasticity 发育潜力指数（45-98）' },
-                  sensoryIntegration: { type: Type.INTEGER, description: '感觉统合大脑协同度指数（45-98）' },
-                  familyEnvironmentScore: { type: Type.INTEGER, description: '家庭氛围赋能康复支持支持系数（45-98）' },
-                  motorControlIndex: { type: Type.INTEGER, description: '运动姿势力线控制指数（45-98）' }
+        reportData = await callLLMJSON(reportSystemInstruction, qwenPrompt, LLM_REPORT_MODEL);
+        isAiGenerated = true;
+        aiEngine = LLM_REPORT_MODEL;
+      } catch (sdkErr: any) {
+        console.warn(`Doubao SDK (${LLM_REPORT_MODEL}) also failed:`, sdkErr.message);
+
+        // Engine 3: Alibaba Qwen via DashScope (tertiary)
+        try {
+          reportData = await callQwenJSON(QWEN_REPORT_MODEL, reportSystemInstruction, qwenPrompt);
+          isAiGenerated = true;
+          aiEngine = QWEN_REPORT_MODEL;
+        } catch (qwenErr: any) {
+          console.warn(`Qwen (${QWEN_REPORT_MODEL}) also failed, trying Gemini:`, qwenErr.message);
+
+          // Engine 4: Google Gemini (quaternary)
+          try {
+        const gClient = getGeminiClient();
+        const response = await gClient.models.generateContent({
+          model: 'gemini-3.5-flash',
+          contents: basePrompt,
+          config: {
+            systemInstruction: 'You are a compassionate pediatric neuro-rehabilitation expert. You strictly return output as a single, valid JSON block exactly matching the instructed schema, with no markdown codeblocks, no front/end spacing, in Chinese language.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                summary: {
+                  type: Type.STRING,
+                  description: '一句话总结该名受测少儿此时的核心脑成长特征，字数在60-120格内。'
                 },
-                required: ['neuralPlasticity', 'sensoryIntegration', 'familyEnvironmentScore', 'motorControlIndex']
-              }
-            },
-            required: ['summary', 'neuralPathwayAnalysis', 'rehabSuggestions', 'homeGuidance', 'prognosisPrediction', 'criticalMetrics']
+                neuralPathwayAnalysis: {
+                  type: Type.STRING,
+                  description: '深入剖析患儿当前的脑软硬件网络状态、感觉中枢协调性、前额皮层控制环等神经反射弧健康状态（100-250字）。'
+                },
+                rehabSuggestions: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: '输出具有极强指导力、适合由康复师或家长辅导的长效临床训练或物理康复训练方案建议列表（3至4条）。'
+                },
+                homeGuidance: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: '设计可在客厅、卧室、游乐园便捷操演的、富有趣味游戏性质、结合运动腰带或脑控智能头戴设备的家庭场景协作活动（3条）。'
+                },
+                prognosisPrediction: {
+                  type: Type.STRING,
+                  description: '中肯预判在实施针对性家庭训练康复3-6个月后的预后脑环路康复轨迹图景与心理辅导话术（100字左右）。'
+                },
+                criticalMetrics: {
+                  type: Type.OBJECT,
+                  properties: {
+                    neuralPlasticity: { type: Type.INTEGER, description: '脑神经可 plasticity 发育潜力指数（45-98）' },
+                    sensoryIntegration: { type: Type.INTEGER, description: '感觉统合大脑协同度指数（45-98）' },
+                    familyEnvironmentScore: { type: Type.INTEGER, description: '家庭氛围赋能康复支持支持系数（45-98）' },
+                    motorControlIndex: { type: Type.INTEGER, description: '运动姿势力线控制指数（45-98）' }
+                  },
+                  required: ['neuralPlasticity', 'sensoryIntegration', 'familyEnvironmentScore', 'motorControlIndex']
+                }
+              },
+              required: ['summary', 'neuralPathwayAnalysis', 'rehabSuggestions', 'homeGuidance', 'prognosisPrediction', 'criticalMetrics']
+            }
+          }
+        });
+
+        const responseText = response.text || '';
+        const cleanedResponse = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        reportData = JSON.parse(cleanedResponse);
+        isAiGenerated = true;
+        aiEngine = 'gemini-3.5-flash';
+          } catch (apiErr: any) {
+            console.warn('Gemini also unavailable, using local template engine:', apiErr.message);
+            reportData = generateFallbackReport(child, scores);
+            isAiGenerated = false;
+            aiEngine = 'fallback_template';
           }
         }
-      });
-
-      const responseText = response.text || '';
-      const cleanedResponse = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      reportData = JSON.parse(cleanedResponse);
-      isAiGenerated = true;
-      aiEngine = 'gemini-3.5-flash';
-      } catch (apiErr: any) {
-        console.warn('Gemini also unavailable, using local template engine:', apiErr.message);
-        reportData = generateFallbackReport(child, scores);
-        isAiGenerated = false;
-        aiEngine = 'fallback_template';
       }
     }
 
@@ -439,9 +476,10 @@ app.post('/api/ali-language-eval', async (req: express.Request, res: express.Res
     let isAiGenerated = false;
     let evalReport;
 
-    if (dashscopeKey && dashscopeKey !== 'MY_DASHSCOPE_API_KEY' && dashscopeKey !== '') {
-      try {
-        const prompt = `请针对以下受评儿童的语言样本和临床发音构音障碍特征，进行深度脑神经语言学评估，并输出结构化儿童SLP诊疗报告：
+    const langSystemPrompt = 'You are a compassionate pediatric speech-language pathologist and neurology expert. You strictly return output as a single, valid JSON block with no markdown code blocks, no front/end spacing, in Chinese language.';
+
+    // Build the prompt regardless of engine
+    const prompt = `请针对以下受评儿童的语言样本和临床发音构音障碍特征，进行深度脑神经语言学评估，并输出结构化儿童SLP诊疗报告：
 儿童档案:
 - 姓名: ${child.name}
 - 年龄: ${child.ageMonth}个月
@@ -497,14 +535,19 @@ app.post('/api/ali-language-eval', async (req: express.Request, res: express.Res
   "parentGuidance": "舒缓抚养人心理情绪压力，提供关于语言刺激环境赋能（如慢速伴读、声画互联）的资深SLP指导意见。"
 }`;
 
-        evalReport = await callQwenJSON(
-          QWEN_REPORT_MODEL,
-          'You are a compassionate pediatric speech-language pathologist and neurology expert. You strictly return output as a single, valid JSON block with no markdown code blocks, no front/end spacing, in Chinese language.',
-          prompt
-        );
+    // Engine 1: Qwen 3.5 Plus via SDK (primary)
+    try {
+      evalReport = await callLLMJSON(langSystemPrompt, prompt, LLM_QWEN_MODEL);
+      isAiGenerated = true;
+    } catch (qwenSdkErr: any) {
+      console.warn(`Qwen SDK language eval failed, trying Doubao:`, qwenSdkErr.message);
+
+      // Engine 2: Doubao Seed via SDK (secondary)
+      try {
+        evalReport = await callLLMJSON(langSystemPrompt, prompt, LLM_REPORT_MODEL);
         isAiGenerated = true;
-      } catch (innerErr: any) {
-        console.error('DashScope Qwen call failed, using high-fidelity local engine:', innerErr.message);
+      } catch (sdkErr: any) {
+        console.warn(`Doubao SDK language eval also failed:`, sdkErr.message);
       }
     }
 

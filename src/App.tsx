@@ -715,7 +715,13 @@ export default function App() {
                     setSelectedDimensionId(dimId);
                     setCurrentView('assessment');
                   }}
-                  onViewReport={() => setCurrentView('report')}
+                  onViewReport={() => {
+                    // Jump straight to the live T1 AI report page, skipping the archive/library page.
+                    setViewingLiveT1(true);
+                    setActiveT1Record(null);
+                    setActiveSpecializedRecordId(null);
+                    setCurrentView('report');
+                  }}
                   onStartT1Screening={() => setCurrentView('t1_screening')}
                 />
               </div>

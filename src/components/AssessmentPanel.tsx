@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DimensionConfig, Question, DimensionScore } from '../types';
+import { transcribeWithQwenASR } from '../utils/asr';
 import { 
   ArrowLeft, Clock, Save, Info, AlertTriangle, CheckCircle2,
   Mic, Square, Play, Pause, Upload, FileAudio, FileVideo, 
@@ -43,36 +44,48 @@ export default function AssessmentPanel({ dimension, onBack, onSaveResult, exist
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [playingQId, setPlayingQId] = useState<string | null>(null);
   const recTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const playbackAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const handlePlayRecordedAudio = (qId: string, transcript: string) => {
+    // Stop any current playback (real audio or TTS)
+    if (playbackAudioRef.current) {
+      playbackAudioRef.current.pause();
+      playbackAudioRef.current = null;
+    }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
     if (playingQId === qId) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
       setPlayingQId(null);
       return;
     }
 
     setPlayingQId(qId);
-    
+
+    const rec = t3Recordings[qId];
+    const realUrl = rec?.audioUrl;
+
+    // Play the real recording when we captured a genuine blob URL
+    if (realUrl && realUrl.startsWith('blob:http')) {
+      const audio = new Audio(realUrl);
+      playbackAudioRef.current = audio;
+      audio.onended = () => { setPlayingQId(null); playbackAudioRef.current = null; };
+      audio.onerror = () => { setPlayingQId(null); playbackAudioRef.current = null; };
+      audio.play().catch(() => { setPlayingQId(null); playbackAudioRef.current = null; });
+      return;
+    }
+
+    // Fallback: no real blob (offline simulation) → speak the transcript
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(transcript || "已录音回放中");
       utterance.lang = 'zh-CN';
       utterance.rate = 1.0;
-      
-      utterance.onend = () => {
-        setPlayingQId(null);
-      };
-      utterance.onerror = () => {
-        setPlayingQId(null);
-      };
-      
+      utterance.onend = () => setPlayingQId(null);
+      utterance.onerror = () => setPlayingQId(null);
       window.speechSynthesis.speak(utterance);
     } else {
-      setTimeout(() => {
-        setPlayingQId(null);
-      }, 2000);
+      setTimeout(() => setPlayingQId(null), 2000);
     }
   };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -147,49 +160,81 @@ export default function AssessmentPanel({ dimension, onBack, onSaveResult, exist
     }, 150);
   };
 
-  const startRecordingForQuestion = (qId: string) => {
-    setActiveRecordingQId(qId);
-    setIsRecording(true);
-    setRecordingTime(0);
-    
-    if (recTimerRef.current) clearInterval(recTimerRef.current);
-    recTimerRef.current = setInterval(() => {
-      setRecordingTime(t => t + 1);
-    }, 1000);
-
-    setTimeout(() => {
-      drawWaveform();
-    }, 50);
-  };
-
-  const stopRecordingForQuestion = (qId: string, promptText: string) => {
-    setIsRecording(false);
-    if (recTimerRef.current) clearInterval(recTimerRef.current);
-    if (animationRef.current) cancelAnimationFrame(animationRef.current);
-
-    // Get prompt text in between “...”
+  // Offline fallback used when the microphone is unavailable / permission denied.
+  const applySimulatedRecording = (qId: string, promptText: string) => {
     const match = promptText.match(/“([^”]+)”/);
     const textToPronounce = match ? match[1] : '已录音';
-
     setT3Recordings(prev => ({
       ...prev,
-      [qId]: {
-        recorded: true,
-        audioUrl: 'blob:manual_audio_' + qId,
-        transcript: textToPronounce
-      }
+      [qId]: { recorded: true, audioUrl: 'blob:manual_audio_' + qId, transcript: textToPronounce }
     }));
-    
-    // Automatically select "Yes/Often" (10) as a helpful default when they finish recording
     if (t3Answers[qId] === undefined) {
-      setT3Answers(prev => ({
-        ...prev,
-        [qId]: 10
-      }));
+      setT3Answers(prev => ({ ...prev, [qId]: 10 }));
     }
-    
-    setActiveRecordingQId(null);
     setIsT3Analyzed(true);
+  };
+
+  const startRecordingForQuestion = async (qId: string, promptText: string) => {
+    try {
+      audioChunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+
+        // Mark as recorded immediately (real blob), then fill in real transcription
+        setT3Recordings(prev => ({
+          ...prev,
+          [qId]: { recorded: true, audioUrl: url, transcript: '识别中...' }
+        }));
+
+        const asrText = await transcribeWithQwenASR(audioBlob, promptText);
+        const match = promptText.match(/“([^”]+)”/);
+        const transcript = asrText !== null ? asrText : (match ? match[1] : '已录音');
+
+        setT3Recordings(prev => ({
+          ...prev,
+          [qId]: { recorded: true, audioUrl: url, transcript }
+        }));
+        if (t3Answers[qId] === undefined) {
+          setT3Answers(prev => ({ ...prev, [qId]: 10 }));
+        }
+        setIsT3Analyzed(true);
+      };
+
+      mediaRecorder.start();
+      setActiveRecordingQId(qId);
+      setIsRecording(true);
+      setRecordingTime(0);
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      recTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+      setTimeout(() => drawWaveform(), 50);
+    } catch (err) {
+      // Microphone blocked / unavailable → keep the app usable with simulated recognition
+      console.warn('Microphone unavailable, using simulated recording:', err);
+      applySimulatedRecording(qId, promptText);
+      setActiveRecordingQId(null);
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecordingForQuestion = (_qId: string, _promptText: string) => {
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    setIsRecording(false);
+    setActiveRecordingQId(null);
+    // Triggers mediaRecorder.onstop → real transcription
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
   };
 
   // Clean up timers & animation frames on unmount
@@ -370,15 +415,8 @@ export default function AssessmentPanel({ dimension, onBack, onSaveResult, exist
     };
 
     onSaveResult(result, false);
-    setSuccessMessage('🎉 T2 能力自评量表已保存！正在为您自动进入 T3 临床专项评估与多媒体上传层...');
-    setIsTransitioning(true);
-    
-    setTimeout(() => {
-      setSelectedTier('T3');
-      setSuccessMessage(null);
-      setIsTransitioning(false);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 1800);
+    setSelectedTier('T3');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Drag & drop file handlers
@@ -517,17 +555,8 @@ export default function AssessmentPanel({ dimension, onBack, onSaveResult, exist
       completedAt: new Date().toISOString()
     };
 
-    setSuccessMessage('🚀 T3 专项临床操作数据已导入！正在调动全维脑突触神经算力，深度匹配医学大数据析出正式诊断报告...');
-    setIsTransitioning(true);
-
-    setTimeout(() => {
-      onSaveResult(t3Result, false);
-      setIsTransitioning(false);
-      setSuccessMessage(null);
-      // Let's call callback and trigger report view directly inside App
-      // The parent will handle the routing immediately!
-      onSaveResult(t3Result, true); // this will trigger parent to save and head back to reports dashboard!
-    }, 2500);
+    // Save score + generate specialized report + navigate — all handled by the parent in one call.
+    onSaveResult(t3Result, true);
   };
 
   // Specific T3 Task configurations based on selected dimension
@@ -821,7 +850,7 @@ export default function AssessmentPanel({ dimension, onBack, onSaveResult, exist
                                 <button
                                   type="button"
                                   disabled={isRecording && activeRecordingQId !== q.id}
-                                  onClick={() => startRecordingForQuestion(q.id)}
+                                  onClick={() => startRecordingForQuestion(q.id, q.text)}
                                   className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition active:scale-95 shadow-sm shrink-0 ${
                                     isRecording && activeRecordingQId !== q.id
                                       ? 'bg-slate-300 cursor-not-allowed'

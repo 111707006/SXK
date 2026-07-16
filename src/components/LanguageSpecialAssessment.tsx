@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Child } from '../types';
-import { 
-  Mic, Square, Play, Pause, Upload, FileAudio, Sparkles, Brain, 
-  Compass, FileText, CheckCircle2, Volume2, ArrowLeft, AlertCircle, 
-  Clock, HeartHandshake, UserCheck, ShieldAlert, Check, Star, 
-  Calendar, User, MapPin, Phone, Info, Activity, Video, Award, 
+import { transcribeWithQwenASR } from '../utils/asr';
+import {
+  Mic, Square, Play, Pause, Upload, FileAudio, Sparkles, Brain,
+  Compass, FileText, CheckCircle2, Volume2, ArrowLeft, AlertCircle,
+  Clock, HeartHandshake, UserCheck, ShieldAlert, Check, Star,
+  Calendar, User, MapPin, Phone, Info, Activity, Video, Award,
   BookOpen, Heart, RefreshCw, ChevronRight, X, Share2
 } from 'lucide-react';
 
@@ -24,30 +25,6 @@ function judgeArticulation(promptText: string, recognized: string): 'normal' | '
   // Repeated leading syllables (e.g. "苹苹苹果") read as dysfluency
   if (t.length > p.length && /(.)\1/.test(t.slice(0, 4))) return 'stutter';
   return 'substitute';
-}
-
-async function transcribeWithQwenASR(audioBlob: Blob, contextPrompt: string): Promise<string | null> {
-  try {
-    const dataUrl: string = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(audioBlob);
-    });
-    const resp = await fetch('/api/asr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audioData: dataUrl, context: `儿童正在朗读："${contextPrompt}"` })
-    });
-    if (!resp.ok) return null;
-    const ct = resp.headers.get('content-type');
-    if (!ct || !ct.includes('application/json')) return null;
-    const result = await resp.json();
-    return result.text ? String(result.text) : null;
-  } catch (err) {
-    console.warn('Qwen ASR unavailable, will fall back to simulated recognition:', err);
-    return null;
-  }
 }
 
 export interface AssessmentQuestion {

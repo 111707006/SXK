@@ -175,8 +175,10 @@ export default function MotionVideoAssessment({
   };
 
   const [report, setReport] = useState<ReturnType<typeof collect> | null>(null);
+  const [aiNarrative, setAiNarrative] = useState<{ summary: string[]; suggestions: string[] } | null>(null);
+  const [narrativeLoading, setNarrativeLoading] = useState(false);
 
-  const genReport = () => {
+  const genReport = async () => {
     const r = collect();
     if (r.tested.length === 0) {
       setError('尚未对任何项目评分，请先完成评估（可上传视频由 AI 判读，或手动评分）。');
@@ -185,6 +187,7 @@ export default function MotionVideoAssessment({
     setError(null);
     setReport(r);
     setShowReport(true);
+    setAiNarrative(null);
 
     // Persist a DimensionScore so dashboard/history stay consistent
     const pct = r.pct;
@@ -200,6 +203,41 @@ export default function MotionVideoAssessment({
     };
     onSaveResult(result, false);
     setTimeout(() => radarReportRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+
+    // Phase 3: AI narrative summary/suggestions via qwen3.7-max (falls back to local text)
+    setNarrativeLoading(true);
+    try {
+      const flagsForReq = CPMV_FLAGS
+        .filter(f => r.flagStats[f.k].n > 0)
+        .map(f => ({ label: f.label, items: r.flagStats[f.k].items }));
+      const lowItems = CPMV_ITEMS
+        .filter(it => { const s = itemStates[it.id].score; return s === 0 || s === 1; })
+        .map(it => it.id);
+      const resp = await fetch('/api/motion-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          child,
+          total: { sum: r.sum, max: r.max, pct: r.pct, tested: r.tested.length },
+          domains: r.domains.map(d => ({ name: d.name, pct: d.pct })),
+          flags: flagsForReq,
+          lowItems
+        })
+      });
+      if (resp.ok) {
+        const ct = resp.headers.get('content-type');
+        if (ct && ct.includes('application/json')) {
+          const data = await resp.json();
+          if (data && data.isAiGenerated && Array.isArray(data.summary) && data.summary.length) {
+            setAiNarrative({ summary: data.summary, suggestions: data.suggestions || [] });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Motion narrative unavailable, using local text:', e);
+    } finally {
+      setNarrativeLoading(false);
+    }
   };
 
   const radarReportRef = useRef<HTMLDivElement | null>(null);
@@ -438,14 +476,22 @@ export default function MotionVideoAssessment({
             </table>
           </div>
 
-          {/* summary + suggestions */}
+          {/* summary + suggestions (AI narrative when available, local text as fallback) */}
           <div className="bg-white border-l-4 border-brand-moss rounded-r-2xl p-4">
-            <h4 className="text-xs font-black text-brand-forest mb-2">观察摘要</h4>
-            {buildSummary(report).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
+            <h4 className="text-xs font-black text-brand-forest mb-2 flex items-center gap-2">
+              观察摘要
+              {narrativeLoading
+                ? <span className="text-[10px] font-normal text-brand-charcoal/50 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> AI 生成中...</span>
+                : aiNarrative && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-brand-moss/15 text-brand-moss flex items-center gap-0.5"><Brain size={9} /> AI 生成</span>}
+            </h4>
+            {(aiNarrative?.summary || buildSummary(report)).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
           </div>
           <div className="bg-amber-50/40 border-l-4 border-amber-500 rounded-r-2xl p-4">
-            <h4 className="text-xs font-black text-amber-700 mb-2">建议</h4>
-            {buildSuggest(report).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
+            <h4 className="text-xs font-black text-amber-700 mb-2 flex items-center gap-2">
+              建议
+              {aiNarrative && aiNarrative.suggestions.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 flex items-center gap-0.5"><Brain size={9} /> AI 生成</span>}
+            </h4>
+            {((aiNarrative && aiNarrative.suggestions.length ? aiNarrative.suggestions : buildSuggest(report))).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
           </div>
 
           <p className="text-[10px] text-brand-charcoal/40 text-center">本工具为动作影像筛查参考，不构成医学诊断；正式功能分级请以 GMFM、GMFCS、MACS 等标准化评估为准。</p>

@@ -554,6 +554,54 @@ app.post('/api/motion-eval', async (req: express.Request, res: express.Response)
   }
 });
 
+// API endpoint for CPMV-20 overall narrative report (qwen3.7-max) once items are scored
+app.post('/api/motion-report', async (req: express.Request, res: express.Response) => {
+  try {
+    const { child, total, domains, flags, lowItems } = req.body;
+    if (!total || typeof total.pct !== 'number') {
+      res.status(400).json({ error: 'Missing motion assessment totals.' });
+      return;
+    }
+
+    const domainStr = Array.isArray(domains)
+      ? domains.map((d: any) => `- ${d.name}: ${d.pct === null ? '未测' : d.pct + '%'}`).join('\n') : '';
+    const flagStr = Array.isArray(flags) && flags.length
+      ? flags.map((f: any) => `${f.label}（第${(f.items || []).join('、')}项）`).join('；')
+      : '未标记明显异常运动表现';
+    const ageInfo = child ? `${child.ageMonth}个月${child.gender === 'boy' ? '男' : '女'}童` : '受评儿童';
+
+    const systemInstruction = 'You are a compassionate pediatric cerebral-palsy rehabilitation specialist. You strictly return output as a single valid JSON block, no markdown codeblocks, in Chinese.';
+    const prompt = `你是一位资深小儿脑瘫康复评估治疗师。以下是一名${ageInfo}的「脑瘫儿童动作影像筛查(CPMV-20)」结果，请据此撰写专业、温暖、实操性强的观察摘要与训练建议。
+
+总体：完成 ${total.tested}/20 项，实测总分 ${total.sum}/${total.max}，得分率 ${total.pct}%。
+五维得分率：
+${domainStr}
+异常运动表现：${flagStr}
+${Array.isArray(lowItems) && lowItems.length ? `得分偏低(0-1分)项目编号：${lowItems.join('、')}` : ''}
+
+请只返回以下JSON（不要额外文字或\`\`\`标记）：
+{
+  "summary": ["观察摘要，3-5条，每条聚焦一个发现（受限领域/异常表现/偏侧性/发育顺序等），结合脑瘫康复专业视角，语气温暖客观"],
+  "suggestions": ["训练与随访建议，3-5条，具体可操作，可提及GMFM/OT/PT专项、AI影像补拍要点、复评节奏"]
+}`;
+
+    try {
+      const { report, aiEngine } = await generateReportJSON(systemInstruction, prompt);
+      res.json({
+        summary: Array.isArray(report.summary) ? report.summary : [],
+        suggestions: Array.isArray(report.suggestions) ? report.suggestions : [],
+        isAiGenerated: true,
+        aiEngine
+      });
+    } catch (aiErr: any) {
+      console.warn('Motion-report narrative failed, frontend will use local template:', aiErr.message);
+      res.json({ isAiGenerated: false });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Unknown motion report error.' });
+  }
+});
+
 // Fallback advanced diagnostic engine for Language and Communication
 function generateFallbackLanguageReport(
   child: any,

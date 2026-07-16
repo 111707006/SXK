@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DimensionConfig, Question, DimensionScore } from '../types';
+import { DimensionConfig, Question, DimensionScore, Child, AssessmentRecord } from '../types';
 import { transcribeWithQwenASR } from '../utils/asr';
 import { 
   ArrowLeft, Clock, Save, Info, AlertTriangle, CheckCircle2,
@@ -9,12 +9,13 @@ import {
 
 interface AssessmentPanelProps {
   dimension: DimensionConfig;
+  child: Child | null;
   onBack: () => void;
-  onSaveResult: (result: DimensionScore, shouldGoBack?: boolean) => void;
+  onSaveResult: (result: DimensionScore, shouldGoBack?: boolean, aiReportOverride?: AssessmentRecord['aiReport'] | null) => void;
   existingScores: DimensionScore[];
 }
 
-export default function AssessmentPanel({ dimension, onBack, onSaveResult, existingScores }: AssessmentPanelProps) {
+export default function AssessmentPanel({ dimension, child, onBack, onSaveResult, existingScores }: AssessmentPanelProps) {
   // We only do T2 and T3 in this Panel now. T1 is handled in T1Screening.
   const [selectedTier, setSelectedTier] = useState<'T2' | 'T3'>('T2');
   const currentScale = dimension.tiers[selectedTier];
@@ -542,7 +543,7 @@ export default function AssessmentPanel({ dimension, onBack, onSaveResult, exist
   };
 
   // Save T3 results and launch Big Data Diagnostics Report
-  const handleSaveT3AndReport = () => {
+  const handleSaveT3AndReport = async () => {
     const { earned, max, status } = calculateT3Score();
 
     const t3Result: DimensionScore = {
@@ -555,8 +556,35 @@ export default function AssessmentPanel({ dimension, onBack, onSaveResult, exist
       completedAt: new Date().toISOString()
     };
 
-    // Save score + generate specialized report + navigate — all handled by the parent in one call.
-    onSaveResult(t3Result, true);
+    // Call the real AI specialized-report endpoint; on failure the parent falls back to template.
+    setIsTransitioning(true);
+    setSuccessMessage(`🧠 正在调用森心康 AI 神经网络模型，生成【${dimension.name}】专项深度评估报告，请稍候...`);
+
+    let aiReport: AssessmentRecord['aiReport'] | null = null;
+    try {
+      const t2Rec = existingScores.find(s => s.dimensionId === dimension.id && s.tierId === 'T2');
+      const t2Percent = t2Rec ? Math.round((t2Rec.score / t2Rec.maxScore) * 100) : null;
+      const t3Percent = Math.round((earned / max) * 100);
+      const resp = await fetch('/api/specialized-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ child, dimensionName: dimension.name, t2Percent, t3Percent, status })
+      });
+      if (resp.ok) {
+        const ct = resp.headers.get('content-type');
+        if (ct && ct.includes('application/json')) {
+          const data = await resp.json();
+          if (data && data.report) aiReport = data.report;
+        }
+      }
+    } catch (e) {
+      console.warn('Specialized AI report failed, will use template:', e);
+    }
+
+    setIsTransitioning(false);
+    setSuccessMessage(null);
+    // Save score + build specialized report (AI when available, template otherwise) + navigate.
+    onSaveResult(t3Result, true, aiReport);
   };
 
   // Specific T3 Task configurations based on selected dimension

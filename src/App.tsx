@@ -315,7 +315,7 @@ export default function App() {
     }
   };
 
-  const handleSaveScore = (result: DimensionScore, shouldGoBack: boolean = true) => {
+  const handleSaveScore = (result: DimensionScore, shouldGoBack: boolean = true, aiReportOverride?: AssessmentRecord['aiReport'] | null) => {
     // Overwrite previous score of the same dimension and same tier if matching
     const updated = completedScores.filter(
       s => !(s.dimensionId === result.dimensionId && s.tierId === result.tierId)
@@ -328,7 +328,7 @@ export default function App() {
     let updatedHistory = reportHistory;
     if (result.tierId === 'T3' && shouldGoBack && child) {
       // Generate specialized clinical diagnostic report for this dimension!
-      const newRecord = generateSpecializedReportRecord(child, finalScores, result.dimensionId, result);
+      const newRecord = generateSpecializedReportRecord(child, finalScores, result.dimensionId, result, aiReportOverride);
       
       // Save report to history
       updatedHistory = [...reportHistory.filter(r => r.id !== newRecord.id), newRecord];
@@ -746,6 +746,7 @@ export default function App() {
               <div className="animate-fade-in">
                 <AssessmentPanel
                   dimension={activeDimension}
+                  child={child}
                   onBack={() => {
                     setCurrentView('dashboard');
                     setSelectedDimensionId(null);

@@ -148,7 +148,8 @@ export function generateSpecializedReportRecord(
   child: Child,
   scores: DimensionScore[],
   dimensionId: string,
-  t3Result: DimensionScore
+  t3Result: DimensionScore,
+  aiReportOverride?: AssessmentRecord['aiReport'] | null
 ): AssessmentRecord {
   const template = SPECIALIZED_TEMPLATES[dimensionId] || SPECIALIZED_TEMPLATES.language;
 
@@ -161,6 +162,17 @@ export function generateSpecializedReportRecord(
   const motorControlIndex = Math.round(Math.max(50, Math.min(98, 84 - (dimensionId === 'gross_motor' || dimensionId === 'fine_motor' ? (100 - t3Val) : 5))));
   const familyEnvironmentScore = Math.round(Math.max(50, Math.min(98, 88 - (dimensionId === 'family_env' ? (100 - t3Val) : 2))));
 
+  // Prefer a real AI-generated report when provided; otherwise fall back to the
+  // per-dimension template + formula-derived metrics.
+  const templateReport = {
+    summary: template.summary,
+    neuralPathwayAnalysis: template.neuralPathwayAnalysis,
+    rehabSuggestions: template.rehabSuggestions,
+    homeGuidance: template.homeGuidance,
+    prognosisPrediction: template.prognosisPrediction,
+    criticalMetrics: { neuralPlasticity, sensoryIntegration, familyEnvironmentScore, motorControlIndex }
+  };
+
   return {
     id: 'spec_rec_' + Date.now(),
     type: 'T2_T3_SPECIALIZED',
@@ -168,19 +180,7 @@ export function generateSpecializedReportRecord(
     dimensionName: t3Result.dimensionName,
     child,
     scores: scores.filter(s => s.dimensionId === dimensionId),
-    aiReport: {
-      summary: template.summary,
-      neuralPathwayAnalysis: template.neuralPathwayAnalysis,
-      rehabSuggestions: template.rehabSuggestions,
-      homeGuidance: template.homeGuidance,
-      prognosisPrediction: template.prognosisPrediction,
-      criticalMetrics: {
-        neuralPlasticity,
-        sensoryIntegration,
-        familyEnvironmentScore,
-        motorControlIndex
-      }
-    },
+    aiReport: aiReportOverride || templateReport,
     createdAt: new Date().toISOString()
   };
 }

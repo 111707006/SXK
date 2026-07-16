@@ -107,6 +107,22 @@ async function callQwenJSON(model: string, systemPrompt: string, userPrompt: str
   return JSON.parse(cleaned);
 }
 
+// Shared multi-engine cascade for JSON report generation.
+// Qwen SDK -> Doubao SDK -> DashScope Qwen. Throws if every engine fails.
+async function generateReportJSON(systemInstruction: string, prompt: string): Promise<{ report: any; aiEngine: string }> {
+  try {
+    return { report: await callLLMJSON(systemInstruction, prompt, LLM_QWEN_MODEL), aiEngine: LLM_QWEN_MODEL };
+  } catch (e1: any) {
+    console.warn(`Qwen SDK (${LLM_QWEN_MODEL}) failed, trying Doubao:`, e1.message);
+    try {
+      return { report: await callLLMJSON(systemInstruction, prompt, LLM_REPORT_MODEL), aiEngine: LLM_REPORT_MODEL };
+    } catch (e2: any) {
+      console.warn(`Doubao SDK (${LLM_REPORT_MODEL}) failed, trying DashScope:`, e2.message);
+      return { report: await callQwenJSON(QWEN_REPORT_MODEL, systemInstruction, prompt), aiEngine: QWEN_REPORT_MODEL };
+    }
+  }
+}
+
 // Fallback high-fidelity simulation engine when API key is missing
 function generateFallbackReport(child: any, scores: any[]) {
   // Identify struggling dimensions
@@ -389,6 +405,63 @@ ${scoresSummaryStr}
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Unknown internal assessment error.' });
+  }
+});
+
+// API endpoint for single-dimension T2/T3 specialized deep report (AI-generated)
+app.post('/api/specialized-report', async (req: express.Request, res: express.Response) => {
+  try {
+    const { child, dimensionName, t2Percent, t3Percent, status } = req.body;
+    if (!child || !dimensionName) {
+      res.status(400).json({ error: 'Missing child profile or dimension name.' });
+      return;
+    }
+
+    const statusText = status === 'delay' ? '发育迟缓' : status === 'borderline' ? '边缘警示' : '发育良好';
+    const systemInstruction = 'You are a compassionate pediatric neuro-rehabilitation expert. You strictly return output as a single, valid JSON block exactly matching the instructed schema, with no markdown codeblocks, no front/end spacing, in Chinese language.';
+    const prompt = `您是一位在儿童神经康复、脑科学发育及儿童成长心理学领域深耕20年的首席临床医学主任医生。
+请针对以下儿童在【${dimensionName}】这一单一发育维度的 T2（家属能力自评）与 T3（临床互动实测）深度评估结果，生成一份聚焦该维度的“脑发育深度专项评估报告”。
+
+儿童档案:
+- 姓名: ${child.name}
+- 年龄: ${child.ageMonth}个月
+- 性别: ${child.gender === 'boy' ? '男孩' : '女孩'}
+
+【${dimensionName}】维度评估结果:
+- T2 家属自评得分率: ${typeof t2Percent === 'number' ? t2Percent : '未知'}%
+- T3 临床实测得分率: ${typeof t3Percent === 'number' ? t3Percent : '未知'}%
+- 综合判定: ${statusText}
+
+请注意：
+1. 只聚焦【${dimensionName}】这一个维度，不要泛谈其他维度。
+2. neuralPathwayAnalysis 要用专业脑神经突触偶联、脑功能定位（如前额叶、小脑精细区、前庭反射、Broca/Wernicke 言语区等）与神经可塑性概念严密解析该维度，既透彻又充满对孩子的厚爱。
+3. 康复建议与家庭指导必须有极强动作实操逻辑，可自然融入森心康智能穿戴硬件（脑电反馈带、精细OT手套、步态腰带等）。
+4. criticalMetrics 的百分值（45-98 之间的整数）要与上面的得分率客观联动（得分越低指标越低）。
+你必须严格返回以下JSON结构（字段齐全，不要任何额外文字或\`\`\`json标记）：
+{
+  "summary": "一句话总结该维度当前的核心脑成长特征（60-120字）",
+  "neuralPathwayAnalysis": "深入剖析该维度相关的脑网络/神经反射弧状态（120-250字）",
+  "rehabSuggestions": ["针对该维度的康复训练建议（共3至4条）"],
+  "homeGuidance": ["可在家操演的场景化活动（共3条）"],
+  "prognosisPrediction": "3-6个月针对性训练后的预后轨迹预判（100字左右）",
+  "criticalMetrics": {
+    "neuralPlasticity": 45至98的整数,
+    "sensoryIntegration": 45至98的整数,
+    "familyEnvironmentScore": 45至98的整数,
+    "motorControlIndex": 45至98的整数
+  }
+}`;
+
+    try {
+      const { report, aiEngine } = await generateReportJSON(systemInstruction, prompt);
+      res.json({ report, isAiGenerated: true, aiEngine, createdAt: new Date().toISOString() });
+    } catch (aiErr: any) {
+      // All engines failed → let the frontend fall back to its per-dimension template
+      console.warn('Specialized report AI generation failed, frontend will use template:', aiErr.message);
+      res.json({ report: null, isAiGenerated: false, aiEngine: 'fallback_template' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Unknown specialized report error.' });
   }
 });
 

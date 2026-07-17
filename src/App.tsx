@@ -171,7 +171,7 @@ export default function App() {
         if (!loadCt || !loadCt.includes('application/json')) return;
         const loadData = await loadResp.json();
 
-        if (loadData.source === 'cloud' || loadData.source === 'local_server') {
+        if (loadData.source === 'mysql' || loadData.source === 'memory') {
           if (loadData.child || loadData.completedScores?.length > 0) {
             // Server has data: sync to client and localStorage
             setChild(loadData.child);

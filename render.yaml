@@ -14,9 +14,13 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: CLOUDBASE_SECRET_ID
+      - key: MYSQL_HOST
         sync: false
-      - key: CLOUDBASE_SECRET_KEY
+      - key: MYSQL_PORT
         sync: false
-      - key: CLOUDBASE_ENV_ID
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DATABASE
         sync: false

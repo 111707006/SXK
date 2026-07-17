@@ -388,16 +388,6 @@ export default function App() {
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">森心康儿童发展评估平台</h1>
-                {dbConfigured !== null && (
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider ${
-                    dbConfigured 
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${dbConfigured ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
-                    {dbConfigured ? '腾讯云数据库已连线' : '本地单机模式'}
-                  </span>
-                )}
               </div>
               <div className="text-[10px] text-brand-charcoal/60 font-medium flex items-center gap-1.5 mt-0.5">
                 <span>9维3层脑功能神经网络评估 · 数字化物理辅助 OT/PT 体系</span>

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Child, DimensionScore } from '../types';
 import {
-  CPMV_MODULES, CPMV_ITEMS, CPMV_FLAGS, CPMV_DOMAINS, cpmvGrade,
+  CPMV_MODULES, CPMV_ITEMS, CPMV_FLAGS, cpmvGrade,
   CpmvItem
 } from '../cpmvData';
+import { collectCpmv, buildCpmvSummary, buildCpmvSuggest, CpmvCollectResult } from '../utils/cpmvReport';
 import { extractVideoFrames } from '../utils/videoFrames';
 import {
   Video, Upload, Brain, Loader2, Check, ChevronRight, Database,
@@ -105,82 +106,14 @@ export default function MotionVideoAssessment({
     }
   };
 
-  // ---- report computation (ported from CPMV-20 tool) ----
-  const collect = () => {
-    const tested = CPMV_ITEMS.filter(it => {
-      const s = itemStates[it.id].score; return s === 0 || s === 1 || s === 2;
-    });
-    const ntList = CPMV_ITEMS.filter(it => itemStates[it.id].score === 'nt');
-    const sum = tested.reduce((a, it) => a + (itemStates[it.id].score as number), 0);
-    const max = tested.length * 2;
-    const pct = max ? Math.round(sum / max * 100) : 0;
-
-    const domains = CPMV_DOMAINS.map(d => {
-      const its = d.items.map(i => CPMV_ITEMS.find(x => x.id === i)!);
-      const t = its.filter(it => { const s = itemStates[it.id].score; return s === 0 || s === 1 || s === 2; });
-      const s = t.reduce((a, it) => a + (itemStates[it.id].score as number), 0);
-      const m = t.length * 2;
-      return { ...d, sum: s, max: m, pct: m ? Math.round(s / m * 100) : null, testedN: t.length };
-    });
-
-    const flagStats: Record<string, { n: number; items: number[] }> = {};
-    CPMV_FLAGS.forEach(f => { flagStats[f.k] = { n: 0, items: [] }; });
-    CPMV_ITEMS.forEach(it => {
-      const fl = itemStates[it.id].flags;
-      CPMV_FLAGS.forEach(f => { if (fl[f.k]) { flagStats[f.k].n++; flagStats[f.k].items.push(it.id); } });
-    });
-
-    return { tested, ntList, sum, max, pct, domains, flagStats };
-  };
-
-  const buildSummary = (r: ReturnType<typeof collect>): string[] => {
-    const S: string[] = [];
-    const g = cpmvGrade(r.pct);
-    S.push(`患儿共完成 ${r.tested.length}/20 项（未测 ${r.ntList.length} 项），实测总分 ${r.sum}/${r.max}，得分率 ${r.pct}%，动作影像筛查等级：${g.t}。`);
-    const weak = r.domains.filter(d => d.pct !== null && d.pct < 50).map(d => d.name);
-    const midw = r.domains.filter(d => d.pct !== null && d.pct >= 50 && d.pct < 75).map(d => d.name);
-    if (weak.length) S.push(`「${weak.join('、')}」维度得分率低于 50%，为当前主要受限领域，应作为康复训练与 AI 影像重点采集方向。`);
-    if (midw.length) S.push(`「${midw.join('、')}」维度处于 50%–75%，存在中等程度受限。`);
-    const fs = r.flagStats;
-    if (fs.tremor.n) {
-      const hasCoord = fs.tremor.items.some(i => [11, 12].includes(i));
-      S.push(`第 ${fs.tremor.items.join('、')} 项观察到震颤 / 抖动${hasCoord ? '，其中出现在指鼻或轮替任务中、接近目标时的抖动提示意向性震颤（共济失调成分）' : ''}，建议结合不随意运动型 / 共济失调型特征进一步鉴别。`);
-    }
-    if (fs.assoc.n) S.push(`第 ${fs.assoc.items.join('、')} 项出现联合动作（镜像动作），提示运动分离度不足，单侧任务时对侧抑制能力弱。`);
-    if (fs.comp.n) S.push(`第 ${fs.comp.items.join('、')} 项存在代偿动作，提示目标肌群力量或关节活动度不足，训练中应先控制代偿再提要求。`);
-    const L = fs.worseL.n, R = fs.worseR.n;
-    if (L + R > 0) {
-      if (L >= 2 && L > R) S.push(`左侧表现较差共 ${L} 项（右侧 ${R} 项），提示左侧偏侧性受累可能，建议对左侧肢体多角度补充拍摄。`);
-      else if (R >= 2 && R > L) S.push(`右侧表现较差共 ${R} 项（左侧 ${L} 项），提示右侧偏侧性受累可能，建议对右侧肢体多角度补充拍摄。`);
-      else S.push(`左右侧各有较差表现（左 ${L} 项 / 右 ${R} 项），偏侧性不显著，更符合双侧受累模式。`);
-    }
-    if (r.ntList.length) S.push(`未测项目：第 ${r.ntList.map(i => i.id).join('、')} 项，建议条件允许时补测补拍。`);
-    return S;
-  };
-
-  const buildSuggest = (r: ReturnType<typeof collect>): string[] => {
-    const S: string[] = [];
-    S.push('后续评估：本工具为影像筛查参考，建议进入森心康 T3 专业评估——GMFM-88/66（粗大运动）、MACS 手功能分级、改良 Ashworth 肌张力评定、被动关节活动度（ROM）测量。');
-    const d = Object.fromEntries(r.domains.map(x => [x.key, x.pct]));
-    const dir: string[] = [];
-    if (d.hand !== null && (d.hand as number) < 60) dir.push('作业治疗(OT)手功能专项');
-    if (d.balance !== null && (d.balance as number) < 60) dir.push('物理治疗(PT)平衡与步态专项');
-    if (d.static !== null && (d.static as number) < 60) dir.push('核心稳定与姿势控制训练');
-    if (d.trans !== null && (d.trans as number) < 60) dir.push('体位转换与功能性移动训练');
-    if (dir.length) S.push(`训练方向：${dir.join('；')}。`);
-    const low = CPMV_ITEMS.filter(it => { const s = itemStates[it.id].score; return s === 0 || s === 1; }).map(it => it.id);
-    if (low.length) S.push(`AI 数据采集：对得分 0–1 分的项目（第 ${low.join('、')} 项）按正面+侧面双机位补拍，震颤 / 轮替相关片段使用 60fps。`);
-    S.push('复评节奏：建议每 8–12 周以相同机位、相同项目复拍一次，形成纵向对比影像序列。');
-    return S;
-  };
-
-  const [report, setReport] = useState<ReturnType<typeof collect> | null>(null);
+  // Report computation lives in ../utils/cpmvReport (pure + unit-tested).
+  const [report, setReport] = useState<CpmvCollectResult | null>(null);
   const [aiNarrative, setAiNarrative] = useState<{ summary: string[]; suggestions: string[] } | null>(null);
   const [narrativeLoading, setNarrativeLoading] = useState(false);
 
   const genReport = async () => {
-    const r = collect();
-    if (r.tested.length === 0) {
+    const r = collectCpmv(itemStates);
+    if (r.testedIds.length === 0) {
       setError('尚未对任何项目评分，请先完成评估（可上传视频由 AI 判读，或手动评分）。');
       return;
     }
@@ -218,7 +151,7 @@ export default function MotionVideoAssessment({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           child,
-          total: { sum: r.sum, max: r.max, pct: r.pct, tested: r.tested.length },
+          total: { sum: r.sum, max: r.max, pct: r.pct, tested: r.testedIds.length },
           domains: r.domains.map(d => ({ name: d.name, pct: d.pct })),
           flags: flagsForReq,
           lowItems
@@ -410,7 +343,7 @@ export default function MotionVideoAssessment({
             {[
               { n: `${report.sum}/${report.max}`, l: '实测总分' },
               { n: `${report.pct}%`, l: '得分率' },
-              { n: `${report.tested.length}/20`, l: '完成项数' },
+              { n: `${report.testedIds.length}/20`, l: '完成项数' },
             ].map((o, i) => (
               <div key={i} className="bg-white border border-brand-stone rounded-xl p-3 text-center">
                 <div className="text-xl font-black text-brand-forest">{o.n}</div>
@@ -484,14 +417,14 @@ export default function MotionVideoAssessment({
                 ? <span className="text-[10px] font-normal text-brand-charcoal/50 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> AI 生成中...</span>
                 : aiNarrative && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-brand-moss/15 text-brand-moss flex items-center gap-0.5"><Brain size={9} /> AI 生成</span>}
             </h4>
-            {(aiNarrative?.summary || buildSummary(report)).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
+            {(aiNarrative?.summary || buildCpmvSummary(report)).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
           </div>
           <div className="bg-amber-50/40 border-l-4 border-amber-500 rounded-r-2xl p-4">
             <h4 className="text-xs font-black text-amber-700 mb-2 flex items-center gap-2">
               建议
               {aiNarrative && aiNarrative.suggestions.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 flex items-center gap-0.5"><Brain size={9} /> AI 生成</span>}
             </h4>
-            {((aiNarrative && aiNarrative.suggestions.length ? aiNarrative.suggestions : buildSuggest(report))).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
+            {((aiNarrative && aiNarrative.suggestions.length ? aiNarrative.suggestions : buildCpmvSuggest(report))).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
           </div>
 
           <p className="text-[10px] text-brand-charcoal/40 text-center">本工具为动作影像筛查参考，不构成医学诊断；正式功能分级请以 GMFM、GMFCS、MACS 等标准化评估为准。</p>

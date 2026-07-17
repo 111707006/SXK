@@ -298,17 +298,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         </form>
 
         {/* Divider & Sandbox evaluation quick login hint */}
-        <div className="pt-2 border-t border-brand-stone/60 space-y-3.5">
-          <div className="flex justify-between items-center text-[10px]">
-            <span className="text-brand-charcoal/50">
-              数据存储模式:
-            </span>
-            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
-              dbConfigured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-            }`}>
-              {dbConfigured ? '腾讯云云开发 (CloudBase)' : '本地暂存安全模式'}
-            </span>
-          </div>
+        <div className="pt-2 space-y-3.5">
 
           <div className="bg-brand-beige/40 p-3 rounded-2xl border border-brand-stone/50 text-[10px] space-y-1.5 leading-relaxed">
             <div className="flex items-center gap-1.5 font-bold text-brand-forest">

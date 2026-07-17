@@ -70,7 +70,7 @@ export interface Product {
   id: string;
   name: string;
   price: number;
-  originalPrice: number;
+  originalPrice: number | null;
   desc: string;
   details: string;
   image: string;

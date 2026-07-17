@@ -691,11 +691,12 @@ export default function App() {
                       儿童生长发育评定专家
                     </span>
                     <h2 className="text-2xl md:text-3xl font-black font-sans leading-tight">
-                      孩子脑神经综合发展分层评估筛查
+                      儿童脑神经综合发展分层评估筛查
                     </h2>
-                    <p className="text-xs text-brand-sand/90 font-medium leading-relaxed">
-                      请先通过“启动 T1 综合筛查”评估儿童基本指标，随后点击下方被高亮的黄色或红色警示维度卡片进行 T2、T3 能力与专项深度测算！
-                    </p>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">1</span>点击「启动 T1 综合筛查」，完成基础评估</p>
+                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">2</span>点击高亮的黄色 / 红色维度卡片，进入 T2、T3 深度测评 <span className="inline-block ml-0.5 px-1 py-0 rounded bg-amber-400/90 text-[9px] font-bold text-brand-moss align-middle">VIP</span></p>
+                    </div>
                   </div>
                 </div>
 

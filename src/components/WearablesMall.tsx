@@ -216,7 +216,9 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                   {/* Prices label */}
                   <div className="mt-4 flex items-baseline gap-2">
                     <span className="text-xl font-sans font-extrabold text-brand-moss">¥{product.price}</span>
-                    <span className="text-xs font-sans text-brand-charcoal/50 line-through">¥{product.originalPrice}</span>
+                    {product.originalPrice !== null && (
+                      <span className="text-xs font-sans text-brand-charcoal/50 line-through">¥{product.originalPrice}</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -226,7 +228,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                 <div className="flex flex-wrap gap-1.5">
                   {product.dimensionsTargeted.map((dimKey) => (
                     <span key={dimKey} className="text-[9px] font-bold bg-brand-sand/65 text-brand-clay px-2.5 py-0.5 rounded-full border border-brand-stone/50">
-                      OT协作: {dimKey === 'attention' ? '注意力' : dimKey === 'sensory' ? '感觉统合' : dimKey === 'fine_motor' ? '精细动作' : dimKey === 'gross_motor' ? '粗大动作' : '情绪'}
+                      OT协作: {dimKey === 'attention' ? '注意力' : dimKey === 'sensory' ? '感觉统合' : dimKey === 'fine_motor' ? '精细动作' : dimKey === 'gross_motor' ? '粗大动作' : dimKey === 'self_care' ? '生活自理' : dimKey === 'cognitive' ? '认知' : '情绪'}
                     </span>
                   ))}
                 </div>
@@ -425,7 +427,9 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                     <span className="text-xs font-sans text-brand-charcoal/70 block mt-1">{selectedProduct.desc.slice(0, 42)}...</span>
                     <div className="mt-1 flex items-baseline gap-1.5">
                       <span className="text-sm font-sans font-extrabold text-brand-moss">¥{selectedProduct.price}</span>
-                      <span className="text-[10px] text-brand-charcoal/50 font-sans line-through">¥{selectedProduct.originalPrice}</span>
+                      {selectedProduct.originalPrice !== null && (
+                        <span className="text-[10px] text-brand-charcoal/50 font-sans line-through">¥{selectedProduct.originalPrice}</span>
+                      )}
                     </div>
                   </div>
                 </div>

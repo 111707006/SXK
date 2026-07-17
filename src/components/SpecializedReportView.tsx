@@ -1,10 +1,11 @@
 import React from 'react';
 import { Child, DimensionScore, AssessmentRecord } from '../types';
 import { formatAge } from '../utils/dateUtils';
-import { 
-  ArrowLeft, Brain, Sparkles, AlertCircle, Printer, Award, Activity, 
+import {
+  ArrowLeft, Brain, Sparkles, AlertCircle, Printer, Award, Activity,
   Layers, Compass, ShieldCheck, ShoppingBag, BookOpen, Clock, Heart, Play,
-  CheckCircle2, AlertTriangle, ShieldAlert, Check, Flame, ChevronRight
+  CheckCircle2, AlertTriangle, ShieldAlert, Check, Flame, ChevronRight,
+  MessageSquare, Mic, Users
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
 
@@ -72,16 +73,6 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
   };
 
   const subSkills = getSubSkills();
-
-  // Create simulated signal waveforms for the visual graphs
-  const renderWaveform = () => {
-    let d = "M 0 50";
-    for (let x = 0; x <= 400; x += 10) {
-      const y = 50 + Math.sin(x * 0.05) * 22 * Math.sin(x * 0.015) + Math.cos(x * 0.2) * 6 * (isDelayed ? 1.8 : 0.8);
-      d += ` L ${x} ${y}`;
-    }
-    return d;
-  };
 
   const getSeverityBadge = (status?: string) => {
     switch (status) {
@@ -431,12 +422,52 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
         </div>
       </div>
 
-      {/* 6. FLATTENED LAYOUT: SECTION III - 脑动力特征谱 (EEG Waveforms & Sub-skills Breakdown) */}
+      {/* 语言发展同龄对比图表 */}
+      {dimId === 'language' && (
+        <div className="space-y-6 text-left pt-2">
+          <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
+            <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">+</div>
+            <h2 className="text-base font-black text-brand-forest">语言发展同龄对比</h2>
+            <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">发展参照</span>
+          </div>
+          <div className="bg-white border border-brand-stone rounded-3xl p-6 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-center">
+              {[
+                { label: '词汇量', age: '24-30月', range: '50-200词', avg: '约120词', icon: BookOpen },
+                { label: '句子长度', age: '30-36月', range: '2-4字/句', avg: '约3字/句', icon: MessageSquare },
+                { label: '发音清晰度', age: '36-48月', range: '50-75%', avg: '约60%', icon: Mic },
+                { label: '叙事能力', age: '42-48月', range: '2-3句连贯', avg: '约2句', icon: Users },
+                { label: '指令理解', age: '24-36月', range: '2-3步指令', avg: '2步指令', icon: Brain },
+              ].map((item, i) => {
+                const Icon = item.icon;
+                return (
+                  <div key={i} className="bg-gradient-to-b from-brand-sage/10 to-white border border-brand-stone/40 rounded-2xl p-4 space-y-2">
+                    <Icon size={18} className="text-brand-moss mx-auto" />
+                    <p className="text-xs font-black text-brand-forest">{item.label}</p>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-brand-charcoal/60">同龄范围: <span className="font-bold text-brand-forest">{item.range}</span></p>
+                      <p className="text-[10px] text-brand-charcoal/60">平均水平: <span className="font-bold text-brand-moss">{item.avg}</span></p>
+                      <p className="text-[9px] text-brand-charcoal/40">适用年龄: {item.age}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[9px] text-brand-charcoal/40 text-center mt-3">* 数据参照 WHO 儿童发育标准及《汉语儿童语言发育迟缓评价量表》</p>
+          </div>
+        </div>
+      )}
+
+      {/* 6. FLATTENED LAYOUT: SECTION III - 脑动力特征谱 (Sub-skills Breakdown) */}
       <div className="space-y-6 text-left pt-2">
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-red-500 rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅲ</div>
           <h2 className="text-base font-black text-brand-forest">主客观偏离图谱与精细细胞突触受体因子细分</h2>
           <span className="text-[10px] bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-full border border-red-100">特征谱</span>
+        </div>
+
+        <div className="bg-brand-sage/10 border border-brand-stone/30 rounded-xl p-3 text-[10px] text-brand-charcoal/70 leading-relaxed">
+          <span className="font-bold text-brand-forest">说明：</span>「主客观偏离图谱」展示看护人日常观察（主观）与专业传感器采集数据（客观）之间的差异对比，帮助发现被忽视的发育信号；「精细细胞突触受体因子细分」从神经生物学层面解析语言相关脑区的突触连接强度与信号传导效率，为干预方案提供科学依据。
         </div>
 
         {/* Dynamic Dual Grid */}
@@ -620,60 +651,6 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
           </div>
         </div>
 
-        {/* Dynamic Waveform Section */}
-        <div className="bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-4">
-          <div className="border-b border-brand-cream pb-2">
-            <h3 className="text-xs font-black text-brand-forest flex items-center gap-1.5">
-              <Activity size={14} className="text-brand-moss" />
-              智能可穿戴交互设备多通道传感器共振波谱 (AI Analysis Waveform)
-            </h3>
-            <p className="text-[9px] text-brand-charcoal/50">该波形代表在任务执行瞬态捕捉到的微秒级中枢放电与声学压力共鸣包络频振</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-            <div className="md:col-span-8 bg-slate-900 rounded-2xl p-4 border border-slate-800 overflow-hidden relative shadow-inner">
-              {/* Futuristic grids */}
-              <div className="absolute inset-0 bg-[linear-gradient(rgba(244,63,94,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(244,63,94,0.02)_1px,transparent_1px)] bg-[size:16px_16px]" />
-              
-              <svg viewBox="0 0 400 100" className="w-full h-24 overflow-visible relative z-10">
-                {/* Waveform track */}
-                <path 
-                  d={renderWaveform()} 
-                  fill="none" 
-                  className={`stroke-2 animate-pulse ${isDelayed ? 'stroke-rose-500' : 'stroke-emerald-400'}`}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <line x1="0" y1="50" x2="400" y2="50" className="stroke-slate-700 stroke-1" strokeDasharray="4,4" />
-              </svg>
-
-              <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-2 border-t border-slate-800 pt-1.5 relative z-10">
-                <span className="flex items-center gap-1">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isDelayed ? 'bg-rose-500 animate-ping' : 'bg-emerald-400'}`} />
-                  通道 A: 50.4Hz 神经元极化放电协同度
-                </span>
-                <span>响应延迟: {t3Value > 70 ? '112ms' : '234ms'}</span>
-                <span className={isDelayed ? 'text-rose-400 font-bold' : ''}>
-                  波幅抖动: {t3Value > 70 ? '0.04' : '0.12 (高频偶代偿)'}
-                </span>
-              </div>
-            </div>
-
-            <div className="md:col-span-4 space-y-3">
-              <div className="bg-brand-sage/10 p-4 rounded-xl border border-brand-moss/20">
-                <h4 className="text-[11px] font-black text-brand-forest uppercase tracking-wider mb-1">
-                  突触反馈电位分析 (Evoked Potential)
-                </h4>
-                <p className="text-xs text-brand-charcoal/85 leading-relaxed font-semibold">
-                  受试儿在 T3 级交互测试时，波峰幅值表现出代偿性极化，背景高频白噪声对皮层的过载抑制较深。
-                  <span className="text-red-700 block mt-1.5">
-                    这表明突触目前正处于极易纠正与塑形的黄金激活期，必须通过每日15分钟穿戴阻尼特训提供大电荷本体输入。
-                  </span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* 7. FLATTENED LAYOUT: SECTION IV - 7日居家特调方案 (7-Day OT/PT Schedule) */}

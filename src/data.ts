@@ -414,51 +414,51 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
 
 export const PRODUCTS_DATA: Product[] = [
   {
-    id: 'eeg_headband',
-    name: '森心康·智能脑电生物反馈头带',
-    price: 2980,
-    originalPrice: 3500,
-    desc: '专为儿童注意力协同、多动及深睡管理研制的智能专业级生物反馈脑机设备，提供全维脑波采集与舒缓训练。',
+    id: 'focus_headband',
+    name: '儿童专注力头环',
+    price: 699,
+    originalPrice: null,
+    desc: '透过脑波分析孩子实时专注力情况，并透过课程练习提升专注力。',
     details: '本脑电反馈头带深度集成了高精度干电极检测触点，能实时采样前额叶区的EEG（脑电波）讯号。在专属森心康康复软件配合下，能够将α波、β波、θ波动态数据解析输出。通过小游戏音频等即时生物信息反馈，有效促进大脑皮层自控神经环路的建立，已被多项成长应用测试证实对ADHD（注意缺陷多动障碍）以及部分感觉统和障碍儿童有极佳的成长促进功效。',
-    image: 'https://picsum.photos/seed/headband/600/600',
+    image: '/headband.png',
     specs: ['重：42g 极轻不压前额', '适用年龄：3-14岁儿童', '触电触高：医用级亲肤柔性硅胶材质', '充电续航：单次充满可连续提供脑波监测训练 15 小时'],
     features: ['高解析度 EEG 采样频率高达 500Hz', '实时情绪与专注水平三元指标算法反馈', '亲子互绑对抗性脑控抗分心小训练游戏包'],
     dimensionsTargeted: ['attention', 'sensory', 'cognitive']
   },
   {
-    id: 'smart_gloves',
-    name: '森心康·儿童精细动作智能训练手套',
-    price: 1860,
-    originalPrice: 2200,
-    desc: '基于弯曲传感器与微气囊阻尼阻抗感应的智能手部康复追踪硬件，让五指精细协调练习充满趣味。',
+    id: 'walking_assist',
+    name: '行动助手-步行筋',
+    price: 1080,
+    originalPrice: null,
+    desc: '运用专利橡筋，仿生人体肌肉韧带，帮助行动抬脚等功能。',
     details: '此精细阻尼练习手套专为在精细动作发育有边缘迟缓或精细肌肉力量、抓握、定位失调度偏低的儿童研制。内嵌 10 焦耳/毫米微弯拉伸电极传感器，可敏锐感知小手每个关节 1 毫米级别的抓握角度与按偏力量。结合动画端对端的小动物捏橡皮、折纸飞拉、弹钢琴等任务挑战，提供定量化的作业治疗（OT）。',
-    image: 'https://picsum.photos/seed/gloves/600/600',
+    image: '/walking-band.png',
     specs: ['重：35g（分左右手及尺码）', '材质：高弹性透气蕾丝气垫棉面', '阻尼级：3极微重无损关节康复抗力', '无线：低功耗 BLE 5.3蓝牙连接'],
     features: ['手指独立肌力、对捏准度定量分析', '微动微颤运动捕捉滤波滤除算法', '自动生成关节训练灵活性报告卡'],
-    dimensionsTargeted: ['fine_motor', 'self_care']
-  },
-  {
-    id: 'posture_belt',
-    name: '森心康·重力姿态感应平衡追踪腰带',
-    price: 1280,
-    originalPrice: 1580,
-    desc: '实时步态、空间平衡姿态及下肢力线分析传感器。用于脑瘫及粗大运动迟滞康复评测。',
-    details: '粗大运动是少儿发育的重要基轴。重力姿态腰带内置 6 轴 IMU（微型惯性测量单元）及陀螺仪。能佩戴在脊椎中下端或髋部，实时记录步行中的双侧髋骨平移幅度、单脚触地腾空相（Gait analysis）、高抬腿高度。通过声波韵律（Auditory pacing）诱导孩子进行正确的摆臂、前冲与深脚，让跳、跑、独立平衡等ASQ/GMFM指标能获得更平滑正规的训练轨迹。',
-    image: 'https://picsum.photos/seed/belt/600/600',
-    specs: ['重：55g（搭口高度可自由调节）', '适用腰围：40-75cm 儿童大网扣制', '精度：0.01 度三轴倾斜角监测', '系统连接：手机、电脑、PAD、大显示屏多投屏互连'],
-    features: ['三维实时动画人物投影轨迹骨骼力线', '对跨越爬跑、坐立挺背全景多要素感知量化', '步幅异偏即刻音乐韵律警报校正'],
     dimensionsTargeted: ['gross_motor', 'self_care']
   },
   {
-    id: 'social_wristband',
-    name: '森心康·智能社交减压陪伴心电手环',
-    price: 980,
-    originalPrice: 1200,
-    desc: '结合皮电生理指标（GSR）、心率变异率（HRV）进行儿童社交焦虑与情绪极差即刻缓解的高端手环。',
+    id: 'smart_lamp',
+    name: '护智灯-儿童款',
+    price: 3980,
+    originalPrice: null,
+    desc: '透过专利40赫兹灯源帮助孩子调整多动、情绪及专注力状态。',
+    details: '粗大运动是少儿发育的重要基轴。重力姿态腰带内置 6 轴 IMU（微型惯性测量单元）及陀螺仪。能佩戴在脊椎中下端或髋部，实时记录步行中的双侧髋骨平移幅度、单脚触地腾空相（Gait analysis）、高抬腿高度。通过声波韵律（Auditory pacing）诱导孩子进行正确的摆臂、前冲与深脚，让跳、跑、独立平衡等ASQ/GMFM指标能获得更平滑正规的训练轨迹。',
+    image: '/smart-lamp.png',
+    specs: ['重：55g（搭口高度可自由调节）', '适用腰围：40-75cm 儿童大网扣制', '精度：0.01 度三轴倾斜角监测', '系统连接：手机、电脑、PAD、大显示屏多投屏互连'],
+    features: ['三维实时动画人物投影轨迹骨骼力线', '对跨越爬跑、坐立挺背全景多要素感知量化', '步幅异偏即刻音乐韵律警报校正'],
+    dimensionsTargeted: ['attention', 'sensory']
+  },
+  {
+    id: 'gut_probiotic',
+    name: '肠道菌检测-益生菌',
+    price: 699,
+    originalPrice: null,
+    desc: '透过国家级专业实验室检查肠道菌群情况，有效帮助了解生长发育及未来训练调整方针。',
     details: '情绪失控与自闭倾向、社交抗拒有深度生化反馈作用。智温社交皮电心搏监测手环不仅可以实现常规手环的心率计数，还特别提供了极微电流下的皮电敏感测量（皮肤毛孔细电变化），能在孩子愤怒、极端沮丧、烦躁前 1-2 分钟捕捉到自主神经系统的激活度。它将轻柔振动并播放由音乐康复专家调调的节拍旋律，帮助特儿或多动高敏儿在进入新社交群前安抚降压。',
-    image: 'https://picsum.photos/seed/wristband/600/600',
+    image: '/probiotic.png',
     specs: ['材质：液态亲肤纳米多孔氟橡胶', '重量：21g 紧扣式安全双锁针设计', '心率测量：高灵敏三通道PPG红外透射芯', '皮电阻探头：纯金抗腐蚀抗敏涂层电接触'],
     features: ['情绪激动度智能震动预警缓和反馈', '防走失一键紧急定位追踪功能', '家庭亲子情分能量磁吸配对对碰计分'],
-    dimensionsTargeted: ['social_emotional', 'sensory', 'family_env']
+    dimensionsTargeted: ['self_care', 'attention']
   }
 ];

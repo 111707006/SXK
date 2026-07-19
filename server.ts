@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 // tcb import removed - replaced with MySQL
 import * as mysqlDb from './src/db/mysql';
 import axios from 'axios';
+import rateLimit from 'express-rate-limit';
 import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
 dotenv.config();
@@ -16,6 +17,43 @@ const PORT = Number(process.env.DEPLOY_RUN_PORT || process.env.PORT) || 5000;
 
 // Raised limit so base64-encoded audio clips (<=10MB) can reach the ASR endpoint
 app.use(express.json({ limit: '15mb' }));
+
+// ── Rate limiting (per-IP) to stop automated abuse burning DashScope quota ──
+// Behind nginx (see deploy/nginx.conf) we must trust the first proxy hop so the
+// limiter keys on the real client IP (X-Forwarded-For), not nginx's address.
+app.set('trust proxy', 1);
+
+const jsonTooMany = (req: express.Request, res: express.Response) =>
+  res.status(429).json({ error: '请求过于频繁，请稍后再试。' });
+
+// Generous defaults (tunable via env) so a full CPMV assessment (dozens of AI
+// calls) never trips the limit, while a runaway loop hits it within seconds.
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.RATE_API_MAX) || 800,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonTooMany,
+});
+const aiLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: Number(process.env.RATE_AI_MAX) || 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonTooMany,
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.RATE_AUTH_MAX) || 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonTooMany,
+});
+
+app.use('/api', apiLimiter);
+app.use(['/api/report', '/api/specialized-report', '/api/motion-eval',
+  '/api/motion-report', '/api/ali-language-eval', '/api/asr'], aiLimiter);
+app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
 
 // ── Auth: password hashing (bcrypt) + stateless HMAC session tokens ──
 const BCRYPT_ROUNDS = 10;

@@ -420,7 +420,7 @@ export const PRODUCTS_DATA: Product[] = [
     originalPrice: null,
     desc: '透过脑波分析孩子实时专注力情况，并透过课程练习提升专注力。',
     details: '本脑电反馈头带深度集成了高精度干电极检测触点，能实时采样前额叶区的EEG（脑电波）讯号。在专属森心康康复软件配合下，能够将α波、β波、θ波动态数据解析输出。通过小游戏音频等即时生物信息反馈，有效促进大脑皮层自控神经环路的建立，已被多项成长应用测试证实对ADHD（注意缺陷多动障碍）以及部分感觉统和障碍儿童有极佳的成长促进功效。',
-    image: '/headband.png',
+    image: '/headband.jpg',
     specs: ['重：42g 极轻不压前额', '适用年龄：3-14岁儿童', '触电触高：医用级亲肤柔性硅胶材质', '充电续航：单次充满可连续提供脑波监测训练 15 小时'],
     features: ['高解析度 EEG 采样频率高达 500Hz', '实时情绪与专注水平三元指标算法反馈', '亲子互绑对抗性脑控抗分心小训练游戏包'],
     dimensionsTargeted: ['attention', 'sensory', 'cognitive']
@@ -444,7 +444,7 @@ export const PRODUCTS_DATA: Product[] = [
     originalPrice: null,
     desc: '透过专利40赫兹灯源帮助孩子调整多动、情绪及专注力状态。',
     details: '粗大运动是少儿发育的重要基轴。重力姿态腰带内置 6 轴 IMU（微型惯性测量单元）及陀螺仪。能佩戴在脊椎中下端或髋部，实时记录步行中的双侧髋骨平移幅度、单脚触地腾空相（Gait analysis）、高抬腿高度。通过声波韵律（Auditory pacing）诱导孩子进行正确的摆臂、前冲与深脚，让跳、跑、独立平衡等ASQ/GMFM指标能获得更平滑正规的训练轨迹。',
-    image: '/smart-lamp.png',
+    image: '/smart-lamp.jpg',
     specs: ['重：55g（搭口高度可自由调节）', '适用腰围：40-75cm 儿童大网扣制', '精度：0.01 度三轴倾斜角监测', '系统连接：手机、电脑、PAD、大显示屏多投屏互连'],
     features: ['三维实时动画人物投影轨迹骨骼力线', '对跨越爬跑、坐立挺背全景多要素感知量化', '步幅异偏即刻音乐韵律警报校正'],
     dimensionsTargeted: ['attention', 'sensory']

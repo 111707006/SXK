@@ -24,29 +24,55 @@ sudo bash setup-server.sh
 
 ## 三、上传代码
 
+推荐用 Git（后续更新只需 `git pull`）：
+
 ```bash
-# 在服务器上创建项目目录
+# 在服务器上创建项目目录并拉取代码
 sudo mkdir -p /var/www/sxk
 sudo chown $USER:$USER /var/www/sxk
-
-# 本地打包上传 (在本地执行)
-scp SXK--main-v3.zip root@你的IP:/var/www/sxk/
-
-# 服务器上解压
-cd /var/www/sxk
-unzip SXK--main-v3.zip
+git clone https://github.com/111707006/SXK.git /var/www/sxk
 ```
 
-## 四、配置环境变量
+或用打包上传（无需 Git）：
 
 ```bash
-# 编辑 ecosystem.config.js，填入你的 API Key
-nano /var/www/sxk/deploy/ecosystem.config.js
-
-# 需要配置的 Key:
-# DASHSCOPE_API_KEY  - 阿里 DashScope (千問模型 + ASR)
-# GEMINI_API_KEY     - Google Gemini (可选备用)
+# 本地打包上传 (在本地执行，排除 node_modules / dist)
+scp SXK.zip root@你的IP:/var/www/sxk/
+# 服务器上解压
+cd /var/www/sxk && unzip SXK.zip
 ```
+
+## 四、配置环境变量（密钥写入 .env，不要写进 ecosystem.config.js）
+
+`ecosystem.config.js` 会被 Git 跟踪，密钥写在那里会泄露。改为在项目根目录创建 `.env`（已被 `.gitignore` 排除），`server.ts` 启动时用 dotenv 自动读取：
+
+```bash
+nano /var/www/sxk/.env
+```
+
+填入以下内容：
+
+```ini
+# 阿里 DashScope (千問模型 + ASR)，启用真实 AI 报告与语音识别
+DASHSCOPE_API_KEY=sk-xxxxx
+
+# Google Gemini 备用报告引擎（可选，境内不可直连）
+# GEMINI_API_KEY=xxxxx
+
+# MySQL（可指向已有的阿里云 RDS，表结构见 deploy/schema.sql）
+MYSQL_HOST=xxx.mysql.rds.aliyuncs.com
+MYSQL_PORT=3306
+MYSQL_USER=sxk_user
+MYSQL_PASSWORD=xxxxx
+MYSQL_DATABASE=sxk_db
+
+# 登录令牌签名密钥：务必设置一段足够长的随机串，否则每次重启后所有登录都会失效
+# 生成方法： openssl rand -hex 32
+SESSION_SECRET=在此粘贴一段随机字符串
+```
+
+> 数据库：若使用已有的阿里云 RDS，表已存在无需重建；全新库请先执行 `deploy/schema.sql`。
+> 密码存储为 bcrypt 哈希；`schema.sql` 里的测试账号（test@test.com / 123456）为明文种子，首次登录时会自动升级为哈希。
 
 ## 五、部署应用
 

@@ -775,7 +775,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   <div className="grid grid-cols-3 gap-2">
                     {sortedScores.map((item) => (
                       <div
-                        key={item.dimensionId}
+                        key={`${item.dimensionId}-${item.tierId}`}
                         className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] ${
                           item.concernScore >= 5 ? 'bg-rose-50/30' :
                           item.concernScore >= 3 ? 'bg-amber-50/30' :
@@ -1030,7 +1030,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     <div className="flex flex-wrap gap-1.5">
                       {[...completedScores.filter(s => s.status === 'delay'), ...completedScores.filter(s => s.status === 'borderline')].map((score) => (
                         <button
-                          key={score.dimensionId}
+                          key={`${score.dimensionId}-${score.tierId}`}
                           onClick={() => setActivePill(activePill === score.dimensionId ? null : score.dimensionId)}
                           className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition duration-150 flex items-center gap-1 cursor-pointer active:scale-95 ${
                             score.status === 'delay' 
@@ -1057,7 +1057,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     <div className="flex flex-wrap gap-1.5">
                       {completedScores.filter(s => s.status === 'normal').map((score) => (
                         <button
-                          key={score.dimensionId}
+                          key={`${score.dimensionId}-${score.tierId}`}
                           onClick={() => setActivePill(activePill === score.dimensionId ? null : score.dimensionId)}
                           className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition duration-150 flex items-center gap-1 cursor-pointer active:scale-95 bg-brand-sage/20 hover:bg-brand-sage/30 text-brand-forest border-brand-moss/20 ${
                             activePill === score.dimensionId ? 'ring-2 ring-brand-forest' : ''

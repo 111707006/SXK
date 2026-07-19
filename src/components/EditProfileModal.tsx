@@ -33,7 +33,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
       return;
     }
     if (calculatedAgeMonth < 12 || calculatedAgeMonth > 180) {
-      setError('系统筛查适用范围为12-180个月（1-15岁）');
+      setError('系统评估适用范围为12-180个月（1-15岁）');
       return;
     }
     setError('');

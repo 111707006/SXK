@@ -189,7 +189,7 @@ export default function MotionVideoAssessment({
       <div className="bg-brand-forest text-white rounded-2xl p-5 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-10"><Activity size={100} /></div>
         <div className="relative z-10 space-y-1">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-brand-sage">T3 · CPMV-20 脑瘫动作影像筛查</span>
+          <span className="text-[10px] uppercase font-bold tracking-wider text-brand-sage">T3 · CPMV-20 脑瘫动作影像评估</span>
           <h3 className="text-sm font-bold text-white">骨骼关键点 / AI 动作影像判读（20 项）</h3>
           <p className="text-[11px] text-brand-cream/70 leading-relaxed mt-1">
             逐项上传一段 10–30 秒动作短视频，AI（qwen3-vl）将依量表观察要点自动判读 0/1/2 分；也可直接手动评分。满分 40 分。
@@ -325,7 +325,7 @@ export default function MotionVideoAssessment({
           onClick={genReport}
           className="px-5 py-2.5 bg-brand-forest hover:bg-brand-forest/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition shrink-0"
         >
-          <FileText size={14} /> 生成筛查报告 <ChevronRight size={14} />
+          <FileText size={14} /> 生成评估报告 <ChevronRight size={14} />
         </button>
       </div>
 
@@ -333,8 +333,8 @@ export default function MotionVideoAssessment({
       {showReport && report && (
         <div ref={radarReportRef} className="space-y-6 pt-2 animate-fade-in">
           <div className="bg-gradient-to-br from-brand-forest to-brand-moss text-white rounded-2xl p-5">
-            <div className="text-[11px] tracking-wider text-brand-sage flex items-center gap-1.5"><Sparkles size={13} /> 森心康 · CPMV-20 动作影像筛查报告</div>
-            <h3 className="text-lg font-black mt-1">脑瘫儿童动作影像筛查报告</h3>
+            <div className="text-[11px] tracking-wider text-brand-sage flex items-center gap-1.5"><Sparkles size={13} /> 森心康 · CPMV-20 动作影像评估报告</div>
+            <h3 className="text-lg font-black mt-1">脑瘫儿童动作影像评估报告</h3>
             <p className="text-[11px] text-brand-cream/80 mt-1">受测儿：{child?.name}（{child?.gender === 'boy' ? '男' : '女'}）· {child?.ageMonth} 个月</p>
           </div>
 
@@ -427,7 +427,7 @@ export default function MotionVideoAssessment({
             {((aiNarrative && aiNarrative.suggestions.length ? aiNarrative.suggestions : buildCpmvSuggest(report))).map((s, i) => <p key={i} className="text-[11px] text-brand-charcoal/75 leading-relaxed mb-1.5">{s}</p>)}
           </div>
 
-          <p className="text-[10px] text-brand-charcoal/40 text-center">本工具为动作影像筛查参考，不构成医学诊断；正式功能分级请以 GMFM、GMFCS、MACS 等标准化评估为准。</p>
+          <p className="text-[10px] text-brand-charcoal/40 text-center">本工具为动作影像评估参考，不构成医学诊断；正式功能分级请以 GMFM、GMFCS、MACS 等标准化评估为准。</p>
         </div>
       )}
     </div>

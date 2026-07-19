@@ -645,9 +645,9 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
           className={`flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition ${isTransitioning ? 'opacity-40 cursor-not-allowed' : ''}`}
         >
           <ArrowLeft size={16} />
-          返回筛查面板
+          返回评估面板
         </button>
-        <span className="text-xs font-bold text-brand-charcoal/60">森心康 · 二级与三级深度诊断</span>
+        <span className="text-xs font-bold text-brand-charcoal/60">森心康 · 二级与三级深度评估</span>
       </div>
 
       {successMessage && (
@@ -977,7 +977,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
               className="px-6 py-3.5 bg-brand-moss hover:bg-brand-moss/90 text-white shadow-brand-moss/20 active:scale-[0.98] rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition"
             >
               <Database size={14} />
-              {isTransitioning ? '正在计算神经网络大数据...' : '一键保存并启动 AI 专项深度大数据诊断'}
+              {isTransitioning ? '正在计算神经网络大数据...' : '一键保存并启动 AI 专项深度大数据评估'}
               <ChevronRight size={14} />
             </button>
           </div>

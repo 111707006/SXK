@@ -1,4 +1,4 @@
-// CPMV-20 · 脑瘫儿童动作影像筛查(20项)
+// CPMV-20 · 脑瘫儿童动作影像评估(20项)
 // Ported from the standalone 森心康 "sxk cp motion screening" HTML tool.
 // Used by the gross_motor T3 layer for video-based motion assessment.
 

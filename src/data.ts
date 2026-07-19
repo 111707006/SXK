@@ -61,7 +61,7 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
     borderColor: 'border-brand-moss',
     tiers: {
       T1: {
-        scaleName: 'ASQ-3 精细动作筛查',
+        scaleName: 'ASQ-3 精细动作评估',
         duration: '10-15分钟',
         questions: [
           { id: 'fm_t1_1', text: '孩子是否能够用小勺或筷子稳当地将食物送入口脑？', options: stdOptions },
@@ -204,7 +204,7 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
     borderColor: 'border-brand-clay',
     tiers: {
       T1: {
-        scaleName: 'M-CHAT-R 婴幼儿自闭症行为筛查',
+        scaleName: 'M-CHAT-R 婴幼儿自闭症行为评估',
         duration: '10-15分钟',
         questions: [
           { id: 'so_t1_1', text: '呼唤孩子的名字时，他/她是否能够转头看着您，并对您报以微笑？', options: stdOptions },
@@ -247,7 +247,7 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
     borderColor: 'border-brand-forest',
     tiers: {
       T1: {
-        scaleName: 'ASQ-3 认知发展筛查',
+        scaleName: 'ASQ-3 认知发展评估',
         duration: '10-15分钟',
         questions: [
           { id: 'co_t1_1', text: '孩子能否辨别并指出红、绿、黄、蓝四种以上的基本色？', options: stdOptions },
@@ -290,7 +290,7 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
     borderColor: 'border-brand-forest',
     tiers: {
       T1: {
-        scaleName: 'ADHD简易筛查量表',
+        scaleName: 'ADHD简易评估量表',
         duration: '10-15分钟',
         questions: [
           { id: 'at_t1_1', text: '孩子在进行感兴趣的活动（如看绘本、玩积木）时，是否能保持 10 分钟以上的专心？', options: stdOptions },

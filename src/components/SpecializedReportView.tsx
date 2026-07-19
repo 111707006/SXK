@@ -92,7 +92,7 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
         return {
           bg: 'bg-emerald-100 text-emerald-800 border-emerald-300',
           dot: 'bg-emerald-600',
-          text: '✅ 发育完全正常 / 常规筛查观察'
+          text: '✅ 发育完全正常 / 常规评估观察'
         };
     }
   };
@@ -144,10 +144,10 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
               脑发育分期专项深度评估 · 高级数据安全受控状态
             </span>
             <h1 className="text-2xl md:text-3xl font-black font-sans leading-tight text-white tracking-tight">
-              【{dimConfig.name}】脑发育深度专项评估报告
+              【{dimConfig.name}】{dimConfig.id === "language" ? "语言" : "神经"}发育深度专项评估报告
             </h1>
             <p className="text-xs text-brand-sand/90 font-medium leading-relaxed">
-              本报告合并了 T2 级看护人长期行为观测与 T3 级（森心康高维红外、声谱、重力平衡智能传感器）交互实操层数据，结合三维突触激活模型，为您提供数字化脑智发育精准画像。
+              本报告合并了 T2 家长长期行为观测与 T3 级（森心康康复AI大模型、声谱、构音模型等）交互实操层数据，，为您提供专业AI深度评估专项报告。
             </p>
           </div>
 
@@ -233,7 +233,7 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
               </div>
               <h3 className="text-sm font-black text-brand-forest flex items-center gap-1.5">
                 <Brain size={16} className="text-brand-moss" />
-                前额叶神经网络活性首席评估意见
+                神经网络活性首席评估意见
               </h3>
               <p className="text-xs text-brand-charcoal leading-relaxed font-semibold bg-brand-cream/10 p-3.5 rounded-2xl border border-brand-stone/30">
                 {record.aiReport?.summary || '该少儿在此专项测评层中表现出一定的反馈发育落后风险。中枢神经元轴突传递阻抗及空间感觉传导的协调效率尚需加强定向动作抗阻刺激，建议采取家庭穿戴OT方案积极训练。'}
@@ -365,57 +365,6 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
               <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-[10px] text-red-700 font-bold flex items-center gap-1.5 animate-pulse">
                 <AlertCircle size={14} className="text-red-600 shrink-0" />
                 检测到部分指标低于 75%，已自动转换至极速突触唤醒策略。
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 5. FLATTENED LAYOUT: SECTION II - 专家物理训练 (OT/PT) 指导建议 */}
-      <div className="space-y-6 text-left pt-2">
-        <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
-          <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅱ</div>
-          <h2 className="text-base font-black text-brand-forest">儿童脑智发育物理训练(OT/PT)成长方案建议</h2>
-          <span className="text-[10px] bg-brand-moss/10 text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-moss/20">干预层</span>
-        </div>
-
-        <div className="bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {record.aiReport?.rehabSuggestions.map((sug, i) => {
-              const colors = [
-                'bg-gradient-to-br from-rose-50 to-red-50/20 border-red-200',
-                'bg-gradient-to-br from-amber-50 to-orange-50/20 border-amber-200',
-                'bg-gradient-to-br from-blue-50 to-indigo-50/20 border-blue-200',
-              ];
-              const badgeText = ['🔥 阻尼抗阻特训', '⚡ 空间反射重建', '💎 感觉统合脱敏'];
-              return (
-                <div 
-                  key={i} 
-                  className={`flex flex-col justify-between p-4 rounded-2xl border-2 shadow-sm relative group hover:shadow-md transition duration-300 ${colors[i] || 'bg-brand-cream/15 border-brand-stone/40'}`}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="w-6 h-6 rounded-full bg-brand-forest text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-sm">
-                        {i + 1}
-                      </span>
-                      <span className="text-[9px] bg-white text-brand-charcoal/80 font-black px-2 py-0.5 rounded border border-brand-stone/50 shadow-sm">
-                        {badgeText[i] || '评估核心'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-brand-charcoal leading-relaxed font-black pt-1">
-                      {sug}
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-brand-stone/30 text-[9px] text-brand-charcoal/50 font-bold">
-                    <Check size={10} className="text-emerald-600" />
-                    <span>森心康推荐辅件接入</span>
-                  </div>
-                </div>
-              );
-            }) || (
-              <div className="col-span-3 text-center py-8 text-xs text-brand-charcoal/50">
-                暂无专项建议处方，推荐维持常规物理阻抗康复游戏。
               </div>
             )}
           </div>
@@ -653,6 +602,57 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
 
       </div>
 
+      {/* 5. FLATTENED LAYOUT: SECTION II - 专家物理训练 (OT/PT) 指导建议 */}
+      <div className="space-y-6 text-left pt-2">
+        <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
+          <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅱ</div>
+          <h2 className="text-base font-black text-brand-forest">儿童脑智发育物理训练(OT/PT)成长方案建议</h2>
+          <span className="text-[10px] bg-brand-moss/10 text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-moss/20">干预层</span>
+        </div>
+
+        <div className="bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {record.aiReport?.rehabSuggestions.map((sug, i) => {
+              const colors = [
+                'bg-gradient-to-br from-rose-50 to-red-50/20 border-red-200',
+                'bg-gradient-to-br from-amber-50 to-orange-50/20 border-amber-200',
+                'bg-gradient-to-br from-blue-50 to-indigo-50/20 border-blue-200',
+              ];
+              const badgeText = ['🔥 阻尼抗阻特训', '⚡ 空间反射重建', '💎 感觉统合脱敏'];
+              return (
+                <div 
+                  key={i} 
+                  className={`flex flex-col justify-between p-4 rounded-2xl border-2 shadow-sm relative group hover:shadow-md transition duration-300 ${colors[i] || 'bg-brand-cream/15 border-brand-stone/40'}`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="w-6 h-6 rounded-full bg-brand-forest text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                        {i + 1}
+                      </span>
+                      <span className="text-[9px] bg-white text-brand-charcoal/80 font-black px-2 py-0.5 rounded border border-brand-stone/50 shadow-sm">
+                        {badgeText[i] || '评估核心'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-brand-charcoal leading-relaxed font-black pt-1">
+                      {sug}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-brand-stone/30 text-[9px] text-brand-charcoal/50 font-bold">
+                    <Check size={10} className="text-emerald-600" />
+                    <span>森心康推荐辅件接入</span>
+                  </div>
+                </div>
+              );
+            }) || (
+              <div className="col-span-3 text-center py-8 text-xs text-brand-charcoal/50">
+                暂无专项建议处方，推荐维持常规物理阻抗康复游戏。
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* 7. FLATTENED LAYOUT: SECTION IV - 7日居家特调方案 (7-Day OT/PT Schedule) */}
       <div className="space-y-6 text-left pt-2">
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
@@ -736,6 +736,415 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
             </div>
           )}
         </div>
+
+      {/* 8. FLATTENED LAYOUT: SECTION V - 语音识别准确率分析 */}
+      <div className="space-y-6 text-left pt-2">
+        <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
+          <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅴ</div>
+          <h2 className="text-base font-black text-brand-forest">语音识别准确率分析</h2>
+          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T3 传感器层</span>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-brand-stone p-6">
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="text-3xl font-black text-brand-forest">78%</div>
+              <div className="text-xs text-brand-charcoal/60 font-semibold">整体识别准确率</div>
+            </div>
+            <div className="flex gap-4 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-brand-moss"></div>
+                <span className="text-brand-charcoal/70">元音 92%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-brand-forest"></div>
+                <span className="text-brand-charcoal/70">辅音 71%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-brand-clay"></div>
+                <span className="text-brand-charcoal/70">声调 65%</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {[
+              { label: '元音识别', value: 92, color: 'bg-brand-moss' },
+              { label: '辅音识别', value: 71, color: 'bg-brand-forest' },
+              { label: '声调识别', value: 65, color: 'bg-brand-clay' },
+              { label: '连续语音', value: 58, color: 'bg-brand-ochre' },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-20 text-xs font-bold text-brand-charcoal/70">{item.label}</div>
+                <div className="flex-1 h-6 bg-brand-cream/50 rounded-full overflow-hidden">
+                  <div className={`h-full ${item.color} rounded-full flex items-center justify-end pr-2 transition-all duration-500`} style={{ width: `${item.value}%` }}>
+                    <span className="text-[10px] font-black text-white">{item.value}%</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 9. FLATTENED LAYOUT: SECTION VI - 词汇量发展曲线 */}
+      <div className="space-y-6 text-left pt-2">
+        <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
+          <div className="w-6 h-6 bg-brand-forest rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅵ</div>
+          <h2 className="text-base font-black text-brand-forest">词汇量发展曲线</h2>
+          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T2 行为观测层</span>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-brand-stone p-6">
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="text-3xl font-black text-brand-forest">320</div>
+              <div className="text-xs text-brand-charcoal/60 font-semibold">当前词汇量（个）</div>
+            </div>
+            <div className="text-xs text-brand-charcoal/60">
+              同龄参考：<span className="font-bold text-brand-moss">450-600</span> 个
+            </div>
+          </div>
+          
+          <svg viewBox="0 0 400 150" className="w-full h-40">
+            {/* Grid lines */}
+            <line x1="40" y1="20" x2="40" y2="130" stroke="#e5e7eb" strokeWidth="1" />
+            <line x1="40" y1="130" x2="380" y2="130" stroke="#e5e7eb" strokeWidth="1" />
+            <line x1="40" y1="75" x2="380" y2="75" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4" />
+            
+            {/* Age labels */}
+            <text x="40" y="145" fontSize="10" fill="#6b7280">2岁</text>
+            <text x="120" y="145" fontSize="10" fill="#6b7280">3岁</text>
+            <text x="200" y="145" fontSize="10" fill="#6b7280">4岁</text>
+            <text x="280" y="145" fontSize="10" fill="#6b7280">5岁</text>
+            <text x="360" y="145" fontSize="10" fill="#6b7280">6岁</text>
+            
+            {/* Peer range (shaded area) */}
+            <path d="M 40 60 L 120 40 L 200 25 L 280 15 L 360 10 L 360 30 L 280 35 L 200 45 L 120 60 L 40 80 Z" fill="#d1fae5" opacity="0.5" />
+            
+            {/* Child's curve */}
+            <path d="M 40 90 L 120 75 L 200 65 L 280 60 L 360 55" fill="none" stroke="#65a30d" strokeWidth="3" strokeLinecap="round" />
+            
+            {/* Data points */}
+            <circle cx="40" cy="90" r="4" fill="#65a30d" />
+            <circle cx="120" cy="75" r="4" fill="#65a30d" />
+            <circle cx="200" cy="65" r="4" fill="#65a30d" />
+            <circle cx="280" cy="60" r="4" fill="#65a30d" />
+            <circle cx="360" cy="55" r="4" fill="#65a30d" />
+            
+            {/* Current position marker */}
+            <circle cx="200" cy="65" r="6" fill="#dc2626" stroke="white" strokeWidth="2" />
+          </svg>
+          
+          <div className="flex justify-between text-xs mt-2">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-brand-moss"></div>
+              <span className="text-brand-charcoal/70">同龄范围</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-brand-forest"></div>
+              <span className="text-brand-charcoal/70">发展曲线</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-red-600"></div>
+              <span className="text-brand-charcoal/70">当前位点</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 10. FLATTENED LAYOUT: SECTION VII - 语法复杂度雷达图 */}
+      <div className="space-y-6 text-left pt-2">
+        <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
+          <div className="w-6 h-6 bg-brand-clay rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅶ</div>
+          <h2 className="text-base font-black text-brand-forest">语法复杂度多维分析</h2>
+          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">AI 语义分析</span>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-brand-stone p-6">
+          <div className="flex items-center justify-center">
+            <svg viewBox="0 0 300 280" className="w-full max-w-[320px]">
+              {/* Radar grid */}
+              {[1, 2, 3, 4].map((level) => (
+                <polygon
+                  key={level}
+                  points={Array.from({ length: 6 }, (_, i) => {
+                    const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+                    const r = level * 50;
+                    return `${150 + r * Math.cos(angle)},${140 + r * Math.sin(angle)}`;
+                  }).join(' ')}
+                  fill="none"
+                  stroke="#e5e7eb"
+                  strokeWidth="1"
+                />
+              ))}
+              
+              {/* Axis lines */}
+              {Array.from({ length: 6 }, (_, i) => {
+                const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+                return (
+                  <line
+                    key={i}
+                    x1="150"
+                    y1="140"
+                    x2={150 + 200 * Math.cos(angle)}
+                    y2={140 + 200 * Math.sin(angle)}
+                    stroke="#e5e7eb"
+                    strokeWidth="1"
+                  />
+                );
+              })}
+              
+              {/* Data polygon */}
+              <polygon
+                points={[
+                  [85, 60],  // 句子长度 70%
+                  [220, 70],  // 从句使用 65%
+                  [240, 160], // 连接词 80%
+                  [180, 220], // 时态准确 75%
+                  [100, 210], // 语序正确 85%
+                  [70, 130],  // 代词使用 60%
+                ].map(p => p.join(',')).join(' ')}
+                fill="rgba(101, 163, 13, 0.2)"
+                stroke="#65a30d"
+                strokeWidth="2"
+              />
+              
+              {/* Data points */}
+              {[
+                [85, 60, 70],
+                [220, 70, 65],
+                [240, 160, 80],
+                [180, 220, 75],
+                [100, 210, 85],
+                [70, 130, 60],
+              ].map((p, i) => (
+                <g key={i}>
+                  <circle cx={p[0]} cy={p[1]} r="4" fill="#65a30d" />
+                  <text x={p[0]} y={p[1] - 8} fontSize="10" fill="#374151" fontWeight="bold" textAnchor="middle">{p[2]}%</text>
+                </g>
+              ))}
+              
+              {/* Labels */}
+              <text x="150" y="20" fontSize="11" fill="#374151" fontWeight="bold" textAnchor="middle">句子长度</text>
+              <text x="270" y="75" fontSize="11" fill="#374151" fontWeight="bold" textAnchor="start">从句使用</text>
+              <text x="270" y="165" fontSize="11" fill="#374151" fontWeight="bold" textAnchor="start">连接词</text>
+              <text x="150" y="270" fontSize="11" fill="#374151" fontWeight="bold" textAnchor="middle">时态准确</text>
+              <text x="30" y="225" fontSize="11" fill="#374151" fontWeight="bold" textAnchor="end">语序正确</text>
+              <text x="30" y="135" fontSize="11" fill="#374151" fontWeight="bold" textAnchor="end">代词使用</text>
+            </svg>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
+            <div className="bg-brand-sage/20 rounded-lg p-2 text-center">
+              <div className="font-black text-brand-forest">72%</div>
+              <div className="text-brand-charcoal/60">平均复杂度</div>
+            </div>
+            <div className="bg-brand-sage/20 rounded-lg p-2 text-center">
+              <div className="font-black text-brand-forest">85%</div>
+              <div className="text-brand-charcoal/60">语序正确率</div>
+            </div>
+            <div className="bg-brand-sage/20 rounded-lg p-2 text-center">
+              <div className="font-black text-brand-forest">60%</div>
+              <div className="text-brand-charcoal/60">代词使用</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 11. FLATTENED LAYOUT: SECTION VIII - 语用能力评估 */}
+      <div className="space-y-6 text-left pt-2">
+        <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
+          <div className="w-6 h-6 bg-brand-ochre rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅷ</div>
+          <h2 className="text-base font-black text-brand-forest">语用能力场景分析</h2>
+          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T2 行为观测层</span>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-brand-stone p-6">
+          <div className="space-y-4">
+            {[
+              { label: '主动发起对话', value: 45, max: 100, color: 'bg-brand-clay' },
+              { label: '回应他人提问', value: 72, max: 100, color: 'bg-brand-forest' },
+              { label: '维持话题能力', value: 38, max: 100, color: 'bg-brand-clay' },
+              { label: '轮流对话意识', value: 55, max: 100, color: 'bg-brand-ochre' },
+              { label: '非语言沟通', value: 68, max: 100, color: 'bg-brand-forest' },
+              { label: '情境适应力', value: 42, max: 100, color: 'bg-brand-clay' },
+            ].map((item, i) => (
+              <div key={i} className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold text-brand-charcoal/80">{item.label}</span>
+                  <span className="font-black text-brand-forest">{item.value}%</span>
+                </div>
+                <div className="h-4 bg-brand-cream/50 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${item.color} rounded-full transition-all duration-500`}
+                    style={{ width: `${item.value}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-4 pt-4 border-t border-brand-stone/30 flex justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-brand-clay"></div>
+              <span className="text-brand-charcoal/70">需关注 (&lt;50%)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-brand-ochre"></div>
+              <span className="text-brand-charcoal/70">临界 (50-60%)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-brand-forest"></div>
+              <span className="text-brand-charcoal/70">良好 (&gt;60%)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 12. FLATTENED LAYOUT: SECTION IX - 发音清晰度对比 */}
+      <div className="space-y-6 text-left pt-2">
+        <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
+          <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅸ</div>
+          <h2 className="text-base font-black text-brand-forest">发音清晰度声谱分析</h2>
+          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T3 声谱传感器</span>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-brand-stone p-6">
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="text-center p-4 bg-brand-sage/10 rounded-xl">
+              <div className="text-3xl font-black text-brand-forest">6.2</div>
+              <div className="text-xs text-brand-charcoal/60 font-semibold">当前清晰度评分</div>
+            </div>
+            <div className="text-center p-4 bg-brand-cream/50 rounded-xl">
+              <div className="text-3xl font-black text-brand-moss">8.5</div>
+              <div className="text-xs text-brand-charcoal/60 font-semibold">同龄参考评分</div>
+            </div>
+          </div>
+          
+          <svg viewBox="0 0 400 120" className="w-full h-32">
+            {/* Baseline */}
+            <line x1="20" y1="100" x2="380" y2="100" stroke="#e5e7eb" strokeWidth="1" />
+            
+            {/* Peer range */}
+            <rect x="20" y="30" width="360" height="40" fill="#d1fae5" opacity="0.5" rx="4" />
+            <text x="200" y="25" fontSize="10" fill="#6b7280" textAnchor="middle">同龄正常范围</text>
+            
+            {/* Child's score bar */}
+            <rect x="20" y="70" width="260" height="20" fill="#65a30d" rx="4" opacity="0.8" />
+            <text x="290" y="85" fontSize="11" fill="#374151" fontWeight="bold">6.2</text>
+            
+            {/* Peer average line */}
+            <line x1="20" y1="50" x2="380" y2="50" stroke="#059669" strokeWidth="2" strokeDasharray="6" />
+            <text x="385" y="54" fontSize="10" fill="#059669" fontWeight="bold">8.5</text>
+          </svg>
+          
+          <div className="grid grid-cols-4 gap-2 mt-4 text-xs">
+            {[
+              { label: '唇音', score: 7.1, status: 'good' },
+              { label: '舌音', score: 5.8, status: 'warn' },
+              { label: '齿音', score: 6.5, status: 'warn' },
+              { label: '喉音', score: 7.8, status: 'good' },
+            ].map((item, i) => (
+              <div key={i} className={`text-center p-2 rounded-lg ${item.status === 'good' ? 'bg-brand-sage/20' : 'bg-red-50'}`}>
+                <div className={`font-black ${item.status === 'good' ? 'text-brand-forest' : 'text-red-600'}`}>{item.score}</div>
+                <div className="text-brand-charcoal/60 text-[10px]">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 13. FLATTENED LAYOUT: SECTION X - 语言理解vs表达 */}
+      <div className="space-y-6 text-left pt-2">
+        <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
+          <div className="w-6 h-6 bg-brand-forest rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅹ</div>
+          <h2 className="text-base font-black text-brand-forest">语言理解与表达能力对比</h2>
+          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">综合评估</span>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-brand-stone p-6">
+          <div className="flex items-center justify-center gap-8 mb-6">
+            <div className="text-center">
+              <svg viewBox="0 0 120 120" className="w-28 h-28">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" strokeWidth="10" />
+                <circle 
+                  cx="60" cy="60" r="50" 
+                  fill="none" 
+                  stroke="#65a30d" 
+                  strokeWidth="10" 
+                  strokeDasharray={`${2 * Math.PI * 50 * 0.72} ${2 * Math.PI * 50 * 0.28}`}
+                  strokeDashoffset={2 * Math.PI * 50 * 0.25}
+                  strokeLinecap="round"
+                />
+                <text x="60" y="55" fontSize="20" fill="#374151" fontWeight="bold" textAnchor="middle">72%</text>
+                <text x="60" y="75" fontSize="10" fill="#6b7280" textAnchor="middle">理解能力</text>
+              </svg>
+            </div>
+            <div className="text-center">
+              <svg viewBox="0 0 120 120" className="w-28 h-28">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" strokeWidth="10" />
+                <circle 
+                  cx="60" cy="60" r="50" 
+                  fill="none" 
+                  stroke="#dc2626" 
+                  strokeWidth="10" 
+                  strokeDasharray={`${2 * Math.PI * 50 * 0.48} ${2 * Math.PI * 50 * 0.52}`}
+                  strokeDashoffset={2 * Math.PI * 50 * 0.25}
+                  strokeLinecap="round"
+                />
+                <text x="60" y="55" fontSize="20" fill="#374151" fontWeight="bold" textAnchor="middle">48%</text>
+                <text x="60" y="75" fontSize="10" fill="#6b7280" textAnchor="middle">表达能力</text>
+              </svg>
+            </div>
+          </div>
+          
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+            <div className="text-sm font-bold text-red-800">⚠️ 理解 - 表达差距：24%</div>
+            <div className="text-xs text-red-700 mt-1">表达能力显著落后于理解能力，建议加强表达训练</div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="bg-brand-sage/10 rounded-lg p-3">
+              <div className="text-xs font-bold text-brand-charcoal/70 mb-2">理解能力细分</div>
+              <div className="space-y-2">
+                {[
+                  { label: '指令理解', value: 78 },
+                  { label: '故事理解', value: 65 },
+                  { label: '抽象概念', value: 58 },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="w-16 text-brand-charcoal/60">{item.label}</span>
+                    <div className="flex-1 h-2 bg-brand-cream/50 rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-moss rounded-full" style={{ width: `${item.value}%` }} />
+                    </div>
+                    <span className="font-bold text-brand-forest w-8 text-right">{item.value}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-red-50/50 rounded-lg p-3">
+              <div className="text-xs font-bold text-brand-charcoal/70 mb-2">表达能力细分</div>
+              <div className="space-y-2">
+                {[
+                  { label: '单词表达', value: 62 },
+                  { label: '句子表达', value: 45 },
+                  { label: '叙事表达', value: 32 },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="w-16 text-brand-charcoal/60">{item.label}</span>
+                    <div className="flex-1 h-2 bg-brand-cream/50 rounded-full overflow-hidden">
+                      <div className="h-full bg-red-500 rounded-full" style={{ width: `${item.value}%` }} />
+                    </div>
+                    <span className="font-bold text-red-600 w-8 text-right">{item.value}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       </div>
     </div>
   );

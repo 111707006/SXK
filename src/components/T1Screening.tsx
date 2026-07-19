@@ -183,9 +183,9 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
               <ClipboardCheck size={26} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-brand-forest">T1 综合筛查评估结论</h2>
+              <h2 className="text-xl font-bold text-brand-forest">T1 综合评估结论</h2>
               <p className="text-xs text-brand-charcoal/70 mt-0.5">
-                受测儿童：{child.name} | 实足月龄：{child.ageMonth}个月 | 筛查量表：{ageBandName}
+                受测儿童：{child.name} | 实足月龄：{child.ageMonth}个月 | 评估量表：{ageBandName}
               </p>
             </div>
           </div>
@@ -204,8 +204,8 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
             <div className="flex-1 space-y-1">
               <h3 className="text-sm font-bold">
                 {lowDimensions.length > 0 
-                  ? `筛查提示：发现孩子在 ${lowDimensions.map(d => d.dimensionName).join('、')} 等 ${lowDimensions.length} 个维度上存在发育边缘或落后风险。`
-                  : '筛查提示：恭喜，孩子在所有 9 大维度上的基本发育状态均符合标准指标值。'
+                  ? `评估提示：发现孩子在 ${lowDimensions.map(d => d.dimensionName).join('、')} 等 ${lowDimensions.length} 个维度上存在发育边缘或落后风险。`
+                  : '评估提示：恭喜，孩子在所有 9 大维度上的基本发育状态均符合标准指标值。'
                 }
               </h3>
               <p className="text-xs text-brand-charcoal/75 leading-relaxed">
@@ -268,7 +268,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
 
                   {/* Deep Assessment indicator */}
                   <div className="border-t border-brand-cream mt-2 pt-2 text-[10px] text-right flex items-center justify-between">
-                    <span className="text-[9px] text-brand-charcoal/40">T1 基础筛查层</span>
+                    <span className="text-[9px] text-brand-charcoal/40">T1 基础评估层</span>
                     {(score.status === 'delay' || score.status === 'borderline') ? (
                       <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
                         <AlertTriangle size={10} className="shrink-0" />
@@ -294,7 +294,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
               className="w-full sm:w-auto px-5 py-3.5 border border-brand-stone bg-brand-cream/20 text-brand-charcoal/80 hover:text-brand-charcoal hover:bg-brand-cream/50 rounded-2xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
             >
               <RefreshCw size={14} />
-              重新填写筛查问卷
+              重新填写评估问卷
             </button>
             <button
               id="activate-t2-btn"
@@ -321,7 +321,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
           <h3 className="text-xs font-bold text-brand-charcoal/60 uppercase tracking-wider">分龄自适应 AI 精准评估</h3>
           <h2 className="text-base font-extrabold text-brand-forest flex items-center gap-1.5">
             <Sparkle size={16} className="text-brand-moss animate-spin-slow" />
-            T1 综合筛查层 —— 全维度分龄极速检评
+            T1 综合评估层 —— 全维度分龄极速检评
           </h2>
         </div>
         <div className="flex items-center gap-2 px-3.5 py-1.5 bg-brand-sage/40 border border-brand-stone/60 rounded-xl text-xs font-bold text-brand-forest">
@@ -332,7 +332,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
       {/* Progress visual tracker */}
       <div className="bg-white rounded-2xl border border-brand-stone p-4 shadow-sm text-left">
         <div className="flex justify-between items-center text-xs font-semibold mb-2 text-brand-charcoal/70">
-          <span>筛查进度：9 大维度已填 {currentStep} / 9</span>
+          <span>评估进度：9 大维度已填 {currentStep} / 9</span>
           <span className="font-bold text-brand-forest">{progressPercent}%</span>
         </div>
         <div className="w-full bg-brand-cream/50 h-2 rounded-full overflow-hidden border border-brand-stone/30">
@@ -353,7 +353,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
             <div className="text-[10px] uppercase font-extrabold tracking-wide text-brand-charcoal/55 flex items-center gap-1.5">
               <span>DIMENSION 0{currentStep + 1} / 09</span>
               <span className="w-1.5 h-1.5 rounded-full bg-brand-moss" />
-              <span>T1 筛查入口</span>
+              <span>T1 评估入口</span>
             </div>
             <h3 className="text-base font-bold text-brand-forest mt-0.5">{dimensionNames[activeDimId]}</h3>
             <p className="text-[11px] text-brand-charcoal/70 mt-1 leading-relaxed">
@@ -447,7 +447,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                   : 'bg-brand-cream border border-brand-stone text-brand-charcoal/40 cursor-not-allowed shadow-none'
               }`}
             >
-              提交 T1 综合筛查
+              提交 T1 综合评估
               <ChevronRight size={14} />
             </button>
           ) : (

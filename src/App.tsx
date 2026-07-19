@@ -59,6 +59,8 @@ export default function App() {
   const [dbEnvId, setDbEnvId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showServiceModal, setShowServiceModal] = useState(false);
 
   // Helper to get or create device ID
   const getOrCreateDeviceId = (): string => {
@@ -249,7 +251,7 @@ export default function App() {
   const handleSaveChild = (newChild: Child) => {
     setChild(newChild);
     localStorage.setItem('senxinkang_child', JSON.stringify(newChild));
-    setCurrentView('t1_screening'); // Auto onboarding to T1 screening!
+    setCurrentView('dashboard'); // Go to dashboard to let user choose to enter T1
     
     // Explicit save to trigger background sync
     try {
@@ -387,10 +389,10 @@ export default function App() {
             </div>
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">森心康儿童发展评估平台</h1>
+                <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">森心康儿童发展评估</h1>
               </div>
               <div className="text-[10px] text-brand-charcoal/60 font-medium flex items-center gap-1.5 mt-0.5">
-                <span>9维3层脑功能神经网络评估 · 数字化物理辅助 OT/PT 体系</span>
+                <span>9维3层神经网络AI多模分析 · 综合评估孩子发展现况</span>
                 {syncing && <span className="text-brand-moss animate-spin text-[11px]" title="正在云端保存中...">⏳</span>}
                 {syncError && <span className="text-red-500 text-[9px] font-bold" title={syncError}>⚠️ 同步失败</span>}
               </div>
@@ -414,7 +416,7 @@ export default function App() {
                   }`}
                 >
                   <BarChart3 size={12} />
-                  筛查面板 (9维)
+                  评估面板 (9维)
                 </button>
                 <button
                   id="nav-report-btn"
@@ -435,7 +437,7 @@ export default function App() {
                   }`}
                 >
                   <FileText size={12} />
-                  诊断报告
+                  评估报告
                 </button>
                 <button
                   id="nav-mall-btn"
@@ -515,7 +517,7 @@ export default function App() {
                         {/* Screening progress */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between text-[10px] text-brand-charcoal/60 font-semibold">
-                            <span>脑功能筛查进度 ({completedScores.length}/9 维度)</span>
+                            <span>脑功能评估进度 ({completedScores.length}/9 维度)</span>
                             <span>{Math.round((completedScores.length / 9) * 100)}%</span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -668,10 +670,10 @@ export default function App() {
           /* Profile Registry form shown when child is unconfigured */
           <div className="py-12 animate-fade-in text-center w-full">
             <h2 className="text-2xl md:text-3xl font-black text-brand-forest tracking-tight max-w-lg mx-auto leading-tight mb-4">
-              欢迎使用 <span className="text-brand-moss">森心康</span> 儿童数字测听与康复分层诊断系统
+              欢迎使用 <span className="text-brand-moss">森心康</span> 儿童数字测听与康复分层评估系统
             </h2>
             <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
-              您的账户 (<span className="font-bold text-brand-forest">{userEmail}</span>) 已成功连线。为了开启全方位脑功能筛查，请填写您孩子的基本信息，登记创建成长档案。
+              您的账户 (<span className="font-bold text-brand-forest">{userEmail}</span>) 已成功连线。为了开启全方位脑功能评估，请填写您孩子的基本信息，登记创建成长档案。
             </p>
             <ChildProfileForm currentChild={child} onSave={handleSaveChild} />
           </div>
@@ -691,10 +693,10 @@ export default function App() {
                       儿童生长发育评定专家
                     </span>
                     <h2 className="text-2xl md:text-3xl font-black font-sans leading-tight">
-                      儿童脑神经综合发展分层评估筛查
+                      儿童神经网络分层发展综合评估
                     </h2>
                     <div className="flex flex-col gap-1">
-                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">1</span>点击「启动 T1 综合筛查」，完成基础评估</p>
+                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">1</span>点击「启动 T1 综合评估」，完成基础评估</p>
                       <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">2</span>点击高亮的黄色 / 红色维度卡片，进入 T2、T3 深度测评 <span className="inline-block ml-0.5 px-1 py-0 rounded bg-amber-400/90 text-[9px] font-bold text-brand-moss align-middle">VIP</span></p>
                     </div>
                   </div>
@@ -775,8 +777,8 @@ export default function App() {
                   {/* Page header */}
                   <div className="bg-white px-6 py-6 rounded-3xl border border-brand-stone shadow-sm text-left flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                      <h2 className="text-xl font-black text-brand-forest tracking-tight">数字化发育档案 & 临床诊断报告库</h2>
-                      <p className="text-xs text-brand-charcoal/60 font-medium mt-1">归档受测儿童历次综合筛查与临床专项深度诊断数据，符合 HIPAA 临床数据管理规范。</p>
+                      <h2 className="text-xl font-black text-brand-forest tracking-tight">综合发育评估报告库</h2>
+                      <p className="text-xs text-brand-charcoal/60 font-medium mt-1">历次综合评估与专项深度评估数据资料库，符合隐私保护条款管理规范。</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs bg-brand-sage/60 border border-brand-stone/40 px-3 py-1 rounded-full text-brand-forest font-bold">
@@ -801,11 +803,11 @@ export default function App() {
                             <Layers size={16} />
                           </div>
                           <div>
-                            <h3 className="text-sm font-black text-brand-charcoal">T1 脑发育综合筛查报告</h3>
-                            <p className="text-[10px] text-brand-charcoal/50">9维度多感官神经网络基础筛查</p>
+                            <h3 className="text-sm font-black text-brand-charcoal">T1 综合发展评估报告</h3>
+                            <p className="text-[10px] text-brand-charcoal/50">9维度多感官神经网络基础评估</p>
                           </div>
                         </div>
-                        <span className="text-[10px] font-bold bg-brand-sage px-2 py-0.5 rounded text-brand-forest">筛查层</span>
+                        <span className="text-[10px] font-bold bg-brand-sage px-2 py-0.5 rounded text-brand-forest">评估层</span>
                       </div>
 
                       {/* Live Screening Card */}
@@ -813,7 +815,7 @@ export default function App() {
                         <div className="flex justify-between items-start">
                           <div>
                             <span className="text-[10px] bg-brand-forest text-white font-extrabold px-1.5 py-0.5 rounded">实时动态</span>
-                            <h4 className="text-xs font-bold mt-1.5 text-brand-charcoal">当前全维动态脑智筛查进度</h4>
+                            <h4 className="text-xs font-bold mt-1.5 text-brand-charcoal">当前全维动态脑智评估进度</h4>
                             <p className="text-[10px] text-brand-charcoal/60 mt-0.5">基于已导入的 T1 测评分数实时核算</p>
                           </div>
                           <span className="text-xs font-extrabold text-brand-forest">{completedScores.filter(s => s.tierId === 'T1').length}/9 维度</span>
@@ -823,7 +825,7 @@ export default function App() {
                           className="w-full py-2 bg-brand-forest hover:bg-brand-forest-dark text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-brand-forest/10"
                         >
                           <Sparkles size={12} />
-                          查看实时综合诊断报告
+                          查看实时综合评估报告
                         </button>
                       </div>
 
@@ -832,7 +834,7 @@ export default function App() {
                         <h4 className="text-xs font-bold text-brand-charcoal/70">已存归档报告：</h4>
                         {reportHistory.filter(r => r.type === 'T1_SCREENING').length === 0 ? (
                           <div className="border border-dashed border-brand-stone rounded-2xl py-6 px-4 text-center text-xs text-brand-charcoal/40">
-                            暂无归档的 T1 综合筛查诊断
+                            暂无归档的 T1 综合评估
                           </div>
                         ) : (
                           <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
@@ -854,7 +856,7 @@ export default function App() {
                                         查看报告 <ChevronRight size={10} />
                                       </span>
                                     </div>
-                                    <h5 className="text-xs font-bold text-brand-charcoal mt-1">全维脑网络综合评估报告</h5>
+                                    <h5 className="text-xs font-bold text-brand-charcoal mt-1">T1 综合发展评估报告</h5>
                                     <div className="flex items-center gap-2 mt-2">
                                       <span className="text-[10px] bg-red-50 text-red-600 border border-red-100 rounded px-1.5 font-medium">
                                         迟缓维度: {delayCount}
@@ -879,7 +881,7 @@ export default function App() {
                             <ShieldCheck size={16} />
                           </div>
                           <div>
-                            <h3 className="text-sm font-black text-brand-charcoal">T2/T3 脑网络深度专项评估成长报告</h3>
+                            <h3 className="text-sm font-black text-brand-charcoal">T2/T3 神经网络深度专项评估成长报告</h3>
                             <p className="text-[10px] text-brand-charcoal/50">针对发育异常维度进行的高精度互动评估与脑科学数据分析</p>
                           </div>
                         </div>
@@ -1008,7 +1010,7 @@ export default function App() {
             ) : (
               /* Fallback safety view if state gets misaligned */
               <div className="py-12 bg-white rounded-3xl border border-brand-stone p-8 text-center text-brand-charcoal/80">
-                <p>视图丢失，请点击头部“筛查面板”重新载入</p>
+                <p>视图丢失，请点击头部“评估面板”重新载入</p>
               </div>
             )}
 
@@ -1019,11 +1021,11 @@ export default function App() {
       {/* Aesthetic footer */}
       <footer className="bg-white border-t border-brand-stone/60 py-6 mt-16 text-center text-xs text-brand-charcoal/60 font-medium relative z-10">
         <div className="max-w-7xl mx-auto px-4 space-y-2">
-          <p>© 2026 森心康（SenXinKang）儿童精准数字干预与脑科学发展技术实验室</p>
+          <p>© 2026 森心康（SenXinKang）神经网络科学技术实验室</p>
           <div className="flex justify-center gap-4 text-[10px]">
-            <a href="#about" className="hover:text-brand-forest transition-colors">服务条款</a>
+            <button onClick={() => setShowServiceModal(true)} className="hover:text-brand-forest transition-colors cursor-pointer">服务及免责条款</button>
             <span>•</span>
-            <a href="#privacy" className="hover:text-brand-forest transition-colors">隐秘保护条约（HIPAA/GDPR标准）</a>
+            <button onClick={() => setShowPrivacyModal(true)} className="hover:text-brand-forest transition-colors cursor-pointer">隐私保护条款</button>
             <span>•</span>
             <a href="#specs" className="hover:text-brand-forest transition-colors">发育评估量表归档声明</a>
           </div>
@@ -1037,6 +1039,217 @@ export default function App() {
           onClose={() => setIsEditingProfile(false)}
           onResetAll={handleClearProfile}
         />
+      )}
+
+      {/* 隐私保护条款弹窗 */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowPrivacyModal(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-brand-stone/30 bg-gradient-to-r from-brand-sage/20 to-brand-cream/30">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-brand-moss rounded-xl flex items-center justify-center">
+                  <ShieldCheck size={16} className="text-white" />
+                </div>
+                <h2 className="text-base font-black text-brand-forest">隐私保护条款</h2>
+              </div>
+              <button
+                onClick={() => setShowPrivacyModal(false)}
+                className="w-7 h-7 rounded-full bg-brand-stone/20 hover:bg-brand-stone/40 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <span className="text-brand-charcoal/60 text-sm font-bold">✕</span>
+              </button>
+            </div>
+
+            {/* 内容区 */}
+            <div className="overflow-y-auto px-6 py-5 space-y-5 text-xs text-brand-charcoal/80 leading-relaxed">
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">一、总则</h3>
+                <p>森心康（SenXinKang）儿童数字测听与康复分层评估系统（以下简称"本系统"）高度重视用户隐私与数据安全。本条款旨在明确本系统在收集、存储、使用及共享儿童发育评估数据方面的规范与承诺，保障用户（含监护人及受测儿童）的合法权益。</p>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">二、数据收集范围</h3>
+                <p>本系统仅收集为完成发育评估与康复建议所必需的最少数据，包括：</p>
+                <ul className="list-disc pl-5 mt-1 space-y-1">
+                  <li>儿童基本档案信息（姓名、出生日期、性别）</li>
+                  <li>发育评估量表作答数据（9维度3层级评估结果）</li>
+                  <li>AI评估报告生成记录</li>
+                  <li>用户注册账号信息（邮箱、加密密码）</li>
+                </ul>
+                <p className="mt-2">本系统<strong className="text-brand-forest">不会</strong>收集儿童面部图像、地理位置、通讯录等与评估无关的个人信息。</p>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">三、数据存储与安全</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>所有数据均存储于加密数据库中，传输过程采用 HTTPS/TLS 加密协议</li>
+                  <li>密码经 bcrypt 哈希加密存储，不可逆向还原</li>
+                  <li>AI 模型调用过程中，儿童数据经脱敏处理后发送，不包含可识别个人身份的信息</li>
+                  <li>定期执行安全审计与漏洞扫描，确保系统符合行业安全标准</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">四、数据使用目的</h3>
+                <p>收集的数据仅用于以下目的：</p>
+                <ul className="list-disc pl-5 mt-1 space-y-1">
+                  <li>生成儿童发育评估报告与康复建议</li>
+                  <li>提供穿戴设备商城购买服务</li>
+                  <li>改善系统功能与用户体验（匿名化统计分析）</li>
+                </ul>
+                <p className="mt-2"><strong className="text-brand-forest">不会</strong>将数据用于商业广告推送、第三方营销或任何未经监护人明确授权的目的。</p>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">五、数据共享与披露</h3>
+                <p>除以下情形外，本系统不会向任何第三方共享或披露用户数据：</p>
+                <ul className="list-disc pl-5 mt-1 space-y-1">
+                  <li>经监护人明确书面同意</li>
+                  <li>法律法规要求或司法机关依法调取</li>
+                  <li>为保护本系统、用户或公众的安全与权益所必需</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">六、用户权利</h3>
+                <p>监护人享有以下权利：</p>
+                <ul className="list-disc pl-5 mt-1 space-y-1">
+                  <li><strong>查阅权</strong>：随时查看儿童的评估数据与报告</li>
+                  <li><strong>更正权</strong>：修改不准确的个人信息</li>
+                  <li><strong>删除权</strong>：申请删除儿童档案及全部关联数据</li>
+                  <li><strong>撤回同意权</strong>：随时撤回对数据处理的授权</li>
+                </ul>
+                <p className="mt-2">行使上述权利请联系本系统客服或通过账号设置自行操作。</p>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">七、儿童数据特别保护</h3>
+                <p>本系统严格遵守《中华人民共和国个人信息保护法》《儿童个人信息网络保护规定》等法律法规，对儿童个人信息实行<strong className="text-brand-forest">专门保护</strong>：</p>
+                <ul className="list-disc pl-5 mt-1 space-y-1">
+                  <li>收集儿童数据前须取得监护人的明示同意</li>
+                  <li>设置专门的儿童数据访问控制策略</li>
+                  <li>定期对处理儿童数据的员工进行安全培训</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">八、条款更新</h3>
+                <p>本条款可能因法律法规变化或系统功能调整而更新。更新后的条款将通过系统公告或邮件通知监护人，继续使用本系统即视为同意更新后的条款。</p>
+              </section>
+
+              <div className="pt-3 border-t border-brand-stone/30 text-[10px] text-brand-charcoal/50 text-center">
+                最后更新日期：2026年7月 · 森心康（SenXinKang）技术实验室
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 服务及免责条款弹窗 */}
+      {showServiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowServiceModal(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-brand-stone/30 bg-gradient-to-r from-brand-sage/20 to-brand-cream/30">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-brand-moss rounded-xl flex items-center justify-center">
+                  <FileText size={16} className="text-white" />
+                </div>
+                <h2 className="text-base font-black text-brand-forest">服务及免责条款</h2>
+              </div>
+              <button
+                onClick={() => setShowServiceModal(false)}
+                className="w-7 h-7 rounded-full bg-brand-stone/20 hover:bg-brand-stone/40 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <span className="text-brand-charcoal/60 text-sm font-bold">✕</span>
+              </button>
+            </div>
+
+            {/* 内容区 */}
+            <div className="overflow-y-auto px-6 py-5 space-y-5 text-xs text-brand-charcoal/80 leading-relaxed">
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">一、服务说明</h3>
+                <p>森心康（SenXinKang）儿童数字测听与康复分层评估系统（以下简称"本系统"）为监护人提供儿童发育评估、AI评估报告生成、康复建议参考及智能穿戴设备商城等服务。本系统基于"9维3层分层神经系统检测"理念，结合人工智能技术，为儿童发育状况提供数字化参考信息。</p>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">二、免责声明（重要）</h3>
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+                  <p className="font-black text-red-700 text-xs">⚠️ 请务必仔细阅读以下内容：</p>
+                  <ul className="list-disc pl-5 space-y-1.5 text-red-800/90">
+                    <li><strong>本系统所有评估内容、报告及建议仅供参考，不构成任何医疗诊断、治疗建议或医疗行为。</strong></li>
+                    <li><strong>本系统非医疗器械，不具备医疗资质，不能替代专业医疗机构的诊断与治疗。</strong></li>
+                    <li>AI生成的评估报告基于算法模型运算，可能存在偏差，不应作为唯一决策依据。</li>
+                    <li>儿童发育评估涉及专业医学判断，请务必以正规医院儿科、儿童保健科或发育行为科医生的诊断为准。</li>
+                    <li>如儿童存在发育迟缓、行为异常或其他健康问题，请及时就医，切勿依赖本系统结果延误治疗。</li>
+                  </ul>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">三、服务限制</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>本系统提供的评估工具为初步参考，不能替代标准化临床评估量表的专业施测与解读</li>
+                  <li>AI评估报告的准确性受输入数据质量、模型训练数据范围等因素影响</li>
+                  <li>商城所售穿戴设备为辅助训练工具，非医疗器械，不具有治疗功效</li>
+                  <li>本系统不对因使用评估结果而做出的任何决策承担责任</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">四、用户责任</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>用户（监护人）应确保提供的儿童档案信息真实、准确</li>
+                  <li>用户应理解并同意本系统的评估结果仅供参考，不得将其用于医疗诊断、法律证据或其他专业用途</li>
+                  <li>用户不得将本系统用于商业目的或未经授权的二次分发</li>
+                  <li>用户应妥善保管账号信息，对账号下的所有操作负责</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">五、知识产权</h3>
+                <p>本系统的软件、界面设计、评估量表、报告模板、品牌标识等均受知识产权法保护。未经森心康技术实验室书面许可，任何人不得复制、修改、反向工程或商业性使用本系统的任何内容。</p>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">六、服务变更与中断</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>本系统保留随时修改、暂停或终止部分或全部服务的权利，无需事先通知</li>
+                  <li>因系统维护、升级、网络故障或不可抗力导致的服务中断，本系统不承担赔偿责任</li>
+                  <li>本系统不对第三方服务（如AI模型接口、云存储服务）的可用性做出保证</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">七、责任限制</h3>
+                <p>在法律允许的最大范围内，森心康技术实验室及其关联公司对因使用或无法使用本系统而造成的任何直接、间接、附带、特殊或后果性损害（包括但不限于数据丢失、利润损失、业务中断）不承担赔偿责任，即使已被告知此类损害的可能性。</p>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">八、争议解决</h3>
+                <p>本条款的解释与适用受中华人民共和国法律管辖。因本系统服务产生的任何争议，双方应友好协商解决；协商不成的，任何一方可向森心康技术实验室所在地有管辖权的人民法院提起诉讼。</p>
+              </section>
+
+              <section>
+                <h3 className="font-black text-brand-forest text-sm mb-2">九、条款更新</h3>
+                <p>本条款可能因法律法规变化、业务发展或系统功能调整而更新。更新后的条款将通过系统公告或邮件通知用户，继续使用本系统即视为同意更新后的条款。如不同意更新内容，请停止使用本系统。</p>
+              </section>
+
+              <div className="pt-3 border-t border-brand-stone/30 text-[10px] text-brand-charcoal/50 text-center">
+                最后更新日期：2026年7月 · 森心康（SenXinKang）技术实验室
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

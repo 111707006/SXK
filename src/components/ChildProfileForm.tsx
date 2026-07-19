@@ -38,7 +38,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
       return;
     }
     if (calculatedAgeMonth < 12 || calculatedAgeMonth > 180) {
-      setError('系统筛查与量表适用范围为12-180个月（1-15岁），请选择正确的出生日期');
+      setError('系统评估与量表适用范围为12-180个月（1-15岁），请选择正确的出生日期');
       return;
     }
     setError('');
@@ -71,7 +71,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
         </div>
         <div className="text-left">
           <h2 className="text-xl font-bold font-sans text-brand-forest">快捷登记受测儿童信息</h2>
-          <p className="text-xs text-brand-charcoal/70 mt-0.5">登记出生日期，系统将自动换算实足月龄，匹配最佳神经发育筛查量表</p>
+          <p className="text-xs text-brand-charcoal/70 mt-0.5">登记出生日期，系统将自动换算实足月龄，匹配最佳神经发育评估量表</p>
         </div>
       </div>
 

@@ -380,7 +380,7 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
             </p>
 
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-brand-clay block">🎯 临床发育病理诊断建议:</span>
+              <span className="text-[10px] font-bold text-brand-clay block">🎯 临床发育病理评估建议:</span>
               <p className="text-[10px] text-brand-charcoal leading-relaxed">
                 {activeNode.clinicalNotes}
               </p>

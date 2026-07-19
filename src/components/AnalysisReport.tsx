@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Child, DimensionScore, AssessmentRecord } from '../types';
 import { formatAge } from '../utils/dateUtils';
 import { 
@@ -15,29 +15,29 @@ import {
 const SPECIALISTS = [
   {
     id: 'spec-1',
-    name: '张雅琴 教授',
-    title: '儿童神经发育 资深研究专家',
-    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200',
-    specialty: '3-12岁儿童多动、言语迟缓、注意力不协同专项训练指导与发育评估。',
-    experience: '研究与评估经验28年，前省儿童发育成长协会副会长。',
+    name: '王素娟',
+    title: '儿童专科医院 副主任医师',
+    avatar: '/expert-wang.jpg',
+    specialty: '儿童脑瘫的系统管理与康复、脑损伤后遗症的全面康复干预、高危新生儿的长期随访与发育监测、学习障碍、阅读障碍、书写障碍等发育障碍的康复治疗。',
+    experience: '从业30年，复旦大学附属儿科医院，中国康复医学会康复评定专委会委员，中国妇幼保健协会高危儿专业委员',
     slots: ['周四上午', '周五下午', '周六上午']
   },
   {
     id: 'spec-2',
-    name: '王树林 主任',
-    title: '数字脑科学/OT感统特级指导师',
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200',
-    specialty: '感觉统合异常、精细抓握阻尼、运动规划及居家游戏方案制定。',
-    experience: '脑科学特邀顾问，主导多款数字脑电头戴互动实操。',
+    name: '何明哲',
+    title: '国家合格康复督导师',
+    avatar: '/expert-he.jpg',
+    specialty: '儿童作业、心理、多动症、自闭症、学习障碍、言语功能等干预训练，儿童发育迟缓调整训练。',
+    experience: '从业20年，中国台湾大学职能治疗学系，台北护理大学语言治疗病理学硕士，森心康儿童康复品牌康复质量管理部负责人，上海星晨儿童医院（暨复旦大学附设儿科医院新虹桥分院）康复科督导',
     slots: ['周一上午', '周二下午', '周三上午']
   },
   {
     id: 'spec-3',
-    name: '李佳 博士',
-    title: '言语发展与沟通能力评估总监',
-    avatar: 'https://images.unsplash.com/photo-1594824813573-246434de83fb?auto=format&fit=crop&q=80&w=200',
-    specialty: '儿童精细构音、唇齿爆发音、前后鼻音、构音肌阻抗特训及双语社交融合。',
-    experience: '知名学府博士，主修神经言语学、儿童社交与情绪稳健性。',
+    name: '张厚亮',
+    title: '神经内科医学博士、院长',
+    avatar: '/expert-zhang.png',
+    specialty: '神经内科医学、脑神经专家、神经内科疑难杂症干细胞修复治疗、功能医学辅助神经康复。',
+    experience: '26 年神经系统疾病临床诊疗经验，美年大健康门诊部院长，华山医院神经内科、中心医院神经内科、上海新起点康复医院副院长',
     slots: ['周三上午', '周五上午', '周日上午']
   }
 ];
@@ -50,17 +50,17 @@ const DOMAIN_DETAILS: Record<string, {
   gross_motor: {
     ability: "指大肌肉群参与的运动能力，包括身体平衡、姿势控制、双侧肢体协调、跳跃及上下楼梯等。它是儿童探索世界、进行复杂身体活动的基石。",
     familyAdvice: "每日安排至少 30 分钟大肢体活动。在安全床垫上练习侧翻滚或爬行；使用充气软墩设计小障碍跨越路线，牵着孩子单手练习单脚跳。",
-    scales: ["感觉统合-动作发展评估（线上）", "粗大动作里程碑核对（发展筛查量表）", "GMFM-66 （明显粗大动作困难时）", "物理治疗 PT", "作业治疗 OT"]
+    scales: ["感觉统合-动作发展评估（线上）", "粗大动作里程碑核对（发展评估量表）", "GMFM-66 （明显粗大动作困难时）", "物理治疗 PT", "作业治疗 OT"]
   },
   fine_motor: {
     ability: "指对外界物理感觉刺激（光线、声音、材质）的调节、对身体动作的精细微调以及手眼协调操作，包括拿筷捏粒、折纸剪线等双手小肌肉协调运动。",
     familyAdvice: "多给孩子捏橡皮泥、穿引鞋带或穿彩珠，练习手指精细对捏。洗澡时鼓励使用不同触觉材质的玩具，在玩耍中逐步降低防卫性敏感。",
-    scales: ["WeeFIM 精细操作指数", "儿童感觉统合发展评定量表", "感觉防卫性专科筛查", "作业治疗 OT"]
+    scales: ["WeeFIM 精细操作指数", "儿童感觉统合发展评定量表", "感觉防卫性专科评估", "作业治疗 OT"]
   },
   sensory: {
     ability: "在遭遇挫折、面对抚养人离别或起居环境变迁时的自我情绪适应与平复能力，以及日常生活作息节律的稳定性和配合表现。",
     familyAdvice: "建立固定的作息时间表。当孩子发脾气时，家长保持平稳，通过深呼吸或抱枕安抚；使用情绪色卡引导孩子口头表达“我现在有些生气”。",
-    scales: ["CBCL 儿童行为量表", "Achenbach 情绪稳健度筛查", "ADHD 多动缺陷心理筛查", "心理沙盘与行为矫正"]
+    scales: ["CBCL 儿童行为量表", "Achenbach 情绪稳健度评估", "ADHD 多动缺陷心理评估", "心理沙盘与行为矫正"]
   },
   language: {
     ability: "口语词汇理解、长短句表达、人称代词辨别使用、多步骤口头指令执行以及语序逻辑的清晰度。这涉及 Broca 区及 Wernicke 区的突触偶联。",
@@ -70,7 +70,7 @@ const DOMAIN_DETAILS: Record<string, {
   social_emotional: {
     ability: "共同关注能力（视线随人手指点）、名字呼唤响应、同伴合作嬉戏意愿、分享展示玩具及眼神持续接触等社会交往特质。",
     familyAdvice: "呼唤孩子名字并保持 3 秒以上自然眼神对视，给予赞许。开展多来回的乒乓社交游戏（如互相推接皮球），训练眼神与肢体呼应。",
-    scales: ["ADOS-2 自闭症诊断观察量表", "M-CHAT-R 婴幼儿孤独症筛查", "SRS-2 社交反应量表", "社交融合互动课（SCERTS）"]
+    scales: ["ADOS-2 自闭症评估观察量表", "M-CHAT-R 婴幼儿孤独症评估", "SRS-2 社交反应量表", "社交融合互动课（SCERTS）"]
   },
   cognitive: {
     ability: "指对事物的逻辑辨别、形状分类、大小对比、瞬时记忆以及类比逻辑推理能力。它直接反映了大脑皮层高级功能区突触网络的可塑性。",
@@ -90,7 +90,7 @@ const DOMAIN_DETAILS: Record<string, {
   family_env: {
     ability: "指对新知识、儿歌模仿、规则流程记忆和新游戏技巧的理解与学成效率。也受家庭环境中亲子伴读与赋能支持氛围的影响。",
     familyAdvice: "睡前半小时开展“无手机”的高质量伴谈与共读，多鼓励孩子重述绘本中的简单场景，用描述性肯定语强化孩子的探索兴趣。",
-    scales: ["儿童学习适应性测验 (AAT)", "少儿多元智能诊断问卷", "阅读与读写障碍早期筛查", "家庭环境支持度评估 (HOME)"]
+    scales: ["儿童学习适应性测验 (AAT)", "少儿多元智能评估问卷", "阅读与读写障碍早期评估", "家庭环境支持度评估 (HOME)"]
   }
 };
 
@@ -140,6 +140,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'success'>('idle');
   const [activePill, setActivePill] = useState<string | null>(null);
   const [showAllDomains, setShowAllDomains] = useState(false);
+  const bookingSectionRef = useRef<HTMLDivElement>(null);
 
   const delayList = completedScores.filter(s => s.status === 'delay');
   const borderlineList = completedScores.filter(s => s.status === 'borderline');
@@ -213,7 +214,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           className="flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition"
         >
           <ArrowLeft size={16} />
-          返回筛查面板
+          返回评估面板
         </button>
         <span className="text-xs bg-brand-sage px-3 py-1 text-brand-forest border border-brand-stone/40 rounded-full font-bold">
           受测儿档案：{child.name} ({child.gender === 'boy' ? '男' : '女'}) | {formatAge(child.ageMonth)}
@@ -275,7 +276,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 </span>
               </h2>
               <p className="text-[11px] text-brand-cream/80 max-w-xl">
-                结合 9 维脑网络，由 AI 前额叶机制算法一键计算，输出脑发育程度评价、神经网络发育解析、动作/感统训练建议及居家互动方案。
+                结合 9 维神经网络，由 康复AI多模 机制算法计算，输出综合发育程度评价、神经网络发育解析、动作/感统训练建议及居家互动方案。
               </p>
             </div>
           </div>
@@ -326,7 +327,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         <div className="bg-white rounded-3xl border border-brand-stone p-6 md:p-8 shadow-sm text-left">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h3 className="text-base font-bold text-brand-forest">9 维度筛查结果明细</h3>
+              <h3 className="text-base font-bold text-brand-forest">9 维度评估结果明细</h3>
               <p className="text-xs text-brand-charcoal/60 mt-1">精细化脑网络评测数据，直观展示多维神经网络发育的均衡性</p>
             </div>
           </div>
@@ -354,7 +355,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                         <div>
                           <h4 className="text-sm font-extrabold text-brand-forest leading-tight">{dim.name}</h4>
                           <span className="text-[10px] text-brand-charcoal/50 font-medium">
-                            {score.tierId === 'T1' ? 'T1 筛查层' : score.tierId === 'T2' ? 'T2 问卷层' : 'T3 评估层'}
+                            {score.tierId === 'T1' ? 'T1 评估层' : score.tierId === 'T2' ? 'T2 问卷层' : 'T3 评估层'}
                           </span>
                         </div>
                       </div>
@@ -413,9 +414,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             <div>
               <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
                 <Award size={14} />
-                {isAiGenerated ? '首脑神经网络大模型生成' : '深度特型匹配知识库组装'}
+                {isAiGenerated ? '神经网络康复AI大模型生成' : '深度特型匹配知识库组装'}
               </div>
-              <h2 className="text-xl font-bold text-brand-forest mt-1">数字成长评估综合分析报告</h2>
+              <h2 className="text-xl font-bold text-brand-forest mt-1">T1 综合发展评估报告</h2>
             </div>
             <span className="text-[10px] text-brand-charcoal/50 text-right">监测号: SXK-{Date.now().toString().slice(-6)}</span>
           </div>
@@ -444,7 +445,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-3 text-xs font-semibold leading-relaxed">
                   <CheckCircle2 className="text-emerald-600 shrink-0 mt-0.5" size={16} />
                   <div>
-                    建议维持当前的常规筛查观察。本次筛查结果显示所有 9 项发育领域表现大致良好，神经系统联动与行为适应能力发育平衡，请配合日常亲子伴读及益智活动继续保持。
+                    建议维持当前的常规评估观察。本次评估结果显示所有 9 项发育领域表现大致良好，神经系统联动与行为适应能力发育平衡，请配合日常亲子伴读及益智活动继续保持。
                   </div>
                 </div>
               );
@@ -455,7 +456,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={16} />
                 <div>
                   <span className="font-bold text-rose-800">建议尽快进入第二层「量表评估中心」。</span>
-                  本次筛查在{' '}
+                  本次评估在{' '}
                   {redNames.length > 0 && (
                     <>
                       <span className="font-bold text-rose-600">{redNames.join('、')}</span>{' '}
@@ -480,7 +481,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             <div>
               <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
                 <Layers size={15} className="text-brand-moss" />
-                9 维度筛查结果明细
+                9 维度评估结果明细
               </h3>
               <p className="text-[10px] text-brand-charcoal/50 mt-0.5">条形图代表该领域的「关注分」（0-8分，分数越高越需关注）</p>
             </div>
@@ -550,30 +551,26 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             </div>
           </div>
 
-          {/* SECTION 3: 重点问题标注 KEY FINDINGS */}
+          {/* SECTION 3: 重点问题标注 KEY FINDINGS - 雷达图 */}
           {(() => {
             const sortedScores = [...completedScores]
               .map(s => {
                 const concernScore = 8 - s.score;
                 let severityLabel = "大致良好";
                 let severityColor = "bg-emerald-500 text-white";
-                let listBg = "hover:bg-emerald-50/20";
                 let severityVal = 1;
 
                 if (concernScore >= 6) {
                   severityLabel = "需重点关注";
                   severityColor = "bg-rose-600 text-white";
-                  listBg = "bg-rose-50/10 hover:bg-rose-50/20";
                   severityVal = 4;
                 } else if (concernScore === 5) {
                   severityLabel = "需关注";
                   severityColor = "bg-amber-500 text-white";
-                  listBg = "bg-amber-50/10 hover:bg-amber-50/20";
                   severityVal = 3;
                 } else if (concernScore >= 3) {
                   severityLabel = "临界";
                   severityColor = "bg-amber-400 text-brand-charcoal";
-                  listBg = "bg-yellow-50/10 hover:bg-yellow-50/20";
                   severityVal = 2;
                 }
 
@@ -582,7 +579,6 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   concernScore,
                   severityLabel,
                   severityColor,
-                  listBg,
                   severityVal
                 };
               })
@@ -592,64 +588,211 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             const yellowCount = sortedScores.filter(s => s.concernScore >= 3 && s.concernScore <= 4).length;
             const attentionCount = redCount + yellowCount;
 
-            const getRecText = (id: string, concern: number) => {
-              if (concern <= 2) return "发育正常，建议继续进行家庭常规观察与良性刺激。";
-              switch(id) {
-                case 'cognitive': return "建议进入第二层评估（心理/智力，如贝利或葛斐氏发育评估）";
-                case 'social_emotional': return "建议进入第二层评估（心理/社交行为，如 ADOS-2 或 M-CHAT-R 评估）";
-                case 'sensory': return "建议进入第二层评估（心理/行为情绪筛查，如 CBCL 或沙盘分析）";
-                case 'attention': return "建议进入第二层评估（心理/执行功能，如 SNAP-IV 评定或持续性注意力测验）";
-                case 'language': return "建议进入第二层评估（言语发育筛查 ST，如 CELF-5 评估）";
-                case 'fine_motor': return "建议留意并持续进行精细手眼协调与感觉处理游戏训练";
-                case 'gross_motor': return "建议留意并持续进行粗大动作抗阻与肢体平衡协调锻炼";
-                case 'family_env': return "建议留意并提供多元化的家庭赋能环境与高质量伴读刺激";
-                case 'self_care': return "建议留意并引导孩子自主练习个人洗漱及起居衣物穿戴自理";
-                default: return "建议留意并持续观察";
-              }
+            // 雷达图参数
+            const cx = 160, cy = 160, maxR = 120;
+            const axes = sortedScores.length;
+            const angleStep = (2 * Math.PI) / axes;
+
+            // 计算每个维度的坐标点
+            const getPoint = (index: number, value: number, maxVal: number = 8) => {
+              const angle = angleStep * index - Math.PI / 2;
+              // 限制值在 0 到 maxVal 之间，防止负分或超分导致图表变形
+              const clampedValue = Math.max(0, Math.min(value, maxVal));
+              const r = (clampedValue / maxVal) * maxR;
+              return {
+                x: cx + r * Math.cos(angle),
+                y: cy + r * Math.sin(angle)
+              };
             };
+
+            // 生成数据多边形路径
+            const dataPath = sortedScores
+              .map((s, i) => {
+                const pt = getPoint(i, s.concernScore);
+                return `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`;
+              })
+              .join(' ') + ' Z';
+
+            // 生成网格路径（5层）
+            const gridLevels = [2, 4, 6, 8];
+            const gridPaths = gridLevels.map(level =>
+              sortedScores
+                .map((_, i) => {
+                  const pt = getPoint(i, level);
+                  return `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`;
+                })
+                .join(' ') + ' Z'
+            );
+
+            // 根据严重程度获取颜色
+            const getSeverityColor = (concernScore: number) => {
+              if (concernScore >= 6) return '#e11d48'; // rose-600
+              if (concernScore === 5) return '#f59e0b'; // amber-500
+              if (concernScore >= 3) return '#fbbf24'; // amber-400
+              return '#10b981'; // emerald-500
+            };
+
+            // 计算多边形填充颜色（取最严重的颜色）
+            const maxConcern = Math.max(...sortedScores.map(s => s.concernScore));
+            const polygonColor = getSeverityColor(maxConcern);
 
             return (
               <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">
                 <div className="border-b border-brand-cream pb-2.5">
                   <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
                     <ClipboardCheck size={15} className="text-brand-moss" />
-                    重点问题标注 Key Findings - 依严重程度排序
+                    重点问题标注 Key Findings - 雷达图分析
                   </h3>
                   <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
                     共评测 9 项发育维度，检测到 <span className="font-bold text-rose-600">{attentionCount} 项</span> 需留意/关注领域（其中 <span className="font-bold text-rose-600">{redCount} 项</span> 需重点关注）
                   </p>
                 </div>
 
-                <div className="divide-y divide-brand-cream/40">
-                  {sortedScores.map((item, idx) => (
-                    <div key={item.dimensionId} className={`flex items-center justify-between py-3 px-2 rounded-xl transition ${item.listBg}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-xs ${item.severityColor}`}>
-                          {idx + 1}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-brand-forest">{item.dimensionName}</span>
-                            <span className={`text-[9px] px-1.5 py-0.25 rounded font-extrabold ${
-                              item.concernScore >= 5 ? 'bg-rose-100 text-rose-700' :
-                              item.concernScore >= 3 ? 'bg-amber-100 text-amber-700' :
-                              'bg-emerald-100 text-emerald-700'
-                            }`}>
-                              {item.severityLabel}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-brand-charcoal/60 mt-0.5">
-                            {getRecText(item.dimensionId, item.concernScore)}
-                          </p>
-                        </div>
-                      </div>
+                {/* 雷达图 */}
+                <div className="flex justify-center">
+                  <svg width="320" height="320" viewBox="0 0 320 320" className="overflow-visible">
+                    {/* 网格背景 */}
+                    {gridPaths.map((path, i) => (
+                      <path
+                        key={`grid-${i}`}
+                        d={path}
+                        fill="none"
+                        stroke="#e5e7eb"
+                        strokeWidth="1"
+                        strokeDasharray={i === gridLevels.length - 1 ? "0" : "3,3"}
+                      />
+                    ))}
+
+                    {/* 轴线 */}
+                    {sortedScores.map((_, i) => {
+                      const pt = getPoint(i, 8);
+                      return (
+                        <line
+                          key={`axis-${i}`}
+                          x1={cx}
+                          y1={cy}
+                          x2={pt.x}
+                          y2={pt.y}
+                          stroke="#d1d5db"
+                          strokeWidth="1"
+                        />
+                      );
+                    })}
+
+                    {/* 数据多边形 */}
+                    <path
+                      d={dataPath}
+                      fill={`${polygonColor}20`}
+                      stroke={polygonColor}
+                      strokeWidth="2"
+                    />
+
+                    {/* 数据点 */}
+                    {sortedScores.map((s, i) => {
+                      const pt = getPoint(i, s.concernScore);
+                      const color = getSeverityColor(s.concernScore);
+                      return (
+                        <g key={`point-${i}`}>
+                          <circle
+                            cx={pt.x}
+                            cy={pt.y}
+                            r="4"
+                            fill={color}
+                            stroke="white"
+                            strokeWidth="2"
+                          />
+                          {/* 数值标签 */}
+                          <text
+                            x={pt.x}
+                            y={pt.y - 8}
+                            textAnchor="middle"
+                            fontSize="9"
+                            fontWeight="bold"
+                            fill={color}
+                          >
+                            {s.concernScore}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* 维度标签 */}
+                    {sortedScores.map((s, i) => {
+                      const pt = getPoint(i, 8);
+                      const angle = angleStep * i - Math.PI / 2;
+                      const labelR = maxR + 25;
+                      const lx = cx + labelR * Math.cos(angle);
+                      const ly = cy + labelR * Math.sin(angle);
                       
-                      <div className="text-right shrink-0 pl-4">
-                        <span className="text-xs font-extrabold text-brand-forest">关注分 {item.concernScore}</span>
-                        <span className="text-[10px] text-brand-charcoal/40 block">/ 8</span>
+                      // 调整文本锚点
+                      let textAnchor = 'middle';
+                      if (Math.cos(angle) > 0.3) textAnchor = 'start';
+                      else if (Math.cos(angle) < -0.3) textAnchor = 'end';
+                      
+                      return (
+                        <text
+                          key={`label-${i}`}
+                          x={lx}
+                          y={ly}
+                          textAnchor={textAnchor}
+                          fontSize="10"
+                          fontWeight="600"
+                          fill="#374151"
+                        >
+                          {s.dimensionName}
+                        </text>
+                      );
+                    })}
+
+                    {/* 中心点 */}
+                    <circle cx={cx} cy={cy} r="3" fill="#9ca3af" />
+                  </svg>
+                </div>
+
+                {/* 图例 */}
+                <div className="flex flex-wrap justify-center gap-3 text-[10px]">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-rose-600"></div>
+                    <span className="text-brand-charcoal/70">需重点关注 (≥6)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+                    <span className="text-brand-charcoal/70">需关注 (5)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+                    <span className="text-brand-charcoal/70">临界 (3-4)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                    <span className="text-brand-charcoal/70">大致良好 (≤2)</span>
+                  </div>
+                </div>
+
+                {/* 详细列表 */}
+                <div className="border-t border-brand-cream pt-3 space-y-2">
+                  <p className="text-[10px] font-bold text-brand-charcoal/60 text-center">各维度关注分详情</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {sortedScores.map((item) => (
+                      <div
+                        key={item.dimensionId}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] ${
+                          item.concernScore >= 5 ? 'bg-rose-50/30' :
+                          item.concernScore >= 3 ? 'bg-amber-50/30' :
+                          'bg-emerald-50/30'
+                        }`}
+                      >
+                        <span className="font-medium text-brand-charcoal/80 truncate">{item.dimensionName}</span>
+                        <span className={`font-bold ml-1 ${
+                          item.concernScore >= 5 ? 'text-rose-600' :
+                          item.concernScore >= 3 ? 'text-amber-600' :
+                          'text-emerald-600'
+                        }`}>
+                          {item.concernScore}
+                        </span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             );
@@ -994,7 +1137,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} />
             
             {/* Highly visual Online Appointment Booking CTA card */}
-            <div className="bg-gradient-to-r from-brand-forest to-brand-moss text-white rounded-3xl p-6 shadow-md relative overflow-hidden mt-6 text-left">
+            <div ref={bookingSectionRef} className="bg-gradient-to-r from-brand-forest to-brand-moss text-white rounded-3xl p-6 shadow-md relative overflow-hidden mt-6 text-left">
               <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
               <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-brand-sage/20 rounded-full blur-2xl" />
               
@@ -1005,17 +1148,27 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   </span>
                   <h3 className="text-lg font-bold">线上预约 1对1 脑发育与感统指导专家说明指导</h3>
                   <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
-                    基于本次 AI 九维筛查报告，特邀三甲儿童发展评估专家提供在线可视化深度辅导，为您量身解密大脑特定环路发育，指导日常脑机及多媒体工具实操。
+                    基于本次 AI 九维评估报告，特邀三甲儿童发展评估专家提供在线可视化深度辅导，为您量身解密大脑特定环路发育，指导日常脑机及多媒体工具实操。
                   </p>
                 </div>
                 
                 <button
                   onClick={() => {
-                    setParentName('');
-                    setParentPhone('');
-                    setBookingStatus('idle');
-                    setSelectedSlot('');
-                    setShowBookingModal(true);
+                    // 滚动到预约模块并居中
+                    if (bookingSectionRef.current) {
+                      bookingSectionRef.current.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                      });
+                    }
+                    // 延迟打开弹窗，等待滚动完成
+                    setTimeout(() => {
+                      setParentName('');
+                      setParentPhone('');
+                      setBookingStatus('idle');
+                      setSelectedSlot('');
+                      setShowBookingModal(true);
+                    }, 400);
                   }}
                   className="px-6 py-3 bg-brand-sage text-brand-forest font-bold text-xs rounded-xl hover:bg-white transition duration-200 shadow-lg shrink-0 w-full md:w-auto text-center active:scale-95 cursor-pointer"
                 >
@@ -1037,7 +1190,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <h3 className="text-sm font-bold flex items-center gap-1.5">
                   <Calendar size={16} /> 线上专家 1对1 发展说明指导预约
                 </h3>
-                <p className="text-[10px] text-brand-cream/80 mt-0.5">连线三甲儿童发展专家，多维解读筛查指标</p>
+                <p className="text-[10px] text-brand-cream/80 mt-0.5">连线三甲儿童发展专家，多维解读评估指标</p>
               </div>
               <button 
                 onClick={() => setShowBookingModal(false)}

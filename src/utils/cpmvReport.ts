@@ -70,7 +70,7 @@ export function collectCpmv(itemStates: CpmvItemStates): CpmvCollectResult {
 export function buildCpmvSummary(r: CpmvCollectResult): string[] {
   const S: string[] = [];
   const g = cpmvGrade(r.pct);
-  S.push(`患儿共完成 ${r.testedIds.length}/20 项（未测 ${r.ntIds.length} 项），实测总分 ${r.sum}/${r.max}，得分率 ${r.pct}%，动作影像筛查等级：${g.t}。`);
+  S.push(`患儿共完成 ${r.testedIds.length}/20 项（未测 ${r.ntIds.length} 项），实测总分 ${r.sum}/${r.max}，得分率 ${r.pct}%，动作影像评估等级：${g.t}。`);
   const weak = r.domains.filter(d => d.pct !== null && d.pct < 50).map(d => d.name);
   const midw = r.domains.filter(d => d.pct !== null && d.pct >= 50 && d.pct < 75).map(d => d.name);
   if (weak.length) S.push(`「${weak.join('、')}」维度得分率低于 50%，为当前主要受限领域，应作为康复训练与 AI 影像重点采集方向。`);
@@ -94,7 +94,7 @@ export function buildCpmvSummary(r: CpmvCollectResult): string[] {
 
 export function buildCpmvSuggest(r: CpmvCollectResult): string[] {
   const S: string[] = [];
-  S.push('后续评估：本工具为影像筛查参考，建议进入森心康 T3 专业评估——GMFM-88/66（粗大运动）、MACS 手功能分级、改良 Ashworth 肌张力评定、被动关节活动度（ROM）测量。');
+  S.push('后续评估：本工具为影像评估参考，建议进入森心康 T3 专业评估——GMFM-88/66（粗大运动）、MACS 手功能分级、改良 Ashworth 肌张力评定、被动关节活动度（ROM）测量。');
   const d = Object.fromEntries(r.domains.map(x => [x.key, x.pct]));
   const dir: string[] = [];
   if (d.hand !== null && (d.hand as number) < 60) dir.push('作业治疗(OT)手功能专项');

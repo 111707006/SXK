@@ -80,15 +80,15 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
                 STEP 01
               </span>
               <span className="text-[10px] text-rose-700 font-extrabold tracking-wider uppercase bg-rose-100/80 px-2 py-0.5 rounded-md">
-                基础准入筛查
+                基础准入评估
               </span>
             </div>
             <h2 className="text-xl font-black text-brand-forest flex items-center gap-2 tracking-tight">
               <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping shrink-0" />
-              启动 T1 综合筛查入口
+              启动 T1 综合评估入口
             </h2>
             <p className="text-xs text-brand-charcoal/90 max-w-lg leading-relaxed font-medium">
-              根据孩子年龄段自适应匹配 36 题 ASQ-3/M-CHAT 问卷。完成基本筛查后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。
+              根据孩子年龄段自适应匹配 36 题 ASQ-3/M-CHAT 问卷。完成基本评估后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。
             </p>
           </div>
           
@@ -105,7 +105,7 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
               <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
             )}
             <BrainCircuit size={16} className={`shrink-0 ${!isT1Completed ? 'animate-bounce' : ''}`} />
-            <span>{isT1Completed ? '重新进行 T1 综合筛查' : '立即开始 T1 综合筛查'}</span>
+            <span>{isT1Completed ? '重新进行 T1 综合评估' : '立即开始 T1 综合评估'}</span>
             {!isT1Completed && <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />}
           </button>
         </div>
@@ -116,8 +116,8 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
             <h2 className="text-base font-extrabold text-brand-forest">神经网络 9 维精细图层</h2>
             <p className="text-[11px] text-brand-charcoal/70 mt-1">
               {isT1Completed 
-                ? '以下为 9 维 T1 筛查结果。点击标有黄色/红色警告的维度卡片，直接推进 T2 问卷 与 T3 专项检测！'
-                : '待完成上方 T1 综合筛查。筛查通过后，本模块将自适应更新并解锁。'
+                ? '以下为 9 维 T1 评估结果。点击标有黄色/红色警告的维度卡片，直接推进 T2 问卷 与 T3 专项检测！'
+                : '待完成上方 T1 综合评估。评估通过后，本模块将自适应更新并解锁。'
               }
             </p>
           </div>
@@ -203,7 +203,7 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
                 <div className="flex items-center justify-between w-full pt-2 border-t border-brand-cream mt-2 text-[10px]">
                   {!isT1Completed ? (
                     <span className="text-slate-400 flex items-center gap-0.5">
-                      待 T1 筛查入口
+                      待 T1 评估入口
                     </span>
                   ) : t1Rec ? (
                     <div className="flex flex-col gap-0.5">

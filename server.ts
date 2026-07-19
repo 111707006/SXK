@@ -8,12 +8,18 @@ import dotenv from 'dotenv';
 import * as mysqlDb from './src/db/mysql';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.DEPLOY_RUN_PORT || process.env.PORT) || 5000;
+
+// Security headers (X-Content-Type-Options, frameguard, HSTS, etc.).
+// CSP is disabled so the Vite-built SPA's inline styles/scripts still load;
+// TLS is terminated by nginx (see deploy/nginx.conf).
+app.use(helmet({ contentSecurityPolicy: false }));
 
 // Raised limit so base64-encoded audio clips (<=10MB) can reach the ASR endpoint
 app.use(express.json({ limit: '15mb' }));

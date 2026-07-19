@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Child } from '../types';
-import { transcribeWithQwenASR } from '../utils/asr';
+import { transcribeWithQwenASR, judgeArticulation } from '../utils/asr';
 import {
   Mic, Square, Play, Pause, Upload, FileAudio, Sparkles, Brain,
   Compass, FileText, CheckCircle2, Volume2, ArrowLeft, AlertCircle,
@@ -14,18 +14,7 @@ interface LanguageSpecialAssessmentProps {
   onBack: () => void;
 }
 
-// Helpers for real Qwen3-ASR speech recognition
-const cleanSpeechText = (s: string) => s.replace(/[，。！？、,.!?…\s]/g, '');
-
-function judgeArticulation(promptText: string, recognized: string): 'normal' | 'substitute' | 'stutter' | 'unclear' {
-  const p = cleanSpeechText(promptText);
-  const t = cleanSpeechText(recognized);
-  if (!t) return 'unclear';
-  if (t === p) return 'normal';
-  // Repeated leading syllables (e.g. "苹苹苹果") read as dysfluency
-  if (t.length > p.length && /(.)\1/.test(t.slice(0, 4))) return 'stutter';
-  return 'substitute';
-}
+// judgeArticulation / cleanSpeechText live in ../utils/asr (pure + unit-tested).
 
 export interface AssessmentQuestion {
   id: number;

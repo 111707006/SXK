@@ -27,3 +27,19 @@ export async function transcribeWithQwenASR(audioBlob: Blob, contextPrompt: stri
     return null;
   }
 }
+
+/** Strip punctuation/whitespace so recognized speech can be compared to the target. */
+export const cleanSpeechText = (s: string) => s.replace(/[，。！？、,.!?…\s]/g, '');
+
+export type ArticulationStatus = 'normal' | 'substitute' | 'stutter' | 'unclear';
+
+/** Classify a child's recognized speech against the target prompt. */
+export function judgeArticulation(promptText: string, recognized: string): ArticulationStatus {
+  const p = cleanSpeechText(promptText);
+  const t = cleanSpeechText(recognized);
+  if (!t) return 'unclear';
+  if (t === p) return 'normal';
+  // Repeated leading syllables (e.g. "苹苹苹果") read as dysfluency
+  if (t.length > p.length && /(.)\1/.test(t.slice(0, 4))) return 'stutter';
+  return 'substitute';
+}

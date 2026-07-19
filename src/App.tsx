@@ -54,6 +54,7 @@ export default function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem('senxinkang_user_email'));
+  const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('senxinkang_token'));
 
   const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   const [dbEnvId, setDbEnvId] = useState<string | null>(null);
@@ -72,6 +73,15 @@ export default function App() {
     return id;
   };
 
+  // Build request headers, attaching the session token when present so the
+  // server authorizes email-scoped /api/db reads and writes.
+  const authHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('senxinkang_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  };
+
   // Helper to sync state to cloud
   const syncToCloud = async (
     currentChild: Child | null,
@@ -84,9 +94,7 @@ export default function App() {
       setSyncing(true);
       const resp = await fetch('/api/db/save', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: authHeaders(),
         body: JSON.stringify({
           deviceId,
           email: userEmail,
@@ -164,10 +172,15 @@ export default function App() {
         setDbEnvId(statusData.envId);
 
         const activeEmail = localStorage.getItem('senxinkang_user_email');
+        const activeToken = localStorage.getItem('senxinkang_token');
         const deviceId = getOrCreateDeviceId();
-        const queryParam = activeEmail ? `email=${encodeURIComponent(activeEmail)}` : `deviceId=${deviceId}`;
+        // Email-scoped load needs a session token; without one, fall back to
+        // the device-scoped record instead of issuing a guaranteed 401.
+        const queryParam = (activeEmail && activeToken)
+          ? `email=${encodeURIComponent(activeEmail)}`
+          : `deviceId=${deviceId}`;
 
-        const loadResp = await fetch(`/api/db/load?${queryParam}`);
+        const loadResp = await fetch(`/api/db/load?${queryParam}`, { headers: authHeaders() });
         if (!loadResp.ok) return;
         const loadCt = loadResp.headers.get('content-type');
         if (!loadCt || !loadCt.includes('application/json')) return;
@@ -194,7 +207,7 @@ export default function App() {
             setSyncing(true);
             await fetch('/api/db/save', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: authHeaders(),
               body: JSON.stringify({
                 deviceId,
                 email: activeEmail,
@@ -219,6 +232,7 @@ export default function App() {
   // Handler for successful authentication (registration or login)
   const handleAuthSuccess = (
     email: string,
+    token: string | null,
     cloudChild: Child | null,
     cloudScores: DimensionScore[],
     cloudOrders: Order[],
@@ -226,6 +240,12 @@ export default function App() {
   ) => {
     setUserEmail(email);
     localStorage.setItem('senxinkang_user_email', email);
+    setAuthToken(token);
+    if (token) {
+      localStorage.setItem('senxinkang_token', token);
+    } else {
+      localStorage.removeItem('senxinkang_token');
+    }
 
     // Update child profile, assessment scores, orders, and reports in state
     setChild(cloudChild);
@@ -258,7 +278,7 @@ export default function App() {
       const deviceId = getOrCreateDeviceId();
       fetch('/api/db/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({
           deviceId,
           email: userEmail,
@@ -304,12 +324,14 @@ export default function App() {
       setOrders([]);
       setReportHistory([]);
       setUserEmail(null);
-      
+      setAuthToken(null);
+
       localStorage.removeItem('senxinkang_child');
       localStorage.removeItem('senxinkang_scores');
       localStorage.removeItem('senxinkang_orders');
       localStorage.removeItem('senxinkang_history');
       localStorage.removeItem('senxinkang_user_email');
+      localStorage.removeItem('senxinkang_token');
       localStorage.removeItem('senxinkang_device_id');
       
       setCurrentView('dashboard');

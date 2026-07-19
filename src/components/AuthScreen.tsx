@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Mail, Lock, Sparkles, AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, FileText } from 'lucide-react';
 
 interface AuthScreenProps {
-  onAuthSuccess: (email: string, childData: any, scores: any[], orders: any[], history: any[]) => void;
+  onAuthSuccess: (email: string, token: string | null, childData: any, scores: any[], orders: any[], history: any[]) => void;
   dbConfigured: boolean | null;
 }
 
@@ -72,6 +72,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         // Successfully logged in
         onAuthSuccess(
           data.email,
+          data.token || null,
           data.child,
           data.completedScores || [],
           data.orders || [],
@@ -118,6 +119,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
             if (loginResp.ok) {
               onAuthSuccess(
                 loginData.email,
+                loginData.token || null,
                 loginData.child,
                 loginData.completedScores || [],
                 loginData.orders || [],

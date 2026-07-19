@@ -76,6 +76,12 @@ export async function createUser(email: string, password: string): Promise<void>
   await p.execute('INSERT INTO users (email, password) VALUES (?, ?)', [email, password]);
 }
 
+export async function updateUserPassword(email: string, password: string): Promise<void> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL not configured');
+  await p.execute('UPDATE users SET password = ? WHERE email = ?', [password, email]);
+}
+
 // ---- User data operations ----
 
 export async function getUserData(email: string): Promise<any | null> {

@@ -24,3 +24,5 @@ services:
         sync: false
       - key: MYSQL_DATABASE
         sync: false
+      - key: SESSION_SECRET
+        generateValue: true

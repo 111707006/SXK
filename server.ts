@@ -1,5 +1,7 @@
 import express from 'express';
 import path from 'path';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 // tcb import removed - replaced with MySQL
@@ -14,6 +16,64 @@ const PORT = Number(process.env.DEPLOY_RUN_PORT || process.env.PORT) || 5000;
 
 // Raised limit so base64-encoded audio clips (<=10MB) can reach the ASR endpoint
 app.use(express.json({ limit: '15mb' }));
+
+// ── Auth: password hashing (bcrypt) + stateless HMAC session tokens ──
+const BCRYPT_ROUNDS = 10;
+
+// Signing secret for session tokens. Set SESSION_SECRET in production so tokens
+// survive restarts; otherwise a random per-boot secret is used (tokens reset on restart).
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+if (!process.env.SESSION_SECRET) {
+  console.warn('[Auth] SESSION_SECRET not set — using a random per-boot secret. Set SESSION_SECRET in production to keep sessions valid across restarts.');
+}
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function b64url(buf: Buffer | string): string {
+  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function signToken(email: string): string {
+  const payload = b64url(JSON.stringify({ email, exp: Date.now() + TOKEN_TTL_MS }));
+  const sig = b64url(crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest());
+  return `${payload}.${sig}`;
+}
+
+// Returns the token's email if the signature is valid and unexpired, else null.
+function verifyToken(token: string | null | undefined): string | null {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+  const [payload, sig] = token.split('.');
+  const expected = b64url(crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest());
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+    if (!data.email || typeof data.exp !== 'number' || Date.now() > data.exp) return null;
+    return data.email as string;
+  } catch {
+    return null;
+  }
+}
+
+function getBearerToken(req: express.Request): string | null {
+  const h = req.headers.authorization || '';
+  return h.startsWith('Bearer ') ? h.slice(7) : null;
+}
+
+async function hashPassword(plain: string): Promise<string> {
+  return bcrypt.hash(plain, BCRYPT_ROUNDS);
+}
+
+function looksHashed(stored: string): boolean {
+  return typeof stored === 'string' && /^\$2[aby]\$/.test(stored);
+}
+
+// True if the password matches. Supports legacy plaintext rows so existing
+// accounts keep working; callers upgrade the stored value to a hash on success.
+async function verifyPassword(plain: string, stored: string): Promise<boolean> {
+  if (looksHashed(stored)) return bcrypt.compare(plain, stored);
+  return plain === stored;
+}
 
 // ── coze-coding-dev-sdk LLM client ──
 const llmConfig = new Config();
@@ -865,6 +925,8 @@ app.post('/api/auth/register', async (req, res) => {
       return;
     }
 
+    const hashed = await hashPassword(password);
+
     if (mysqlDb.isConfigured()) {
       try {
         const existing = await withTimeout(mysqlDb.findUserByEmail(email), 2000);
@@ -872,9 +934,9 @@ app.post('/api/auth/register', async (req, res) => {
           res.status(400).json({ error: '该邮箱已被注册，请直接登录' });
           return;
         }
-        await withTimeout(mysqlDb.createUser(email, password), 2000);
+        await withTimeout(mysqlDb.createUser(email, hashed), 2000);
         console.log(`[MySQL] Registered account: ${email}`);
-        res.json({ success: true, email });
+        res.json({ success: true, email, token: signToken(email) });
         return;
       } catch (dbErr: any) {
         console.warn('[MySQL] Registration failed, falling back to memory:', dbErr.message);
@@ -886,9 +948,9 @@ app.post('/api/auth/register', async (req, res) => {
       res.status(400).json({ error: '该邮箱已被注册，请直接登录' });
       return;
     }
-    offlineUsers.set(email, { email, password });
+    offlineUsers.set(email, { email, password: hashed });
     console.log(`[Memory] Registered local account fallback: ${email}`);
-    res.json({ success: true, email });
+    res.json({ success: true, email, token: signToken(email) });
   } catch (err: any) {
     console.error('[Auth Register Error]:', err.message);
     res.status(500).json({ error: `注册失败: ${err.message}` });
@@ -909,8 +971,17 @@ app.post('/api/auth/login', async (req, res) => {
     if (mysqlDb.isConfigured()) {
       try {
         const found = await withTimeout(mysqlDb.findUserByEmail(email), 2000);
-        if (found && found.password === password) {
+        if (found && await verifyPassword(password, found.password)) {
           authenticatedUser = found;
+          // Transparently upgrade legacy plaintext rows to a bcrypt hash.
+          if (!looksHashed(found.password)) {
+            try {
+              await withTimeout(mysqlDb.updateUserPassword(email, await hashPassword(password)), 2000);
+              console.log(`[MySQL] Upgraded legacy password to bcrypt for ${email}`);
+            } catch (upErr: any) {
+              console.warn('[MySQL] Password upgrade failed (non-fatal):', upErr.message);
+            }
+          }
         }
       } catch (dbErr: any) {
         console.warn('[MySQL] Login query failed, falling back to memory:', dbErr.message);
@@ -919,8 +990,11 @@ app.post('/api/auth/login', async (req, res) => {
 
     if (!authenticatedUser) {
       const found = offlineUsers.get(email);
-      if (found && found.password === password) {
+      if (found && await verifyPassword(password, found.password)) {
         authenticatedUser = found;
+        if (!looksHashed(found.password)) {
+          found.password = await hashPassword(password);
+        }
       }
     }
 
@@ -960,7 +1034,7 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
 
-    res.json({ success: true, email: authenticatedUser.email, child, completedScores, orders, reportHistory });
+    res.json({ success: true, email: authenticatedUser.email, token: signToken(authenticatedUser.email), child, completedScores, orders, reportHistory });
   } catch (err: any) {
     console.error('[Auth Login Error]:', err.message);
     res.status(500).json({ error: `登录失败: ${err.message}` });
@@ -971,6 +1045,17 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/db/load', async (req, res) => {
   try {
     const { deviceId, email } = req.query;
+
+    // Email-scoped data is private: require a session token for that email.
+    // Device-scoped data is keyed by an unguessable client-generated UUID and
+    // stays accessible without a token (anonymous, pre-registration use).
+    if (email && typeof email === 'string') {
+      const authEmail = verifyToken(getBearerToken(req));
+      if (authEmail !== email) {
+        res.status(401).json({ error: '未授权：请重新登录' });
+        return;
+      }
+    }
 
     if (mysqlDb.isConfigured()) {
       try {
@@ -1019,6 +1104,15 @@ app.post('/api/db/save', async (req, res) => {
       return;
     }
 
+    // Writing to an email-scoped record requires a matching session token.
+    if (email) {
+      const authEmail = verifyToken(getBearerToken(req));
+      if (authEmail !== email) {
+        res.status(401).json({ error: '未授权：请重新登录' });
+        return;
+      }
+    }
+
     // Always save to memory as hot-backup
     if (email) {
       offlineUserData.set(email, { child, completedScores, orders, reportHistory });
@@ -1026,11 +1120,8 @@ app.post('/api/db/save', async (req, res) => {
 
     if (mysqlDb.isConfigured() && email) {
       try {
-        // Ensure user exists (auto-create if needed for save-before-register flow)
-        let user = await withTimeout(mysqlDb.findUserByEmail(email), 2000);
-        if (!user) {
-          await withTimeout(mysqlDb.createUser(email, ''), 2000);
-        }
+        // The token guarantees this email belongs to an authenticated account,
+        // so the user row already exists — no implicit account creation here.
         await withTimeout(
           mysqlDb.saveUserData(email, deviceId || null, child, completedScores || [], orders || [], reportHistory || []),
           2000

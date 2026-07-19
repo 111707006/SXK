@@ -109,6 +109,17 @@ const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => 
   }
 };
 
+/**
+ * Normalise a score from any tier onto the shared 0-8 "concern" scale used by
+ * the report's badges, bars and radar. T1 is scored out of 8, but T2/T3 are out
+ * of 50/120, so the previous `8 - score` produced negative values and coloured
+ * badly-performing dimensions green. For T1 this is identical to `8 - score`.
+ */
+function toConcernScore(score: number, maxScore: number): number {
+  const max = maxScore > 0 ? maxScore : 8;
+  return Math.round(8 * (1 - score / max));
+}
+
 interface AnalysisReportProps {
   child: Child;
   completedScores: DimensionScore[];
@@ -434,10 +445,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           {/* SECTION 1: ALERT BANNER */}
           {(() => {
             const redNames = completedScores
-              .filter(s => (8 - s.score) >= 5)
+              .filter(s => toConcernScore(s.score, s.maxScore) >= 5)
               .map(s => s.dimensionName);
             const yellowNames = completedScores
-              .filter(s => (8 - s.score) >= 3 && (8 - s.score) <= 4)
+              .filter(s => {
+                const c = toConcernScore(s.score, s.maxScore);
+                return c >= 3 && c <= 4;
+              })
               .map(s => s.dimensionName);
             
             if (redNames.length === 0 && yellowNames.length === 0) {
@@ -490,7 +504,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
               {DIMENSIONS_DATA.map((dim) => {
                 const score = completedScores.find(s => s.dimensionId === dim.id);
                 if (!score) return null;
-                const concernScore = 8 - score.score;
+                const concernScore = toConcernScore(score.score, score.maxScore);
                 let statusBadge = "大致良好";
                 let badgeClass = "bg-emerald-50 border-emerald-200 text-emerald-700";
                 let fillClass = "bg-emerald-500";
@@ -555,7 +569,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           {(() => {
             const sortedScores = [...completedScores]
               .map(s => {
-                const concernScore = 8 - s.score;
+                const concernScore = toConcernScore(s.score, s.maxScore);
                 let severityLabel = "大致良好";
                 let severityColor = "bg-emerald-500 text-white";
                 let severityVal = 1;
@@ -812,7 +826,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
               {(() => {
                 const filtered = DIMENSIONS_DATA.map(dim => {
                   const s = completedScores.find(score => score.dimensionId === dim.id);
-                  const concernScore = s ? (8 - s.score) : 0;
+                  const concernScore = s ? toConcernScore(s.score, s.maxScore) : 0;
                   return { dim, s, concernScore };
                 });
 

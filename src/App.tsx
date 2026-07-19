@@ -752,7 +752,13 @@ export default function App() {
                     const finalScores = [...updated, ...t1Scores];
                     setCompletedScores(finalScores);
                     localStorage.setItem('senxinkang_scores', JSON.stringify(finalScores));
-                    setCurrentView('dashboard');
+                    // Go straight to the live AI report instead of bouncing off the
+                    // dashboard. The user still taps "一键启动 AI 突触分析" there, so
+                    // finishing T1 never spends AI quota on its own.
+                    setViewingLiveT1(true);
+                    setActiveT1Record(null);
+                    setActiveSpecializedRecordId(null);
+                    setCurrentView('report');
                   }}
                 />
               </div>

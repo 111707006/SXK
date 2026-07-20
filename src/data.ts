@@ -161,18 +161,18 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
         scaleName: '森心康 语言理解(指令理解)检测量表',
         duration: '15-25分钟',
         questions: [
-          { id: 'la_t2_1', text: '【2岁·简单指令】孩子能听懂并指认/反应单一物件或动作（如：拍拍手、指鼻子）吗？', options: stdOptions },
-          { id: 'la_t2_2', text: '【2岁·简单指令】孩子能听懂单一名词指令（如：把球给我）吗？', options: stdOptions },
-          { id: 'la_t2_3', text: '【2–3岁·多物件】孩子能听懂含两个物件的指令（如：拿苹果和香蕉）吗？', options: stdOptions },
-          { id: 'la_t2_4', text: '【2–3岁】孩子能听懂「要+动作」的需求句（如：要喝水、要吃东西）吗？', options: stdOptions },
-          { id: 'la_t2_5', text: '【3岁·概念】孩子能听懂含修饰语的指令（如：拿红色的车子）吗？', options: stdOptions },
-          { id: 'la_t2_6', text: '【3–4岁·组合】孩子能听懂含颜色/数量等多概念指令（如：给我两个红色的积木）吗？', options: stdOptions },
-          { id: 'la_t2_7', text: '【4岁·时态】孩子能听懂含时态的句子（如：我们已经去买水果了）吗？', options: stdOptions },
-          { id: 'la_t2_8', text: '【4岁】孩子能听懂两个并列描述句（如：红苹果和黄香蕉）吗？', options: stdOptions },
-          { id: 'la_t2_9', text: '【4–5岁·步骤】孩子能听懂含多对象的组合指令（如：把大家的书收到书包里）吗？', options: stdOptions },
-          { id: 'la_t2_10', text: '【5岁·多步骤】孩子能听懂三步骤顺序指令（如：先刷牙、再洗脸、然后吃早餐）吗？', options: stdOptions },
-          { id: 'la_t2_11', text: '【5–6岁·多步骤】孩子能听懂含「先/接下来/最后」的多步骤句（如：先洗手、再吃点心、最后写功课）吗？', options: stdOptions },
-          { id: 'la_t2_12', text: '【6岁·故事理解】孩子能听懂并理解一段故事性叙述的内容（如：理解整段铅笔盒故事的来龙去脉）吗？', options: stdOptions }
+          { id: 'la_t2_1', text: '孩子能听懂并指认/反应单一物件或动作（如：拍拍手、指鼻子）吗？', options: stdOptions },
+          { id: 'la_t2_2', text: '孩子能听懂单一名词指令（如：把球给我）吗？', options: stdOptions },
+          { id: 'la_t2_3', text: '孩子能听懂含两个物件的指令（如：拿苹果和香蕉）吗？', options: stdOptions },
+          { id: 'la_t2_4', text: '孩子能听懂「要+动作」的需求句（如：要喝水、要吃东西）吗？', options: stdOptions },
+          { id: 'la_t2_5', text: '孩子能听懂含修饰语的指令（如：拿红色的车子）吗？', options: stdOptions },
+          { id: 'la_t2_6', text: '孩子能听懂含颜色/数量等多概念指令（如：给我两个红色的积木）吗？', options: stdOptions },
+          { id: 'la_t2_7', text: '孩子能听懂含时态的句子（如：我们已经去买水果了）吗？', options: stdOptions },
+          { id: 'la_t2_8', text: '孩子能听懂两个并列描述句（如：红苹果和黄香蕉）吗？', options: stdOptions },
+          { id: 'la_t2_9', text: '孩子能听懂含多对象的组合指令（如：把大家的书收到书包里）吗？', options: stdOptions },
+          { id: 'la_t2_10', text: '孩子能听懂三步骤顺序指令（如：先刷牙、再洗脸、然后吃早餐）吗？', options: stdOptions },
+          { id: 'la_t2_11', text: '孩子能听懂含「先/接下来/最后」的多步骤句（如：先洗手、再吃点心、最后写功课）吗？', options: stdOptions },
+          { id: 'la_t2_12', text: '孩子能听懂并理解一段故事性叙述的内容（如：理解整段铅笔盒故事的来龙去脉）吗？', options: stdOptions }
         ]
       },
       T3: {

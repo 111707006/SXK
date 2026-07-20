@@ -248,7 +248,7 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
     <div className="space-y-4">
       <h4 className="text-sm font-bold text-brand-forest flex items-center gap-1.5 font-serif italic pb-1">
         <Brain size={16} className="text-brand-moss" />
-        脑机理神经网络发展拓扑图 (交互式脑区通路测绘)
+        神经网络发展拓扑图 (交互式神经通路测绘)
       </h4>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5 bg-brand-cream/15 p-4 rounded-3xl border border-brand-stone/60">
@@ -647,7 +647,7 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
     <div className="space-y-4">
       <h4 className="text-sm font-bold text-brand-forest flex items-center gap-1.5 font-serif italic pb-1">
         <Milestone size={16} className="text-brand-moss" />
-        脑发育预后轨迹走向预测图 (3个月多线神经环路预后走向)
+        发育轨迹走向预测图 (3个月多线神经环路预测走向)
       </h4>
 
       <div className="bg-white rounded-3xl border border-brand-stone p-5 shadow-sm text-left">

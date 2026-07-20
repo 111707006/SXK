@@ -225,7 +225,7 @@ export default function MotionVideoAssessment({
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="text-xs sm:text-sm font-bold text-brand-forest">{it.name}</h4>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-sage/40 text-brand-forest border border-brand-stone/30">参考 {it.age}</span>
+                        {it.age && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-sage/40 text-brand-forest border border-brand-stone/30">参考 {it.age}</span>}
                         {it.bi && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">双侧 · 取较差侧</span>}
                       </div>
                       <p className="text-[11px] text-brand-charcoal/70"><b className="text-brand-moss">指令：</b>{it.cmd}</p>

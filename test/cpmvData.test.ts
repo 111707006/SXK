@@ -12,10 +12,14 @@ describe('CPMV-20 scale data integrity', () => {
     const moduleKeys = Object.keys(CPMV_MODULES);
     for (const it of CPMV_ITEMS) {
       expect(moduleKeys).toContain(it.mod);
-      for (const field of ['name', 'age', 'cmd', 'film', 'watch', 'ai', 's2', 's1', 's0'] as const) {
+      for (const field of ['name', 'cmd', 'film', 'watch', 'ai', 's2', 's1', 's0'] as const) {
         expect(typeof (it as any)[field]).toBe('string');
         expect((it as any)[field].length).toBeGreaterThan(0);
       }
+      // `age` is intentionally optional: the age-band labels were removed from
+      // the assessment UI, so items carry an empty string and the UI hides the
+      // badge (see MotionVideoAssessment). Keep the type contract only.
+      expect(typeof (it as any).age).toBe('string');
     }
   });
 

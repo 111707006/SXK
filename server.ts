@@ -6,6 +6,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 // tcb import removed - replaced with MySQL
 import * as mysqlDb from './src/db/mysql';
+import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -276,9 +277,11 @@ function generateFallbackReport(child: any, scores: any[]) {
 
   // Calculate simulated critical metrics
   let neuralPlasticity = 88 - (delayCount * 8) - (borderlineCount * 3);
-  let sensoryIntegration = 85 - (scores.find(s => s.dimensionId === 'sensory')?.status === 'delay' ? 20 : 5);
-  let motorControl = 86 - (scores.find(s => s.dimensionId === 'gross_motor')?.status === 'delay' ? 15 : 3) - (scores.find(s => s.dimensionId === 'fine_motor')?.status === 'delay' ? 10 : 2);
-  let familyEnv = 90 - (scores.find(s => s.dimensionId === 'family_env')?.status === 'delay' ? 25 : 5);
+  let sensoryIntegration = 85 - (scores.find(s => s.dimensionId === 'sensory_processing')?.status === 'delay' ? 20 : 5);
+  // 動作發展是唯一與運動控制相關的維度，權重合併後區間與原本一致 (61-81)
+  let motorControl = 86 - (scores.find(s => s.dimensionId === 'gross_motor')?.status === 'delay' ? 25 : 5);
+  // NOTE: 九大維度中已無「家庭環境」，此指標目前取自「學習能力」，名稱與來源不一致，待產品端決定改名或改算法
+  let familyEnv = 90 - (scores.find(s => s.dimensionId === 'learning_ability')?.status === 'delay' ? 25 : 5);
 
   // Bounds check
   neuralPlasticity = Math.max(50, Math.min(98, neuralPlasticity));
@@ -286,45 +289,9 @@ function generateFallbackReport(child: any, scores: any[]) {
   motorControl = Math.max(50, Math.min(98, motorControl));
   familyEnv = Math.max(50, Math.min(98, familyEnv));
 
-  // Determine specific recommendations
-  const rehabMap: Record<string, string[]> = {
-    gross_motor: [
-      '前庭重力姿态腰带辅助训练：每日进行30分钟抗阻步行训练，辅以双膝微屈、双手举空抛球动作以稳固轴线肌力。',
-      '双脚跨越平衡障碍跑：沿直线摆放20cm高充气软墩，指导患儿双手侧平举，保持足跟交替跨越不偏斜，每日3组，每组10次。'
-    ],
-    fine_motor: [
-      '智能多向手指 OT 捏提训练：借助细微手动作电极感应，进行1mm级别的大拇指、食指精细对捏，使用软胶彩球塞入微孔。',
-      '双手反向阻尼拉撑动作：利用儿童弹性拉力器，指导左右食指互扣横拉，促进双手小肌肉神经末梢与小脑的反馈弧构建。'
-    ],
-    sensory: [
-      '重力被子及多感官触觉刷疗法：使用中等毛刷进行全身肢体大面积扫刷，尤其手心、脚板及脊柱两侧，缓解毛孔触觉高防卫性。',
-      '前庭翻滚与倾角滑板活动：在安全软地皮上，配合中号瑜伽气囊球进行双侧身体滚筒式侧滚，同步强化深感觉。'
-    ],
-    language: [
-      '听觉-言语反馈声乐反射：在成人耳旁以正常偏低音，缓慢、重音分明地朗读3步重叠词（如“请把红-苹果-拿给我”），激发回声。',
-      '构音器官口腔肌能拉伸游戏：指导孩子模仿吹蜡烛、鼓足两腮、舌头舔果酱等舌唇动作，每次10分钟，提升言语运动规划活性。'
-    ],
-    social_emotional: [
-      '视线追随与指物呼应破冰训练：成人手指某亮点（如亮灯玩具），呼其名，以夸张的声音表露笑颜，确认达成5-10秒眼神持续交汇。',
-      '情绪色卡亲子互碰沙盘：每天通过表情连连看卡，教其将抽象的情绪说出来：“我现在想要哭...”，建立对情绪的理智控制。'
-    ],
-    cognitive: [
-      '色彩物理实物体块对连：在桌前摆放形状拼图及红绿卡，限时完成“长方配孔、异色分类”训练，激发空间与颜色逻辑推理。',
-      '藏物瞬时位移盲猜杯：利用深茶色杯子变挪覆盖，通过简单的两连杯视线追踪，锻炼前额叶微环路的瞬时位移记忆屏。'
-    ],
-    attention: [
-      '高灵敏感应反馈屏障训练：配套脑电智能反馈带，在无杂音室内对战电脑拼图，监测波值并动态降低难度以增强患儿挫折自信。',
-      '指令切换定声对射：听单一哨音前移，听连续哨音静坐。在交替和变化中激发前额叶网络对分心因子的高效抑制阻隔。'
-    ],
-    self_care: [
-      '穿衣扣合OT工作台演练：设计一块附带粗拉链、大钮扣、粘扣扣的大木牌，每天早晚自主扣合3次，强化个人生活自理独立性。',
-      '手口水洗闭环指令：在极细致图解指引下，每日练习进食前“湿水-打皂-洗缝-抹干”全步骤，直至不需人从旁提示即可执行。'
-    ],
-    family_env: [
-      '制定严格的“断电睡眠”睡眠规程：睡前两小时关闭电脑、投影仪和手机屏幕，防止蓝光及视觉高频振荡损伤儿童脑波周期性。',
-      '建立家庭温暖正面强化的情绪同向：禁止对患儿使用“笨、不行、哭什么哭”等粗暴负向言词，改用描述性肯定语鼓励其每一微小进步。'
-    ]
-  };
+  // Determine specific recommendations. The table lives in src/dimensionContent.ts
+  // alongside the other dimension-keyed tables so one test can check them together.
+  const rehabMap = REHAB_SUGGESTIONS;
 
   const defaultRehab = [
     '建议使用森心康智能穿戴套件，将康复游戏从2D升级为3D。配合高精度传感器做家庭OT康复指导。',
@@ -942,8 +909,14 @@ app.post('/api/asr', async (req: express.Request, res: express.Response) => {
 const offlineUsers = new Map<string, any>();
 const offlineUserData = new Map<string, any>();
 
-// Seed a default test account for fast, instant client-side evaluation
-offlineUsers.set('test@test.com', { email: 'test@test.com', password: '123456' });
+// 這裡曾經種一組明文測試帳號 test@test.com / 123456。已移除。
+//
+// 記憶體模式並不是「只在本機」—— 未設定 MYSQL_* 時線上站台就跑在這個模式
+// （/api/db/status 會回 engine: 'memory'），而 verifyPassword 對非 bcrypt 值
+// 會退回明文比對，等於在公開站台上開了一個人人皆知的帳號。
+// deploy/schema.sql 已同步移除 SQL 端的種子帳號並附上刪除既有列的遷移語句。
+//
+// 要在本機快速試用，請用 /api/auth/register 自行註冊，或走 deviceId 匿名流程。
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 2500): Promise<T> {
   return new Promise<T>((resolve, reject) => {

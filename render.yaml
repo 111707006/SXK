@@ -1,4 +1,17 @@
+# Render Blueprint —— 兩個產品共用同一個 repo，差別只在 VITE_APP_MODE。
+#
+# ⚠️ Render 的定位是「展示／預覽環境」，不是正式站：
+#    1. 微信支付要求**已備案網域**，onrender.com 不是我們的網域、無法備案 —— 專案 A 的
+#       付費功能在 Render 上永遠不可能成立。正式環境是阿里雲 + sxkscreen.com。
+#    2. 免費方案閒置後會休眠，喚醒約需 50 秒，第一次開會很慢。
+#    3. 未設定 MYSQL_* 時後端跑「記憶體模式」，重啟即失去所有資料
+#       （/api/db/status 會回 engine: memory）。展示時別演示「註冊後回來看報告」。
+#
+# 部署方式：Render Dashboard → New → Blueprint → 指向這個 repo。
+# 標記 sync: false 的變數要在各 service 的 Environment 頁面手動填。
+
 services:
+  # ── 專案 A：完整版（篩查 → 報告 → 深度評估付費 → 商城）────────────────
   - type: web
     name: sxk
     runtime: node
@@ -6,6 +19,13 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
+      # 產品模式。前端由 vite build 於建置期讀取；打錯字會讓建置直接失敗
+      # （見 vite.config.ts 的 assertValidAppMode）。
+      - key: VITE_APP_MODE
+        value: full
+      # 後端模式。階段 3 起用於決定是否註冊付費路由，目前尚未被讀取。
+      - key: APP_MODE
+        value: full
       - key: NODE_ENV
         value: production
       - key: DASHSCOPE_API_KEY
@@ -23,6 +43,44 @@ services:
       - key: MYSQL_PASSWORD
         sync: false
       - key: MYSQL_DATABASE
+        value: sxk_db
+      - key: SESSION_SECRET
+        generateValue: true
+
+  # ── 專案 B：T1-only（篩查 → 報告 → 聯繫專家 → 結束）──────────────────
+  # 沒有深度評估、沒有付費、沒有商城。前端建置產物不含這些畫面的進入點，
+  # 對應的 chunk 也永遠不會被下載。
+  - type: web
+    name: sxk-t1
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: VITE_APP_MODE
+        value: t1only
+      - key: APP_MODE
+        value: t1only
+      - key: NODE_ENV
+        value: production
+      # B 一樣需要 AI 金鑰 —— T1 報告是 B 的核心產出。
+      - key: DASHSCOPE_API_KEY
         sync: false
+      - key: QWEN_REPORT_MODEL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      # B 用獨立資料庫，不與專案 A 的資料混在一起。
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DATABASE
+        value: sxk_t1_db
+      # 與 A 各自獨立的簽章金鑰：兩個產品的登入 token 不應互通。
       - key: SESSION_SECRET
         generateValue: true

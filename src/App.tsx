@@ -3,19 +3,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { Child, DimensionScore, Order, AssessmentRecord } from './types';
+import React, { useState, useEffect, lazy } from 'react';
+import { Child, DimensionScore, MallOrder, AssessmentRecord } from './types';
 import { DIMENSIONS_DATA } from './data';
+import { PRODUCT } from './productConfig';
 import ChildProfileForm from './components/ChildProfileForm';
 import DimensionGrid from './components/DimensionGrid';
-import AssessmentPanel from './components/AssessmentPanel';
 import AnalysisReport from './components/AnalysisReport';
-import WearablesMall from './components/WearablesMall';
-import LanguageSpecialAssessment from './components/LanguageSpecialAssessment';
 import T1Screening from './components/T1Screening';
 import EditProfileModal from './components/EditProfileModal';
-import SpecializedReportView from './components/SpecializedReportView';
 import AuthScreen from './components/AuthScreen';
+
+/**
+ * 專案 A 專屬的大型元件，改用 lazy 載入切成獨立 chunk。
+ * 專案 B（VITE_APP_MODE=t1only）的流程止於聯繫專家，永遠不會走到這些畫面，
+ * 因此瀏覽器不會下載這些 chunk。檔案仍存在於建置產物中，但不載入、不執行。
+ * MotionVideoAssessment 由 AssessmentPanel 內部引用，會一併切出。
+ */
+const AssessmentPanel = lazy(() => import('./components/AssessmentPanel'));
+const WearablesMall = lazy(() => import('./components/WearablesMall'));
+const LanguageSpecialAssessment = lazy(() => import('./components/LanguageSpecialAssessment'));
+const SpecializedReportView = lazy(() => import('./components/SpecializedReportView'));
+
+import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
 import { formatAge } from './utils/dateUtils';
 import { 
@@ -37,7 +47,7 @@ export default function App() {
   const [completedScores, setCompletedScores] = useState<DimensionScore[]>([]);
   
   // Orders states (save inside localStorage)
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<MallOrder[]>([]);
 
   // Assessment reports history
   const [reportHistory, setReportHistory] = useState<AssessmentRecord[]>([]);
@@ -86,7 +96,7 @@ export default function App() {
   const syncToCloud = async (
     currentChild: Child | null,
     currentScores: DimensionScore[],
-    currentOrders: Order[],
+    currentOrders: MallOrder[],
     currentHistory: AssessmentRecord[]
   ) => {
     const deviceId = getOrCreateDeviceId();
@@ -127,7 +137,7 @@ export default function App() {
   useEffect(() => {
     let localChild: Child | null = null;
     let localScores: DimensionScore[] = [];
-    let localOrders: Order[] = [];
+    let localOrders: MallOrder[] = [];
     let localHistory: AssessmentRecord[] = [];
 
     // 1. Initial hydration from localStorage (instant rendering)
@@ -235,7 +245,7 @@ export default function App() {
     token: string | null,
     cloudChild: Child | null,
     cloudScores: DimensionScore[],
-    cloudOrders: Order[],
+    cloudOrders: MallOrder[],
     cloudHistory: AssessmentRecord[]
   ) => {
     setUserEmail(email);
@@ -371,14 +381,14 @@ export default function App() {
     syncToCloud(child, finalScores, orders, updatedHistory);
   };
 
-  const handlePlaceOrder = (newOrder: Order) => {
+  const handlePlaceOrder = (newOrder: MallOrder) => {
     const updatedOrders = [...orders, newOrder];
     setOrders(updatedOrders);
     localStorage.setItem('senxinkang_orders', JSON.stringify(updatedOrders));
     syncToCloud(child, completedScores, updatedOrders, reportHistory);
   };
 
-  const handleUpdateOrderStatus = (updatedOrder: Order) => {
+  const handleUpdateOrderStatus = (updatedOrder: MallOrder) => {
     const index = orders.findIndex(o => o.id === updatedOrder.id);
     if (index !== -1) {
       const updatedList = [...orders];
@@ -461,21 +471,23 @@ export default function App() {
                   <FileText size={12} />
                   评估报告
                 </button>
-                <button
-                  id="nav-mall-btn"
-                  onClick={() => {
-                    setCurrentView('mall');
-                    setSelectedDimensionId(null);
-                  }}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                    currentView === 'mall'
-                      ? 'bg-white text-brand-forest shadow-sm font-extrabold'
-                      : 'text-brand-charcoal/80 hover:text-brand-forest'
-                  }`}
-                >
-                  <ShoppingBag size={12} />
-                  商城
-                </button>
+                {PRODUCT.features.mall && (
+                  <button
+                    id="nav-mall-btn"
+                    onClick={() => {
+                      setCurrentView('mall');
+                      setSelectedDimensionId(null);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                      currentView === 'mall'
+                        ? 'bg-white text-brand-forest shadow-sm font-extrabold'
+                        : 'text-brand-charcoal/80 hover:text-brand-forest'
+                    }`}
+                  >
+                    <ShoppingBag size={12} />
+                    商城
+                  </button>
+                )}
               </nav>
 
               {/* Interactive Customer Dropdown Service Center */}
@@ -551,7 +563,8 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* 2. Device Order Details & Shipping */}
+                      {/* 2. Device Order Details & Shipping (專案 A only) */}
+                      {PRODUCT.features.mall && (
                       <div className="pt-3.5 pb-3.5 space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
@@ -613,6 +626,7 @@ export default function App() {
                           </div>
                         )}
                       </div>
+                      )}
 
                       {/* 3. Completed Screening Scores */}
                       <div className="pt-3.5 space-y-2.5">
@@ -719,7 +733,7 @@ export default function App() {
                     </h2>
                     <div className="flex flex-col gap-1">
                       <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">1</span>点击「启动 T1 综合评估」，完成基础评估</p>
-                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">2</span>点击高亮的黄色 / 红色维度卡片，进入 T2、T3 深度测评 <span className="inline-block ml-0.5 px-1 py-0 rounded bg-amber-400/90 text-[9px] font-bold text-brand-moss align-middle">VIP</span></p>
+                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">2</span>{PRODUCT.dashboard.stepTwoHint}{PRODUCT.dashboard.stepTwoIsPaid && <span className="inline-block ml-0.5 px-1 py-0 rounded bg-amber-400/90 text-[9px] font-bold text-brand-moss align-middle">VIP</span>}</p>
                     </div>
                   </div>
                 </div>
@@ -762,19 +776,21 @@ export default function App() {
                   }}
                 />
               </div>
-            ) : currentView === 'assessment' && activeDimension ? (
+            ) : currentView === 'assessment' && activeDimension && PRODUCT.features.tier2And3 ? (
               /* Inside selected Portal Questions screen */
               <div className="animate-fade-in">
-                <AssessmentPanel
-                  dimension={activeDimension}
-                  child={child}
-                  onBack={() => {
-                    setCurrentView('dashboard');
-                    setSelectedDimensionId(null);
-                  }}
-                  onSaveResult={handleSaveScore}
-                  existingScores={completedScores}
-                />
+                <LazyBoundary>
+                  <AssessmentPanel
+                    dimension={activeDimension}
+                    child={child}
+                    onBack={() => {
+                      setCurrentView('dashboard');
+                      setSelectedDimensionId(null);
+                    }}
+                    onSaveResult={handleSaveScore}
+                    existingScores={completedScores}
+                  />
+                </LazyBoundary>
               </div>
             ) : currentView === 'report' ? (
               /* Detailed clinic analysis reports with server-side AI report features and Specialized Archive */
@@ -901,7 +917,8 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Right side: T2/T3 Specialized Reports (7 cols) */}
+                    {/* Right side: T2/T3 Specialized Reports (7 cols) — 專案 A only */}
+                    {PRODUCT.features.tier2And3 && (
                     <div className="lg:col-span-7 bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-6 text-left">
                       <div className="flex items-center justify-between border-b border-brand-stone/60 pb-3">
                         <div className="flex items-center gap-2">
@@ -987,25 +1004,28 @@ export default function App() {
                         )}
                       </div>
                     </div>
+                    )}
                   </div>
                 </div>
               )
-            ) : currentView === 'specialized_report' ? (
+            ) : currentView === 'specialized_report' && PRODUCT.features.tier2And3 ? (
               /* Display high-fidelity multi-dimensional T2/T3 specialized report */
               <div className="animate-fade-in">
                 {reportHistory.find(r => r.id === activeSpecializedRecordId) ? (
-                  <SpecializedReportView
-                    child={child!}
-                    record={reportHistory.find(r => r.id === activeSpecializedRecordId)!}
-                    onBack={() => {
-                      setCurrentView('report');
-                      setActiveSpecializedRecordId(null);
-                    }}
-                    onGoToMall={() => {
-                      setCurrentView('mall');
-                      setActiveSpecializedRecordId(null);
-                    }}
-                  />
+                  <LazyBoundary>
+                    <SpecializedReportView
+                      child={child!}
+                      record={reportHistory.find(r => r.id === activeSpecializedRecordId)!}
+                      onBack={() => {
+                        setCurrentView('report');
+                        setActiveSpecializedRecordId(null);
+                      }}
+                      onGoToMall={PRODUCT.features.mall ? () => {
+                        setCurrentView('mall');
+                        setActiveSpecializedRecordId(null);
+                      } : undefined}
+                    />
+                  </LazyBoundary>
                 ) : (
                   <div className="py-12 bg-white rounded-3xl border border-brand-stone p-8 text-center text-brand-charcoal/80">
                     <p>无法加载指定专项评估报告，请返回重试</p>
@@ -1018,22 +1038,26 @@ export default function App() {
                   </div>
                 )}
               </div>
-            ) : currentView === 'language_special' ? (
+            ) : currentView === 'language_special' && PRODUCT.features.tier2And3 ? (
               /* Deep Language and SLP Diagnostic Assessment Page */
               <div className="animate-fade-in">
-                <LanguageSpecialAssessment
-                  child={child}
-                  onBack={() => setCurrentView('report')}
-                />
+                <LazyBoundary>
+                  <LanguageSpecialAssessment
+                    child={child}
+                    onBack={() => setCurrentView('report')}
+                  />
+                </LazyBoundary>
               </div>
-            ) : currentView === 'mall' ? (
+            ) : currentView === 'mall' && PRODUCT.features.mall ? (
               /* Products purchase & Logistics tracker */
               <div className="animate-fade-in">
-                <WearablesMall
-                  orders={orders}
-                  onPlaceOrder={handlePlaceOrder}
-                  onUpdateOrderStatus={handleUpdateOrderStatus}
-                />
+                <LazyBoundary>
+                  <WearablesMall
+                    orders={orders}
+                    onPlaceOrder={handlePlaceOrder}
+                    onUpdateOrderStatus={handleUpdateOrderStatus}
+                  />
+                </LazyBoundary>
               </div>
             ) : (
               /* Fallback safety view if state gets misaligned */

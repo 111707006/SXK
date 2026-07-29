@@ -1,0 +1,84 @@
+import React from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+
+/**
+ * `React.lazy` 元件的載入邊界 —— Suspense（載入中）+ ErrorBoundary（載入失敗）。
+ *
+ * 為什麼需要 ErrorBoundary：專案 A 專屬的大型元件改用 lazy 之後，chunk 是在使用者
+ * 點下去的當下才去抓的。抓不到（重新部署後檔名雜湊改變、手機網路斷一下）時
+ * dynamic import 會 reject，而 Suspense 只處理 pending、不處理 rejected ——
+ * React 會一路往上 unwind 到根節點，整頁變空白且無路可退。
+ *
+ * 改回可重試的錯誤畫面，讓失敗侷限在這一塊。
+ */
+
+interface Props {
+  children: React.ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+}
+
+/**
+ * 這個專案沒有安裝 `@types/react`，`React.Component` 因此是 any，
+ * 直接繼承會拿不到 `props` / `setState` 的型別。用一個最小的建構子型別
+ * 補上這個類別實際會用到的成員，不必為此新增相依套件。
+ */
+const ErrorBoundaryBase = React.Component as {
+  new (props: Props): {
+    props: Props;
+    state: State;
+    setState(state: Partial<State>): void;
+  };
+};
+
+class LazyErrorBoundary extends ErrorBoundaryBase {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('[LazyBoundary] 元件載入失敗', error);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div className="py-12 bg-white rounded-3xl border border-brand-stone p-8 text-center space-y-3">
+        <AlertTriangle className="mx-auto text-amber-500" size={28} />
+        <p className="text-xs font-bold text-brand-forest">本页面加载失败</p>
+        <p className="text-[11px] text-brand-charcoal/60 leading-relaxed">
+          可能是网络不稳定，或系统刚完成更新。请重试；若仍无法加载，请刷新整个页面。
+        </p>
+        <button
+          onClick={() => this.setState({ hasError: false })}
+          className="mt-1 px-4 py-2 bg-brand-forest text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 active:scale-[0.98] transition"
+        >
+          <RefreshCw size={12} />
+          重试
+        </button>
+      </div>
+    );
+  }
+}
+
+/** lazy 元件載入中的佔位畫面 */
+function LazyFallback() {
+  return (
+    <div className="py-16 bg-white rounded-3xl border border-brand-stone p-8 text-center text-brand-charcoal/60">
+      <p className="text-xs font-medium">载入中…</p>
+    </div>
+  );
+}
+
+export default function LazyBoundary({ children }: Props) {
+  return (
+    <LazyErrorBoundary>
+      <React.Suspense fallback={<LazyFallback />}>{children}</React.Suspense>
+    </LazyErrorBoundary>
+  );
+}

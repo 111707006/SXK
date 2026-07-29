@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Product, Order, OrderStatus, LogisticsTracking } from '../types';
+import { Product, MallOrder, MallOrderStatus, LogisticsTracking } from '../types';
 import { PRODUCTS_DATA } from '../data';
 import { 
   ShoppingCart, Truck, Compass, CheckCircle2, AlertCircle, ShoppingBag, 
@@ -7,16 +7,16 @@ import {
 } from 'lucide-react';
 
 interface WearablesMallProps {
-  orders: Order[];
-  onPlaceOrder: (order: Order) => void;
-  onUpdateOrderStatus: (updatedOrder: Order) => void;
+  orders: MallOrder[];
+  onPlaceOrder: (order: MallOrder) => void;
+  onUpdateOrderStatus: (updatedOrder: MallOrder) => void;
 }
 
 export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatus }: WearablesMallProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<MallOrder | null>(null);
 
   // Form states
   const [recipient, setRecipient] = useState('');
@@ -63,7 +63,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
         }
       ];
 
-      const newOrder: Order = {
+      const newOrder: MallOrder = {
         id: 'ORD_' + Math.floor(100000 + Math.random() * 900000),
         product: selectedProduct,
         quantity: 1,
@@ -92,9 +92,9 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
   };
 
   // Helper: Interactive sandbox simulation to "speed run logistics and check status"
-  const handleAdvanceLogistics = (order: Order) => {
+  const handleAdvanceLogistics = (order: MallOrder) => {
     // Current timeline index transition
-    let nextStatus: OrderStatus = 'paid';
+    let nextStatus: MallOrderStatus = 'paid';
     let content = '';
     let location = '';
 
@@ -128,7 +128,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
       location
     };
 
-    const updatedOrder: Order = {
+    const updatedOrder: MallOrder = {
       ...order,
       status: nextStatus,
       logisticsTimeline: [...order.logisticsTimeline, newLog]
@@ -228,7 +228,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                 <div className="flex flex-wrap gap-1.5">
                   {product.dimensionsTargeted.map((dimKey) => (
                     <span key={dimKey} className="text-[9px] font-bold bg-brand-sand/65 text-brand-clay px-2.5 py-0.5 rounded-full border border-brand-stone/50">
-                      OT协作: {dimKey === 'attention' ? '注意力' : dimKey === 'sensory' ? '感觉统合' : dimKey === 'fine_motor' ? '精细动作' : dimKey === 'gross_motor' ? '粗大动作' : dimKey === 'self_care' ? '生活自理' : dimKey === 'cognitive' ? '认知' : '情绪'}
+                      OT协作: {dimKey === 'attention' ? '注意力与执行' : dimKey === 'emotion_behavior' ? '情绪与行为' : dimKey === 'sensory_processing' ? '感觉处理' : dimKey === 'gross_motor' ? '动作发展' : dimKey === 'self_care' ? '生活自理与适应' : dimKey === 'cognitive' ? '认知' : '其他'}
                     </span>
                   ))}
                 </div>

@@ -147,6 +147,11 @@ CREATE TABLE IF NOT EXISTS `expert_bookings` (
 -- ALTER TABLE `users` MODIFY COLUMN `email` VARCHAR(255) DEFAULT NULL;
 -- ALTER TABLE `users` MODIFY COLUMN `password` VARCHAR(255) DEFAULT NULL;
 -- ALTER TABLE `users` ADD COLUMN `phone` VARCHAR(20) DEFAULT NULL UNIQUE AFTER `id`;
---
--- 移除旧版的明文测试帐号（正式环境不应存在）：
--- DELETE FROM `users` WHERE `email` = 'test@test.com' AND `password` = '123456';
+
+-- ============================================================
+-- 展示用测试帐号
+-- ============================================================
+-- 刻意保留：让客户与合作方免注册即可试用，对应登录页的「一键填充」按钮。
+-- 密码为明文 123456 —— server.ts 的 verifyPassword 对非 bcrypt 值会退回明文比对，
+-- 因此这组帐密在任何对外站台上等同人人可登入。这是已知且已接受的取舍。
+INSERT IGNORE INTO `users` (`email`, `password`) VALUES ('test@test.com', '123456');

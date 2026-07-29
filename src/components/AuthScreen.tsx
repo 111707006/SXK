@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, FileText } from 'lucide-react';
+import { Mail, Lock, Sparkles, AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, FileText } from 'lucide-react';
 
 interface AuthScreenProps {
   onAuthSuccess: (email: string, token: string | null, childData: any, scores: any[], orders: any[], history: any[]) => void;
@@ -141,6 +141,13 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
       setError(err.message || '网络连接异常，请重试');
       setLoading(false);
     }
+  };
+
+  const handleUseDemoAccount = () => {
+    setEmail('test@test.com');
+    setPassword('123456');
+    setIsLogin(true);
+    setError(null);
   };
 
   return (
@@ -329,10 +336,27 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
           </button>
         </form>
 
-        {/* 這裡曾經有「一鍵填充 test@test.com / 123456」的快速登入按鈕。
-            該帳號已從 server.ts 與 deploy/schema.sql 移除 —— 它在記憶體模式下
-            等於公開站台上人人可登入的後門，UI 還把帳密直接印出來。
-            需要快速試用請自行註冊。 */}
+        {/* Divider & Sandbox evaluation quick login hint */}
+        <div className="pt-2 space-y-3.5">
+
+          <div className="bg-brand-beige/40 p-3 rounded-2xl border border-brand-stone/50 text-[10px] space-y-1.5 leading-relaxed">
+            <div className="flex items-center gap-1.5 font-bold text-brand-forest">
+              <Sparkles size={11} className="text-brand-moss shrink-0" />
+              <span>💡 快速测试账号：</span>
+            </div>
+            <p className="text-brand-charcoal/70">
+              如果您需要免去注册流程快速进行系统体验，我们为您内置了一键填充的测试账户。
+            </p>
+            <button
+              type="button"
+              onClick={handleUseDemoAccount}
+              className="text-brand-forest font-extrabold hover:underline text-[10px] flex items-center gap-1 cursor-pointer"
+            >
+              <span>使用一键填充 `test@test.com` 账号</span>
+              <ArrowRight size={10} />
+            </button>
+          </div>
+        </div>
 
         {/* 服务及隐私条款合并弹窗 */}
         {showTermsModal && (

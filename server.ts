@@ -909,14 +909,14 @@ app.post('/api/asr', async (req: express.Request, res: express.Response) => {
 const offlineUsers = new Map<string, any>();
 const offlineUserData = new Map<string, any>();
 
-// 這裡曾經種一組明文測試帳號 test@test.com / 123456。已移除。
+// 展示用的固定測試帳號 —— 刻意保留，讓客戶與合作方免註冊即可試用。
+// 登入頁的「一鍵填充」按鈕（AuthScreen.tsx）對應的就是這一組。
 //
-// 記憶體模式並不是「只在本機」—— 未設定 MYSQL_* 時線上站台就跑在這個模式
-// （/api/db/status 會回 engine: 'memory'），而 verifyPassword 對非 bcrypt 值
-// 會退回明文比對，等於在公開站台上開了一個人人皆知的帳號。
-// deploy/schema.sql 已同步移除 SQL 端的種子帳號並附上刪除既有列的遷移語句。
-//
-// 要在本機快速試用，請用 /api/auth/register 自行註冊，或走 deviceId 匿名流程。
+// 已知且已接受的取捨：記憶體模式不只在本機，未設定 MYSQL_* 時線上站台
+// （目前的 sxk.onrender.com）也跑這個模式，而 verifyPassword 對非 bcrypt 值
+// 會退回明文比對 —— 也就是說這組帳密在公開站台上等同人人可登入。
+// 正式收費環境接上 MySQL 後，這個記憶體分支不會生效。
+offlineUsers.set('test@test.com', { email: 'test@test.com', password: '123456' });
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 2500): Promise<T> {
   return new Promise<T>((resolve, reject) => {

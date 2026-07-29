@@ -1,5 +1,12 @@
 import { Child, DimensionScore, AssessmentRecord } from '../types';
 
+/**
+ * 深度評估（T2/T3）報告的每維度文字模板。
+ *
+ * NOTE: 內容債 —— `sensory_processing` 的內容實為精細動作、`emotion_behavior` 實為感覺處理、
+ * `learning_ability` 實為家庭環境。T1 題庫已依新分類改寫，這裡尚未跟進。
+ * 待真實 T2/T3 內容到位時一併重寫，**不可只改 key 名稱**。詳見 CONTEXT.md「已知的詞彙債」。
+ */
 export const SPECIALIZED_TEMPLATES: Record<string, {
   summary: string;
   neuralPathwayAnalysis: string;
@@ -37,7 +44,7 @@ export const SPECIALIZED_TEMPLATES: Record<string, {
     ],
     prognosisPrediction: "持续开展3-6个月的中枢姿势拉伸特训后，下行姿势反射传导速率有显著提高。双侧下肢跨步力线对称指数将优化20%以上，运动重心抗摇晃能力大幅增强。"
   },
-  fine_motor: {
+  sensory_processing: {
     summary: "指间精密对指对线捏提、腕部姿势拮抗稳态控制、以及眼手视觉CALIBRATION校准通路出现指端微动肌能阻尼偏差。",
     neuralPathwayAnalysis: "脑智发育分析：大脑运动皮质手功能表征区与手指末梢感受器之间的动作规划（Motor Planning）不够微观。当执行1mm精密对捏或多步骤双手交互穿引时，手指指深屈肌群及手部内生骨间肌在肌肉时序激活上由于本体反馈偏慢，导致指尖落点跟眼球精细追踪轨迹存在空间错线，握持阻尼在对指力矩增大时稍现颤动。",
     rehabSuggestions: [
@@ -52,7 +59,7 @@ export const SPECIALIZED_TEMPLATES: Record<string, {
     ],
     prognosisPrediction: "坚持执行3-6个月的精细物理手套练习后，皮层精细运动手控制网络将加速建立侧支分支。手指抗阻对捏力增加约35%，日常生活书写及抓提动作流利度大为改观。"
   },
-  sensory: {
+  emotion_behavior: {
     summary: "听视触三通道中枢联合统合效率稍偏低，伴随部分触觉防御反应性偏高，以及深部本体觉阻尼输入不灵敏。",
     neuralPathwayAnalysis: "脑智发育分析：丘脑感觉信号大网状过滤器对多通道信息（如大面积外界触碰、复杂的视觉背景、高频白噪声）的整合存在轻度过载调制滞后。这常表现为触觉高防卫（如反感衣物标签、洗脸时抗拒、对轻柔触碰产生退缩），或因为本体觉深层关节感受器反馈不灵敏导致姿势松垮、依靠硬物借力支撑，感官统合存在细微时间失谐。",
     rehabSuggestions: [
@@ -127,7 +134,7 @@ export const SPECIALIZED_TEMPLATES: Record<string, {
     ],
     prognosisPrediction: "通过3-6个月结构化的分解自理训练，大脑执行序列（Executive Sequence）运动规划功能将加速成熟。对纽扣、拉链、进食等长链行为的自理独立指数将拉升约30%，基本达成脱手独立生活习惯。"
   },
-  family_env: {
+  learning_ability: {
     summary: "居家成长多感官低干扰度、环境物理声画舒缓指数、以及看护陪伴情绪支持共振呈现轻度需要校对调和性。",
     neuralPathwayAnalysis: "脑智发育分析：根据评估发现，居家环境中存在偶发性的声光高通量输入（如常开的电视音、蓝光频闪偏高的屏幕、局限促狭的多动物家庭陈设），这使得儿童在大脑皮层自适应塑形黄金期，无法获得足够高纯度、高稳定、无干扰的专注基底，易诱发突触电位持续处于过度防卫警醒状态。同时，看护人在互动中情感语调的急促催促也会增加儿童脑部的应激焦虑水平。",
     rehabSuggestions: [
@@ -158,9 +165,9 @@ export function generateSpecializedReportRecord(
   const t3Val = Math.round((t3Result.score / t3Result.maxScore) * 100);
 
   const neuralPlasticity = Math.round(Math.max(50, Math.min(98, 85 - (t3Val < 50 ? 12 : t3Val < 75 ? 5 : -5))));
-  const sensoryIntegration = Math.round(Math.max(50, Math.min(98, 82 - (dimensionId === 'sensory' ? (100 - t3Val) : 5))));
-  const motorControlIndex = Math.round(Math.max(50, Math.min(98, 84 - (dimensionId === 'gross_motor' || dimensionId === 'fine_motor' ? (100 - t3Val) : 5))));
-  const familyEnvironmentScore = Math.round(Math.max(50, Math.min(98, 88 - (dimensionId === 'family_env' ? (100 - t3Val) : 2))));
+  const sensoryIntegration = Math.round(Math.max(50, Math.min(98, 82 - (dimensionId === 'sensory_processing' ? (100 - t3Val) : 5))));
+  const motorControlIndex = Math.round(Math.max(50, Math.min(98, 84 - (dimensionId === 'gross_motor' ? (100 - t3Val) : 5))));
+  const familyEnvironmentScore = Math.round(Math.max(50, Math.min(98, 88 - (dimensionId === 'learning_ability' ? (100 - t3Val) : 2))));
 
   // Prefer a real AI-generated report when provided; otherwise fall back to the
   // per-dimension template + formula-derived metrics.

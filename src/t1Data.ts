@@ -36,11 +36,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_a_03', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '能弯腰捡起东西后自己站好', options: stdOptions },
       { id: 't1_a_04', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '能扶着栏杆上楼梯，或把球往前踢', options: stdOptions },
 
-      // 2. fine_motor -> 感觉处理
-      { id: 't1_a_05', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '接受多种质地的食物，不严重抗拒', options: stdOptions },
-      { id: 't1_a_06', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '对日常声音（吸尘器、吹风机）不过度惊恐', options: stdOptions },
-      { id: 't1_a_07', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '喜欢拥抱抚触，不明显排斥被碰', options: stdOptions },
-      { id: 't1_a_08', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '玩摇晃、举高游戏时反应适度（不过度害怕或不停索求）', options: stdOptions },
+      // 2. sensory_processing -> 感觉处理
+      { id: 't1_a_05', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '接受多种质地的食物，不严重抗拒', options: stdOptions },
+      { id: 't1_a_06', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '对日常声音（吸尘器、吹风机）不过度惊恐', options: stdOptions },
+      { id: 't1_a_07', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '喜欢拥抱抚触，不明显排斥被碰', options: stdOptions },
+      { id: 't1_a_08', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '玩摇晃、举高游戏时反应适度（不过度害怕或不停索求）', options: stdOptions },
 
       // 3. cognitive -> 认知
       { id: 't1_a_09', dimensionId: 'cognitive', dimensionName: '认知', text: '会模仿大人的动作（擦桌子、打电话）', options: stdOptions },
@@ -54,11 +54,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_a_15', dimensionId: 'attention', dimensionName: '注意力与执行', text: '会顺着大人手指的方向看向同一个东西', options: stdOptions },
       { id: 't1_a_16', dimensionId: 'attention', dimensionName: '注意力与执行', text: '递食物或玩具时能短暂等一下', options: stdOptions },
 
-      // 5. family_env -> 学习能力
-      { id: 't1_a_17', dimensionId: 'family_env', dimensionName: '学习能力', text: '对绘本有兴趣，会自己翻页看图', options: stdOptions },
-      { id: 't1_a_18', dimensionId: 'family_env', dimensionName: '学习能力', text: '拿到笔会涂鸦乱画', options: stdOptions },
-      { id: 't1_a_19', dimensionId: 'family_env', dimensionName: '学习能力', text: '能堆叠 2–4 块积木', options: stdOptions },
-      { id: 't1_a_20', dimensionId: 'family_env', dimensionName: '学习能力', text: '示范后会尝试模仿新的玩法', options: stdOptions },
+      // 5. learning_ability -> 学习能力
+      { id: 't1_a_17', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '对绘本有兴趣，会自己翻页看图', options: stdOptions },
+      { id: 't1_a_18', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '拿到笔会涂鸦乱画', options: stdOptions },
+      { id: 't1_a_19', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '能堆叠 2–4 块积木', options: stdOptions },
+      { id: 't1_a_20', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '示范后会尝试模仿新的玩法', options: stdOptions },
 
       // 6. language -> 语言沟通
       { id: 't1_a_21', dimensionId: 'language', dimensionName: '语言沟通', text: '会有意义地叫「爸爸／妈妈」', options: stdOptions },
@@ -72,11 +72,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_a_27', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '对其他小朋友感兴趣（看、靠近）', options: stdOptions },
       { id: 't1_a_28', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '会把玩具拿给大人看或分享', options: stdOptions },
 
-      // 8. sensory -> 情绪与行为
-      { id: 't1_a_29', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '情绪爆发时能被安抚，可以转移注意', options: stdOptions },
-      { id: 't1_a_30', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '与主要照顾者分开时的不安在合理范围', options: stdOptions },
-      { id: 't1_a_31', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '见到熟悉的人会有开心的反应', options: stdOptions },
-      { id: 't1_a_32', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '吃饭睡觉作息大致规律', options: stdOptions },
+      // 8. emotion_behavior -> 情绪与行为
+      { id: 't1_a_29', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '情绪爆发时能被安抚，可以转移注意', options: stdOptions },
+      { id: 't1_a_30', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '与主要照顾者分开时的不安在合理范围', options: stdOptions },
+      { id: 't1_a_31', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '见到熟悉的人会有开心的反应', options: stdOptions },
+      { id: 't1_a_32', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '吃饭睡觉作息大致规律', options: stdOptions },
 
       // 9. self_care -> 生活自理与适应
       { id: 't1_a_33', dimensionId: 'self_care', dimensionName: '生活自理与适应', text: '会自己用杯子喝水', options: stdOptions },
@@ -97,11 +97,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_b_03', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '能扶栏杆自己上下楼梯', options: stdOptions },
       { id: 't1_b_04', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '能单脚站 1–2 秒，会踢球丢球', options: stdOptions },
 
-      // 2. fine_motor -> 感觉处理
-      { id: 't1_b_05', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '理发、洗头、剪指甲不引起强烈抗拒', options: stdOptions },
-      { id: 't1_b_06', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '衣服标签、材质不引起强烈拒穿', options: stdOptions },
-      { id: 't1_b_07', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '敢玩滑梯秋千等设施，反应适度', options: stdOptions },
-      { id: 't1_b_08', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '对疼痛的反应正常（不过度迟钝或过度敏感）', options: stdOptions },
+      // 2. sensory_processing -> 感觉处理
+      { id: 't1_b_05', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '理发、洗头、剪指甲不引起强烈抗拒', options: stdOptions },
+      { id: 't1_b_06', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '衣服标签、材质不引起强烈拒穿', options: stdOptions },
+      { id: 't1_b_07', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '敢玩滑梯秋千等设施，反应适度', options: stdOptions },
+      { id: 't1_b_08', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '对疼痛的反应正常（不过度迟钝或过度敏感）', options: stdOptions },
 
       // 3. cognitive -> 认知
       { id: 't1_b_09', dimensionId: 'cognitive', dimensionName: '认知', text: '认得一些颜色或大小', options: stdOptions },
@@ -115,11 +115,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_b_15', dimensionId: 'attention', dimensionName: '注意力与执行', text: '日常流程不需要一直反复提醒', options: stdOptions },
       { id: 't1_b_16', dimensionId: 'attention', dimensionName: '注意力与执行', text: '活动量停得下来（不是整天动个不停）', options: stdOptions },
 
-      // 5. family_env -> 学习能力
-      { id: 't1_b_17', dimensionId: 'family_env', dimensionName: '学习能力', text: '能听完一个简短的绘本故事', options: stdOptions },
-      { id: 't1_b_18', dimensionId: 'family_env', dimensionName: '学习能力', text: '会模仿画直线或圆圈', options: stdOptions },
-      { id: 't1_b_19', dimensionId: 'family_env', dimensionName: '学习能力', text: '记得日常常规的顺序（回家先洗手等）', options: stdOptions },
-      { id: 't1_b_20', dimensionId: 'family_env', dimensionName: '学习能力', text: '能学会新的儿歌或手势动作', options: stdOptions },
+      // 5. learning_ability -> 学习能力
+      { id: 't1_b_17', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '能听完一个简短的绘本故事', options: stdOptions },
+      { id: 't1_b_18', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '会模仿画直线或圆圈', options: stdOptions },
+      { id: 't1_b_19', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '记得日常常规的顺序（回家先洗手等）', options: stdOptions },
+      { id: 't1_b_20', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '能学会新的儿歌或手势动作', options: stdOptions },
 
       // 6. language -> 语言沟通
       { id: 't1_b_21', dimensionId: 'language', dimensionName: '语言沟通', text: '能把两三个词组成短句', options: stdOptions, isRedFlag: true },
@@ -133,11 +133,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_b_27', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '能简单地轮流、等待', options: stdOptions },
       { id: 't1_b_28', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '会注意到别人难过或受伤', options: stdOptions },
 
-      // 8. sensory -> 情绪与行为
-      { id: 't1_b_29', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '发脾气能在合理时间内平复', options: stdOptions },
-      { id: 't1_b_30', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '会用语言表达「要／不要」', options: stdOptions },
-      { id: 't1_b_31', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '遇到挫折会找大人帮忙，而不是只有崩溃', options: stdOptions },
-      { id: 't1_b_32', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '转换活动（收玩具、出门）多数时候能配合', options: stdOptions },
+      // 8. emotion_behavior -> 情绪与行为
+      { id: 't1_b_29', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '发脾气能在合理时间内平复', options: stdOptions },
+      { id: 't1_b_30', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '会用语言表达「要／不要」', options: stdOptions },
+      { id: 't1_b_31', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '遇到挫折会找大人帮忙，而不是只有崩溃', options: stdOptions },
+      { id: 't1_b_32', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '转换活动（收玩具、出门）多数时候能配合', options: stdOptions },
 
       // 9. self_care -> 生活自理与适应
       { id: 't1_b_33', dimensionId: 'self_care', dimensionName: '生活自理与适应', text: '能自己用勺子吃完饭，洒得不多', options: stdOptions },
@@ -158,11 +158,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_c_03', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '跑跳攀爬灵活，不常摔倒碰撞', options: stdOptions },
       { id: 't1_c_04', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '会骑三轮车或滑板车', options: stdOptions },
 
-      // 2. fine_motor -> 感觉处理
-      { id: 't1_c_05', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '在热闹嘈杂的环境不容易失控', options: stdOptions },
-      { id: 't1_c_06', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '不抗拒手弄脏（颜料、沙子、黏土）', options: stdOptions },
-      { id: 't1_c_07', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '坐姿能维持，不总是软趴趴靠着', options: stdOptions },
-      { id: 't1_c_08', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '不过度寻求碰撞、挤压、旋转', options: stdOptions },
+      // 2. sensory_processing -> 感觉处理
+      { id: 't1_c_05', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '在热闹嘈杂的环境不容易失控', options: stdOptions },
+      { id: 't1_c_06', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '不抗拒手弄脏（颜料、沙子、黏土）', options: stdOptions },
+      { id: 't1_c_07', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '坐姿能维持，不总是软趴趴靠着', options: stdOptions },
+      { id: 't1_c_08', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '不过度寻求碰撞、挤压、旋转', options: stdOptions },
 
       // 3. cognitive -> 认知
       { id: 't1_c_09', dimensionId: 'cognitive', dimensionName: '认知', text: '能点数 10 以内的数量', options: stdOptions },
@@ -176,11 +176,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_c_15', dimensionId: 'attention', dimensionName: '注意力与执行', text: '自己的物品不总是丢三落四', options: stdOptions },
       { id: 't1_c_16', dimensionId: 'attention', dimensionName: '注意力与执行', text: '能等轮到自己（排队、轮流）', options: stdOptions },
 
-      // 5. family_env -> 学习能力
-      { id: 't1_c_17', dimensionId: 'family_env', dimensionName: '学习能力', text: '能照样画出圆形、十字、方形', options: stdOptions },
-      { id: 't1_c_18', dimensionId: 'family_env', dimensionName: '学习能力', text: '认得自己的名字或一些常见字', options: stdOptions },
-      { id: 't1_c_19', dimensionId: 'family_env', dimensionName: '学习能力', text: '会用剪刀沿线剪', options: stdOptions },
-      { id: 't1_c_20', dimensionId: 'family_env', dimensionName: '学习能力', text: '记得并遵守日常规则', options: stdOptions },
+      // 5. learning_ability -> 学习能力
+      { id: 't1_c_17', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '能照样画出圆形、十字、方形', options: stdOptions },
+      { id: 't1_c_18', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '认得自己的名字或一些常见字', options: stdOptions },
+      { id: 't1_c_19', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '会用剪刀沿线剪', options: stdOptions },
+      { id: 't1_c_20', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '记得并遵守日常规则', options: stdOptions },
 
       // 6. language -> 语言沟通
       { id: 't1_c_21', dimensionId: 'language', dimensionName: '语言沟通', text: '能用完整句子清楚说一件事', options: stdOptions },
@@ -194,11 +194,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_c_27', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '会玩角色扮演类的假装游戏', options: stdOptions },
       { id: 't1_c_28', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '能看出别人表情代表的情绪', options: stdOptions },
 
-      // 8. sensory -> 情绪与行为
-      { id: 't1_c_29', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '游戏输了能接受，不长时间崩溃', options: stdOptions },
-      { id: 't1_c_30', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '会用语言表达生气、难过等情绪', options: stdOptions },
-      { id: 't1_c_31', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '害怕或担心不至于影响上学、睡眠', options: stdOptions },
-      { id: 't1_c_32', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '情绪转换较快，不长时间闹别扭', options: stdOptions },
+      // 8. emotion_behavior -> 情绪与行为
+      { id: 't1_c_29', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '游戏输了能接受，不长时间崩溃', options: stdOptions },
+      { id: 't1_c_30', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '会用语言表达生气、难过等情绪', options: stdOptions },
+      { id: 't1_c_31', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '害怕或担心不至于影响上学、睡眠', options: stdOptions },
+      { id: 't1_c_32', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '情绪转换较快，不长时间闹别扭', options: stdOptions },
 
       // 9. self_care -> 生活自理与适应
       { id: 't1_c_33', dimensionId: 'self_care', dimensionName: '生活自理与适应', text: '能独立吃饭、穿脱衣物（扣子鞋带除外）', options: stdOptions },
@@ -219,11 +219,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_d_03', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '写字不至于特别费力、歪扭', options: stdOptions },
       { id: 't1_d_04', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '体育课上不明显笨拙、落后', options: stdOptions },
 
-      // 2. fine_motor -> 感觉处理
-      { id: 't1_d_05', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '对声音、光线、嘈杂环境耐受正常', options: stdOptions },
-      { id: 't1_d_06', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '衣物、食物的质地没有严格受限', options: stdOptions },
-      { id: 't1_d_07', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '课堂上不因动来动去、咬东西影响学习', options: stdOptions },
-      { id: 't1_d_08', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '扣扣子、拉拉链等精细操作顺畅', options: stdOptions },
+      // 2. sensory_processing -> 感觉处理
+      { id: 't1_d_05', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '对声音、光线、嘈杂环境耐受正常', options: stdOptions },
+      { id: 't1_d_06', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '衣物、食物的质地没有严格受限', options: stdOptions },
+      { id: 't1_d_07', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '课堂上不因动来动去、咬东西影响学习', options: stdOptions },
+      { id: 't1_d_08', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '扣扣子、拉拉链等精细操作顺畅', options: stdOptions },
 
       // 3. cognitive -> 认知
       { id: 't1_d_09', dimensionId: 'cognitive', dimensionName: '认知', text: '数学基本概念跟得上年级', options: stdOptions },
@@ -237,11 +237,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_d_15', dimensionId: 'attention', dimensionName: '注意力与执行', text: '不常忘带、丢失物品', options: stdOptions },
       { id: 't1_d_16', dimensionId: 'attention', dimensionName: '注意力与执行', text: '安静场合能控制小动作和插话', options: stdOptions },
 
-      // 5. family_env -> 学习能力
-      { id: 't1_d_17', dimensionId: 'family_env', dimensionName: '学习能力', text: '识字、书写水平与年级大致相当', options: stdOptions, isRedFlag: true },
-      { id: 't1_d_18', dimensionId: 'family_env', dimensionName: '学习能力', text: '抄写不特别吃力，错漏不多', options: stdOptions },
-      { id: 't1_d_19', dimensionId: 'family_env', dimensionName: '学习能力', text: '作业大部分能独立完成', options: stdOptions },
-      { id: 't1_d_20', dimensionId: 'family_env', dimensionName: '学习能力', text: '学新内容不需要比同学多很多遍', options: stdOptions },
+      // 5. learning_ability -> 学习能力
+      { id: 't1_d_17', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '识字、书写水平与年级大致相当', options: stdOptions, isRedFlag: true },
+      { id: 't1_d_18', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '抄写不特别吃力，错漏不多', options: stdOptions },
+      { id: 't1_d_19', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '作业大部分能独立完成', options: stdOptions },
+      { id: 't1_d_20', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '学新内容不需要比同学多很多遍', options: stdOptions },
 
       // 6. language -> 语言沟通
       { id: 't1_d_21', dimensionId: 'language', dimensionName: '语言沟通', text: '能有条理地讲一件事（开头—经过—结果）', options: stdOptions },
@@ -255,11 +255,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_d_27', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '听得懂玩笑，能理解别人的想法', options: stdOptions },
       { id: 't1_d_28', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '有冲突时会协商，而不是动手或躲开', options: stdOptions },
 
-      // 8. sensory -> 情绪与行为
-      { id: 't1_d_29', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '遇到挫折失败能自我调节', options: stdOptions },
-      { id: 't1_d_30', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '担心紧张不影响上学和睡眠', options: stdOptions },
-      { id: 't1_d_31', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '能恰当表达情绪并与人沟通', options: stdOptions },
-      { id: 't1_d_32', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '能适应变化（换座位、改计划）', options: stdOptions },
+      // 8. emotion_behavior -> 情绪与行为
+      { id: 't1_d_29', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '遇到挫折失败能自我调节', options: stdOptions },
+      { id: 't1_d_30', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '担心紧张不影响上学和睡眠', options: stdOptions },
+      { id: 't1_d_31', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '能恰当表达情绪并与人沟通', options: stdOptions },
+      { id: 't1_d_32', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '能适应变化（换座位、改计划）', options: stdOptions },
 
       // 9. self_care -> 生活自理与适应
       { id: 't1_d_33', dimensionId: 'self_care', dimensionName: '生活自理与适应', text: '洗漱、穿着完全自理', options: stdOptions },
@@ -280,11 +280,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_e_03', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '能学会较复杂的运动动作（球类、舞蹈）', options: stdOptions },
       { id: 't1_e_04', dimensionId: 'gross_motor', dimensionName: '动作发展', text: '坐姿耐力正常，不总是瘫软趴桌', options: stdOptions },
 
-      // 2. fine_motor -> 感觉处理
-      { id: 't1_e_05', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '对嘈杂拥挤的环境耐受正常', options: stdOptions },
-      { id: 't1_e_06', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '衣着、饮食没有明显的感觉受限', options: stdOptions },
-      { id: 't1_e_07', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '困倦或烦躁时能自我调节状态', options: stdOptions },
-      { id: 't1_e_08', dimensionId: 'fine_motor', dimensionName: '感觉处理', text: '长时间用眼用脑后能自行放松恢复', options: stdOptions },
+      // 2. sensory_processing -> 感觉处理
+      { id: 't1_e_05', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '对嘈杂拥挤的环境耐受正常', options: stdOptions },
+      { id: 't1_e_06', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '衣着、饮食没有明显的感觉受限', options: stdOptions },
+      { id: 't1_e_07', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '困倦或烦躁时能自我调节状态', options: stdOptions },
+      { id: 't1_e_08', dimensionId: 'sensory_processing', dimensionName: '感觉处理', text: '长时间用眼用脑后能自行放松恢复', options: stdOptions },
 
       // 3. cognitive -> 认知
       { id: 't1_e_09', dimensionId: 'cognitive', dimensionName: '认知', text: '抽象推理（应用题、因果分析）跟得上', options: stdOptions },
@@ -298,11 +298,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_e_15', dimensionId: 'attention', dimensionName: '注意力与执行', text: '会安排作业优先顺序和作息', options: stdOptions },
       { id: 't1_e_16', dimensionId: 'attention', dimensionName: '注意力与执行', text: '说话做事能先想后行，冲动可控', options: stdOptions },
 
-      // 5. family_env -> 学习能力
-      { id: 't1_e_17', dimensionId: 'family_env', dimensionName: '学习能力', text: '成绩与付出的努力大致相称', options: stdOptions, isRedFlag: true },
-      { id: 't1_e_18', dimensionId: 'family_env', dimensionName: '学习能力', text: '阅读速度和理解能应付课业', options: stdOptions },
-      { id: 't1_e_19', dimensionId: 'family_env', dimensionName: '学习能力', text: '考试、作业能组织清楚地表达', options: stdOptions },
-      { id: 't1_e_20', dimensionId: 'family_env', dimensionName: '学习能力', text: '会自己调整学习方法', options: stdOptions },
+      // 5. learning_ability -> 学习能力
+      { id: 't1_e_17', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '成绩与付出的努力大致相称', options: stdOptions, isRedFlag: true },
+      { id: 't1_e_18', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '阅读速度和理解能应付课业', options: stdOptions },
+      { id: 't1_e_19', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '考试、作业能组织清楚地表达', options: stdOptions },
+      { id: 't1_e_20', dimensionId: 'learning_ability', dimensionName: '学习能力', text: '会自己调整学习方法', options: stdOptions },
 
       // 6. language -> 语言沟通
       { id: 't1_e_21', dimensionId: 'language', dimensionName: '语言沟通', text: '表达观点有逻辑，能完整论述', options: stdOptions },
@@ -316,11 +316,11 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
       { id: 't1_e_27', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '网络与现实中的社交大致平衡', options: stdOptions },
       { id: 't1_e_28', dimensionId: 'social_emotional', dimensionName: '社交互动', text: '与家人、老师沟通不总是冲突', options: stdOptions },
 
-      // 8. sensory -> 情绪与行为
-      { id: 't1_e_29', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '情绪波动能自我调节', options: stdOptions },
-      { id: 't1_e_30', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '压力焦虑不至于失眠或不想上学', options: stdOptions },
-      { id: 't1_e_31', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '愿意谈论自己的情绪感受', options: stdOptions },
-      { id: 't1_e_32', dimensionId: 'sensory', dimensionName: '情绪与行为', text: '近两周没有持续的明显低落、自我否定', options: stdOptions, isRedFlag: true },
+      // 8. emotion_behavior -> 情绪与行为
+      { id: 't1_e_29', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '情绪波动能自我调节', options: stdOptions },
+      { id: 't1_e_30', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '压力焦虑不至于失眠或不想上学', options: stdOptions },
+      { id: 't1_e_31', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '愿意谈论自己的情绪感受', options: stdOptions },
+      { id: 't1_e_32', dimensionId: 'emotion_behavior', dimensionName: '情绪与行为', text: '近两周没有持续的明显低落、自我否定', options: stdOptions, isRedFlag: true },
 
       // 9. self_care -> 生活自理与适应
       { id: 't1_e_33', dimensionId: 'self_care', dimensionName: '生活自理与适应', text: '个人卫生、物品、作业能自主管理', options: stdOptions },

@@ -48,14 +48,17 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
           { name: '爆发抗阻力量 (Force Output)', value: t3Value + 5, target: 88, desc: '大肌群快速收缩与抗阻力时的运动神经元同步化放电。' },
           { name: '多步动作协调 (Coordination)', value: Math.max(35, t3Value - 15), target: 85, desc: '肢体交互运动序列（如跳跃、单脚站）的肌肉时序激活。' },
         ];
-      case 'fine_motor':
+      // NOTE: 內容債 — 以下兩個 case 的臨床指標仍沿用舊分類體系（sensory_processing 回傳精細動作指標、
+      // emotion_behavior 回傳感覺處理指標）。T1 題庫已依新分類改寫，T2/T3 內容尚未跟進。
+      // 待真實 T2/T3 題目到位時一併重寫，勿只改 case 名稱。詳見 CONTEXT.md「已知的詞彙債」。
+      case 'sensory_processing':
         return [
           { name: '指间对指捏取 (Pincer Grasp)', value: t3Value - 3, target: 95, desc: '大拇指与食指指腹精密对合对线、小物件受阻操作。' },
           { name: '手腕稳定控制 (Wrist Stability)', value: Math.max(50, t2Value - 12), target: 90, desc: '进行精细画线或操作时手腕部协同肌群的拮抗张力稳态。' },
           { name: '双侧工具协同 (Bimanual Coordination)', value: t3Value + 5, target: 85, desc: '双手交互控制（剪纸、穿珠）时大脑胼胝体半球信息交互。' },
           { name: '视觉反馈指引 (Eye-Hand Calibration)', value: Math.max(40, t3Value - 8), target: 88, desc: '眼球精细扫视轨迹与手指尖微动作终点位置的实时校准。' },
         ];
-      case 'sensory':
+      case 'emotion_behavior':
         return [
           { name: '前庭与平衡觉 (Vestibular Integration)', value: t3Value - 10, target: 90, desc: '对身体位置改变、旋转和加速度的半规管内淋巴液前庭编码。' },
           { name: '触觉防御过滤 (Tactile Modulation)', value: Math.max(40, t2Value + 5), target: 94, desc: '对无关触觉刺激（衣物摩擦、洗脸）在大脑皮层下的滤波。' },

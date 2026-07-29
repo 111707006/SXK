@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Child, DimensionScore, AssessmentStatus } from '../types';
 import { getT1QuestionsForAge, getT1AgeBandName, T1Question } from '../t1Data';
+import { PRODUCT } from '../productConfig';
 import { 
   Activity, Sparkles, Brain, MessageSquare, Smile, BookOpen, Target, Home, Heart,
   ChevronRight, ChevronLeft, CheckCircle2, ClipboardCheck, AlertTriangle, ShieldAlert,
@@ -16,52 +17,52 @@ interface T1ScreeningProps {
 const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => {
   switch (name) {
     case 'gross_motor': return <Activity size={size} />;
-    case 'fine_motor': return <Sparkles size={size} />;
-    case 'sensory': return <Heart size={size} />;
+    case 'sensory_processing': return <Sparkles size={size} />;
+    case 'emotion_behavior': return <Heart size={size} />;
     case 'language': return <MessageSquare size={size} />;
     case 'social_emotional': return <Smile size={size} />;
     case 'cognitive': return <Brain size={size} />;
     case 'attention': return <Target size={size} />;
     case 'self_care': return <Home size={size} />;
-    case 'family_env': return <BookOpen size={size} />;
+    case 'learning_ability': return <BookOpen size={size} />;
     default: return <Brain size={size} />;
   }
 };
 
 const dimensionColors: Record<string, { bg: string; text: string; border: string }> = {
   gross_motor: { bg: 'bg-amber-50 text-amber-700', text: 'text-amber-800', border: 'border-amber-200' },
-  fine_motor: { bg: 'bg-emerald-50 text-emerald-700', text: 'text-emerald-800', border: 'border-emerald-200' },
-  sensory: { bg: 'bg-indigo-50 text-indigo-700', text: 'text-indigo-800', border: 'border-indigo-200' },
+  sensory_processing: { bg: 'bg-emerald-50 text-emerald-700', text: 'text-emerald-800', border: 'border-emerald-200' },
+  emotion_behavior: { bg: 'bg-indigo-50 text-indigo-700', text: 'text-indigo-800', border: 'border-indigo-200' },
   language: { bg: 'bg-blue-50 text-blue-700', text: 'text-blue-800', border: 'border-blue-200' },
   social_emotional: { bg: 'bg-pink-50 text-pink-700', text: 'text-pink-800', border: 'border-pink-200' },
   cognitive: { bg: 'bg-purple-50 text-purple-700', text: 'text-purple-800', border: 'border-purple-200' },
   attention: { bg: 'bg-rose-50 text-rose-700', text: 'text-rose-800', border: 'border-rose-200' },
   self_care: { bg: 'bg-teal-50 text-teal-700', text: 'text-teal-800', border: 'border-teal-200' },
-  family_env: { bg: 'bg-lime-50 text-lime-700', text: 'text-lime-800', border: 'border-lime-200' },
+  learning_ability: { bg: 'bg-lime-50 text-lime-700', text: 'text-lime-800', border: 'border-lime-200' },
 };
 
 const dimensionNames: Record<string, string> = {
   gross_motor: '动作发展',
-  fine_motor: '感觉处理',
-  sensory: '情绪与行为',
+  sensory_processing: '感觉处理',
+  emotion_behavior: '情绪与行为',
   language: '语言沟通',
   social_emotional: '社交互动',
   cognitive: '认知',
   attention: '注意力与执行',
   self_care: '生活自理与适应',
-  family_env: '学习能力',
+  learning_ability: '学习能力',
 };
 
 const dimensionDescs: Record<string, string> = {
   gross_motor: '评估大动作运动协调性、平衡能力、姿势控制及下肢力量。',
-  fine_motor: '评测对光线、声音、材质等外界感觉刺激的反应及感统耐受度。',
-  sensory: '评测挫折应对、情绪自我调节、主要抚养人分离焦虑及作息规律性。',
+  sensory_processing: '评测对光线、声音、材质等外界感觉刺激的反应及感统耐受度。',
+  emotion_behavior: '评测挫折应对、情绪自我调节、主要抚养人分离焦虑及作息规律性。',
   language: '测试日常词汇表达、长短句组织、听说指令理解及言语流畅度。',
   social_emotional: '分析眼神接触、同伴社交、轮流分享及玩具互动分享意愿。',
   cognitive: '评估逻辑推理、数量点数、空间位置概念及解决小问题能力。',
   attention: '评测课堂或日常活动专注度、冲动控制及规则遵从表现。',
   self_care: '检验独立进食、穿脱衣鞋、如厕训练、洗手配合等日常自理。',
-  family_env: '评估绘本阅读兴趣、模仿能力、日常流程记忆与新玩法学成效率。',
+  learning_ability: '评估绘本阅读兴趣、模仿能力、日常流程记忆与新玩法学成效率。',
 };
 
 export default function T1Screening({ child, onBack, onSaveT1Results }: T1ScreeningProps) {
@@ -210,8 +211,8 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
               </h3>
               <p className="text-xs text-brand-charcoal/75 leading-relaxed">
                 {lowDimensions.length > 0
-                  ? '为了精确定位孩子在大脑突触环路与功能上的发展状况并建立成长引导方案，推荐立即进入相应维度的 T2 能力评估层 与 T3 专项深入评估。'
-                  : '基本发育水平良好。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，您亦可点击下方一键对接 AI 判读建档并视情探索 T2/T3 检测。'
+                  ? PRODUCT.nextStep.screeningResultWithFindings
+                  : PRODUCT.nextStep.screeningResultAllClear
                 }
               </p>
             </div>
@@ -272,7 +273,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                     {(score.status === 'delay' || score.status === 'borderline') ? (
                       <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
                         <AlertTriangle size={10} className="shrink-0" />
-                        推荐 T2+T3 深度
+                        {PRODUCT.nextStep.actionLabel}
                       </span>
                     ) : (
                       <span className="text-brand-moss font-medium">基本正常</span>
@@ -302,7 +303,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
               className="w-full sm:flex-1 py-3.5 bg-brand-forest hover:bg-brand-forest/95 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition shadow-md shadow-brand-forest/15"
             >
               <BrainCircuit size={15} />
-              一键对接 AI 判读并启动 T2/T3 深度专项评估
+              {PRODUCT.nextStep.finishButtonLabel}
               <ArrowRight size={14} />
             </button>
           </div>

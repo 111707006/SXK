@@ -146,7 +146,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
           
           // Draw skeleton if motor
           setTimeout(() => {
-            if (dimension.id === 'gross_motor' || dimension.id === 'fine_motor' || dimension.id === 'sensory') {
+            if (dimension.id === 'gross_motor' || dimension.id === 'sensory_processing' || dimension.id === 'emotion_behavior') {
               drawSkeleton();
             }
           }, 150);
@@ -465,7 +465,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
           setIsT3Analyzed(true);
           // Wait a tiny frame and then draw skeleton if motor
           setTimeout(() => {
-            if (dimension.id === 'gross_motor' || dimension.id === 'fine_motor' || dimension.id === 'sensory') {
+            if (dimension.id === 'gross_motor' || dimension.id === 'sensory_processing' || dimension.id === 'emotion_behavior') {
               drawSkeleton();
             }
           }, 150);
@@ -606,7 +606,9 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
           mode: 'upload',
           accept: 'video/*'
         };
-      case 'fine_motor':
+      // NOTE: 內容債 — 同 SpecializedReportView，以下兩個 case 的採集任務仍沿用舊分類體系。
+      // 待真實 T2/T3 內容到位時一併重寫。詳見 CONTEXT.md「已知的詞彙債」。
+      case 'sensory_processing':
         return {
           title: '画笔握姿力度姿势及手指震颤系数分析',
           desc: '请上传一张孩子用铅笔/蜡笔在白纸上临摹画圆或正方形时的手部拿笔姿势特写照片或5秒超清短视频。',
@@ -614,7 +616,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
           mode: 'upload',
           accept: 'image/*,video/*'
         };
-      case 'sensory':
+      case 'emotion_behavior':
         return {
           title: '前庭本体姿态反应及眼震防御系数评估',
           desc: '请上传一段孩子进行荡秋千、闭眼单脚平稳站立、或在直线地板上双脚并拢行走10米的视频。',

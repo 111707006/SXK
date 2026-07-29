@@ -8,6 +8,12 @@ const stdOptions = [
   { label: '否 / 极少做到', score: 0 }
 ];
 
+/**
+ * 九大維度的深度評估（T2/T3）題庫與量表設定。
+ *
+ * ⚠️ 每個維度底下的 `tiers.T1` 已廢棄，無任何程式讀取——篩查題目一律以 `src/t1Data.ts` 為準。
+ *    保留僅為歷史紀錄，請勿在此新增或修改篩查題目。
+ */
 export const DIMENSIONS_DATA: DimensionConfig[] = [
   {
     id: 'gross_motor',
@@ -53,7 +59,7 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
     }
   },
   {
-    id: 'fine_motor',
+    id: 'sensory_processing',
     name: '感觉处理',
     iconName: 'Sparkles',
     color: 'bg-brand-sage text-brand-moss hover:bg-emerald-50 border-brand-stone',
@@ -96,7 +102,7 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
     }
   },
   {
-    id: 'sensory',
+    id: 'emotion_behavior',
     name: '情绪与行为',
     iconName: 'Brain',
     color: 'bg-brand-sage text-brand-forest hover:bg-brand-sage/80 border-brand-stone',
@@ -368,7 +374,7 @@ export const DIMENSIONS_DATA: DimensionConfig[] = [
     }
   },
   {
-    id: 'family_env',
+    id: 'learning_ability',
     name: '学习能力',
     iconName: 'Heart',
     color: 'bg-brand-sand text-brand-clay hover:bg-brand-beige border-brand-stone',
@@ -423,7 +429,7 @@ export const PRODUCTS_DATA: Product[] = [
     image: '/headband.jpg',
     specs: ['重：42g 极轻不压前额', '适用年龄：3-14岁儿童', '触电触高：医用级亲肤柔性硅胶材质', '充电续航：单次充满可连续提供脑波监测训练 15 小时'],
     features: ['高解析度 EEG 采样频率高达 500Hz', '实时情绪与专注水平三元指标算法反馈', '亲子互绑对抗性脑控抗分心小训练游戏包'],
-    dimensionsTargeted: ['attention', 'sensory', 'cognitive']
+    dimensionsTargeted: ['attention', 'emotion_behavior', 'cognitive']
   },
   {
     id: 'walking_assist',
@@ -447,7 +453,8 @@ export const PRODUCTS_DATA: Product[] = [
     image: '/smart-lamp.jpg',
     specs: ['重：55g（搭口高度可自由调节）', '适用腰围：40-75cm 儿童大网扣制', '精度：0.01 度三轴倾斜角监测', '系统连接：手机、电脑、PAD、大显示屏多投屏互连'],
     features: ['三维实时动画人物投影轨迹骨骼力线', '对跨越爬跑、坐立挺背全景多要素感知量化', '步幅异偏即刻音乐韵律警报校正'],
-    dimensionsTargeted: ['attention', 'sensory']
+    // 体态／步幅监测属动作发展；改名前此处标 'sensory'，本意是「感觉统合」而非情绪与行为
+    dimensionsTargeted: ['gross_motor', 'attention']
   },
   {
     id: 'gut_probiotic',

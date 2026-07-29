@@ -8,6 +8,8 @@ import {
   ClipboardCheck, ArrowRight
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
+import { DIMENSION_DETAILS } from '../dimensionContent';
+import { PRODUCT } from '../productConfig';
 import { 
   IntegrationGauges, NeuralNetworkTopology, WeeklyRehabPlanner, PrognosisTrajectoryChart 
 } from './ReportCharts';
@@ -41,58 +43,6 @@ const SPECIALISTS = [
     slots: ['周三上午', '周五上午', '周日上午']
   }
 ];
-
-const DOMAIN_DETAILS: Record<string, {
-  ability: string;
-  familyAdvice: string;
-  scales: string[];
-}> = {
-  gross_motor: {
-    ability: "指大肌肉群参与的运动能力，包括身体平衡、姿势控制、双侧肢体协调、跳跃及上下楼梯等。它是儿童探索世界、进行复杂身体活动的基石。",
-    familyAdvice: "每日安排至少 30 分钟大肢体活动。在安全床垫上练习侧翻滚或爬行；使用充气软墩设计小障碍跨越路线，牵着孩子单手练习单脚跳。",
-    scales: ["感觉统合-动作发展评估（线上）", "粗大动作里程碑核对（发展评估量表）", "GMFM-66 （明显粗大动作困难时）", "物理治疗 PT", "作业治疗 OT"]
-  },
-  fine_motor: {
-    ability: "指对外界物理感觉刺激（光线、声音、材质）的调节、对身体动作的精细微调以及手眼协调操作，包括拿筷捏粒、折纸剪线等双手小肌肉协调运动。",
-    familyAdvice: "多给孩子捏橡皮泥、穿引鞋带或穿彩珠，练习手指精细对捏。洗澡时鼓励使用不同触觉材质的玩具，在玩耍中逐步降低防卫性敏感。",
-    scales: ["WeeFIM 精细操作指数", "儿童感觉统合发展评定量表", "感觉防卫性专科评估", "作业治疗 OT"]
-  },
-  sensory: {
-    ability: "在遭遇挫折、面对抚养人离别或起居环境变迁时的自我情绪适应与平复能力，以及日常生活作息节律的稳定性和配合表现。",
-    familyAdvice: "建立固定的作息时间表。当孩子发脾气时，家长保持平稳，通过深呼吸或抱枕安抚；使用情绪色卡引导孩子口头表达“我现在有些生气”。",
-    scales: ["CBCL 儿童行为量表", "Achenbach 情绪稳健度评估", "ADHD 多动缺陷心理评估", "心理沙盘与行为矫正"]
-  },
-  language: {
-    ability: "口语词汇理解、长短句表达、人称代词辨别使用、多步骤口头指令执行以及语序逻辑的清晰度。这涉及 Broca 区及 Wernicke 区的突触偶联。",
-    familyAdvice: "跟孩子对话时，放慢语速并伴随清晰的面部口型。多让孩子表达生理需求，而不是拉着父母手去指；鼓励其参与两步骤日常家务指令。",
-    scales: ["CELF-5 临床语言功能评估（中文版）", "CRRC 语言发育迟缓检查法", "儿童构音障碍专项评估", "言语治疗 ST"]
-  },
-  social_emotional: {
-    ability: "共同关注能力（视线随人手指点）、名字呼唤响应、同伴合作嬉戏意愿、分享展示玩具及眼神持续接触等社会交往特质。",
-    familyAdvice: "呼唤孩子名字并保持 3 秒以上自然眼神对视，给予赞许。开展多来回的乒乓社交游戏（如互相推接皮球），训练眼神与肢体呼应。",
-    scales: ["ADOS-2 自闭症评估观察量表", "M-CHAT-R 婴幼儿孤独症评估", "SRS-2 社交反应量表", "社交融合互动课（SCERTS）"]
-  },
-  cognitive: {
-    ability: "指对事物的逻辑辨别、形状分类、大小对比、瞬时记忆以及类比逻辑推理能力。它直接反映了大脑皮层高级功能区突触网络的可塑性。",
-    familyAdvice: "在桌前引导孩子玩“长方配孔、异色分类”形状配对玩具。可利用 3 个不透明杯子，当面移动藏物让孩子追踪寻找，锻炼工作记忆。",
-    scales: ["Bayley-4 贝利婴幼儿发展量表", "Griffiths 葛斐氏发育评估", "WISC-V 韦氏儿童智力量表", "认知专项评估与训练指导"]
-  },
-  attention: {
-    ability: "大脑前额叶皮层对无关干扰因子的抑制、动作执行规划、自我冲动抑制以及在活动中保持稳定注意力的心智调控能力。",
-    familyAdvice: "在静音室内进行绘本阅读，减少视觉环境杂乱。进行“指令听哨对射”游戏：听到一声哨音前移，听到两声哨音静坐，训练反应抑制。",
-    scales: ["SNAP-IV 评定量表（家长及教师版）", "Conners 儿童行为问卷", "CPT 持续性注意力测验", "注意力集中特训方案"]
-  },
-  self_care: {
-    ability: "日常生活活动（ADL）的独立性，包括独立用勺/筷进食、配合洗手刷牙、穿脱衣物鞋袜、拉松紧带如厕及马桶规范冲洗全流程。",
-    familyAdvice: "利用“穿衣扣合工作台”练习拉链与按扣。让孩子全程自主进食（允许少量洒出），并在上洗手间时由大人口型提示规范洗手闭环。",
-    scales: ["WeeFIM 儿童日常生活独立功能评定", "ADL 日常生活活动能力量表", "适应行为评定量表", "生活自理指导 OT"]
-  },
-  family_env: {
-    ability: "指对新知识、儿歌模仿、规则流程记忆和新游戏技巧的理解与学成效率。也受家庭环境中亲子伴读与赋能支持氛围的影响。",
-    familyAdvice: "睡前半小时开展“无手机”的高质量伴谈与共读，多鼓励孩子重述绘本中的简单场景，用描述性肯定语强化孩子的探索兴趣。",
-    scales: ["儿童学习适应性测验 (AAT)", "少儿多元智能评估问卷", "阅读与读写障碍早期评估", "家庭环境支持度评估 (HOME)"]
-  }
-};
 
 const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => {
   switch (name) {
@@ -469,7 +419,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
               <div className="p-4 bg-rose-50 border border-rose-200 text-rose-950 rounded-2xl flex items-start gap-3 text-xs leading-relaxed font-medium">
                 <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={16} />
                 <div>
-                  <span className="font-bold text-rose-800">建议尽快进入第二层「量表评估中心」。</span>
+                  <span className="font-bold text-rose-800">{PRODUCT.nextStep.alertText}</span>
                   本次评估在{' '}
                   {redNames.length > 0 && (
                     <>
@@ -515,13 +465,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   statusBadge = "需关注";
                   badgeClass = "bg-rose-50 border-rose-200 text-rose-700 font-bold";
                   fillClass = "bg-rose-500";
-                  actionText = "第二层评估";
+                  actionText = PRODUCT.nextStep.actionLabel;
                   actionClass = "text-rose-600 font-bold";
                 } else if (concernScore >= 3) {
                   statusBadge = "需留意";
                   badgeClass = "bg-amber-50 border-amber-200 text-amber-700 font-bold";
                   fillClass = "bg-amber-500";
-                  actionText = "第二层评估";
+                  actionText = PRODUCT.nextStep.actionLabel;
                   actionClass = "text-amber-600 font-bold";
                 }
 
@@ -557,10 +507,10 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> 大致良好 (继续观察)
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> 需留意 (进入第二层评估)
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> 需留意 ({PRODUCT.nextStep.legendAttentionHint})
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> 需关注 (建议进入第二层评估)
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> 需关注 ({PRODUCT.nextStep.legendConcernHint})
               </span>
             </div>
           </div>
@@ -812,14 +762,14 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             );
           })()}
 
-          {/* SECTION 4: 标记领域说明与第二层建议量表 */}
+          {/* SECTION 4: 标记领域说明（標題與建議量表區塊依 productConfig 切換） */}
           <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">
             <div className="border-b border-brand-cream pb-2.5">
               <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
                 <BookOpen size={15} className="text-brand-moss" />
-                标记领域说明与第二层建议量表
+                {PRODUCT.markedAreaSection.title}
               </h3>
-              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">针对有延迟风险的领域，提供深度评测指导及临床建议推荐量表</p>
+              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">{PRODUCT.markedAreaSection.subtitle}</p>
             </div>
 
             <div className="space-y-4">
@@ -836,7 +786,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 return (
                   <>
                     {itemsToRender.map(({ dim, s, concernScore }) => {
-                      const details = DOMAIN_DETAILS[dim.id];
+                      const details = DIMENSION_DETAILS[dim.id];
                       if (!details) return null;
 
                       let statusLabel = "大致良好";
@@ -868,19 +818,21 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                               <span className="font-bold text-brand-forest block text-[11px] mb-0.5">🏡 家庭观察与居家干预建议:</span>
                               <p className="text-brand-charcoal/80 leading-relaxed text-[11px]">{details.familyAdvice}</p>
                             </div>
-                            <div>
-                              <span className="font-bold text-brand-moss block text-[11px] mb-1.5">📋 第二层（量表评估中心）建议量表与发展特训:</span>
-                              <div className="flex flex-wrap gap-1.5">
-                                {details.scales.map((scale, sIdx) => (
-                                  <span 
-                                    key={sIdx} 
-                                    className="px-2.5 py-1 bg-brand-sage/10 text-brand-forest border border-brand-moss/20 rounded-lg text-[10px] font-semibold flex items-center gap-1 hover:bg-brand-sage/20 transition cursor-default"
-                                  >
-                                    <span>{scale}</span>
-                                  </span>
-                                ))}
+                            {PRODUCT.markedAreaSection.scalesLabel !== null && (
+                              <div>
+                                <span className="font-bold text-brand-moss block text-[11px] mb-1.5">{PRODUCT.markedAreaSection.scalesLabel}</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {details.scales.map((scale, sIdx) => (
+                                    <span
+                                      key={sIdx}
+                                      className="px-2.5 py-1 bg-brand-sage/10 text-brand-forest border border-brand-moss/20 rounded-lg text-[10px] font-semibold flex items-center gap-1 hover:bg-brand-sage/20 transition cursor-default"
+                                    >
+                                      <span>{scale}</span>
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         </div>
                       );

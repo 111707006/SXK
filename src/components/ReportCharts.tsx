@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DimensionScore, Child } from '../types';
-import { 
+import { BRAIN_NODES } from '../dimensionContent';
+import {
   Activity, Brain, Calendar, CheckSquare, Clock, Compass, Dumbbell, 
   Heart, Milestone, ShieldAlert, Sparkles, Zap, ChevronRight, Info
 } from 'lucide-react';
@@ -147,59 +148,9 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>('prefrontal');
 
-  // Node configs representing key brain networks
-  const nodes = [
-    {
-      id: 'prefrontal',
-      name: '前额叶认知控制网络',
-      eng: 'Prefrontal Executive Network',
-      x: 100,
-      y: 70,
-      relatedDims: ['attention', 'cognitive'],
-      desc: '负责大脑高级控制力，主导专注分配、工作记忆以及高阶思维规划。',
-      clinicalNotes: '当前脑区突触剪切与微电流协同机制正常。如果注意力在问卷中较低，通常由于感觉阻断或轻微的皮层觉醒度不匀导致。'
-    },
-    {
-      id: 'sensory',
-      name: '多感官皮质处理中枢',
-      eng: 'Sensory Integration Cortex',
-      x: 230,
-      y: 55,
-      relatedDims: ['sensory'],
-      desc: '调协听视触和本体觉，对外界物理信号在大脑后联合区进行深度编码。',
-      clinicalNotes: '脑机理测绘显示该区域的传入阻抗偏高，需要采用大面积重力压力或特异毛刷扫刷，重建多通道传入神经元的髓鞘化。'
-    },
-    {
-      id: 'motor',
-      name: '运动规划与小脑协同区',
-      eng: 'Motor Planning & Cerebellum',
-      x: 350,
-      y: 110,
-      relatedDims: ['gross_motor', 'fine_motor'],
-      desc: '指挥脊柱肌肉动力、大肌肉跨越平衡、及双手十指对捏的微米级控制。',
-      clinicalNotes: '该中枢与脊髓前角细胞的反馈弧稍有延迟，抗阻行走训练和重力关节拉伸，能刺激下丘脑促进多巴胺偶联，提高控制精确度。'
-    },
-    {
-      id: 'limbic',
-      name: '边缘情感及社交网络',
-      eng: 'Limbic Emotional Synapse',
-      x: 200,
-      y: 130,
-      relatedDims: ['social_emotional'],
-      desc: '调节杏仁核和海马体，处理社交互动眼神对视、情绪共情和环境应激。',
-      clinicalNotes: '情绪稳健度和眼神交汇的保持，高度依赖于皮层下边缘多巴胺通路的活跃，建议家庭环境中采用正向情感高频激励。'
-    },
-    {
-      id: 'language',
-      name: '颞叶言语听觉传导带',
-      eng: 'Temporal Auditory & Language Zone',
-      x: 120,
-      y: 160,
-      relatedDims: ['language'],
-      desc: 'Broca/Wernicke区，控制声带言语运动规划、回声脑干反射及字句重组。',
-      clinicalNotes: '构音动作规划和词汇存储传输良好。针对性的吹气游戏与口腔肌肉阻力拉伸，可进一步激发下颌和唇部协调。'
-    }
-  ];
+  // Node configs live in src/dimensionContent.ts so the dimension-id consistency
+  // test can reach them, and so they are not rebuilt on every render.
+  const nodes = BRAIN_NODES;
 
   // Helper to determine node health state based on average of related dimensions
   const getNodeState = (nodeRelatedDims: string[]) => {

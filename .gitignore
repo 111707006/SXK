@@ -21,3 +21,6 @@ Thumbs.db
 .preview
 .cozeproj/reduction
 .codegraph
+
+# 報告／簡報等產出物 —— 二進位檔，每次更新都是一整份，不進版控
+*.pdf

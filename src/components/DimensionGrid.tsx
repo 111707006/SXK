@@ -1,6 +1,7 @@
 import React from 'react';
 import { DimensionConfig, DimensionScore } from '../types';
 import { DIMENSIONS_DATA } from '../data';
+import { PRODUCT } from '../productConfig';
 import { 
   Activity, Sparkles, Brain, MessageSquare, Smile, BookOpen, Target, Home, Heart,
   CheckCircle, ChevronRight, PieChart, ShieldAlert, BadgeInfo, Play, Lock, BrainCircuit
@@ -88,7 +89,7 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
               启动 T1 综合评估入口
             </h2>
             <p className="text-xs text-brand-charcoal/90 max-w-lg leading-relaxed font-medium">
-              根据孩子年龄段自适应匹配 36 题 ASQ-3/M-CHAT 问卷。完成基本评估后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。
+              {PRODUCT.dashboard.screeningIntro}
             </p>
           </div>
           
@@ -115,8 +116,8 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
           <div className="text-left flex-1">
             <h2 className="text-base font-extrabold text-brand-forest">神经网络 9 维精细图层</h2>
             <p className="text-[11px] text-brand-charcoal/70 mt-1">
-              {isT1Completed 
-                ? '以下为 9 维 T1 评估结果。点击标有黄色/红色警告的维度卡片，直接推进 T2 问卷 与 T3 专项检测！'
+              {isT1Completed
+                ? PRODUCT.dashboard.gridHintCompleted
                 : '待完成上方 T1 综合评估。评估通过后，本模块将自适应更新并解锁。'
               }
             </p>
@@ -154,12 +155,15 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
               <button
                 id={`dimension-card-${dim.id}`}
                 key={dim.id}
-                disabled={!isT1Completed}
+                // 專案 B 沒有深度評估，卡片只作為 T1 結果的展示，不可點擊
+                disabled={!isT1Completed || !PRODUCT.features.tier2And3}
                 onClick={() => onSelectDimension(dim.id)}
                 className={`relative overflow-hidden p-5 rounded-2xl border flex flex-col justify-between h-46 text-left transition ${
-                  !isT1Completed 
+                  !PRODUCT.features.tier2And3 ? 'cursor-default ' : ''
+                }${
+                  !isT1Completed
                     ? 'border-slate-200 bg-slate-50/50 opacity-60 cursor-not-allowed'
-                    : t1Rec?.status === 'delay' 
+                    : t1Rec?.status === 'delay'
                       ? 'border-rose-400 bg-white ring-2 ring-rose-500/5 hover:translate-y-[-2px] hover:shadow-md'
                       : t1Rec?.status === 'borderline'
                         ? 'border-amber-400 bg-white ring-2 ring-amber-500/5 hover:translate-y-[-2px] hover:shadow-md'
@@ -196,7 +200,9 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
                 {/* Dimension Details */}
                 <div className="mt-3">
                   <h3 className="text-sm font-extrabold text-brand-forest">{dim.name}</h3>
-                  <p className="text-[10px] text-brand-charcoal/60 mt-0.5">T2 自评量表 + T3 专项上传</p>
+                  {PRODUCT.dashboard.dimensionCardSubLabel && (
+                    <p className="text-[10px] text-brand-charcoal/60 mt-0.5">{PRODUCT.dashboard.dimensionCardSubLabel}</p>
+                  )}
                 </div>
 
                 {/* Score or click helper */}
@@ -218,17 +224,21 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
                         </div>
                       )}
                     </div>
-                  ) : (
+                  ) : PRODUCT.features.tier2And3 ? (
                     <span className="text-brand-charcoal/60">点击进入本维度测定</span>
-                  )}
-                  
-                  {isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
-                    <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
-                      立即深测
-                      <ChevronRight size={10} className="text-rose-500 animate-bounce" />
-                    </span>
                   ) : (
-                    <ChevronRight size={12} className="text-brand-charcoal/40" />
+                    <span className="text-brand-charcoal/60">待完成 T1 评估</span>
+                  )}
+
+                  {PRODUCT.features.tier2And3 && (
+                    isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
+                      <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
+                        立即深测
+                        <ChevronRight size={10} className="text-rose-500 animate-bounce" />
+                      </span>
+                    ) : (
+                      <ChevronRight size={12} className="text-brand-charcoal/40" />
+                    )
                   )}
                 </div>
               </button>

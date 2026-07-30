@@ -68,6 +68,14 @@ export interface AssessmentRecord {
       motorControlIndex: number;    // 运动控制指数
     };
   };
+  /**
+   * `aiReport` 究竟是 AI 生成的，還是本地模板兜底的。
+   *
+   * 三態，`undefined` 有意義：代表這是加入本欄位之前存下的舊紀錄，來源不明。
+   * UI 必須把 `undefined` 顯示成「來源未記錄」，**不可**當成 `true` —— 舊版
+   * AnalysisReport 讀歷史紀錄時無條件標成 AI 生成，模板報告因此被誤標，正是要修的問題。
+   */
+  isAiGenerated?: boolean;
   createdAt: string;
 }
 

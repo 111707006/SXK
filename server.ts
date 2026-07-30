@@ -6,6 +6,9 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 // tcb import removed - replaced with MySQL
 import * as mysqlDb from './src/db/mysql';
+import { notifyExpertBooking } from './src/notify';
+import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
+import { DIMENSIONS_DATA } from './src/data';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
@@ -16,6 +19,43 @@ dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.DEPLOY_RUN_PORT || process.env.PORT) || 5000;
+
+// ── Product mode (backend counterpart of src/productConfig.ts) ──
+// Both must be set on a deployment; they control different halves:
+//   VITE_APP_MODE  — build time, decides what the bundle renders
+//   APP_MODE       — run time, decides which routes this process registers
+//
+// Deliberately fail-closed, mirroring resolveMode() in productConfig.ts: an
+// unrecognised value kills the process instead of quietly falling back to
+// 'full'. A typo that fell back would leave the tier-2/3 endpoints serving on
+// the box handed to the partner company, with nothing to signal it.
+type AppMode = 'full' | 't1only';
+
+function resolveAppMode(raw: string | undefined): AppMode {
+  if (raw === undefined || raw === '') return 'full';
+  if (raw === 'full' || raw === 't1only') return raw;
+  throw new Error(
+    `APP_MODE is not recognised: ${JSON.stringify(raw)}. Only 'full' (project A) or 't1only' (project B) are accepted.`
+  );
+}
+
+const APP_MODE = resolveAppMode(process.env.APP_MODE);
+
+// The tier-2/3 AI endpoints exist only in project A. Project B registers them
+// on a Router that is never mounted, so the paths genuinely do not exist and
+// requests fall through to 404. That is stronger than registering a handler
+// and rejecting inside it: there is no handler left to bypass, and a 404
+// doesn't confirm the endpoint exists the way a 403 would.
+const tier2Only = APP_MODE === 'full' ? app : express.Router();
+
+// Same trick for the paid routes. Kept separate from tier2Only even though both
+// currently resolve identically: "has deep assessment" and "charges for it" are
+// two different product facts, and a pilot build with free T2/T3 would need them
+// to diverge. One concept, one gate — same rule as productConfig's feature flags.
+const paidOnly = APP_MODE === 'full' ? app : express.Router();
+
+/** ¥19.9 per dimension, in 分 — WeChat Pay's amount.total is an integer in 分. */
+const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;
 
 // Security headers (X-Content-Type-Options, frameguard, HSTS, etc.).
 // CSP is disabled so the Vite-built SPA's inline styles/scripts still load;
@@ -57,7 +97,19 @@ const authLimiter = rateLimit({
   handler: jsonTooMany,
 });
 
+// Booking notifies real staff, so it gets a much tighter budget than the rest
+// of /api. Generous enough for a clinic or school behind one NAT address, tight
+// enough that a loop cannot bury the team in messages.
+const bookingLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: Number(process.env.RATE_BOOKING_MAX) || 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonTooMany,
+});
+
 app.use('/api', apiLimiter);
+app.use('/api/expert-booking', bookingLimiter);
 app.use(['/api/report', '/api/specialized-report', '/api/motion-eval',
   '/api/motion-report', '/api/ali-language-eval', '/api/asr'], aiLimiter);
 app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
@@ -511,7 +563,7 @@ ${scoresSummaryStr}
 });
 
 // API endpoint for single-dimension T2/T3 specialized deep report (AI-generated)
-app.post('/api/specialized-report', async (req: express.Request, res: express.Response) => {
+tier2Only.post('/api/specialized-report', async (req: express.Request, res: express.Response) => {
   try {
     const { child, dimensionName, t2Percent, t3Percent, status } = req.body;
     if (!child || !dimensionName) {
@@ -568,7 +620,7 @@ app.post('/api/specialized-report', async (req: express.Request, res: express.Re
 });
 
 // API endpoint for CPMV-20 motion item scoring from sampled video frames (qwen3-vl)
-app.post('/api/motion-eval', async (req: express.Request, res: express.Response) => {
+tier2Only.post('/api/motion-eval', async (req: express.Request, res: express.Response) => {
   try {
     const { frames, item, child } = req.body;
     if (!Array.isArray(frames) || frames.length === 0 || !item || !item.name) {
@@ -627,7 +679,7 @@ app.post('/api/motion-eval', async (req: express.Request, res: express.Response)
 });
 
 // API endpoint for CPMV-20 overall narrative report (qwen3.7-max) once items are scored
-app.post('/api/motion-report', async (req: express.Request, res: express.Response) => {
+tier2Only.post('/api/motion-report', async (req: express.Request, res: express.Response) => {
   try {
     const { child, total, domains, flags, lowItems } = req.body;
     if (!total || typeof total.pct !== 'number') {
@@ -745,7 +797,7 @@ function generateFallbackLanguageReport(
 }
 
 // API endpoint for deep language evaluation with Alibaba Qwen models
-app.post('/api/ali-language-eval', async (req: express.Request, res: express.Response) => {
+tier2Only.post('/api/ali-language-eval', async (req: express.Request, res: express.Response) => {
   try {
     const { child, audioTranscribedText, articulation, fluency, sentenceLength, targetPrompt } = req.body;
     
@@ -850,7 +902,7 @@ app.post('/api/ali-language-eval', async (req: express.Request, res: express.Res
 });
 
 // API endpoint for real speech recognition via Qwen3-ASR-Flash
-app.post('/api/asr', async (req: express.Request, res: express.Response) => {
+tier2Only.post('/api/asr', async (req: express.Request, res: express.Response) => {
   try {
     const { audioData, context } = req.body;
     if (!audioData || typeof audioData !== 'string') {
@@ -908,6 +960,10 @@ app.post('/api/asr', async (req: express.Request, res: express.Response) => {
 // Offline-mode fallback in-memory datastores (used when MySQL is not configured)
 const offlineUsers = new Map<string, any>();
 const offlineUserData = new Map<string, any>();
+// Bookings taken while MySQL is unconfigured. Lost on restart — acceptable for
+// demos, NOT for production: a real booking that vanishes is a parent left
+// waiting for a call. The response tells the client which mode it landed in.
+const offlineBookings: any[] = [];
 
 // 展示用的固定測試帳號 —— 刻意保留，讓客戶與合作方免註冊即可試用。
 // 登入頁的「一鍵填充」按鈕（AuthScreen.tsx）對應的就是這一組。
@@ -931,6 +987,202 @@ app.get('/api/db/status', (req, res) => {
     configured: mysqlDb.isConfigured(),
     engine: mysqlDb.isConfigured() ? 'mysql' : 'memory',
   });
+});
+
+/**
+ * Dimensions this user has paid to unlock. The paywall reads this; it is the
+ * only source of truth for access, never anything the client stores.
+ */
+paidOnly.get('/api/unlocks', async (req, res) => {
+  try {
+    const email = verifyToken(getBearerToken(req));
+    if (!email) {
+      res.status(401).json({ error: '请先登录。' });
+      return;
+    }
+    if (!mysqlDb.isConfigured()) {
+      // No durable store means no purchases could have happened. Say so plainly
+      // rather than returning [] as if the parent simply owns nothing.
+      res.json({ dimensionIds: [], available: false });
+      return;
+    }
+    const user = await mysqlDb.findUserByEmail(email);
+    if (!user) {
+      res.status(401).json({ error: '登录状态已失效，请重新登录。' });
+      return;
+    }
+    res.json({ dimensionIds: await mysqlDb.listUnlockedDimensions(user.id), available: true });
+  } catch (err: any) {
+    console.error('[Payment] Failed to list unlocks:', err.message);
+    res.status(500).json({ error: '无法读取已解锁维度。' });
+  }
+});
+
+/**
+ * Opens a pending payment for one dimension and returns the merchant order
+ * number. Placing the actual WeChat order is stage 3-4 and is blocked on ICP
+ * filing plus the mchid — and on the still-open H5-vs-JSAPI choice.
+ *
+ * There is deliberately NO endpoint that settles a payment. The only legitimate
+ * triggers are a signature-verified WeChat callback and the query-order
+ * compensation path; exposing anything else would hand out paid content for
+ * free to whoever found the URL.
+ */
+paidOnly.post('/api/payment/create', async (req, res) => {
+  try {
+    const email = verifyToken(getBearerToken(req));
+    if (!email) {
+      res.status(401).json({ error: '请先登录后再购买。' });
+      return;
+    }
+    const { dimensionId } = req.body || {};
+    if (!DIMENSIONS_DATA.some(d => d.id === dimensionId)) {
+      res.status(400).json({ error: '维度不存在。' });
+      return;
+    }
+    if (!mysqlDb.isConfigured()) {
+      // Taking money without a durable order record is not a degraded mode, it
+      // is a refund dispute waiting to happen. Refuse.
+      res.status(503).json({ error: '支付服务暂未开放，请稍后再试。' });
+      return;
+    }
+
+    const user = await mysqlDb.findUserByEmail(email);
+    if (!user) {
+      res.status(401).json({ error: '登录状态已失效，请重新登录。' });
+      return;
+    }
+
+    // Already owned → do not create another order. A parent who taps twice, or
+    // returns to an old paywall page, must not be able to pay for the same
+    // dimension a second time.
+    const owned = await mysqlDb.listUnlockedDimensions(user.id);
+    if (owned.includes(dimensionId)) {
+      res.json({ alreadyUnlocked: true });
+      return;
+    }
+
+    const outTradeNo = generateOutTradeNo();
+    if (!isValidOutTradeNo(outTradeNo)) {
+      // Can only fire if the generator is changed badly; failing here beats
+      // failing at WeChat's door with the parent mid-payment.
+      throw new Error(`generated out_trade_no violates the official contract: ${outTradeNo}`);
+    }
+    const paymentId = await mysqlDb.createPayment(user.id, outTradeNo, UNLOCK_PRICE_FEN, dimensionId);
+
+    res.json({
+      alreadyUnlocked: false,
+      outTradeNo,
+      paymentId,
+      amountFen: UNLOCK_PRICE_FEN,
+      dimensionId,
+      // No h5_url / prepay_id yet — the WeChat call is stage 3-4. The client must
+      // treat the absence of these as "payment not available", never as success.
+      wechatReady: false,
+    });
+  } catch (err: any) {
+    console.error('[Payment] Failed to create payment:', err.message);
+    res.status(500).json({ error: '创建订单失败，请稍后重试。' });
+  }
+});
+
+/**
+ * Expert consultation booking. Registered in both products — the booking flow
+ * lives in the shared AnalysisReport, and it is project B's entire conversion
+ * point (B has no paid tier; the consultation list IS the deliverable).
+ *
+ * Until now the frontend only flipped a local flag to "success", so a parent was
+ * told an expert would call and nobody ever heard about it. This persists the
+ * booking first, then notifies staff best-effort.
+ */
+app.post('/api/expert-booking', async (req, res) => {
+  try {
+    const {
+      specialistId, specialistName, parentName, parentPhone,
+      childAgeMonth, childGender, reportSummary, preferredSlot, deviceId,
+    } = req.body || {};
+
+    const name = typeof parentName === 'string' ? parentName.trim() : '';
+    const phone = typeof parentPhone === 'string' ? parentPhone.trim() : '';
+
+    if (!specialistId || typeof specialistId !== 'string') {
+      res.status(400).json({ error: '缺少指定专家。' });
+      return;
+    }
+    if (!name || name.length > 64) {
+      res.status(400).json({ error: '请填写家长姓名。' });
+      return;
+    }
+    // Mainland mobile number. Staff call this back, so a malformed one is a
+    // dead booking — reject at the door rather than storing garbage.
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      res.status(400).json({ error: '请填写正确的 11 位手机号码。' });
+      return;
+    }
+
+    const ageMonth = Number.isFinite(Number(childAgeMonth)) ? Number(childAgeMonth) : null;
+    const summary = typeof reportSummary === 'string' ? reportSummary.slice(0, 2000) : null;
+    const slot = typeof preferredSlot === 'string' ? preferredSlot.slice(0, 64) : null;
+
+    // Resolve the signed-in user when a token is present. Project B is
+    // anonymous, so absence of a token is normal, not an error.
+    let userId: number | null = null;
+    const tokenEmail = verifyToken(getBearerToken(req));
+    if (tokenEmail) {
+      const user = await mysqlDb.findUserByEmail(tokenEmail).catch(() => null);
+      if (user) userId = user.id;
+    }
+
+    let bookingId: number | null = null;
+    let persisted = false;
+    if (mysqlDb.isConfigured()) {
+      bookingId = await mysqlDb.createExpertBooking({
+        userId,
+        deviceId: typeof deviceId === 'string' ? deviceId : null,
+        specialistId,
+        parentName: name,
+        parentPhone: phone,
+        childAgeMonth: ageMonth,
+        childGender: typeof childGender === 'string' ? childGender : null,
+        reportSummary: summary,
+        preferredSlot: slot,
+      });
+      persisted = true;
+    } else {
+      offlineBookings.push({
+        id: offlineBookings.length + 1, userId, specialistId, parentName: name,
+        parentPhone: phone, childAgeMonth: ageMonth, childGender, reportSummary: summary,
+        preferredSlot: slot, createdAt: new Date().toISOString(),
+      });
+      bookingId = offlineBookings.length;
+      console.warn('[Booking] MySQL not configured — booking held in memory only and will be lost on restart.');
+    }
+
+    // Answer as soon as the booking is durable. Notification is advisory: staff
+    // can always work the queue by created_at, and making the parent wait on a
+    // webhook round-trip would be worse than notifying a second later.
+    res.json({ ok: true, bookingId, persisted });
+
+    notifyExpertBooking({
+      bookingId,
+      specialistName: typeof specialistName === 'string' ? specialistName : specialistId,
+      parentName: name,
+      parentPhone: phone,
+      childAgeMonth: ageMonth,
+      childGender: typeof childGender === 'string' ? childGender : null,
+      preferredSlot: slot,
+      reportSummary: summary,
+    })
+      .then(results => {
+        if (persisted && bookingId && results.some(r => r.ok)) {
+          return mysqlDb.markBookingNotified(bookingId);
+        }
+      })
+      .catch(err => console.error('[Booking] Notification pipeline failed:', err.message));
+  } catch (err: any) {
+    console.error('[Booking] Failed to record booking:', err.message);
+    res.status(500).json({ error: '预约提交失败，请稍后重试或直接联系微信客服。' });
+  }
 });
 
 // Endpoint to register user account
@@ -1162,6 +1414,22 @@ app.post('/api/db/save', async (req, res) => {
 
 // Vite & Static file configurations
 async function startServer() {
+  // Anything under /api that reached this point matched no route. Answer with a
+  // JSON 404 before the SPA fallback below gets a chance to serve index.html.
+  //
+  // Without this, a GET to a route that is not registered — every tier-2/3 and
+  // paid endpoint in project B — falls through to `app.get('*')` and comes back
+  // as HTML with status 200. The client then parses a web page as JSON, and a
+  // deliberately disabled endpoint looks like a success. POSTs happened to 404
+  // correctly only because the catch-all is GET-only, which made the bug
+  // invisible on half the surface.
+  //
+  // Registered after every route because Express matches in registration order,
+  // and startServer() runs last.
+  app.use('/api', (req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     // Dynamic import so `vite` (a devDependency) is never required in production,
     // where hosting platforms may prune devDependencies after build.
@@ -1181,6 +1449,20 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SenXinKang Server] Server is booted successfully on http://0.0.0.0:${PORT}`);
+    // Log the mode and where the port came from. Both have burned us before:
+    // a wrong APP_MODE silently exposes the tier-2/3 endpoints, and
+    // DEPLOY_RUN_PORT taking precedence over the platform-injected PORT makes a
+    // service unreachable with no other symptom.
+    const portSource = process.env.DEPLOY_RUN_PORT
+      ? 'DEPLOY_RUN_PORT'
+      : process.env.PORT
+        ? 'PORT'
+        : 'default';
+    console.log(
+      `[SenXinKang Server] APP_MODE=${APP_MODE} (${APP_MODE === 'full'
+        ? 'project A — tier-2/3 endpoints registered'
+        : 'project B — tier-2/3 endpoints NOT registered'}), port from ${portSource}`
+    );
   });
 }
 

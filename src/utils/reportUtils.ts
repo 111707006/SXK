@@ -188,6 +188,9 @@ export function generateSpecializedReportRecord(
     child,
     scores: scores.filter(s => s.dimensionId === dimensionId),
     aiReport: aiReportOverride || templateReport,
+    // 有 override 才是真的 AI 產出；沒有就是上面那份模板。這個旗標要跟著紀錄存下來，
+    // 否則報告存進歷史後就再也分不出來源（SpecializedReportView 只拿得到 record）。
+    isAiGenerated: !!aiReportOverride,
     createdAt: new Date().toISOString()
   };
 }

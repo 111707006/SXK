@@ -7,6 +7,7 @@ import React, { useState, useEffect, lazy } from 'react';
 import { Child, DimensionScore, MallOrder, AssessmentRecord } from './types';
 import { DIMENSIONS_DATA } from './data';
 import { PRODUCT } from './productConfig';
+import { getOrCreateDeviceId } from './utils/deviceId';
 import ChildProfileForm from './components/ChildProfileForm';
 import DimensionGrid from './components/DimensionGrid';
 import AnalysisReport from './components/AnalysisReport';
@@ -56,6 +57,9 @@ export default function App() {
   const [activeSpecializedRecordId, setActiveSpecializedRecordId] = useState<string | null>(null);
   const [activeT1Record, setActiveT1Record] = useState<AssessmentRecord | null>(null);
   const [viewingLiveT1, setViewingLiveT1] = useState(false);
+  // 專案 B 從維度卡片進報告時，要求報告頁捲到專家預約區塊。
+  // 從導覽列或「查看報告」進來時為 false，維持原本停在頁首的行為。
+  const [focusBooking, setFocusBooking] = useState(false);
 
   // Dropdown visibility for customer info & order details
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
@@ -72,16 +76,6 @@ export default function App() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
-
-  // Helper to get or create device ID
-  const getOrCreateDeviceId = (): string => {
-    let id = localStorage.getItem('senxinkang_device_id');
-    if (!id) {
-      id = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      localStorage.setItem('senxinkang_device_id', id);
-    }
-    return id;
-  };
 
   // Build request headers, attaching the session token when present so the
   // server authorizes email-scoped /api/db reads and writes.
@@ -422,6 +416,14 @@ export default function App() {
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">森心康儿童发展评估</h1>
+                {/* 建置模式徽章：文案與配色皆來自 productConfig，這裡不判斷 mode */}
+                <span
+                  id="build-mode-badge"
+                  title={PRODUCT.buildBadge.title}
+                  className={`px-2 py-0.5 rounded-full border text-[10px] font-black tracking-wide whitespace-nowrap shadow-sm ${PRODUCT.buildBadge.className}`}
+                >
+                  {PRODUCT.buildBadge.label}
+                </span>
               </div>
               <div className="text-[10px] text-brand-charcoal/60 font-medium flex items-center gap-1.5 mt-0.5">
                 <span>9维3层神经网络AI多模分析 · 综合评估孩子发展现况</span>
@@ -741,6 +743,16 @@ export default function App() {
                 <DimensionGrid
                   completedScores={completedScores}
                   onSelectDimension={(dimId) => {
+                    // 去向由 productConfig 決定，不在這裡判斷模式：
+                    // A → 該維度的深度評估；B → 報告頁的專家預約區塊。
+                    if (PRODUCT.nextStep.action === 'contact_expert') {
+                      setViewingLiveT1(true);
+                      setActiveT1Record(null);
+                      setActiveSpecializedRecordId(null);
+                      setFocusBooking(true);
+                      setCurrentView('report');
+                      return;
+                    }
                     setSelectedDimensionId(dimId);
                     setCurrentView('assessment');
                   }}
@@ -749,6 +761,7 @@ export default function App() {
                     setViewingLiveT1(true);
                     setActiveT1Record(null);
                     setActiveSpecializedRecordId(null);
+                    setFocusBooking(false);
                     setCurrentView('report');
                   }}
                   onStartT1Screening={() => setCurrentView('t1_screening')}
@@ -799,10 +812,14 @@ export default function App() {
                   <AnalysisReport
                     child={child}
                     completedScores={completedScores}
-                    onBack={() => setViewingLiveT1(false)}
+                    onBack={() => {
+                      setViewingLiveT1(false);
+                      setFocusBooking(false);
+                    }}
                     onSaveReportToHistory={handleSaveReportToHistory}
                     onGoToLanguageSpecial={() => setCurrentView('language_special')}
                     historicalRecord={null}
+                    focusBooking={focusBooking}
                   />
                 </div>
               ) : activeT1Record ? (

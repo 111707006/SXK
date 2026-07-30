@@ -150,7 +150,7 @@ export default function SpecializedReportView({ child, record, onBack, onGoToMal
               【{dimConfig.name}】{dimConfig.id === "language" ? "语言" : "神经"}发育深度专项评估报告
             </h1>
             <p className="text-xs text-brand-sand/90 font-medium leading-relaxed">
-              本报告合并了 T2 家长长期行为观测与 T3 级（森心康康复AI大模型、声谱、构音模型等）交互实操层数据，，为您提供专业AI深度评估专项报告。
+              本报告合并了 T2 家长长期行为观测与 T3 级（森心康康复AI大模型、声谱、构音模型等）交互实操层数据，为您提供专业AI深度评估专项报告。
             </p>
           </div>
 

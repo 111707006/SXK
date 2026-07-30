@@ -5,11 +5,12 @@ import {
   ArrowLeft, Brain, Sparkles, CheckCircle2, AlertTriangle, AlertCircle, 
   RefreshCw, Layers, ShieldAlert, Award, Compass, HeartHandshake, Printer,
   Activity, MessageSquare, Smile, BookOpen, Target, Home, Heart, Calendar, User, Phone, Check, Info,
-  ClipboardCheck, ArrowRight
+  ClipboardCheck, ArrowRight, Loader2, QrCode
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
 import { DIMENSION_DETAILS } from '../dimensionContent';
 import { PRODUCT } from '../productConfig';
+import { peekDeviceId } from '../utils/deviceId';
 import { 
   IntegrationGauges, NeuralNetworkTopology, WeeklyRehabPlanner, PrognosisTrajectoryChart 
 } from './ReportCharts';
@@ -77,18 +78,25 @@ interface AnalysisReportProps {
   onSaveReportToHistory: (record: AssessmentRecord) => void;
   onGoToLanguageSpecial?: () => void;
   historicalRecord?: AssessmentRecord | null;
+  /**
+   * 開啟後自動捲到專家預約區塊。專案 B 的維度卡片會走這條路 ——
+   * 家長點了亮燈的維度，就直接把他帶到諮詢入口。
+   */
+  focusBooking?: boolean;
 }
 
-export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, historicalRecord }: AnalysisReportProps) {
+export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, historicalRecord, focusBooking }: AnalysisReportProps) {
   const [loading, setLoading] = useState(false);
   const [aiReport, setAiReport] = useState<AssessmentRecord['aiReport'] | null>(null);
-  const [isAiGenerated, setIsAiGenerated] = useState(false);
+  // 三態：true = AI 生成、false = 本地模板兜底、null = 來源不明（舊的歷史紀錄沒存這個旗標）
+  const [isAiGenerated, setIsAiGenerated] = useState<boolean | null>(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (historicalRecord && historicalRecord.aiReport) {
       setAiReport(historicalRecord.aiReport);
-      setIsAiGenerated(true);
+      // 舊紀錄沒有 isAiGenerated 欄位，此時來源不明，不能預設成 AI 生成
+      setIsAiGenerated(historicalRecord.isAiGenerated ?? null);
     }
   }, [historicalRecord]);
 
@@ -99,9 +107,19 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [parentName, setParentName] = useState<string>('');
   const [parentPhone, setParentPhone] = useState<string>('');
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'success'>('idle');
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState('');
   const [activePill, setActivePill] = useState<string | null>(null);
   const [showAllDomains, setShowAllDomains] = useState(false);
   const bookingSectionRef = useRef<HTMLDivElement>(null);
+
+  // 專案 B 從維度卡片進來時捲到專家預約區塊。
+  // 必須等 aiReport 就緒 —— 該區塊在 `{aiReport && ...}` 裡面，報告還在載入時
+  // ref 是 null，掛載當下就捲會什麼事都沒發生。
+  useEffect(() => {
+    if (!focusBooking || !aiReport) return;
+    bookingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusBooking, aiReport]);
 
   const delayList = completedScores.filter(s => s.status === 'delay');
   const borderlineList = completedScores.filter(s => s.status === 'borderline');
@@ -109,6 +127,55 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
   const languageScore = completedScores.find(s => s.dimensionId === 'language');
   const hasLanguageIssue = languageScore && (languageScore.status === 'borderline' || languageScore.status === 'delay');
+
+  /**
+   * 送出專家預約。
+   *
+   * 在這之前，這顆按鈕只做 `setBookingStatus('success')` —— 家長看到「預約成功
+   * 確認書」，但沒有任何人被通知、沒有留下任何紀錄。現在要等後端確認寫入成功
+   * 才切到成功畫面，寫不進去就顯示錯誤，不再給假的成功。
+   */
+  const handleSubmitBooking = async () => {
+    setBookingSubmitting(true);
+    setBookingError('');
+    try {
+      // 交給專家的行前摘要：只列被標記的維度，正常的不佔篇幅。
+      const flagged = [
+        ...delayList.map(s => `${s.dimensionName}（迟缓风险 ${s.score}/${s.maxScore}）`),
+        ...borderlineList.map(s => `${s.dimensionName}（临界 ${s.score}/${s.maxScore}）`),
+      ];
+      const summary = flagged.length ? flagged.join('；') : '本次筛查各维度均在正常范围';
+
+      const token = localStorage.getItem('senxinkang_token');
+      const resp = await fetch('/api/expert-booking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          specialistId: selectedSpecialist,
+          specialistName: SPECIALISTS.find(s => s.id === selectedSpecialist)?.name,
+          parentName: parentName.trim(),
+          parentPhone: parentPhone.trim(),
+          childAgeMonth: child.ageMonth,
+          childGender: child.gender,
+          reportSummary: summary,
+          preferredSlot: `${bookingDate} ${selectedSlot}`,
+          deviceId: peekDeviceId(),
+        }),
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || '预约提交失败，请稍后重试。');
+
+      setBookingStatus('success');
+    } catch (err: any) {
+      setBookingError(err.message || '预约提交失败，请检查网络后重试。');
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
 
   const handleGenerateReport = async () => {
     setLoading(true);
@@ -138,7 +205,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       }
 
       setAiReport(data.report);
-      setIsAiGenerated(data.isAiGenerated);
+      // 後端降級到本地模板時會回傳 isAiGenerated: false，照實收下
+      setIsAiGenerated(data.isAiGenerated === true);
 
       // Optionally trigger parent state to record the report
       const newRecord: AssessmentRecord = {
@@ -147,6 +215,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         child,
         scores: completedScores,
         aiReport: data.report,
+        // 一併存下來源，之後從歷史紀錄重開時才標得出來
+        isAiGenerated: data.isAiGenerated === true,
         createdAt: new Date().toISOString()
       };
       onSaveReportToHistory(newRecord);
@@ -1132,6 +1202,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                       setParentName('');
                       setParentPhone('');
                       setBookingStatus('idle');
+                      setBookingError('');
                       setSelectedSlot('');
                       setShowBookingModal(true);
                     }, 400);
@@ -1302,14 +1373,29 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 </div>
 
                 {/* Booking confirmation action */}
+                {bookingError && (
+                  <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 leading-relaxed">
+                    {bookingError}
+                  </p>
+                )}
+
                 <button
                   type="button"
-                  disabled={!selectedSlot || !parentName.trim() || !parentPhone.trim()}
-                  onClick={() => setBookingStatus('success')}
+                  disabled={!selectedSlot || !parentName.trim() || !parentPhone.trim() || bookingSubmitting}
+                  onClick={handleSubmitBooking}
                   className="w-full py-3 bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-bold rounded-xl transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <Check size={14} />
-                  确认并预约专家说明
+                  {bookingSubmitting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      正在提交预约...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      确认并预约专家说明
+                    </>
+                  )}
                 </button>
               </div>
             ) : (
@@ -1369,6 +1455,38 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <p className="text-xs text-brand-charcoal/80 max-w-md leading-relaxed bg-brand-sage/10 p-3.5 rounded-2xl border border-brand-moss/20">
                   <strong>💡 预约后指引:</strong> 咨询通道已自动预留。专家专属评估顾问将在 <strong>10 分钟内</strong> 进行电话回访，向您同步视频咨询室入口，并为您预备本次测评的纸质脑图解析手册。请保持电话畅通。
                 </p>
+
+                {/* 轉接微信客服：電話回訪之外的第二條路。家長多半更習慣微信，
+                    而且工作人員的通知管道若有延遲，這裡讓家長能主動找上來。 */}
+                {PRODUCT.expertBooking.wechatId && (
+                  <div className="max-w-md w-full bg-white border border-brand-stone rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-center gap-1.5 text-xs font-extrabold text-brand-forest">
+                      <QrCode size={14} />
+                      也可以直接加微信客服
+                    </div>
+                    {PRODUCT.expertBooking.wechatQrSrc ? (
+                      <img
+                        src={PRODUCT.expertBooking.wechatQrSrc}
+                        alt="微信客服二维码"
+                        className="w-36 h-36 mx-auto rounded-xl border border-brand-stone/60"
+                      />
+                    ) : (
+                      <div className="w-36 h-36 mx-auto rounded-xl border border-dashed border-brand-stone/60 flex items-center justify-center text-[10px] text-brand-charcoal/40 text-center px-3 leading-relaxed">
+                        客服二维码
+                        <br />
+                        待上传
+                      </div>
+                    )}
+                    <p className="text-[11px] text-brand-charcoal/70 text-center leading-relaxed">
+                      微信号：
+                      <span className="font-mono font-bold text-brand-forest select-all">
+                        {PRODUCT.expertBooking.wechatId}
+                      </span>
+                      <br />
+                      添加后请说明「已预约专家说明」，客服会为您衔接。
+                    </p>
+                  </div>
+                )}
 
                 <button
                   type="button"

@@ -20,6 +20,23 @@ export type NextStepAction = 'goto_tier2' | 'contact_expert';
 export interface ProductProfile {
   mode: ProductMode;
 
+  /**
+   * 建置模式徽章 —— 掛在頁首標題旁，讓人一眼看出當前開的是哪一個產品。
+   *
+   * 兩個產品**都**顯示。若只有專案 B 掛徽章，「沒看到徽章」會同時對應
+   * 「這是專案 A」與「徽章沒渲染出來 / 開到舊的建置」兩種情況，等於沒有訊號。
+   *
+   * 配色的 class 也放在這裡，元件才不需要 `if (mode === ...)` 決定要用哪個顏色。
+   */
+  buildBadge: {
+    /** 徽章上的字，越短越好 */
+    label: string;
+    /** 滑鼠停留時的完整說明 */
+    title: string;
+    /** 徽章的 Tailwind 樣式（底色 / 文字色 / 框線） */
+    className: string;
+  };
+
   /** 篩查完成後的引導 */
   nextStep: {
     /** 報告中每個維度旁的行動標籤 */
@@ -63,6 +80,23 @@ export interface ProductProfile {
     gridHintCompleted: string;
     /** 維度卡片上的子標籤；`null` 代表不顯示 */
     dimensionCardSubLabel: string | null;
+    /** 維度卡片底部的點擊提示（該維度尚無 T1 紀錄時顯示） */
+    dimensionCardHint: string;
+    /** 維度卡片右下角的行動提示（該維度亮黃燈或紅燈時顯示） */
+    dimensionCardCta: string;
+  };
+
+  /**
+   * 專家預約送出後的「轉接真人」資訊。
+   *
+   * 兩個產品目前填的是同一組值，但仍放在這裡而非寫死在元件裡 ——
+   * B 是交付給合作公司的，他們很可能要換成自己的客服帳號，屆時改這裡一處即可。
+   */
+  expertBooking: {
+    /** 客服微信號；`null` 代表不顯示轉接區塊 */
+    wechatId: string | null;
+    /** 客服二維碼圖片路徑（放在 `public/`）；`null` 代表只顯示微信號 */
+    wechatQrSrc: string | null;
   };
 
   features: {
@@ -78,6 +112,12 @@ export interface ProductProfile {
 const PROFILES: Record<ProductMode, ProductProfile> = {
   full: {
     mode: 'full',
+    buildBadge: {
+      label: '完整版',
+      title: '当前为完整版（项目 A）：包含 T2/T3 深度评估、付费解锁与穿戴设备商城。',
+      // 低調的品牌色 —— 專案 A 是常態，徽章只需可辨識，不必搶眼。
+      className: 'bg-brand-sage/40 text-brand-forest border-brand-stone/50',
+    },
     nextStep: {
       actionLabel: '第二层评估',
       alertText: '建议尽快进入第二层「量表评估中心」。',
@@ -99,6 +139,13 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       screeningIntro: '根据孩子年龄段自适应匹配 36 题 ASQ-3/M-CHAT 问卷。完成基本评估后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。',
       gridHintCompleted: '以下为 9 维 T1 评估结果。点击标有黄色/红色警告的维度卡片，直接推进 T2 问卷 与 T3 专项检测！',
       dimensionCardSubLabel: 'T2 自评量表 + T3 专项上传',
+      dimensionCardHint: '点击进入本维度测定',
+      dimensionCardCta: '立即深测',
+    },
+    // ⚠️ 佔位值 —— 上線前必須換成真實的客服微信號與二維碼圖片。
+    expertBooking: {
+      wechatId: 'SXK-KEFU-PLACEHOLDER',
+      wechatQrSrc: null,
     },
     features: {
       tier2And3: true,
@@ -109,6 +156,12 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
 
   t1only: {
     mode: 't1only',
+    buildBadge: {
+      label: 'T1 版',
+      title: '当前为 T1 版（项目 B）：仅提供 T1 筛查与 AI 发展报告，不含深度评估、付费解锁与商城。',
+      // 高對比的琥珀色 —— 專案 B 交付給合作公司，誤認的代價最高，要一眼看到。
+      className: 'bg-amber-400 text-brand-forest border-amber-500',
+    },
     nextStep: {
       actionLabel: '联系专家',
       alertText: '建议尽快联系专家进行一对一说明。',
@@ -130,6 +183,14 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       screeningIntro: '根据孩子年龄段自适应匹配 36 题 ASQ-3/M-CHAT 问卷。完成后即时生成 AI 发展报告，涵盖全部 9 个维度的发展状况与居家观察建议。',
       gridHintCompleted: '以下为 9 维 T1 评估结果。点击上方「生成全维 AI 深度评估报告」查看完整解读与专家咨询方向。',
       dimensionCardSubLabel: null,
+      dimensionCardHint: '点击联系专家说明',
+      dimensionCardCta: '联系专家',
+    },
+    // ⚠️ 佔位值 —— 上線前必須換成真實的客服微信號與二維碼圖片。
+    // B 交付給合作公司後，可能要換成對方的客服帳號。
+    expertBooking: {
+      wechatId: 'SXK-KEFU-PLACEHOLDER',
+      wechatQrSrc: null,
     },
     features: {
       tier2And3: false,

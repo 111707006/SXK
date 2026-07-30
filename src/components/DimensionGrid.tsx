@@ -155,12 +155,12 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
               <button
                 id={`dimension-card-${dim.id}`}
                 key={dim.id}
-                // 專案 B 沒有深度評估，卡片只作為 T1 結果的展示，不可點擊
-                disabled={!isT1Completed || !PRODUCT.features.tier2And3}
+                // T1 完成後即可點擊。去向由 PRODUCT.nextStep.action 決定：
+                // A 進入該維度的深度評估，B 導向聯繫專家（B 沒有深度評估，但
+                // 家長剛看到某個維度亮燈的這一刻正是諮詢意願最高的時候）。
+                disabled={!isT1Completed}
                 onClick={() => onSelectDimension(dim.id)}
                 className={`relative overflow-hidden p-5 rounded-2xl border flex flex-col justify-between h-46 text-left transition ${
-                  !PRODUCT.features.tier2And3 ? 'cursor-default ' : ''
-                }${
                   !isT1Completed
                     ? 'border-slate-200 bg-slate-50/50 opacity-60 cursor-not-allowed'
                     : t1Rec?.status === 'delay'
@@ -224,21 +224,17 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
                         </div>
                       )}
                     </div>
-                  ) : PRODUCT.features.tier2And3 ? (
-                    <span className="text-brand-charcoal/60">点击进入本维度测定</span>
                   ) : (
-                    <span className="text-brand-charcoal/60">待完成 T1 评估</span>
+                    <span className="text-brand-charcoal/60">{PRODUCT.dashboard.dimensionCardHint}</span>
                   )}
 
-                  {PRODUCT.features.tier2And3 && (
-                    isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
-                      <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
-                        立即深测
-                        <ChevronRight size={10} className="text-rose-500 animate-bounce" />
-                      </span>
-                    ) : (
-                      <ChevronRight size={12} className="text-brand-charcoal/40" />
-                    )
+                  {isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
+                    <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
+                      {PRODUCT.dashboard.dimensionCardCta}
+                      <ChevronRight size={10} className="text-rose-500 animate-bounce" />
+                    </span>
+                  ) : (
+                    <ChevronRight size={12} className="text-brand-charcoal/40" />
                   )}
                 </div>
               </button>

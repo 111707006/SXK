@@ -4,7 +4,7 @@ import { authHeaders } from '../utils/api';
 import { formatFen } from '../utils/price';
 import {
   ArrowLeft, Lock, ShieldCheck, Sparkles, Infinity as InfinityIcon,
-  Loader2, AlertCircle, FileText, Activity,
+  Loader2, AlertCircle, FileText, Activity, Eye,
 } from 'lucide-react';
 
 /**
@@ -17,6 +17,11 @@ interface PaywallProps {
   dimension: DimensionConfig;
   /** 單價（分）。來源是 `GET /api/unlocks` 的 `priceFen`，不在前端寫死。 */
   priceFen: number;
+  /**
+   * 展示模式：後端沒有持久層，付費牆擋不住也不該擋。畫面照常呈現，
+   * 但會明確標示，並提供略過入口 —— 資料庫一接上這個 prop 就永遠是 false。
+   */
+  isDemo?: boolean;
   onBack: () => void;
   /** 已擁有該維度時呼叫 —— 例如家長在另一個分頁買完後又回來點。 */
   onAlreadyUnlocked: () => void;
@@ -34,7 +39,7 @@ interface PaywallProps {
  * 開放」**，不做假的成功畫面。這是專家預約那次學到的同一課：給家長假的成功，
  * 比直接告訴他還沒好更糟。
  */
-export default function Paywall({ dimension, priceFen, onBack, onAlreadyUnlocked }: PaywallProps) {
+export default function Paywall({ dimension, priceFen, isDemo = false, onBack, onAlreadyUnlocked }: PaywallProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState<{ outTradeNo: string; amountFen: number; reason?: string | null } | null>(null);
@@ -183,6 +188,31 @@ export default function Paywall({ dimension, priceFen, onBack, onAlreadyUnlocked
             <div className="flex items-start gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/*
+            展示模式的略過入口。
+            這段**只在後端沒有持久層時渲染** —— 那種環境下沒有人買得成，
+            付費牆本來就擋不住任何東西，藏起來只是讓展示站的深度評估無路可走。
+            `MYSQL_*` 一設定，isDemo 就永遠是 false，這整塊從畫面上消失。
+            文案刻意寫得直白：正式環境不會有這個按鈕。
+          */}
+          {isDemo && (
+            <div className="rounded-2xl border border-dashed border-brand-moss/50 bg-brand-sage/10 p-4 space-y-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-extrabold text-brand-forest">
+                <Eye size={14} />
+                展示模式
+              </div>
+              <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+                当前环境未连接数据库，无法产生真实订单，付费墙仅供预览。正式环境不会出现下面这个按钮。
+              </p>
+              <button
+                onClick={onAlreadyUnlocked}
+                className="w-full py-2.5 rounded-xl border border-brand-moss/40 bg-white hover:bg-brand-cream text-brand-forest text-xs font-bold transition active:scale-[0.99] cursor-pointer"
+              >
+                跳过付费，直接查看深度评估（展示用）
+              </button>
             </div>
           )}
 

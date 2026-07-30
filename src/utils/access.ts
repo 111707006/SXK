@@ -17,6 +17,15 @@ export type DimensionAccess =
   | 'open'
   /** 需先付費，導向付費牆 */
   | 'locked'
+  /**
+   * 展示模式：後端沒有持久層，付費牆**擋不住也不該擋**，但畫面仍要看得到
+   * 它長什麼樣子。導向付費牆，並在那裡提供明確標示的略過入口。
+   *
+   * 與 `locked` 分成兩種而不是共用一個，是因為它們的**去處相同、結果相反** ——
+   * 混成一個就會變成「付費牆可以略過」這種永遠不該存在於正式環境的狀態。
+   * 資料庫一接上，這個值就再也不會出現。
+   */
+  | 'demo'
   /** 尚未登入，無法判斷權益，導向登入 */
   | 'needs_login';
 
@@ -43,8 +52,8 @@ export function getDimensionAccess(dimensionId: string, input: AccessInput): Dim
   if (!input.paywallEnabled) return 'open';
 
   // 後端沒有持久層 → 沒有任何購買存在的可能，付費牆無從執行（展示模式）。
-  // 只有明確的 false 才放行；`null`（尚未確定）走下面的正常判斷。
-  if (input.unlocksAvailable === false) return 'open';
+  // 只有明確的 false 才是展示模式；`null`（尚未確定）走下面的正常判斷。
+  if (input.unlocksAvailable === false) return 'demo';
 
   if (!input.isLoggedIn) return 'needs_login';
 
@@ -56,10 +65,12 @@ export function getDimensionAccess(dimensionId: string, input: AccessInput): Dim
 }
 
 /**
- * 付費牆是否真的會生效 —— 用於決定要不要顯示鎖頭與價格等付費 UI。
- * 尚未確定時回 `true`，與 `getDimensionAccess` 同一套規則：畫面顯示的鎖頭
- * 必須和點下去的實際行為一致，否則家長會看到不該點的卡片是可買的。
+ * 付費 UI（鎖頭、價格、付費牆）是否出現在畫面上。
+ *
+ * **只看建置模式** —— 專案 B 沒有付費牆，其餘一律顯示。展示模式也顯示，
+ * 因為看不到的東西沒辦法拿給人看；差別在那裡的付費牆可以略過，
+ * 而那件事由 `getDimensionAccess` 回的 `'demo'` 負責，不在這裡判斷。
  */
-export function isPaywallActive(input: Pick<AccessInput, 'paywallEnabled' | 'unlocksAvailable'>): boolean {
-  return input.paywallEnabled && input.unlocksAvailable !== false;
+export function isPaywallActive(input: Pick<AccessInput, 'paywallEnabled'>): boolean {
+  return input.paywallEnabled;
 }

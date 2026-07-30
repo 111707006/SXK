@@ -28,23 +28,38 @@ describe('專案 B（無付費牆）', () => {
   });
 
   it('付費 UI 不得出現', () => {
-    expect(isPaywallActive({ paywallEnabled: false, unlocksAvailable: true })).toBe(false);
+    expect(isPaywallActive({ paywallEnabled: false })).toBe(false);
   });
 });
 
 describe('展示模式（後端未接資料庫）', () => {
-  it('放行 —— 沒有持久層就不可能有人買得成，擋住只會讓展示站的深度評估死掉', () => {
+  /**
+   * 沒有持久層就不可能有人買得成，所以擋不住也不該擋；但付費牆仍要看得到 ——
+   * 看不到的東西沒辦法拿給人看。回 `'demo'` 而不是 `'open'`，是為了讓呼叫端
+   * 有機會把「可以略過」這件事明確標示出來，而不是靜靜地放行。
+   */
+  it('回 demo，而不是 open —— 兩者的去處相同、結果相反，不可混為一談', () => {
     expect(getDimensionAccess('language', { ...base, unlocksAvailable: false, unlockedDimensionIds: null }))
-      .toBe('open');
+      .toBe('demo');
   });
 
-  it('未登入也放行', () => {
+  it('未登入也是 demo（展示模式下不擋登入）', () => {
     expect(getDimensionAccess('language', { ...base, unlocksAvailable: false, isLoggedIn: false }))
-      .toBe('open');
+      .toBe('demo');
   });
 
-  it('不顯示鎖頭與價格', () => {
-    expect(isPaywallActive({ paywallEnabled: true, unlocksAvailable: false })).toBe(false);
+  it('已解鎖清單在展示模式下不影響結果', () => {
+    expect(getDimensionAccess('language', { ...base, unlocksAvailable: false, unlockedDimensionIds: ['language'] }))
+      .toBe('demo');
+  });
+
+  it('鎖頭與價格照顯示', () => {
+    expect(isPaywallActive({ paywallEnabled: true })).toBe(true);
+  });
+
+  it('專案 B 即使在展示模式也不得出現 demo —— B 根本沒有付費牆', () => {
+    expect(getDimensionAccess('language', { ...base, paywallEnabled: false, unlocksAvailable: false }))
+      .toBe('open');
   });
 });
 
@@ -74,7 +89,7 @@ describe('專案 A 且付費牆生效', () => {
   });
 
   it('鎖頭與價格要顯示', () => {
-    expect(isPaywallActive({ paywallEnabled: true, unlocksAvailable: true })).toBe(true);
+    expect(isPaywallActive({ paywallEnabled: true })).toBe(true);
   });
 });
 
@@ -89,13 +104,13 @@ describe('尚未確定後端是否有持久層（unlocksAvailable === null）', 
   });
 
   it('鎖頭照顯示 —— 畫面與點擊後的行為必須一致', () => {
-    expect(isPaywallActive({ paywallEnabled: true, unlocksAvailable: null })).toBe(true);
+    expect(isPaywallActive({ paywallEnabled: true })).toBe(true);
   });
 
   it('專案 B 不受影響', () => {
     expect(getDimensionAccess('language', { ...base, paywallEnabled: false, unlocksAvailable: null }))
       .toBe('open');
-    expect(isPaywallActive({ paywallEnabled: false, unlocksAvailable: null })).toBe(false);
+    expect(isPaywallActive({ paywallEnabled: false })).toBe(false);
   });
 });
 

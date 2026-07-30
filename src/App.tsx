@@ -289,7 +289,9 @@ export default function App() {
       isLoggedIn: Boolean(userEmail),
       unlockedDimensionIds,
     });
-    if (access === 'locked') {
+    // locked 與 demo 去的是同一個畫面，但結果相反：前者過不去，後者可以略過。
+    // 略過的入口只在 demo 下渲染，所以資料庫一接上它就消失。
+    if (access === 'locked' || access === 'demo') {
       setPaywallDimensionId(dimensionId);
       setCurrentView('paywall');
       return;
@@ -475,18 +477,23 @@ export default function App() {
   const activeDimension = DIMENSIONS_DATA.find(d => d.id === selectedDimensionId);
   const paywallDimension = DIMENSIONS_DATA.find(d => d.id === paywallDimensionId);
 
-  // 付費 UI 是否該出現。專案 B 與展示模式（後端無持久層）都不顯示任何價格。
-  const paywallActive = isPaywallActive({ paywallEnabled: PRODUCT.features.paywall, unlocksAvailable });
+  // 付費 UI 是否該出現。只有專案 B 完全沒有 —— 展示模式仍要看得到付費牆長什麼樣子。
+  const paywallActive = isPaywallActive({ paywallEnabled: PRODUCT.features.paywall });
+  const accessOf = (dimensionId: string) => getDimensionAccess(dimensionId, {
+    paywallEnabled: PRODUCT.features.paywall,
+    unlocksAvailable,
+    isLoggedIn: Boolean(userEmail),
+    unlockedDimensionIds,
+  });
+  // 卡片上要顯示 ¥19.9 徽章的維度：真的鎖住的，以及展示模式下「本來會鎖住」的。
   const lockedDimensionIds = paywallActive
-    ? DIMENSIONS_DATA
-        .filter(d => getDimensionAccess(d.id, {
-          paywallEnabled: PRODUCT.features.paywall,
-          unlocksAvailable,
-          isLoggedIn: Boolean(userEmail),
-          unlockedDimensionIds,
-        }) === 'locked')
-        .map(d => d.id)
+    ? DIMENSIONS_DATA.filter(d => ['locked', 'demo'].includes(accessOf(d.id))).map(d => d.id)
     : [];
+  /**
+   * 路由層的最後一道 —— **只認 `locked`**。展示模式略過付費牆之後仍要進得去，
+   * 所以不能拿上面那個含 `demo` 的清單來擋。
+   */
+  const isRouteBlocked = (dimensionId: string) => accessOf(dimensionId) === 'locked';
 
   return (
     <div className="min-h-screen bg-brand-cream text-brand-charcoal font-sans flex flex-col justify-between">
@@ -875,7 +882,7 @@ export default function App() {
                   }}
                 />
               </div>
-            ) : currentView === 'assessment' && activeDimension && PRODUCT.features.tier2And3 && !lockedDimensionIds.includes(activeDimension.id) ? (
+            ) : currentView === 'assessment' && activeDimension && PRODUCT.features.tier2And3 && !isRouteBlocked(activeDimension.id) ? (
               /* Inside selected Portal Questions screen */
               <div className="animate-fade-in">
                 <LazyBoundary>
@@ -1148,6 +1155,7 @@ export default function App() {
                   <Paywall
                     dimension={paywallDimension}
                     priceFen={unlockPriceFen}
+                    isDemo={accessOf(paywallDimension.id) === 'demo'}
                     onBack={() => setCurrentView('dashboard')}
                     onAlreadyUnlocked={() => {
                       // 別的分頁買完了 —— 重讀權益後直接進評估，不讓家長再付一次。
@@ -1160,7 +1168,7 @@ export default function App() {
                   />
                 </LazyBoundary>
               </div>
-            ) : currentView === 'language_special' && PRODUCT.features.tier2And3 && !lockedDimensionIds.includes('language') ? (
+            ) : currentView === 'language_special' && PRODUCT.features.tier2And3 && !isRouteBlocked('language') ? (
               /* Deep Language and SLP Diagnostic Assessment Page */
               <div className="animate-fade-in">
                 <LazyBoundary>

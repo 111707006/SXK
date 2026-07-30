@@ -10,6 +10,10 @@
       "DOM.Iterable"
     ],
     "skipLibCheck": true,
+    // 2026-07-30 裝上 @types/react 之後量過：strict 全開是 0 個錯誤。
+    // 在此之前 React 相關全部是 any，`tsc --noEmit` 通過幾乎不代表任何事 ——
+    // prop 打錯字、漏傳必要 prop 都不會被發現。既然代價是零就直接開。
+    "strict": true,
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",

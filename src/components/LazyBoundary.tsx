@@ -29,19 +29,7 @@ interface State {
   hasError: boolean;
 }
 
-/**
- * 這個專案沒有安裝 `@types/react`，`React.Component` 因此是 any，
- * 直接繼承會拿不到 `props` / `state` 的型別。用一個最小的建構子型別
- * 補上這個類別實際會用到的成員，不必為此新增相依套件。
- */
-const ErrorBoundaryBase = React.Component as {
-  new (props: Props): {
-    props: Props;
-    state: State;
-  };
-};
-
-class LazyErrorBoundary extends ErrorBoundaryBase {
+class LazyErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false };
 
   static getDerivedStateFromError(): State {

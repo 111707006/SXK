@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import * as mysqlDb from './src/db/mysql';
 import { notifyExpertBooking } from './src/notify';
 import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
+import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import axios from 'axios';
@@ -57,14 +58,39 @@ const paidOnly = APP_MODE === 'full' ? app : express.Router();
 /** ¥19.9 per dimension, in 分 — WeChat Pay's amount.total is an integer in 分. */
 const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;
 
+// WeChat Pay credentials. Absent until the merchant id and ICP filing exist, so
+// every payment path must behave sanely without them — see /api/payment/create,
+// which reports `wechatReady: false` rather than pretending.
+const wechatPayStatus = wechatPay.loadConfig();
+
+/**
+ * H5 or JSAPI. They are mutually exclusive environments, not a hierarchy:
+ * JSAPI only works inside WeChat's browser (needs an openid from the OAuth
+ * flow), H5 only works outside it. Covering both means shipping both.
+ *
+ * H5 is what's implemented. The JSAPI seam is real — same signing, callback,
+ * query and idempotency code, different path and body — but the openid step
+ * is missing, so asking for it fails loudly instead of silently ordering
+ * something WeChat will reject.
+ */
+const PAY_TRADE_TYPE = (process.env.PAY_TRADE_TYPE || 'h5') as wechatPay.TradeType;
 
 // Security headers (X-Content-Type-Options, frameguard, HSTS, etc.).
 // CSP is disabled so the Vite-built SPA's inline styles/scripts still load;
 // TLS is terminated by nginx (see deploy/nginx.conf).
 app.use(helmet({ contentSecurityPolicy: false }));
 
-// Raised limit so base64-encoded audio clips (<=10MB) can reach the ASR endpoint
-app.use(express.json({ limit: '15mb' }));
+// Raised limit so base64-encoded audio clips (<=10MB) can reach the ASR endpoint.
+//
+// `verify` keeps the untouched bytes around: WeChat Pay's callback signature
+// covers the raw body, and JSON.parse → JSON.stringify does not round-trip
+// byte-for-byte (key order, spacing, unicode escapes). Capturing it here beats
+// mounting a separate express.raw() before this line — by the time a route-level
+// parser runs, this one has already drained the stream.
+app.use(express.json({
+  limit: '15mb',
+  verify: (req: any, _res, buf) => { req.rawBody = buf.toString('utf8'); },
+}));
 
 // ── Rate limiting (per-IP) to stop automated abuse burning DashScope quota ──
 // Behind nginx (see deploy/nginx.conf) we must trust the first proxy hop so the
@@ -1161,19 +1187,212 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     }
     const paymentId = await mysqlDb.createPayment(user.id, outTradeNo, UNLOCK_PRICE_FEN, dimensionId);
 
+    // Credentials missing → the order row exists but there is nothing to pay
+    // with. Say so; the client must never read this as success.
+    if (!wechatPayStatus.config) {
+      res.json({
+        alreadyUnlocked: false, outTradeNo, paymentId, amountFen: UNLOCK_PRICE_FEN, dimensionId,
+        wechatReady: false,
+        reason: `微信支付尚未配置：缺少 ${wechatPayStatus.missing.join('、')}`,
+      });
+      return;
+    }
+
+    if (PAY_TRADE_TYPE === 'jsapi') {
+      // The seam, held open honestly. Ordering works; obtaining the payer's
+      // openid (OAuth web authorization) does not exist yet, and inventing one
+      // would just move the failure to WeChat's door with the parent mid-payment.
+      res.status(501).json({
+        error: 'JSAPI 支付尚未实装（需先完成网页授权取得 openid）。',
+        code: 'JSAPI_NOT_IMPLEMENTED',
+      });
+      return;
+    }
+
+    const dimensionName = DIMENSIONS_DATA.find(d => d.id === dimensionId)?.name || dimensionId;
+    // H5 requires the payer's real IP. Behind nginx this is the X-Forwarded-For
+    // hop we already trust (app.set('trust proxy', 1)).
+    const payerClientIp = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+
+    const order = await wechatPay.placeOrder(wechatPayStatus.config, 'h5', {
+      description: `森心康 ${dimensionName} 深度评估解锁`,
+      outTradeNo,
+      amountFen: UNLOCK_PRICE_FEN,
+      payerClientIp,
+    });
+
     res.json({
       alreadyUnlocked: false,
       outTradeNo,
       paymentId,
       amountFen: UNLOCK_PRICE_FEN,
       dimensionId,
-      // No h5_url / prepay_id yet — the WeChat call is stage 3-4. The client must
-      // treat the absence of these as "payment not available", never as success.
-      wechatReady: false,
+      wechatReady: true,
+      tradeType: 'h5',
+      // 有效期只有 5 分鐘 —— 前端拿到就該立刻跳轉，不可存起來重用。
+      h5Url: order.h5Url,
     });
   } catch (err: any) {
     console.error('[Payment] Failed to create payment:', err.message);
     res.status(500).json({ error: '创建订单失败，请稍后重试。' });
+  }
+});
+
+/**
+ * Settles one payment and grants the unlock. The single place entitlements are
+ * ever created from a payment — both the callback and the query-order
+ * compensation path funnel through here.
+ *
+ * Idempotency lives in markPaymentSuccess's conditional UPDATE
+ * (`WHERE status = 'pending'`): WeChat retries a callback up to 15 times and the
+ * return page fires a query on top of that, so several racing paths will try to
+ * settle the same order. Only the one that actually moved the row wins; everyone
+ * else sees affectedRows = 0 and must not grant anything.
+ */
+async function settlePayment(outTradeNo: string, transactionId: string | null): Promise<'granted' | 'already' | 'unknown'> {
+  const payment = await mysqlDb.findPaymentByOutTradeNo(outTradeNo);
+  if (!payment) {
+    console.error(`[Payment] Settlement for an unknown order: ${outTradeNo}`);
+    return 'unknown';
+  }
+  const moved = await mysqlDb.markPaymentSuccess(outTradeNo, transactionId);
+  if (!moved) return 'already';
+
+  await mysqlDb.grantUnlock(payment.user_id, payment.dimension_id, 'payment', payment.id);
+  console.log(`[Payment] Unlocked ${payment.dimension_id} for user ${payment.user_id} (${outTradeNo})`);
+  return 'granted';
+}
+
+/**
+ * WeChat Pay result callback.
+ *
+ * On `paidOnly` like the rest of payments: project B never submits a notify_url,
+ * so no callback can legitimately arrive there, and an endpoint that can only
+ * ever receive forgeries has no business existing on the box handed to the
+ * partner company. Same rule as the tier-2/3 routes — don't register what the
+ * product doesn't have.
+ *
+ * Order of operations is not negotiable — verify, then decrypt. Decrypting first
+ * means feeding unverified ciphertext to the cipher.
+ *
+ * Answering within 5 seconds is a hard requirement (WeChat retries otherwise),
+ * which is why the reply goes out before the entitlement work.
+ */
+paidOnly.post('/api/pay/wechat/notify', async (req: any, res) => {
+  const fail = (status: number, why: string) => {
+    console.error(`[Payment] Callback rejected: ${why}`);
+    res.status(status).json({ code: 'FAIL', message: '失败' });
+  };
+
+  if (!wechatPayStatus.config) return fail(503, 'WeChat Pay is not configured on this deployment');
+
+  const signature = String(req.headers['wechatpay-signature'] || '');
+  const timestamp = String(req.headers['wechatpay-timestamp'] || '');
+  const nonce = String(req.headers['wechatpay-nonce'] || '');
+  const serial = String(req.headers['wechatpay-serial'] || '');
+  const rawBody = typeof req.rawBody === 'string' ? req.rawBody : '';
+
+  if (!signature || !timestamp || !nonce || !rawBody) return fail(400, 'missing signature headers or body');
+
+  // Wechatpay-Serial identifies WeChat's key, not ours. A mismatch means their
+  // key rotated and ours is stale — rejecting makes them retry, which is the
+  // correct outcome, and it stops us from verifying against the wrong key.
+  if (serial && wechatPayStatus.config.platformKeyId && serial !== wechatPayStatus.config.platformKeyId) {
+    return fail(401, `Wechatpay-Serial ${serial} does not match the configured public key id`);
+  }
+
+  const verified = wechatPay.verifyCallbackSignature({
+    timestamp, nonce, rawBody, signature,
+    publicKey: wechatPayStatus.config.platformPublicKey,
+  });
+  if (!verified.ok) return fail(401, verified.reason || 'signature verification failed');
+
+  let decrypted: any;
+  try {
+    const body = JSON.parse(rawBody);
+    if (body.event_type !== 'TRANSACTION.SUCCESS') {
+      // Not a success event — acknowledge so WeChat stops retrying, do nothing.
+      console.log(`[Payment] Callback ignored, event_type=${body.event_type}`);
+      res.status(204).end();
+      return;
+    }
+    decrypted = JSON.parse(wechatPay.decryptResource(wechatPayStatus.config.apiV3Key, body.resource));
+  } catch (err: any) {
+    return fail(400, `decrypt failed: ${err.message}`);
+  }
+
+  const outTradeNo = decrypted?.out_trade_no;
+  const tradeState = decrypted?.trade_state;
+  if (!outTradeNo) return fail(400, 'decrypted payload has no out_trade_no');
+
+  // Acknowledge first: the 5-second budget is for receipt, not for our
+  // bookkeeping. If the grant below fails, the query-order path recovers it.
+  res.status(204).end();
+
+  if (tradeState !== 'SUCCESS') {
+    console.log(`[Payment] ${outTradeNo} callback trade_state=${tradeState}, nothing granted`);
+    return;
+  }
+  try {
+    await settlePayment(outTradeNo, decrypted?.transaction_id ?? null);
+  } catch (err: any) {
+    console.error(`[Payment] Settlement failed for ${outTradeNo}: ${err.message}`);
+  }
+});
+
+/**
+ * Query-order compensation.
+ *
+ * Callbacks are not guaranteed: a deploy, a network blip or a bad notify_url and
+ * the parent has paid with nothing to show. This asks WeChat directly and is the
+ * only other path allowed to grant an unlock — note it takes no state from the
+ * client beyond an order number it must already own.
+ */
+paidOnly.get('/api/payment/status', async (req, res) => {
+  try {
+    const email = verifyToken(getBearerToken(req));
+    if (!email) {
+      res.status(401).json({ error: '请先登录。' });
+      return;
+    }
+    const outTradeNo = typeof req.query.outTradeNo === 'string' ? req.query.outTradeNo : '';
+    if (!outTradeNo || !isValidOutTradeNo(outTradeNo)) {
+      res.status(400).json({ error: '订单号格式不正确。' });
+      return;
+    }
+    if (!mysqlDb.isConfigured()) {
+      res.status(503).json({ error: '支付服务暂未开放。' });
+      return;
+    }
+
+    const user = await mysqlDb.findUserByEmail(email);
+    const payment = await mysqlDb.findPaymentByOutTradeNo(outTradeNo);
+    // Only the owner may ask. Otherwise the endpoint becomes an oracle for
+    // anyone guessing order numbers.
+    if (!user || !payment || payment.user_id !== user.id) {
+      res.status(404).json({ error: '订单不存在。' });
+      return;
+    }
+
+    if (payment.status === 'success') {
+      res.json({ outTradeNo, status: 'success', dimensionId: payment.dimension_id });
+      return;
+    }
+    if (!wechatPayStatus.config) {
+      res.json({ outTradeNo, status: payment.status, wechatReady: false });
+      return;
+    }
+
+    const remote = await wechatPay.queryOrderByOutTradeNo(wechatPayStatus.config, outTradeNo);
+    if (remote.tradeState === 'SUCCESS') {
+      await settlePayment(outTradeNo, remote.transactionId);
+      res.json({ outTradeNo, status: 'success', dimensionId: payment.dimension_id });
+      return;
+    }
+    res.json({ outTradeNo, status: payment.status, tradeState: remote.tradeState });
+  } catch (err: any) {
+    console.error('[Payment] Status query failed:', err.message);
+    res.status(500).json({ error: '查询订单状态失败。' });
   }
 });
 
@@ -1562,6 +1781,11 @@ async function startServer() {
         mysqlDb.isConfigured()
           ? '[SenXinKang Server] Paywall ENFORCED — tier-2/3 requests require a matching unlock.'
           : '[SenXinKang Server] Paywall NOT enforced (no MYSQL_* configured): tier-2/3 endpoints are open to anyone. Demo mode only.'
+      );
+      console.log(
+        wechatPayStatus.config
+          ? `[SenXinKang Server] WeChat Pay configured (trade type: ${PAY_TRADE_TYPE}).`
+          : `[SenXinKang Server] WeChat Pay NOT configured — orders can be opened but not paid. Missing: ${wechatPayStatus.missing.join(', ')}`
       );
     }
   });

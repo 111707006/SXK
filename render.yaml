@@ -23,7 +23,7 @@ services:
       # （見 vite.config.ts 的 assertValidAppMode）。
       - key: VITE_APP_MODE
         value: full
-      # 後端模式。階段 3 起用於決定是否註冊付費路由，目前尚未被讀取。
+      # 後端模式。決定深度評估與付費路由是否註冊；認不得的值會讓程序起不來。
       - key: APP_MODE
         value: full
       - key: NODE_ENV
@@ -46,6 +46,29 @@ services:
         value: sxk_db
       - key: SESSION_SECRET
         generateValue: true
+      # 專家預約通知（企業微信群機器人）。沒設就沒有任何通知送出。
+      - key: WECOM_WEBHOOK_URL
+        sync: false
+      # ── 微信支付 APIv3 ──
+      # 全部留空是安全的：訂單仍可開立、但回 wechatReady:false，前端顯示
+      # 「支付通道尚未開放」而不是假的成功。啟動日誌會列出缺哪幾項。
+      # ⚠️ 憑證請在 Environment 頁面手動填，不要進版控。
+      - key: WECHATPAY_APPID
+        sync: false
+      - key: WECHATPAY_MCHID
+        sync: false
+      - key: WECHATPAY_SERIAL_NO
+        sync: false
+      - key: WECHATPAY_PRIVATE_KEY
+        sync: false
+      - key: WECHATPAY_APIV3_KEY
+        sync: false
+      - key: WECHATPAY_PUBLIC_KEY
+        sync: false
+      - key: WECHATPAY_PUBLIC_KEY_ID
+        sync: false
+      - key: WECHATPAY_NOTIFY_URL
+        sync: false
 
   # ── 專案 B：T1-only（篩查 → 報告 → 聯繫專家 → 結束）──────────────────
   # 沒有深度評估、沒有付費、沒有商城。前端建置產物不含這些畫面的進入點，
@@ -84,3 +107,7 @@ services:
       # 與 A 各自獨立的簽章金鑰：兩個產品的登入 token 不應互通。
       - key: SESSION_SECRET
         generateValue: true
+      # 專家預約是 B 唯一的轉換點 —— 沒有這個 webhook，預約寫進資料庫但沒人會知道。
+      - key: WECOM_WEBHOOK_URL
+        sync: false
+      # B 刻意沒有任何 WECHATPAY_* —— 付費路由在 APP_MODE=t1only 下根本不註冊。

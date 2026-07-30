@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DimensionConfig, Question, DimensionScore, Child, AssessmentRecord } from '../types';
 import { transcribeWithQwenASR } from '../utils/asr';
+import { authHeaders } from '../utils/api';
 import MotionVideoAssessment from './MotionVideoAssessment';
 import { 
   ArrowLeft, Clock, Save, Info, AlertTriangle, CheckCircle2,
@@ -198,7 +199,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
           [qId]: { recorded: true, audioUrl: url, transcript: '识别中...' }
         }));
 
-        const asrText = await transcribeWithQwenASR(audioBlob, promptText);
+        const asrText = await transcribeWithQwenASR(audioBlob, promptText, dimension.id);
         const match = promptText.match(/“([^”]+)”/);
         const transcript = asrText !== null ? asrText : (match ? match[1] : '已录音');
 
@@ -568,8 +569,9 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
       const t3Percent = Math.round((earned / max) * 100);
       const resp = await fetch('/api/specialized-report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ child, dimensionName: dimension.name, t2Percent, t3Percent, status })
+        headers: authHeaders(),
+        // 不送 dimensionName —— 後端從 dimensionId 自己查，那才是它驗過的那一個。
+        body: JSON.stringify({ child, dimensionId: dimension.id, t2Percent, t3Percent, status })
       });
       if (resp.ok) {
         const ct = resp.headers.get('content-type');

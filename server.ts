@@ -57,6 +57,7 @@ const paidOnly = APP_MODE === 'full' ? app : express.Router();
 /** ¥19.9 per dimension, in 分 — WeChat Pay's amount.total is an integer in 分. */
 const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;
 
+
 // Security headers (X-Content-Type-Options, frameguard, HSTS, etc.).
 // CSP is disabled so the Vite-built SPA's inline styles/scripts still load;
 // TLS is terminated by nginx (see deploy/nginx.conf).
@@ -562,10 +563,77 @@ ${scoresSummaryStr}
   }
 });
 
+// ── Paid-content gate for the tier-2/3 endpoints ──
+//
+// The frontend paywall decides what a parent *sees*; this decides what they can
+// actually *fetch*. Without it the wall is decorative: these endpoints took no
+// token at all, so anyone who knew the path got the paid report for free — and
+// the parent who paid ¥19.9 would have bought something everyone already had.
+// Same lesson as the APP_MODE work: a check that only exists in the bundle is
+// not a check.
+//
+// Memory mode deliberately allows everything. With no durable store no purchase
+// can exist (/api/payment/create returns 503 for that very reason), so enforcing
+// here would only kill deep assessment on the demo deployment and protect
+// nothing. The moment MYSQL_* is set this becomes a real gate — and startup logs
+// which of the two is in effect, because a silently-open paywall is exactly the
+// kind of thing nobody notices until the revenue is missing.
+type UnlockDenial = { status: number; body: { error: string; code: string } };
+
+async function denyIfLocked(req: express.Request, dimensionId: unknown): Promise<UnlockDenial | null> {
+  if (!mysqlDb.isConfigured()) return null;
+
+  // No dimension means we cannot tell what was purchased. Refuse rather than
+  // guess — guessing wrong in the permissive direction gives away paid content.
+  if (typeof dimensionId !== 'string' || !DIMENSIONS_DATA.some(d => d.id === dimensionId)) {
+    return { status: 400, body: { error: '缺少有效的维度标识。', code: 'DIMENSION_REQUIRED' } };
+  }
+
+  const email = verifyToken(getBearerToken(req));
+  if (!email) return { status: 401, body: { error: '请先登录后再使用深度评估。', code: 'UNAUTHENTICATED' } };
+
+  const user = await mysqlDb.findUserByEmail(email);
+  if (!user) return { status: 401, body: { error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' } };
+
+  const owned = await mysqlDb.listUnlockedDimensions(user.id);
+  if (!owned.includes(dimensionId)) {
+    return { status: 403, body: { error: '尚未解锁该维度的深度评估。', code: 'LOCKED' } };
+  }
+  return null;
+}
+
+/**
+ * Applies denyIfLocked and writes the rejection. True means "already answered, stop".
+ *
+ * ⚠️ `dimensionId` must be the dimension the endpoint is about to SERVE, not a
+ * field the caller can vary independently of the content. Getting this wrong is
+ * not a small mistake: the first version of this gate checked a body field while
+ * `/api/specialized-report` built its report from a *separate* body field
+ * (`dimensionName`), so one ¥19.9 purchase unlocked all nine dimensions —
+ * send the dimension you own, name the one you want. Endpoints that serve a
+ * fixed dimension now pass a server-side constant; the rest look the name up
+ * from the id they gated on.
+ */
+async function rejectIfLocked(req: express.Request, res: express.Response, dimensionId: unknown): Promise<boolean> {
+  const denial = await denyIfLocked(req, dimensionId);
+  if (!denial) return false;
+  res.status(denial.status).json(denial.body);
+  return true;
+}
+
+/** Dimensions whose deep assessment is served by a fixed endpoint. */
+const LANGUAGE_DIMENSION_ID = 'language';
+const MOTION_DIMENSION_ID = 'gross_motor';
+
 // API endpoint for single-dimension T2/T3 specialized deep report (AI-generated)
 tier2Only.post('/api/specialized-report', async (req: express.Request, res: express.Response) => {
   try {
-    const { child, dimensionName, t2Percent, t3Percent, status } = req.body;
+    const { child, dimensionId, t2Percent, t3Percent, status } = req.body;
+    if (await rejectIfLocked(req, res, dimensionId)) return;
+    // The report is built from the dimension we just authorized, looked up here
+    // rather than taken from the body. Accepting a client-supplied display name
+    // alongside the gated id is what let one purchase serve all nine reports.
+    const dimensionName = DIMENSIONS_DATA.find(d => d.id === dimensionId)?.name;
     if (!child || !dimensionName) {
       res.status(400).json({ error: 'Missing child profile or dimension name.' });
       return;
@@ -623,6 +691,9 @@ tier2Only.post('/api/specialized-report', async (req: express.Request, res: expr
 tier2Only.post('/api/motion-eval', async (req: express.Request, res: express.Response) => {
   try {
     const { frames, item, child } = req.body;
+    // CPMV-20 motion scoring is the gross-motor product (AssessmentPanel only
+    // renders it for that dimension), so the gate binds to it server-side.
+    if (await rejectIfLocked(req, res, MOTION_DIMENSION_ID)) return;
     if (!Array.isArray(frames) || frames.length === 0 || !item || !item.name) {
       res.status(400).json({ error: 'Missing frames or item definition.' });
       return;
@@ -682,6 +753,7 @@ tier2Only.post('/api/motion-eval', async (req: express.Request, res: express.Res
 tier2Only.post('/api/motion-report', async (req: express.Request, res: express.Response) => {
   try {
     const { child, total, domains, flags, lowItems } = req.body;
+    if (await rejectIfLocked(req, res, MOTION_DIMENSION_ID)) return;
     if (!total || typeof total.pct !== 'number') {
       res.status(400).json({ error: 'Missing motion assessment totals.' });
       return;
@@ -800,7 +872,10 @@ function generateFallbackLanguageReport(
 tier2Only.post('/api/ali-language-eval', async (req: express.Request, res: express.Response) => {
   try {
     const { child, audioTranscribedText, articulation, fluency, sentenceLength, targetPrompt } = req.body;
-    
+
+    // This endpoint only ever produces the language deep report, so it gates on
+    // the language dimension — not on whatever the caller claims to own.
+    if (await rejectIfLocked(req, res, LANGUAGE_DIMENSION_ID)) return;
     if (!child) {
       res.status(400).json({ error: 'Missing child profile.' });
       return;
@@ -904,7 +979,13 @@ tier2Only.post('/api/ali-language-eval', async (req: express.Request, res: expre
 // API endpoint for real speech recognition via Qwen3-ASR-Flash
 tier2Only.post('/api/asr', async (req: express.Request, res: express.Response) => {
   try {
-    const { audioData, context } = req.body;
+    const { audioData, context, dimensionId } = req.body;
+    // Transcription is a utility used inside several already-gated flows rather
+    // than a per-dimension product, so it keeps the caller-supplied id. Residual
+    // exposure, stated plainly: owning any one dimension buys transcription in
+    // general. That costs DashScope quota, not paid content — every report this
+    // could feed is gated on its own dimension above.
+    if (await rejectIfLocked(req, res, dimensionId)) return;
     if (!audioData || typeof audioData !== 'string') {
       res.status(400).json({ error: 'Missing audioData (base64 data URL or public audio URL).' });
       return;
@@ -995,15 +1076,18 @@ app.get('/api/db/status', (req, res) => {
  */
 paidOnly.get('/api/unlocks', async (req, res) => {
   try {
+    // The store check comes before the token check on purpose. In memory mode
+    // there is no gate at all (denyIfLocked lets everything through), so a 401
+    // here would leave the client unable to learn that — it would fail closed
+    // and lock a demo box out of its own deep assessment. Saying "this server
+    // keeps no purchases" leaks nothing.
+    if (!mysqlDb.isConfigured()) {
+      res.json({ dimensionIds: [], available: false, priceFen: UNLOCK_PRICE_FEN });
+      return;
+    }
     const email = verifyToken(getBearerToken(req));
     if (!email) {
       res.status(401).json({ error: '请先登录。' });
-      return;
-    }
-    if (!mysqlDb.isConfigured()) {
-      // No durable store means no purchases could have happened. Say so plainly
-      // rather than returning [] as if the parent simply owns nothing.
-      res.json({ dimensionIds: [], available: false });
       return;
     }
     const user = await mysqlDb.findUserByEmail(email);
@@ -1011,7 +1095,14 @@ paidOnly.get('/api/unlocks', async (req, res) => {
       res.status(401).json({ error: '登录状态已失效，请重新登录。' });
       return;
     }
-    res.json({ dimensionIds: await mysqlDb.listUnlockedDimensions(user.id), available: true });
+    // The price ships with the list so the paywall never hardcodes its own copy
+    // of it. UNLOCK_PRICE_FEN is env-tunable; a screen showing ¥19.9 while the
+    // order is opened for something else is a refund dispute by construction.
+    res.json({
+      dimensionIds: await mysqlDb.listUnlockedDimensions(user.id),
+      available: true,
+      priceFen: UNLOCK_PRICE_FEN,
+    });
   } catch (err: any) {
     console.error('[Payment] Failed to list unlocks:', err.message);
     res.status(500).json({ error: '无法读取已解锁维度。' });
@@ -1463,6 +1554,16 @@ async function startServer() {
         ? 'project A — tier-2/3 endpoints registered'
         : 'project B — tier-2/3 endpoints NOT registered'}), port from ${portSource}`
     );
+    // Say out loud whether the paywall is enforced. Memory mode lets every
+    // tier-2/3 request through (see denyIfLocked) — fine for a demo box, a
+    // silent giveaway on a production one.
+    if (APP_MODE === 'full') {
+      console.log(
+        mysqlDb.isConfigured()
+          ? '[SenXinKang Server] Paywall ENFORCED — tier-2/3 requests require a matching unlock.'
+          : '[SenXinKang Server] Paywall NOT enforced (no MYSQL_* configured): tier-2/3 endpoints are open to anyone. Demo mode only.'
+      );
+    }
   });
 }
 

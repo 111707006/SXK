@@ -6,6 +6,7 @@ import {
 } from '../cpmvData';
 import { collectCpmv, buildCpmvSummary, buildCpmvSuggest, CpmvCollectResult } from '../utils/cpmvReport';
 import { extractVideoFrames } from '../utils/videoFrames';
+import { authHeaders } from '../utils/api';
 import {
   Video, Upload, Brain, Loader2, Check, ChevronRight, Database,
   Activity, AlertTriangle, FileText, Sparkles
@@ -70,7 +71,7 @@ export default function MotionVideoAssessment({
       const frames = await extractVideoFrames(file, 8);
       const resp = await fetch('/api/motion-eval', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({
           frames,
           child,
@@ -148,7 +149,7 @@ export default function MotionVideoAssessment({
         .map(it => it.id);
       const resp = await fetch('/api/motion-report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({
           child,
           total: { sum: r.sum, max: r.max, pct: r.pct, tested: r.testedIds.length },

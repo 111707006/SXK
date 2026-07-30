@@ -1,10 +1,17 @@
+import { authHeaders } from './api';
+
 /**
  * Shared Qwen3-ASR speech recognition helper.
  * Sends a recorded audio blob to the backend /api/asr endpoint (which proxies
  * to Alibaba DashScope qwen3-asr-flash) and returns the recognized text.
  * Returns null on any failure so callers can fall back to simulated recognition.
  */
-export async function transcribeWithQwenASR(audioBlob: Blob, contextPrompt: string): Promise<string | null> {
+export async function transcribeWithQwenASR(
+  audioBlob: Blob,
+  contextPrompt: string,
+  /** 這段錄音屬於哪個維度 —— 後端用它檢查解鎖權益（`denyIfLocked`）。 */
+  dimensionId: string
+): Promise<string | null> {
   try {
     const dataUrl: string = await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -14,8 +21,8 @@ export async function transcribeWithQwenASR(audioBlob: Blob, contextPrompt: stri
     });
     const resp = await fetch('/api/asr', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audioData: dataUrl, context: `儿童正在朗读："${contextPrompt}"` })
+      headers: authHeaders(),
+      body: JSON.stringify({ audioData: dataUrl, context: `儿童正在朗读："${contextPrompt}"`, dimensionId })
     });
     if (!resp.ok) return null;
     const ct = resp.headers.get('content-type');

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Child } from '../types';
 import { transcribeWithQwenASR, judgeArticulation } from '../utils/asr';
+import { authHeaders } from '../utils/api';
+import { peekDeviceId } from '../utils/deviceId';
+import { PRODUCT } from '../productConfig';
 import {
   Mic, Square, Play, Pause, Upload, FileAudio, Sparkles, Brain,
   Compass, FileText, CheckCircle2, Volume2, ArrowLeft, AlertCircle,
@@ -15,6 +18,13 @@ interface LanguageSpecialAssessmentProps {
 }
 
 // judgeArticulation / cleanSpeechText live in ../utils/asr (pure + unit-tested).
+
+/**
+ * 這整條流程屬於「語言溝通」維度 —— 後端的解鎖檢查（`denyIfLocked`）要靠它
+ * 判斷家長買的是不是這一個維度。與 `data.ts` 的維度 ID 對齊，
+ * `test/dimensionIds.test.ts` 會擋住不一致。
+ */
+const LANGUAGE_DIMENSION_ID = 'language';
 
 export interface AssessmentQuestion {
   id: number;
@@ -255,8 +265,10 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
   const [selectedTherapistForBooking, setSelectedTherapistForBooking] = useState<typeof THERAPISTS[0] | null>(null);
   const [bookingDate, setBookingDate] = useState('');
   const [bookingTime, setBookingTime] = useState('09:30 - 10:20');
+  const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [bookingError, setBookingError] = useState('');
   const [bookingVoucher, setBookingVoucher] = useState<any | null>(null);
 
   // WeChat Sharing & Supervisor Verification States
@@ -466,7 +478,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
         // Real STT via Qwen3-ASR-Flash; simulated recognition kept as offline fallback
         setUploadStatus(`正在通过 Qwen3-ASR 识别第 ${currentQ.id} 题语音...`);
-        const asrText = await transcribeWithQwenASR(audioBlob, currentQ.prompt);
+        const asrText = await transcribeWithQwenASR(audioBlob, currentQ.prompt, LANGUAGE_DIMENSION_ID);
 
         let recognizedText: string;
         let qStatus: 'normal' | 'substitute' | 'stutter' | 'unclear';
@@ -574,7 +586,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
     if (file) {
       const url = URL.createObjectURL(file);
       setUploadStatus(`正在通过 Qwen3-ASR 识别音频文件 ${file.name}...`);
-      const asrText = await transcribeWithQwenASR(file, currentQ.prompt);
+      const asrText = await transcribeWithQwenASR(file, currentQ.prompt, LANGUAGE_DIMENSION_ID);
 
       setQuestionStates(prev => ({
         ...prev,
@@ -778,9 +790,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
       const response = await fetch('/api/ali-language-eval', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
         body: JSON.stringify({
           child,
           audioTranscribedText: `10题综合语篇测试：\n${questionSummaries}`,
@@ -823,26 +833,77 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
     setBookingDate(tomorrow.toISOString().split('T')[0]);
   };
 
-  const handleConfirmBooking = () => {
-    if (!parentPhone || parentPhone.length < 8) {
-      alert('请输入有效的家属联系电话以接收视频咨询短信凭证！');
+  /**
+   * 送出語言專項的治療師預約。
+   *
+   * 這裡原本是 `setTimeout(1200)` 後生出一張假憑證 —— 含**憑空捏造的騰訊會議
+   * 連結與密碼**。家長會拿著一個不存在的房間號在約定時間等待，而沒有任何人
+   * 知道有這筆預約。現在走與報告頁同一支 `/api/expert-booking`：寫入資料庫、
+   * 通知工作人員，等後端確認才顯示成功。
+   *
+   * 會議連結不再產生 —— 系統沒有能力開會議室，改為由客服電話聯繫確認。
+   */
+  const handleConfirmBooking = async () => {
+    if (!selectedTherapistForBooking) return;
+    setBookingError('');
+
+    const name = parentName.trim();
+    const phone = parentPhone.trim();
+    if (!name) {
+      setBookingError('请填写家长姓名，工作人员回访时需要称呼您。');
+      return;
+    }
+    // 與後端 `/api/expert-booking` 同一條規則。前端先擋是為了讓家長當場看到
+    // 哪裡錯，而不是送出後才收到 400。
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setBookingError('请填写正确的 11 位手机号码。');
       return;
     }
 
     setIsSubmittingBooking(true);
-    setTimeout(() => {
-      setIsSubmittingBooking(false);
+    try {
+      const flagged = questions
+        .map(q => ({ q, st: questionStates[q.id] }))
+        .filter(({ st }) => st?.recorded && st.status !== 'normal')
+        .map(({ q, st }) => `${q.title}（${
+          st.status === 'substitute' ? '辅音替代/不准' : st.status === 'stutter' ? '连复卡顿' : '发音含糊'
+        }）`);
+      const summary = `语言专项评估：${
+        flagged.length ? `发音异常 ${flagged.length} 项 —— ${flagged.join('；')}` : '各题发音表现正常'
+      }；构音${articulation}；流畅度${fluency}`;
+
+      const resp = await fetch('/api/expert-booking', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          specialistId: selectedTherapistForBooking.id,
+          specialistName: selectedTherapistForBooking.name,
+          parentName: name,
+          parentPhone: phone,
+          childAgeMonth: child.ageMonth,
+          childGender: child.gender,
+          reportSummary: summary.slice(0, 2000),
+          preferredSlot: `${bookingDate} ${bookingTime}`,
+          deviceId: peekDeviceId(),
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || '预约提交失败，请稍后重试。');
+
       setBookingVoucher({
-        id: 'BKV-' + Math.floor(Math.random() * 90000 + 10000),
+        id: data.bookingId ? `BK-${data.bookingId}` : '待客服确认',
         therapist: selectedTherapistForBooking,
         date: bookingDate,
         time: bookingTime,
-        phone: parentPhone,
-        meetingUrl: 'https://meeting.tencent.com/dm/' + Math.floor(Math.random() * 900000000 + 100000000),
-        meetingPassword: Math.floor(Math.random() * 9000 + 1000).toString(),
-        createdAt: new Date().toLocaleString()
+        phone,
+        parentName: name,
+        createdAt: new Date().toLocaleString(),
       });
-    }, 1200);
+    } catch (err: any) {
+      setBookingError(err?.message || '预约提交失败，请检查网络后重试。');
+    } finally {
+      setIsSubmittingBooking(false);
+    }
   };
 
   // Get current completed questions count
@@ -2012,10 +2073,25 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       </div>
                     </div>
 
+                    {/* 家長姓名 —— 後端必填（工作人員回撥時要稱呼） */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-brand-forest uppercase tracking-wider block">
+                        👤 家长姓名:
+                      </label>
+                      <input
+                        type="text"
+                        value={parentName}
+                        onChange={(e) => setParentName(e.target.value)}
+                        placeholder="请输入家长姓名"
+                        maxLength={64}
+                        className="w-full p-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-moss font-semibold"
+                      />
+                    </div>
+
                     {/* Phone details */}
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-brand-forest uppercase tracking-wider block">
-                        📱 家长接收短信凭证手机号:
+                        📱 家长回访手机号:
                       </label>
                       <input
                         type="tel"
@@ -2025,9 +2101,16 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                         className="w-full p-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-moss font-semibold"
                       />
                       <span className="text-[9px] text-slate-400 block">
-                        会诊预约成功后，系统会将“视频诊疗直联房间号及密码”通过短信发送给您。
+                        提交后由言语康复顾问电话与您确认具体时间与连线方式。
                       </span>
                     </div>
+
+                    {bookingError && (
+                      <div className="flex items-start gap-1.5 text-[10px] text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5">
+                        <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                        <span>{bookingError}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Submit actions */}
@@ -2098,33 +2181,49 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       </div>
                     </div>
 
+                    {/*
+                      這裡原本印一組憑空產生的騰訊會議連結與密碼。系統沒有能力開
+                      會議室，家長會拿著一個不存在的房間號在約定時間乾等 ——
+                      改為誠實說明由客服電話聯繫確認。
+                    */}
                     <div className="pt-2 border-t border-dashed border-white/10 text-left space-y-1.5">
-                      <div>
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">🖥 腾讯会议/远程视频直联链接:</span>
-                        <a href={bookingVoucher.meetingUrl} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline text-[10px] font-bold block truncate">
-                          {bookingVoucher.meetingUrl}
-                        </a>
-                      </div>
                       <div className="flex justify-between items-center">
                         <div>
-                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">🔑 接入会议密码:</span>
-                          <span className="text-xs font-black text-white">{bookingVoucher.meetingPassword}</span>
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">回访联系人:</span>
+                          <span className="text-xs font-bold text-white">{bookingVoucher.parentName}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">接收短信手机:</span>
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">回访手机:</span>
                           <span className="text-xs font-bold text-white">{bookingVoucher.phone}</span>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Barcode Mock */}
-                    <div className="pt-2 border-t border-white/10 flex flex-col items-center justify-center gap-1">
-                      <div className="h-6 w-48 bg-white rounded overflow-hidden flex items-center justify-between px-2 text-[8px] text-slate-800 tracking-[0.2em] font-mono select-none">
-                        ||||| | |||| ||| | || ||||| ||| ||| |||| | |||
+                      <div>
+                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">视频房间号:</span>
+                        <span className="text-[10px] text-brand-sand font-bold">
+                          由客服在电话确认时间后提供
+                        </span>
                       </div>
-                      <span className="text-[8px] text-slate-500 font-bold tracking-widest">{bookingVoucher.id}</span>
                     </div>
                   </div>
+
+                  {/* 轉接真人客服。文案與圖片路徑收在 productConfig，與報告頁同一組。 */}
+                  {PRODUCT.expertBooking.wechatId && (
+                    <div className="bg-brand-cream border border-brand-stone/50 rounded-xl p-3.5 text-left space-y-2">
+                      <strong className="text-[11px] text-brand-forest flex items-center gap-1">
+                        <UserCheck size={12} /> 想更快联系上？加微信客服
+                      </strong>
+                      {PRODUCT.expertBooking.wechatQrSrc && (
+                        <img
+                          src={PRODUCT.expertBooking.wechatQrSrc}
+                          alt="微信客服二维码"
+                          className="w-28 h-28 rounded-lg border border-brand-stone/60 bg-white p-1"
+                        />
+                      )}
+                      <p className="text-[10px] text-brand-charcoal/70">
+                        微信号：<span className="font-mono font-bold text-brand-forest">{PRODUCT.expertBooking.wechatId}</span>
+                      </p>
+                    </div>
+                  )}
 
                   {/* Parental Preparation Instructions */}
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-[10px] text-amber-900 leading-relaxed space-y-1 text-left">

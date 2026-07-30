@@ -12,6 +12,16 @@ interface DimensionGridProps {
   onSelectDimension: (dimensionId: string) => void;
   onViewReport: () => void;
   onStartT1Screening: () => void;
+  /**
+   * 尚未付費解鎖的維度。卡片仍**可點** —— 點下去進付費牆，
+   * 而家長剛看到某個維度亮燈的這一刻正是最有意願的時候。
+   */
+  lockedDimensionIds?: string[];
+  /**
+   * 解鎖單價的顯示文字（如 `19.9`）。`null` 代表付費牆不生效
+   * （專案 B，或後端未接資料庫的展示模式），此時不得出現任何價格與鎖頭。
+   */
+  unlockPriceLabel?: string | null;
 }
 
 const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => {
@@ -29,7 +39,10 @@ const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => 
   }
 };
 
-export default function DimensionGrid({ completedScores, onSelectDimension, onViewReport, onStartT1Screening }: DimensionGridProps) {
+export default function DimensionGrid({
+  completedScores, onSelectDimension, onViewReport, onStartT1Screening,
+  lockedDimensionIds = [], unlockPriceLabel = null,
+}: DimensionGridProps) {
   
   // Detect if T1 Screening has been completed globally
   const isT1Completed = completedScores.some(s => s.tierId === 'T1');
@@ -150,6 +163,9 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
           {DIMENSIONS_DATA.map((dim: DimensionConfig) => {
             const t1Rec = getT1RecordForDimension(dim.id);
             const deepRec = getDeepestRecordForDimension(dim.id);
+            // 付費牆不生效時 unlockPriceLabel 為 null，整段付費 UI 不存在 ——
+            // 專案 B 的畫面不得出現任何價格或鎖頭。
+            const isLocked = unlockPriceLabel !== null && lockedDimensionIds.includes(dim.id);
 
             return (
               <button
@@ -228,7 +244,13 @@ export default function DimensionGrid({ completedScores, onSelectDimension, onVi
                     <span className="text-brand-charcoal/60">{PRODUCT.dashboard.dimensionCardHint}</span>
                   )}
 
-                  {isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
+                  {isT1Completed && isLocked ? (
+                    <span className="flex items-center gap-0.5 py-0.5 px-2 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-extrabold">
+                      <Lock size={9} />
+                      ¥{unlockPriceLabel} 解锁
+                      <ChevronRight size={10} className="text-amber-500" />
+                    </span>
+                  ) : isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
                     <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
                       {PRODUCT.dashboard.dimensionCardCta}
                       <ChevronRight size={10} className="text-rose-500 animate-bounce" />

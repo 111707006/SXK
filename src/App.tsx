@@ -25,10 +25,14 @@ const AssessmentPanel = lazy(() => import('./components/AssessmentPanel'));
 const WearablesMall = lazy(() => import('./components/WearablesMall'));
 const LanguageSpecialAssessment = lazy(() => import('./components/LanguageSpecialAssessment'));
 const SpecializedReportView = lazy(() => import('./components/SpecializedReportView'));
+const Paywall = lazy(() => import('./components/Paywall'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
 import { formatAge } from './utils/dateUtils';
+import { authHeaders } from './utils/api';
+import { getDimensionAccess, isPaywallActive } from './utils/access';
+import { DEFAULT_UNLOCK_PRICE_FEN, formatFen } from './utils/price';
 import { 
   Activity, ShoppingBag, BarChart3, User, RefreshCw, 
   Heart, HeartHandshake, FileText, CheckCircle2, ListFilter,
@@ -39,8 +43,8 @@ import {
 export default function App() {
   const [child, setChild] = useState<Child | null>(null);
   
-  // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report'
-  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report'>('dashboard');
+  // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'
+  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'>('dashboard');
   
   const [selectedDimensionId, setSelectedDimensionId] = useState<string | null>(null);
   
@@ -70,6 +74,18 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem('senxinkang_user_email'));
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('senxinkang_token'));
 
+  // ── 付費解鎖狀態 ──
+  // 存取權的唯一真實來源是後端（`GET /api/unlocks`），這裡存的只是畫面用的快取。
+  // 真正的閘門在 server.ts 的 denyIfLocked —— 前端擋畫面、後端擋資料。
+  /** 已解鎖的維度；`null` 代表尚未查到（判斷上等同未解鎖）。 */
+  const [unlockedDimensionIds, setUnlockedDimensionIds] = useState<string[] | null>(null);
+  /** 後端是否有持久層可承載購買；`null` 代表尚未確定，一律當作付費牆會執行。 */
+  const [unlocksAvailable, setUnlocksAvailable] = useState<boolean | null>(null);
+  /** 單價（分）。以後端回傳為準，前端不自己寫死金額。 */
+  const [unlockPriceFen, setUnlockPriceFen] = useState<number>(DEFAULT_UNLOCK_PRICE_FEN);
+  /** 付費牆正在處理的維度 */
+  const [paywallDimensionId, setPaywallDimensionId] = useState<string | null>(null);
+
   const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   const [dbEnvId, setDbEnvId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<boolean>(false);
@@ -77,14 +93,8 @@ export default function App() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
 
-  // Build request headers, attaching the session token when present so the
-  // server authorizes email-scoped /api/db reads and writes.
-  const authHeaders = (): Record<string, string> => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const token = localStorage.getItem('senxinkang_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return headers;
-  };
+  // authHeaders 已移到 src/utils/api.ts —— 深度評估端點現在也要帶 token，
+  // 而呼叫它們的元件在別的檔案裡，各拼各的標頭遲早會漏掉一個。
 
   // Helper to sync state to cloud
   const syncToCloud = async (
@@ -232,6 +242,67 @@ export default function App() {
 
     initCloudSync();
   }, []);
+
+  /**
+   * 讀取已解鎖的維度。登入狀態改變就重讀 —— 換帳號後沿用上一個帳號的權益，
+   * 就是把付費內容送給下一個登入的人。
+   *
+   * 專案 B 不發這個請求：`/api/unlocks` 註冊在 `paidOnly` 上，B 的伺服器
+   * 根本沒有這條路由。
+   */
+  useEffect(() => {
+    if (!PRODUCT.features.paywall) return;
+    if (!userEmail) {
+      setUnlockedDimensionIds(null);
+      setUnlocksAvailable(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch('/api/unlocks', { headers: authHeaders() });
+        const ct = resp.headers.get('content-type');
+        if (!resp.ok || !ct || !ct.includes('application/json')) return;
+        const data = await resp.json();
+        if (cancelled) return;
+        setUnlockedDimensionIds(Array.isArray(data.dimensionIds) ? data.dimensionIds : []);
+        setUnlocksAvailable(data.available === true);
+        if (typeof data.priceFen === 'number' && data.priceFen > 0) setUnlockPriceFen(data.priceFen);
+      } catch (err) {
+        // 保持 null（尚未確定）—— 讀不到權益時 fail-closed，不樂觀放行。
+        console.warn('Failed to load unlocked dimensions:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userEmail, authToken]);
+
+  /**
+   * 進入某維度的深度評估，未解鎖則先過付費牆。
+   *
+   * `target` 讓語言專項走同一道檢查 —— 它是語言維度的 T2/T3 內容，
+   * 另開一條不檢查的路等於在付費牆旁邊挖一個洞。
+   */
+  const enterDimension = (dimensionId: string, target: 'assessment' | 'language_special' = 'assessment') => {
+    const access = getDimensionAccess(dimensionId, {
+      paywallEnabled: PRODUCT.features.paywall,
+      unlocksAvailable,
+      isLoggedIn: Boolean(userEmail),
+      unlockedDimensionIds,
+    });
+    if (access === 'locked') {
+      setPaywallDimensionId(dimensionId);
+      setCurrentView('paywall');
+      return;
+    }
+    // needs_login 時整個畫面本來就會是 AuthScreen（main 區塊以 userEmail 判斷），
+    // 這裡不另做導向。
+    if (target === 'language_special') {
+      setCurrentView('language_special');
+      return;
+    }
+    setSelectedDimensionId(dimensionId);
+    setCurrentView('assessment');
+  };
 
   // Handler for successful authentication (registration or login)
   const handleAuthSuccess = (
@@ -402,6 +473,20 @@ export default function App() {
 
   // Find active dimension config
   const activeDimension = DIMENSIONS_DATA.find(d => d.id === selectedDimensionId);
+  const paywallDimension = DIMENSIONS_DATA.find(d => d.id === paywallDimensionId);
+
+  // 付費 UI 是否該出現。專案 B 與展示模式（後端無持久層）都不顯示任何價格。
+  const paywallActive = isPaywallActive({ paywallEnabled: PRODUCT.features.paywall, unlocksAvailable });
+  const lockedDimensionIds = paywallActive
+    ? DIMENSIONS_DATA
+        .filter(d => getDimensionAccess(d.id, {
+          paywallEnabled: PRODUCT.features.paywall,
+          unlocksAvailable,
+          isLoggedIn: Boolean(userEmail),
+          unlockedDimensionIds,
+        }) === 'locked')
+        .map(d => d.id)
+    : [];
 
   return (
     <div className="min-h-screen bg-brand-cream text-brand-charcoal font-sans flex flex-col justify-between">
@@ -753,9 +838,10 @@ export default function App() {
                       setCurrentView('report');
                       return;
                     }
-                    setSelectedDimensionId(dimId);
-                    setCurrentView('assessment');
+                    enterDimension(dimId);
                   }}
+                  lockedDimensionIds={lockedDimensionIds}
+                  unlockPriceLabel={paywallActive ? formatFen(unlockPriceFen) : null}
                   onViewReport={() => {
                     // Jump straight to the live T1 AI report page, skipping the archive/library page.
                     setViewingLiveT1(true);
@@ -789,7 +875,7 @@ export default function App() {
                   }}
                 />
               </div>
-            ) : currentView === 'assessment' && activeDimension && PRODUCT.features.tier2And3 ? (
+            ) : currentView === 'assessment' && activeDimension && PRODUCT.features.tier2And3 && !lockedDimensionIds.includes(activeDimension.id) ? (
               /* Inside selected Portal Questions screen */
               <div className="animate-fade-in">
                 <LazyBoundary>
@@ -817,7 +903,7 @@ export default function App() {
                       setFocusBooking(false);
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
-                    onGoToLanguageSpecial={() => setCurrentView('language_special')}
+                    onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     historicalRecord={null}
                     focusBooking={focusBooking}
                   />
@@ -829,7 +915,7 @@ export default function App() {
                     completedScores={activeT1Record.scores}
                     onBack={() => setActiveT1Record(null)}
                     onSaveReportToHistory={handleSaveReportToHistory}
-                    onGoToLanguageSpecial={() => setCurrentView('language_special')}
+                    onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     historicalRecord={activeT1Record}
                   />
                 </div>
@@ -1055,7 +1141,26 @@ export default function App() {
                   </div>
                 )}
               </div>
-            ) : currentView === 'language_special' && PRODUCT.features.tier2And3 ? (
+            ) : currentView === 'paywall' && PRODUCT.features.tier2And3 && PRODUCT.features.paywall && paywallDimension ? (
+              /* 單一維度 T2+T3 的付費解鎖牆（僅專案 A） */
+              <div className="animate-fade-in">
+                <LazyBoundary>
+                  <Paywall
+                    dimension={paywallDimension}
+                    priceFen={unlockPriceFen}
+                    onBack={() => setCurrentView('dashboard')}
+                    onAlreadyUnlocked={() => {
+                      // 別的分頁買完了 —— 重讀權益後直接進評估，不讓家長再付一次。
+                      setUnlockedDimensionIds(prev => (
+                        prev && !prev.includes(paywallDimension.id) ? [...prev, paywallDimension.id] : prev
+                      ));
+                      setSelectedDimensionId(paywallDimension.id);
+                      setCurrentView('assessment');
+                    }}
+                  />
+                </LazyBoundary>
+              </div>
+            ) : currentView === 'language_special' && PRODUCT.features.tier2And3 && !lockedDimensionIds.includes('language') ? (
               /* Deep Language and SLP Diagnostic Assessment Page */
               <div className="animate-fade-in">
                 <LazyBoundary>

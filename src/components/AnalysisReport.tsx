@@ -5,7 +5,7 @@ import {
   ArrowLeft, Brain, Sparkles, CheckCircle2, AlertTriangle, AlertCircle, 
   RefreshCw, Layers, ShieldAlert, Award, Compass, HeartHandshake, Printer,
   Activity, MessageSquare, Smile, BookOpen, Target, Home, Heart, Calendar, User, Phone, Check, Info,
-  ClipboardCheck, ArrowRight, Loader2, QrCode
+  ClipboardCheck, ArrowRight, Loader2, QrCode, Mic, ChevronRight
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
 import { DIMENSION_DETAILS } from '../dimensionContent';
@@ -759,7 +759,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                       const ly = cy + labelR * Math.sin(angle);
                       
                       // 调整文本锚点
-                      let textAnchor = 'middle';
+                      // 型別標註是必要的：不寫的話會被推論成 string，而 SVG 的
+                      // textAnchor 只接受這幾個字面值。
+                      let textAnchor: 'start' | 'middle' | 'end' = 'middle';
                       if (Math.cos(angle) > 0.3) textAnchor = 'start';
                       else if (Math.cos(angle) < -0.3) textAnchor = 'end';
                       
@@ -924,6 +926,38 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
               })()}
             </div>
           </div>
+
+          {/*
+            語言專項評估的入口。
+            這個元件（2,388 行）先前**全庫沒有任何按鈕能開啟它** —— `onGoToLanguageSpecial`
+            宣告了卻沒有任何地方渲染。專案 B 不會收到這個 prop（`features.tier2And3`
+            為 false），付費未解鎖時 App 會把這個動作導向付費牆。
+            只在語言維度被標記時出現：發育正常的孩子不需要被推銷一次錄音評測。
+          */}
+          {onGoToLanguageSpecial && hasLanguageIssue && (
+            <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+                    <Mic size={10} /> 语言溝通 · 专项深测
+                  </span>
+                  <h3 className="text-sm font-extrabold text-brand-forest">
+                    语言沟通为{languageScore?.status === 'delay' ? '迟缓风险' : '临界待测'}，建议进行言语专项录音评测
+                  </h3>
+                  <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">
+                    依孩子月龄匹配语音题目，由孩子跟读、系统进行语音识别与构音判读，输出声学剖析、干预目标与一周言语训练课表。
+                  </p>
+                </div>
+                <button
+                  onClick={onGoToLanguageSpecial}
+                  className="px-5 py-3 bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-extrabold rounded-xl shadow-md shadow-brand-moss/20 transition active:scale-95 cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+                >
+                  进入语言专项评估
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* New Visual Section 1: Overall Peer Development Level Comparison (Inspired by Attachment) */}
           <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">

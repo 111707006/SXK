@@ -143,10 +143,11 @@ export interface ProductProfile {
    * B 是交付給合作公司的，他們很可能要換成自己的客服帳號，屆時改這裡一處即可。
    */
   expertBooking: {
-    /** 客服微信號；`null` 代表不顯示轉接區塊 */
+    /** 客服微信號；`null` 代表不顯示微信號那一行（企業微信客服即是如此，只掃碼） */
     wechatId: string | null;
     /** 客服二維碼圖片路徑（放在 `public/`）；`null` 代表只顯示微信號 */
     wechatQrSrc: string | null;
+    // 兩個都是 null 時，整個轉接區塊不顯示。
   };
 
   features: {
@@ -204,10 +205,11 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       dimensionCardHint: '点击进入本维度测定',
       dimensionCardCta: '立即深测',
     },
-    // ⚠️ 佔位值 —— 上線前必須換成真實的客服微信號與二維碼圖片。
+    // 轉接真人走企業微信二維碼。不列微信號 —— 企業微信客服掃碼即進，
+    // 手打帳號那條路在企業微信上並不通，寫出來只會讓家長白試一次。
     expertBooking: {
-      wechatId: 'SXK-KEFU-PLACEHOLDER',
-      wechatQrSrc: null,
+      wechatId: null,
+      wechatQrSrc: '/kefu-qr.jpg',
     },
     features: {
       tier2And3: true,
@@ -263,11 +265,11 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       dimensionCardHint: '点击联系专家说明',
       dimensionCardCta: '联系专家',
     },
-    // ⚠️ 佔位值 —— 上線前必須換成真實的客服微信號與二維碼圖片。
-    // B 交付給合作公司後，可能要換成對方的客服帳號。
+    // 同專案 A：企業微信二維碼，不列微信號。
+    // B 交付給合作公司後，可能要換成對方的客服二維碼。
     expertBooking: {
-      wechatId: 'SXK-KEFU-PLACEHOLDER',
-      wechatQrSrc: null,
+      wechatId: null,
+      wechatQrSrc: '/kefu-qr.jpg',
     },
     features: {
       tier2And3: false,

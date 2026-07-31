@@ -2207,7 +2207,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   </div>
 
                   {/* 轉接真人客服。文案與圖片路徑收在 productConfig，與報告頁同一組。 */}
-                  {PRODUCT.expertBooking.wechatId && (
+                  {(PRODUCT.expertBooking.wechatId || PRODUCT.expertBooking.wechatQrSrc) && (
                     <div className="bg-brand-cream border border-brand-stone/50 rounded-xl p-3.5 text-left space-y-2">
                       <strong className="text-[11px] text-brand-forest flex items-center gap-1">
                         <UserCheck size={12} /> 想更快联系上？加微信客服
@@ -2219,9 +2219,11 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                           className="w-28 h-28 rounded-lg border border-brand-stone/60 bg-white p-1"
                         />
                       )}
-                      <p className="text-[10px] text-brand-charcoal/70">
-                        微信号：<span className="font-mono font-bold text-brand-forest">{PRODUCT.expertBooking.wechatId}</span>
-                      </p>
+                      {PRODUCT.expertBooking.wechatId && (
+                        <p className="text-[10px] text-brand-charcoal/70">
+                          微信号：<span className="font-mono font-bold text-brand-forest">{PRODUCT.expertBooking.wechatId}</span>
+                        </p>
+                      )}
                     </div>
                   )}
 

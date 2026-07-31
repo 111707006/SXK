@@ -1494,7 +1494,12 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                 {/* 轉接微信客服：電話回訪之外的第二條路。家長多半更習慣微信，
                     而且工作人員的通知管道若有延遲，這裡讓家長能主動找上來。 */}
-                {PRODUCT.expertBooking.wechatId && (
+                {/*
+                  二維碼或微信號，有一個就顯示這整塊。
+                  原本只看 wechatId —— 有了真實二維碼但沒有微信號時整塊會消失，
+                  而二維碼本身就足以完成轉接。
+                */}
+                {(PRODUCT.expertBooking.wechatId || PRODUCT.expertBooking.wechatQrSrc) && (
                   <div className="max-w-md w-full bg-white border border-brand-stone rounded-2xl p-4 space-y-3">
                     <div className="flex items-center justify-center gap-1.5 text-xs font-extrabold text-brand-forest">
                       <QrCode size={14} />
@@ -1514,11 +1519,15 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                       </div>
                     )}
                     <p className="text-[11px] text-brand-charcoal/70 text-center leading-relaxed">
-                      微信号：
-                      <span className="font-mono font-bold text-brand-forest select-all">
-                        {PRODUCT.expertBooking.wechatId}
-                      </span>
-                      <br />
+                      {PRODUCT.expertBooking.wechatId && (
+                        <>
+                          微信号：
+                          <span className="font-mono font-bold text-brand-forest select-all">
+                            {PRODUCT.expertBooking.wechatId}
+                          </span>
+                          <br />
+                        </>
+                      )}
                       添加后请说明「已预约专家说明」，客服会为您衔接。
                     </p>
                   </div>

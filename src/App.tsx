@@ -137,6 +137,15 @@ export default function App() {
     }
   };
 
+  /**
+   * 分頁標題。`index.html` 是兩個建置共用的同一份靜態檔，裡面的 `<title>`
+   * 沒辦法依 VITE_APP_MODE 分歧，所以改在執行期設定 —— 專案 B 的分頁上
+   * 不該出現「森心康」。
+   */
+  useEffect(() => {
+    document.title = PRODUCT.brand.documentTitle;
+  }, []);
+
   // Load from local storage and sync with Cloud Database on mount
   useEffect(() => {
     let localChild: Child | null = null;
@@ -503,11 +512,11 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 bg-brand-moss rounded-xl flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-moss/10 scale-105">
-              <span>森</span>
+              <span>{PRODUCT.brand.logoMark}</span>
             </div>
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">森心康儿童发展评估</h1>
+                <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">{PRODUCT.brand.headerTitle}</h1>
                 {/* 建置模式徽章：文案與配色皆來自 productConfig，這裡不判斷 mode */}
                 <span
                   id="build-mode-badge"
@@ -800,7 +809,8 @@ export default function App() {
           /* Profile Registry form shown when child is unconfigured */
           <div className="py-12 animate-fade-in text-center w-full">
             <h2 className="text-2xl md:text-3xl font-black text-brand-forest tracking-tight max-w-lg mx-auto leading-tight mb-4">
-              欢迎使用 <span className="text-brand-moss">森心康</span> 儿童数字测听与康复分层评估系统
+              {/* 專案 B 的 welcomeName 是 null —— 整個強調 span 不渲染，不是留一個空的 */}
+              欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span></>} 儿童数字测听与康复分层评估系统
             </h2>
             <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
               您的账户 (<span className="font-bold text-brand-forest">{userEmail}</span>) 已成功连线。为了开启全方位脑功能评估，请填写您孩子的基本信息，登记创建成长档案。
@@ -1203,7 +1213,7 @@ export default function App() {
       {/* Aesthetic footer */}
       <footer className="bg-white border-t border-brand-stone/60 py-6 mt-16 text-center text-xs text-brand-charcoal/60 font-medium relative z-10">
         <div className="max-w-7xl mx-auto px-4 space-y-2">
-          <p>© 2026 森心康（SenXinKang）神经网络科学技术实验室</p>
+          <p>{PRODUCT.brand.copyright}</p>
           <div className="flex justify-center gap-4 text-[10px]">
             <button onClick={() => setShowServiceModal(true)} className="hover:text-brand-forest transition-colors cursor-pointer">服务及免责条款</button>
             <span>•</span>
@@ -1251,7 +1261,7 @@ export default function App() {
             <div className="overflow-y-auto px-6 py-5 space-y-5 text-xs text-brand-charcoal/80 leading-relaxed">
               <section>
                 <h3 className="font-black text-brand-forest text-sm mb-2">一、总则</h3>
-                <p>森心康（SenXinKang）儿童数字测听与康复分层评估系统（以下简称"本系统"）高度重视用户隐私与数据安全。本条款旨在明确本系统在收集、存储、使用及共享儿童发育评估数据方面的规范与承诺，保障用户（含监护人及受测儿童）的合法权益。</p>
+                <p>{PRODUCT.brand.systemName}（以下简称"本系统"）高度重视用户隐私与数据安全。本条款旨在明确本系统在收集、存储、使用及共享儿童发育评估数据方面的规范与承诺，保障用户（含监护人及受测儿童）的合法权益。</p>
               </section>
 
               <section>
@@ -1325,7 +1335,7 @@ export default function App() {
               </section>
 
               <div className="pt-3 border-t border-brand-stone/30 text-[10px] text-brand-charcoal/50 text-center">
-                最后更新日期：2026年7月 · 森心康（SenXinKang）技术实验室
+                最后更新日期：2026年7月 · {PRODUCT.brand.legalEntity}
               </div>
             </div>
           </div>
@@ -1360,7 +1370,7 @@ export default function App() {
             <div className="overflow-y-auto px-6 py-5 space-y-5 text-xs text-brand-charcoal/80 leading-relaxed">
               <section>
                 <h3 className="font-black text-brand-forest text-sm mb-2">一、服务说明</h3>
-                <p>森心康（SenXinKang）儿童数字测听与康复分层评估系统（以下简称"本系统"）为监护人提供儿童发育评估、AI评估报告生成、康复建议参考及智能穿戴设备商城等服务。本系统基于"9维3层分层神经系统检测"理念，结合人工智能技术，为儿童发育状况提供数字化参考信息。</p>
+                <p>{PRODUCT.brand.systemName}（以下简称"本系统"）为监护人提供儿童发育评估、AI评估报告生成、康复建议参考及智能穿戴设备商城等服务。本系统基于"9维3层分层神经系统检测"理念，结合人工智能技术，为儿童发育状况提供数字化参考信息。</p>
               </section>
 
               <section>
@@ -1399,7 +1409,7 @@ export default function App() {
 
               <section>
                 <h3 className="font-black text-brand-forest text-sm mb-2">五、知识产权</h3>
-                <p>本系统的软件、界面设计、评估量表、报告模板、品牌标识等均受知识产权法保护。未经森心康技术实验室书面许可，任何人不得复制、修改、反向工程或商业性使用本系统的任何内容。</p>
+                <p>本系统的软件、界面设计、评估量表、报告模板、品牌标识等均受知识产权法保护。未经{PRODUCT.brand.legalEntity}书面许可，任何人不得复制、修改、反向工程或商业性使用本系统的任何内容。</p>
               </section>
 
               <section>
@@ -1413,12 +1423,12 @@ export default function App() {
 
               <section>
                 <h3 className="font-black text-brand-forest text-sm mb-2">七、责任限制</h3>
-                <p>在法律允许的最大范围内，森心康技术实验室及其关联公司对因使用或无法使用本系统而造成的任何直接、间接、附带、特殊或后果性损害（包括但不限于数据丢失、利润损失、业务中断）不承担赔偿责任，即使已被告知此类损害的可能性。</p>
+                <p>在法律允许的最大范围内，{PRODUCT.brand.legalEntity}及其关联公司对因使用或无法使用本系统而造成的任何直接、间接、附带、特殊或后果性损害（包括但不限于数据丢失、利润损失、业务中断）不承担赔偿责任，即使已被告知此类损害的可能性。</p>
               </section>
 
               <section>
                 <h3 className="font-black text-brand-forest text-sm mb-2">八、争议解决</h3>
-                <p>本条款的解释与适用受中华人民共和国法律管辖。因本系统服务产生的任何争议，双方应友好协商解决；协商不成的，任何一方可向森心康技术实验室所在地有管辖权的人民法院提起诉讼。</p>
+                <p>本条款的解释与适用受中华人民共和国法律管辖。因本系统服务产生的任何争议，双方应友好协商解决；协商不成的，任何一方可向{PRODUCT.brand.legalEntity}所在地有管辖权的人民法院提起诉讼。</p>
               </section>
 
               <section>
@@ -1427,7 +1437,7 @@ export default function App() {
               </section>
 
               <div className="pt-3 border-t border-brand-stone/30 text-[10px] text-brand-charcoal/50 text-center">
-                最后更新日期：2026年7月 · 森心康（SenXinKang）技术实验室
+                最后更新日期：2026年7月 · {PRODUCT.brand.legalEntity}
               </div>
             </div>
           </div>

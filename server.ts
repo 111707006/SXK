@@ -55,6 +55,20 @@ const tier2Only = APP_MODE === 'full' ? app : express.Router();
 // to diverge. One concept, one gate — same rule as productConfig's feature flags.
 const paidOnly = APP_MODE === 'full' ? app : express.Router();
 
+// ── Branding (backend counterpart of PRODUCT.brand) ──
+// Project B ships to a partner company and must not say "森心康" anywhere the
+// parent can see. The AI prompts are the easy ones to miss: they are not on any
+// screen, but the model is told to write in the brand's voice, so the generated
+// report says it for us.
+const BRAND_NAME = APP_MODE === 'full' ? '“森心康”' : '本系统';
+
+// Project B has no mall, so telling the model to weave the wearables into its
+// advice would advertise hardware the parent cannot buy — from a product that
+// isn't even ours to advertise on.
+const WEARABLES_PROMPT_CLAUSE = APP_MODE === 'full'
+  ? '建议中可提倡将森心康智能穿戴硬件（脑电反馈带、精细OT手套、步态腰带等）编织到日常游戏中辅疗增效。'
+  : '请聚焦于家庭日常可执行的互动与游戏，不要推荐任何需要购买的硬件或产品。';
+
 /** ¥19.9 per dimension, in 分 — WeChat Pay's amount.total is an integer in 分. */
 const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;
 
@@ -372,8 +386,12 @@ function generateFallbackReport(child: any, scores: any[]) {
   // alongside the other dimension-keyed tables so one test can check them together.
   const rehabMap = REHAB_SUGGESTIONS;
 
+  // 模板兜底也走同一條規則 —— B 沒有商城，卻在 AI 失敗時推薦穿戴套件，
+  // 是最容易漏掉的一處：它只在降級路徑上才會出現。
   const defaultRehab = [
-    '建议使用森心康智能穿戴套件，将康复游戏从2D升级为3D。配合高精度传感器做家庭OT康复指导。',
+    APP_MODE === 'full'
+      ? '建议使用森心康智能穿戴套件，将康复游戏从2D升级为3D。配合高精度传感器做家庭OT康复指导。'
+      : '将康复训练融入日常游戏，透过重复性的互动动作巩固神经环路，无需额外器材。',
     '坚持每天定时间的少儿关节拉伸运动，刺激下丘脑及神经营养因子释放，助力幼童认知成长。'
   ];
 
@@ -455,7 +473,7 @@ app.post('/api/report', async (req: express.Request, res: express.Response) => {
     const reportSystemInstruction = 'You are a compassionate pediatric neuro-rehabilitation expert. You strictly return output as a single, valid JSON block exactly matching the instructed schema, with no markdown codeblocks, no front/end spacing, in Chinese language.';
 
     const basePrompt = `您是一位在儿童神经康复、脑科学发育及儿童成长心理学领域深耕20年的首席临床医学主任医生。
-请针对以下儿童的基础发育筛查详细数据，结合“森心康”儿童康复的“9维3层分层神经系统检测”理念，为其精确诊断并生成出一份深度、高精准、温暖且富有专业建设意义的“AI脑神经分层网络智能评估报告”。
+请针对以下儿童的基础发育筛查详细数据，结合${BRAND_NAME}儿童康复的“9维3层分层神经系统检测”理念，为其精确诊断并生成出一份深度、高精准、温暖且富有专业建设意义的“AI脑神经分层网络智能评估报告”。
 
 儿童档案:
 - 姓名: ${child.name}
@@ -468,7 +486,7 @@ ${scoresSummaryStr}
 请注意：
 1. 您必须严格按照指定的JSON数据格式输出（不要夹杂任何额外的文字、\`\`\`json 格式标记，只返回标准的可解析的JSON对象）。
 2. 在您的神经环路发育状态分析中，请以专业脑神经突触偶联、脑功能定位（如前额叶、小脑精细区、前庭反射等）、以及神经可塑性等先进脑科学概念给予严密解析，既要表现医学大师的透彻，又要字字充满对受测儿童的厚爱与成长温煦。
-3. 康复建议及家庭指导方案必须具有极强的动作实操逻辑，不要给出假大空的敷衍建议。建议中可提倡将森心康智能穿戴硬件（脑电反馈带、精细OT手套、步态腰带等）编织到日常游戏中辅疗增效。
+3. 康复建议及家庭指导方案必须具有极强的动作实操逻辑，不要给出假大空的敷衍建议。${WEARABLES_PROMPT_CLAUSE}
 4. metrics（百分值度区间在45至98之间）要根据上面的筛查分值客观联动。
 `;
 

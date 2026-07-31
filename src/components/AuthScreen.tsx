@@ -1,3 +1,4 @@
+import { PRODUCT } from '../productConfig';
 import React, { useState } from 'react';
 import { Mail, Lock, Sparkles, AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, FileText } from 'lucide-react';
 
@@ -160,10 +161,10 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         {/* Header Title */}
         <div className="text-center space-y-2">
           <div className="inline-flex w-12 h-12 bg-brand-forest text-white rounded-2xl items-center justify-center font-extrabold shadow-lg shadow-brand-forest/15 text-lg mb-1">
-            <span>森</span>
+            <span>{PRODUCT.brand.logoMark}</span>
           </div>
           <h2 className="text-xl font-black text-brand-forest tracking-tight">
-            森心康儿童发展评估
+            {PRODUCT.brand.headerTitle}
           </h2>
           <p className="text-xs text-brand-charcoal/60 leading-relaxed font-medium">
             9维3层多感官脑发育神经网络数字评估与分层评估系统
@@ -393,7 +394,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                   <div className="space-y-3">
                     <div>
                       <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">一、服务说明</h4>
-                      <p>森心康（SenXinKang）儿童数字测听与康复分层评估系统为监护人提供儿童发育评估、AI评估报告生成、康复建议参考及智能穿戴设备商城等服务。本系统基于"9维3层分层神经系统检测"理念，结合人工智能技术，为儿童发育状况提供数字化参考信息。</p>
+                      <p>{PRODUCT.brand.systemName}为监护人提供儿童发育评估、AI评估报告生成、康复建议参考及智能穿戴设备商城等服务。本系统基于"9维3层分层神经系统检测"理念，结合人工智能技术，为儿童发育状况提供数字化参考信息。</p>
                     </div>
                     <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
                       <p className="font-black text-red-700 text-xs">⚠️ 免责声明（重要）：</p>
@@ -424,7 +425,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                     </div>
                     <div>
                       <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">四、责任限制</h4>
-                      <p>在法律允许的最大范围内，森心康技术实验室及其关联公司对因使用或无法使用本系统而造成的任何直接、间接、附带、特殊或后果性损害不承担赔偿责任。</p>
+                      <p>在法律允许的最大范围内，{PRODUCT.brand.legalEntity}及其关联公司对因使用或无法使用本系统而造成的任何直接、间接、附带、特殊或后果性损害不承担赔偿责任。</p>
                     </div>
                   </div>
                 </section>
@@ -474,7 +475,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                 </section>
 
                 <div className="pt-3 border-t border-brand-stone/30 text-[10px] text-brand-charcoal/50 text-center">
-                  最后更新日期：2026年7月 · 森心康（SenXinKang）技术实验室
+                  最后更新日期：2026年7月 · {PRODUCT.brand.legalEntity}
                 </div>
               </div>
             </div>

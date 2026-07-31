@@ -31,7 +31,9 @@ const SPECIALISTS = [
     title: '国家合格康复督导师',
     avatar: '/expert-he.jpg',
     specialty: '儿童作业、心理、多动症、自闭症、学习障碍、言语功能等干预训练，儿童发育迟缓调整训练。',
-    experience: '从业20年，中国台湾大学职能治疗学系，台北护理大学语言治疗病理学硕士，森心康儿童康复品牌康复质量管理部负责人，上海星晨儿童医院（暨复旦大学附设儿科医院新虹桥分院）康复科督导',
+    // 品牌職稱那一句由 PRODUCT.brand.bioClause 提供，B 為 null 即整段不出現。
+    // 其餘資歷一字不動 —— 這是真人的簡歷，能省略但不能改寫。
+    experience: `从业20年，中国台湾大学职能治疗学系，台北护理大学语言治疗病理学硕士，${PRODUCT.brand.bioClause ?? ''}上海星晨儿童医院（暨复旦大学附设儿科医院新虹桥分院）康复科督导`,
     slots: ['周一上午', '周二下午', '周三上午']
   },
   {
@@ -301,7 +303,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             </div>
             <div className="space-y-0.5">
               <h2 className="text-sm font-bold font-sans flex items-center gap-1.5">
-                森心康 AI 神经网络分层评估报告生成器
+                {PRODUCT.brand.reportTitle}
                 <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-brand-sage/20 border border-brand-sage/30 text-[9px] font-bold text-brand-sage">
                   <Sparkles size={8} /> 脑发育前额叶机制算法
                 </span>

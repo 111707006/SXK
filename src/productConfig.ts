@@ -21,6 +21,56 @@ export interface ProductProfile {
   mode: ProductMode;
 
   /**
+   * 品牌字串。
+   *
+   * 專案 B 交付給合作公司使用，畫面上**不得出現「森心康」**——包含頁首、條款、
+   * 頁尾、報告標題，以及後端送給 AI 的提示詞（那一段最容易漏：它不在畫面上，
+   * 但會讓生成的報告內文自己寫出品牌名）。
+   *
+   * ⚠️ 這裡只處理**畫面上的稱呼**。備案主體、資料掌管方、責任承擔方**仍然是
+   * 森心康**（見 `與客戶討論的問題.md` 第七項）——條款改用泛稱是產品決定，
+   * 不代表法律關係改變。
+   */
+  brand: {
+    /** 瀏覽器分頁標題。`index.html` 是兩個建置共用的靜態檔，改由執行期設定。 */
+    documentTitle: string;
+    /** 頁首與登入頁的大標題 */
+    headerTitle: string;
+    /**
+     * 歡迎頁裡被強調的品牌詞。`null` 代表不顯示那一段強調
+     * ——不是顯示空字串，是整個 `<span>` 不渲染。
+     */
+    welcomeName: string | null;
+    /** AI 報告產生器的標題 */
+    reportTitle: string;
+    /** 條款內文提到本系統時的全名 */
+    systemName: string;
+    /** 條款與頁尾裡的責任主體稱呼 */
+    legalEntity: string;
+    /** 頁尾版權列 */
+    copyright: string;
+    /**
+     * 頁首與登入頁那顆圓形標記裡的字。
+     *
+     * 專案 A 是「森」——森心康的字標。B 不能用它：一個綠底圓形配「森」字
+     * 就是這個品牌的標記，名字拿掉了標記還在，等於沒拿掉。
+     */
+    logoMark: string;
+    /**
+     * 專家簡歷中提及本品牌的那一個子句（含結尾逗號）。
+     *
+     * `null` 代表**整段子句不出現**——刻意不是「改寫成別的說法」：那是真實
+     * 醫師的資歷，改寫等於捏造，省略只是不提。
+     */
+    bioClause: string | null;
+    /**
+     * 後端送給 AI 的提示詞裡用的稱呼（由 `server.ts` 依 `APP_MODE` 各自決定，
+     * 這裡列出來只是為了讓兩邊的值看得到彼此，不被前端讀取）。
+     */
+    promptName: string;
+  };
+
+  /**
    * 建置模式徽章 —— 掛在頁首標題旁，讓人一眼看出當前開的是哪一個產品。
    *
    * 兩個產品**都**顯示。若只有專案 B 掛徽章，「沒看到徽章」會同時對應
@@ -112,6 +162,18 @@ export interface ProductProfile {
 const PROFILES: Record<ProductMode, ProductProfile> = {
   full: {
     mode: 'full',
+    brand: {
+      documentTitle: '森心康 - 儿童发育评估系统',
+      headerTitle: '森心康儿童发展评估',
+      welcomeName: '森心康',
+      reportTitle: '森心康 AI 神经网络分层评估报告生成器',
+      systemName: '森心康（SenXinKang）儿童数字测听与康复分层评估系统',
+      legalEntity: '森心康（SenXinKang）技术实验室',
+      copyright: '© 2026 森心康（SenXinKang）神经网络科学技术实验室',
+      logoMark: '森',
+      bioClause: '森心康儿童康复品牌康复质量管理部负责人，',
+      promptName: '森心康',
+    },
     buildBadge: {
       label: '完整版',
       title: '当前为完整版（项目 A）：包含 T2/T3 深度评估、付费解锁与穿戴设备商城。',
@@ -156,6 +218,21 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
 
   t1only: {
     mode: 't1only',
+    // 中性命名，不提任何品牌 —— 交付給合作公司使用，畫面上不出現森心康。
+    // 也刻意不寫成對方公司的名字：那樣每換一個合作對象就要改一次程式碼，
+    // 而且備案與資料掌管方仍是森心康，掛對方的名字反而與事實不符。
+    brand: {
+      documentTitle: '儿童发育评估系统',
+      headerTitle: '儿童发展评估',
+      welcomeName: null,
+      reportTitle: 'AI 神经网络分层评估报告生成器',
+      systemName: '本儿童数字测听与康复分层评估系统',
+      legalEntity: '本系统运营方',
+      copyright: '© 2026 儿童神经网络分层评估系统',
+      logoMark: '评',
+      bioClause: null,
+      promptName: '本系统',
+    },
     buildBadge: {
       label: 'T1 版',
       title: '当前为 T1 版（项目 B）：仅提供 T1 筛查与 AI 发展报告，不含深度评估、付费解锁与商城。',
@@ -215,7 +292,36 @@ function resolveMode(raw: string | undefined): ProductMode {
   );
 }
 
+/** 仍然執行，仍然 fail-closed —— 打錯字的建置照樣起不來。 */
 const MODE: ProductMode = resolveMode(import.meta.env.VITE_APP_MODE);
 
-/** 當前建置產物所屬的產品設定 */
-export const PRODUCT: ProductProfile = PROFILES[MODE];
+/**
+ * 當前建置產物所屬的產品設定。
+ *
+ * 這裡刻意**不寫成 `PROFILES[MODE]`**：那是執行期的查表，Rollup 無法證明另一個
+ * profile 用不到，於是兩份都會被打包進去 —— 專案 B 的產出物裡就會出現專案 A 的
+ * 品牌字串（「森心康 - 儿童发育评估系统」等等）。B 是交付給合作公司的，
+ * 檢視原始碼就看得到，這不可接受。
+ *
+ * 改成比對建置期常數之後，`import.meta.env.VITE_APP_MODE` 會在建置時被替換成
+ * 字面值，Rollup 能判定其中一個分支是死碼並整個移除。
+ * `test/brandIsolation.test.ts` 會擋住這一點被改回去。
+ */
+export const PRODUCT: ProductProfile =
+  import.meta.env.VITE_APP_MODE === 't1only' ? PROFILES.t1only : PROFILES.full;
+
+/**
+ * 建置期常數與執行期解析出來的模式必須一致 —— 上面那行若被改錯
+ * （例如比對成 `'t1_only'`），這裡會當場炸掉，而不是交出一份對錯參半的建置。
+ *
+ * ⚠️ **誠實的但書**：在正式建置中 Rollup 能把兩邊都摺疊成同一個字面值，
+ * 於是整段判斷連同 `resolveMode()` 的錯誤訊息都會被移除（實測：產出物裡
+ * 一個字都不剩）。所以**真正擋住打錯字的是 `vite.config.ts` 的
+ * `assertValidAppMode()`**，它在建置開始前就跑，實測 `VITE_APP_MODE=t1_only`
+ * 會讓建置 exit 1。這裡留著是為了本機開發與測試環境，不是最後一道防線。
+ */
+if (PRODUCT.mode !== MODE) {
+  throw new Error(
+    `產品設定與 VITE_APP_MODE 不一致：PRODUCT.mode=${PRODUCT.mode}，resolveMode()=${MODE}。`
+  );
+}

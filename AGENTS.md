@@ -95,3 +95,17 @@ pnpm run lint       # tsc --noEmit
 - Tailwind CSS 4 使用 `@theme` 指令定义设计令牌
 - 品牌色系： moss/forest/clay/cream/stone 等自然色调
 - 字体：Plus Jakarta Sans (正文) + Playfair Display (标题) + JetBrains Mono (代码)
+
+## Agent skills
+
+### Issue tracker
+
+议题追踪在 GitHub Issues（`111707006/SXK`），使用 `gh` CLI 操作。见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+沿用五个标准分诊标签，标签字串与角色同名。见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单一 context：根目录 `CONTEXT.md` 为词汇表，架构决定记于 `docs/adr/`。见 `docs/agents/domain.md`。

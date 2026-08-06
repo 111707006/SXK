@@ -108,6 +108,26 @@
    所有畫面是用一個臨時樁伺服器（已刪除）實際點過一輪的。
 2. 第一個全域管理員帳號要手動塞（見下方取捨）。
 
+## 部署順序（Render / 阿里雲皆同）
+
+⚠️ **遷移必須在部署新版程式碼之前跑完，順序反了會靜默壞掉家長註冊。**
+
+新版的 `createUser` 是 `INSERT INTO users (email, password, company_id)`。
+`company_id` 不存在時這句會失敗，而註冊路由會把 SQL 錯誤當成「資料庫不可用」
+退回記憶體模式，然後回 `{success: true}` —— 家長看到註冊成功、拿到 token，
+但帳號沒進資料庫，重啟就消失。不是報錯，是靜默資料遺失。
+
+1. 備份資料庫。
+2. 跑 `deploy/migrations/2026-08-06-project-b-multi-company.sql`。
+   結尾兩句驗證要分別回 `1` 與 `4`，沒有就別往下走。
+3. 確認該環境有 `SESSION_SECRET`。沒有的話 `/api/admin/*` 整組回 503
+   （`render.yaml` 是 `generateValue: true`，從 Blueprint 建的 service 已經有）。
+4. 合併到 `master`。Render 兩個 service（`sxk` / `sxk-t1`）都從預設分支自動部署。
+5. 手動建立第一個 `global_admin`（見下方取捨）。
+6. 在後台建立第一家合作公司，把 `/?c=<slug>` 連結交給對方。
+
+既有家長全部留在未歸屬（`company_id = NULL`），只有全域管理員看得到，不會消失。
+
 ## 交接時要知道的取捨
 
 - **匯出是「可列印 HTML → 瀏覽器另存為 PDF」，不是真的產生 PDF 檔。**

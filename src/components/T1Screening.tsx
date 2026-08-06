@@ -271,9 +271,15 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                   <div className="border-t border-brand-cream mt-2 pt-2 text-[10px] text-right flex items-center justify-between">
                     <span className="text-[9px] text-brand-charcoal/40">T1 基础评估层</span>
                     {(score.status === 'delay' || score.status === 'borderline') ? (
-                      <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
+                      // 顏色跟著等級走：紅＝高度、橘黃＝中度。先前兩級都是 rose，
+                      // 標籤改成「高度／中度警告」後那樣會自相矛盾。
+                      <span className={`font-extrabold flex items-center gap-0.5 ${
+                        score.status === 'delay' ? 'text-rose-600' : 'text-amber-600'
+                      }`}>
                         <AlertTriangle size={10} className="shrink-0" />
-                        {PRODUCT.nextStep.actionLabel}
+                        {score.status === 'delay'
+                          ? PRODUCT.nextStep.actionLabelHigh
+                          : PRODUCT.nextStep.actionLabelMedium}
                       </span>
                     ) : (
                       <span className="text-brand-moss font-medium">基本正常</span>
@@ -383,12 +389,12 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                     {idx + 1}
                   </span>
                   <div className="space-y-3.5 flex-1">
+                    {/*
+                      紅旗題不再掛徽章 —— 家長在答題當下看到「红旗警示指标」會緊張，
+                      而那個標記對他該怎麼作答沒有任何幫助。
+                      `q.isRedFlag` 仍然參與計分（見 handleSubmitT1），只是不顯示。
+                    */}
                     <h4 className="text-xs sm:text-sm font-semibold text-brand-forest leading-relaxed flex items-center flex-wrap gap-1.5">
-                      {q.isRedFlag && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-100 border border-rose-200 text-[9px] font-bold text-rose-700 rounded shadow-sm shrink-0">
-                          🚩 红旗警示指标
-                        </span>
-                      )}
                       <span>{q.text}</span>
                     </h4>
 

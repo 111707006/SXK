@@ -5,10 +5,9 @@ import {
   ArrowLeft, Brain, Sparkles, CheckCircle2, AlertTriangle, AlertCircle, 
   RefreshCw, Layers, ShieldAlert, Award, Compass, HeartHandshake, Printer,
   Activity, MessageSquare, Smile, BookOpen, Target, Home, Heart, Calendar, User, Phone, Check, Info,
-  ClipboardCheck, ArrowRight, Loader2, QrCode, Mic, ChevronRight
+  ClipboardCheck, Loader2, QrCode, Mic, ChevronRight
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
-import { DIMENSION_DETAILS } from '../dimensionContent';
 import { PRODUCT } from '../productConfig';
 import { peekDeviceId } from '../utils/deviceId';
 import {
@@ -169,8 +168,6 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'success'>('idle');
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState('');
-  const [activePill, setActivePill] = useState<string | null>(null);
-  const [showAllDomains, setShowAllDomains] = useState(false);
   const bookingSectionRef = useRef<HTMLDivElement>(null);
 
   // 名單是非同步來的，預設選擇不能寫死成 'spec-1' —— 那個 id 在合作公司的名單裡
@@ -533,7 +530,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <Award size={14} />
                 {isAiGenerated ? '神经网络康复AI大模型生成' : '深度特型匹配知识库组装'}
               </div>
-              <h2 className="text-xl font-bold text-brand-forest mt-1">T1 综合发展评估报告</h2>
+              <h2 className="text-xl font-bold text-brand-forest mt-1">儿童综合发展评估报告</h2>
             </div>
             <span className="text-[10px] text-brand-charcoal/50 text-right">监测号: SXK-{Date.now().toString().slice(-6)}</span>
           </div>
@@ -541,7 +538,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           {/* AI One-Sentence Summary */}
           <div className="bg-brand-sage/35 p-4.5 rounded-2xl border border-brand-stone/40">
             <h4 className="text-xs font-bold text-brand-forest flex items-center gap-1.5 mb-1.5">
-              <Compass size={14} /> 首席核心发育建议:
+              <Compass size={14} /> 首席专家建议:
             </h4>
             <p className="text-xs text-brand-charcoal leading-relaxed font-semibold">
               {aiReport.summary}
@@ -621,13 +618,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   statusBadge = "需关注";
                   badgeClass = "bg-rose-50 border-rose-200 text-rose-700 font-bold";
                   fillClass = "bg-rose-500";
-                  actionText = PRODUCT.nextStep.actionLabel;
+                  actionText = PRODUCT.nextStep.actionLabelHigh;
                   actionClass = "text-rose-600 font-bold";
                 } else if (concernScore >= 3) {
                   statusBadge = "需留意";
                   badgeClass = "bg-amber-50 border-amber-200 text-amber-700 font-bold";
                   fillClass = "bg-amber-500";
-                  actionText = PRODUCT.nextStep.actionLabel;
+                  actionText = PRODUCT.nextStep.actionLabelMedium;
                   actionClass = "text-amber-600 font-bold";
                 }
 
@@ -761,7 +758,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <div className="border-b border-brand-cream pb-2.5">
                   <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
                     <ClipboardCheck size={15} className="text-brand-moss" />
-                    重点问题标注 Key Findings - 雷达图分析
+                    9 大维度结论 —— 雷达图分析
                   </h3>
                   <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
                     共评测 9 项发育维度，检测到 <span className="font-bold text-rose-600">{attentionCount} 项</span> 需留意/关注领域（其中 <span className="font-bold text-rose-600">{redCount} 项</span> 需重点关注）
@@ -920,99 +917,6 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             );
           })()}
 
-          {/* SECTION 4: 标记领域说明（標題與建議量表區塊依 productConfig 切換） */}
-          <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">
-            <div className="border-b border-brand-cream pb-2.5">
-              <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
-                <BookOpen size={15} className="text-brand-moss" />
-                {PRODUCT.markedAreaSection.title}
-              </h3>
-              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">{PRODUCT.markedAreaSection.subtitle}</p>
-            </div>
-
-            <div className="space-y-4">
-              {(() => {
-                const filtered = DIMENSIONS_DATA.map(dim => {
-                  const s = completedScores.find(score => score.dimensionId === dim.id);
-                  const concernScore = s ? toConcernScore(s.score, s.maxScore) : 0;
-                  return { dim, s, concernScore };
-                });
-
-                const attentionItems = filtered.filter(item => item.concernScore >= 3);
-                const itemsToRender = showAllDomains || attentionItems.length === 0 ? filtered : attentionItems;
-
-                return (
-                  <>
-                    {itemsToRender.map(({ dim, s, concernScore }) => {
-                      const details = DIMENSION_DETAILS[dim.id];
-                      if (!details) return null;
-
-                      let statusLabel = "大致良好";
-                      let badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                      if (concernScore >= 5) {
-                        statusLabel = "需关注";
-                        badgeStyle = "bg-rose-50 text-rose-700 border-rose-200 font-bold";
-                      } else if (concernScore >= 3) {
-                        statusLabel = "需留意";
-                        badgeStyle = "bg-amber-50 text-amber-700 border-amber-200 font-bold";
-                      }
-
-                      return (
-                        <div key={dim.id} className="p-4 bg-brand-cream/5 border border-brand-stone/70 rounded-2xl space-y-3.5 shadow-sm hover:border-brand-moss/40 transition">
-                          <div className="flex items-center justify-between border-b border-brand-cream/40 pb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-extrabold text-sm text-brand-forest">{dim.name}</span>
-                              <span className={`text-[10px] px-2 py-0.5 rounded border ${badgeStyle}`}>{statusLabel}</span>
-                            </div>
-                            <span className="text-xs font-bold text-brand-forest/80">关注分: <strong className="text-brand-forest font-extrabold">{concernScore}</strong> / 8</span>
-                          </div>
-
-                          <div className="text-xs space-y-2.5">
-                            <div>
-                              <span className="font-bold text-brand-forest block text-[11px] mb-0.5">💡 这项能力:</span>
-                              <p className="text-brand-charcoal/80 leading-relaxed text-[11px]">{details.ability}</p>
-                            </div>
-                            <div>
-                              <span className="font-bold text-brand-forest block text-[11px] mb-0.5">🏡 家庭观察与居家干预建议:</span>
-                              <p className="text-brand-charcoal/80 leading-relaxed text-[11px]">{details.familyAdvice}</p>
-                            </div>
-                            {PRODUCT.markedAreaSection.scalesLabel !== null && (
-                              <div>
-                                <span className="font-bold text-brand-moss block text-[11px] mb-1.5">{PRODUCT.markedAreaSection.scalesLabel}</span>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {details.scales.map((scale, sIdx) => (
-                                    <span
-                                      key={sIdx}
-                                      className="px-2.5 py-1 bg-brand-sage/10 text-brand-forest border border-brand-moss/20 rounded-lg text-[10px] font-semibold flex items-center gap-1 hover:bg-brand-sage/20 transition cursor-default"
-                                    >
-                                      <span>{scale}</span>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {attentionItems.length > 0 && (
-                      <div className="flex justify-center pt-2">
-                        <button
-                          onClick={() => setShowAllDomains(!showAllDomains)}
-                          className="px-5 py-2.5 bg-brand-forest text-white hover:bg-brand-forest/90 text-xs font-extrabold rounded-full shadow-md transition transform active:scale-95 cursor-pointer flex items-center gap-1.5"
-                        >
-                          {showAllDomains ? "收起展示" : `显示全部 9 项领域 (${filtered.length}项)`}
-                          <ArrowRight size={14} className={showAllDomains ? "rotate-270" : "rotate-90"} />
-                        </button>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-
           {/*
             語言專項評估的入口。
             這個元件（2,388 行）先前**全庫沒有任何按鈕能開啟它** —— `onGoToLanguageSpecial`
@@ -1052,7 +956,6 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <Activity size={15} className="text-brand-moss animate-pulse" />
                 发育进度对比 (与同龄儿童发育水平比较)
               </h3>
-              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">根据多维前额叶突触联动效率推算的相对发育百分位坐标</p>
             </div>
 
             <div className="py-2">
@@ -1106,171 +1009,17 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             </div>
           </div>
 
-          {/* New Visual Section 2: Developmental Shortcomings & Factor Distribution (Donut Chart & Pills, Inspired by Attachment) */}
-          <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">
-            <div className="border-b border-brand-cream pb-2.5">
-              <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
-                <Layers size={15} className="text-brand-moss" />
-                发育因子分布 (多维神经环路强弱分布)
-              </h3>
-              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">点击下方气泡胶囊，可动态解锁各神经纤维因子的专业建议</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-              {/* Left Column: SVG Donut Chart */}
-              <div className="md:col-span-5 flex flex-col items-center justify-center p-4 bg-brand-cream/10 rounded-2xl border border-brand-stone/40">
-                <div className="relative w-36 h-36 flex items-center justify-center">
-                  <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-                    {/* Background track circle */}
-                    <circle cx="50" cy="50" r="40" className="stroke-brand-stone/20 stroke-[10] fill-none" />
-                    
-                    {/* Sage Segment for Normal */}
-                    <circle 
-                      cx="50" 
-                      cy="50" 
-                      r="40" 
-                      className="stroke-brand-moss stroke-[10] fill-none transition-all duration-500" 
-                      strokeDasharray={`${(completedScores.filter(s => s.status === 'normal').length / completedScores.length * 251.3) || 0} 251.3`}
-                      strokeDashoffset={0}
-                    />
-                    
-                    {/* Clay Segment for Borderline */}
-                    <circle 
-                      cx="50" 
-                      cy="50" 
-                      r="40" 
-                      className="stroke-brand-clay stroke-[10] fill-none transition-all duration-500" 
-                      strokeDasharray={`${(completedScores.filter(s => s.status === 'borderline').length / completedScores.length * 251.3) || 0} 251.3`}
-                      strokeDashoffset={`-${(completedScores.filter(s => s.status === 'normal').length / completedScores.length * 251.3) || 0}`}
-                    />
-
-                    {/* Rose Segment for Delay */}
-                    <circle 
-                      cx="50" 
-                      cy="50" 
-                      r="40" 
-                      className="stroke-rose-500 stroke-[10] fill-none transition-all duration-500" 
-                      strokeDasharray={`${(completedScores.filter(s => s.status === 'delay').length / completedScores.length * 251.3) || 0} 251.3`}
-                      strokeDashoffset={`-${((completedScores.filter(s => s.status === 'normal').length + completedScores.filter(s => s.status === 'borderline').length) / completedScores.length * 251.3) || 0}`}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <span className="text-xl font-extrabold text-brand-forest">{completedScores.length}</span>
-                    <span className="text-[9px] text-brand-charcoal/50 font-bold leading-none mt-0.5">测查维度总数</span>
-                  </div>
-                </div>
-                
-                <div className="flex justify-center gap-3 text-[9px] font-bold text-brand-charcoal/70 mt-3 flex-wrap">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-brand-moss" /> 健康 ({completedScores.filter(s => s.status === 'normal').length})
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-brand-clay" /> 临界 ({completedScores.filter(s => s.status === 'borderline').length})
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" /> 滞后 ({completedScores.filter(s => s.status === 'delay').length})
-                  </span>
-                </div>
-              </div>
-
-              {/* Right Column: Bubble Pills List matching attachment */}
-              <div className="md:col-span-7 space-y-4">
-                <div>
-                  <span className="text-[11px] font-bold text-brand-clay block mb-1.5 flex items-center gap-1">
-                    <AlertTriangle size={12} className="text-brand-clay" />
-                    建议重点关注/稍低的因子 (粉红色高亮气泡):
-                  </span>
-                  {[...completedScores.filter(s => s.status === 'delay'), ...completedScores.filter(s => s.status === 'borderline')].length === 0 ? (
-                    <p className="text-[10px] text-brand-charcoal/60 bg-brand-sage/10 p-2 rounded-xl border border-brand-moss/20">🎉 太棒了，未检测到任何落后或临界的发育阻滞因子！</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {[...completedScores.filter(s => s.status === 'delay'), ...completedScores.filter(s => s.status === 'borderline')].map((score) => (
-                        <button
-                          key={`${score.dimensionId}-${score.tierId}`}
-                          onClick={() => setActivePill(activePill === score.dimensionId ? null : score.dimensionId)}
-                          className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition duration-150 flex items-center gap-1 cursor-pointer active:scale-95 ${
-                            score.status === 'delay' 
-                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200' 
-                              : 'bg-brand-sand/50 hover:bg-brand-sand/80 text-brand-clay border-brand-clay/30'
-                          } ${activePill === score.dimensionId ? 'ring-2 ring-brand-forest' : ''}`}
-                        >
-                          <span>{score.dimensionName}</span>
-                          <span className="text-[9px] font-normal opacity-85">({score.score}/{score.maxScore})</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <span className="text-[11px] font-bold text-brand-forest block mb-1.5 flex items-center gap-1">
-                    <CheckCircle2 size={12} className="text-brand-moss" />
-                    已掌握良好的因子 (绿色平稳气泡):
-                  </span>
-                  {completedScores.filter(s => s.status === 'normal').length === 0 ? (
-                    <p className="text-[10px] text-brand-charcoal/60 bg-rose-50/10 p-2 rounded-xl border border-rose-200/20">暂未包含普通/健康区间的测查因子，请配合行事历开展针对训练。</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {completedScores.filter(s => s.status === 'normal').map((score) => (
-                        <button
-                          key={`${score.dimensionId}-${score.tierId}`}
-                          onClick={() => setActivePill(activePill === score.dimensionId ? null : score.dimensionId)}
-                          className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition duration-150 flex items-center gap-1 cursor-pointer active:scale-95 bg-brand-sage/20 hover:bg-brand-sage/30 text-brand-forest border-brand-moss/20 ${
-                            activePill === score.dimensionId ? 'ring-2 ring-brand-forest' : ''
-                          }`}
-                        >
-                          <span>{score.dimensionName}</span>
-                          <span className="text-[9px] font-normal opacity-85">({score.score}/{score.maxScore})</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Dynamic details drawer */}
-                {activePill && (() => {
-                  const selectedScore = completedScores.find(s => s.dimensionId === activePill);
-                  if (!selectedScore) return null;
-                  return (
-                    <div className="bg-brand-cream/30 border border-brand-stone/60 rounded-xl p-3 text-[11px] text-brand-charcoal animate-fade-in space-y-1">
-                      <div className="flex justify-between items-center border-b border-brand-stone/20 pb-1 mb-1.5">
-                        <span className="font-bold text-brand-forest">{selectedScore.dimensionName} 脑中枢协同性</span>
-                        <span className="text-[9px] bg-brand-cream border border-brand-stone/40 px-1.5 py-0.5 rounded font-extrabold font-sans">
-                          得分率: {Math.round((selectedScore.score / selectedScore.maxScore) * 100)}%
-                        </span>
-                      </div>
-                      <p className="leading-relaxed">
-                        {selectedScore.status === 'delay' 
-                          ? '【评估建议】突触髓鞘化发育稍显阻滞。每天上午是该环路神经兴奋度的黄金干预窗口，请通过阻力器抓握或大面积重力牵拉以强化皮层下行传导。' 
-                          : selectedScore.status === 'borderline' 
-                          ? '【评估建议】处于边缘适应期。可塑性极大，日常增加游戏交互的注意力配给、多感官穿梭，能在一周内拉回标准安全发育带。' 
-                          : '【评估建议】通路状态平稳、健康。该脑网络的神经突触剪切状态完好，可在维持现有居家陪伴质量的同时开展进一步认知拓展。'}
-                      </p>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-
           {/* 1. Circular Dial Gauges for Critical Brain Indices */}
           <IntegrationGauges criticalMetrics={aiReport.criticalMetrics} />
 
           {/* 2. Interactive Synaptic Connection Topology Diagram & Pathway Analysis */}
+          {/*
+            拓撲圖底下原本還有一段「脑突触剪切与微环路协同性分析」總覽敘述，
+            依客戶需求移除 —— 那段是寫給臨床看的神經生理術語，家長讀不出行動。
+            `aiReport.neuralPathwayAnalysis` 仍由後端產生並保留在型別裡，只是不再渲染。
+          */}
           <div className="space-y-4">
             <NeuralNetworkTopology completedScores={completedScores} />
-            
-            <div className="bg-brand-cream/35 p-4 rounded-2xl border border-brand-stone/50 text-left">
-              <span className="text-[10px] font-bold text-brand-forest uppercase tracking-wider flex items-center gap-1 mb-1.5">
-                <Sparkles size={11} className="text-brand-moss animate-pulse" />
-                脑突触剪切与微环路协同性分析 (系统总览):
-              </span>
-              <p className="text-xs text-brand-charcoal leading-relaxed font-medium">
-                {aiReport.neuralPathwayAnalysis}
-              </p>
-            </div>
-
-
           </div>
 
           {/* 4. Smooth trajectory 3-month forecast line-graph & Prognosis Narrative */}

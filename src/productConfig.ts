@@ -89,8 +89,18 @@ export interface ProductProfile {
 
   /** 篩查完成後的引導 */
   nextStep: {
-    /** 報告中每個維度旁的行動標籤 */
-    actionLabel: string;
+    /**
+     * 報告中每個維度旁的行動標籤，依嚴重度分成兩個。
+     *
+     * 拆成兩個是因為專案 B 的標籤本身就是警示等級（紅＝高度、橘黃＝中度），
+     * 一個字串無法同時扮演兩級。專案 A 的標籤是「去哪裡」而不是「多嚴重」，
+     * 兩級填同一個值即可 —— 不必為了對稱硬掰出兩種說法。
+     *
+     * High：關注分 ≥ 5 / 狀態 `delay`（紅）
+     * Medium：關注分 3–4 / 狀態 `borderline`（橘黃）
+     */
+    actionLabelHigh: string;
+    actionLabelMedium: string;
     /** 有維度亮紅燈時，報告頂部的警示句 */
     alertText: string;
     /** 圖例：黃燈（需留意）的行動提示 */
@@ -105,17 +115,6 @@ export interface ProductProfile {
     screeningResultAllClear: string;
     /** 點擊維度卡片後的去向 */
     action: NextStepAction;
-  };
-
-  /** 報告中「標記領域說明」區塊（原 SECTION 4） */
-  markedAreaSection: {
-    title: string;
-    subtitle: string;
-    /**
-     * 建議量表子區塊的標題。`null` 代表這個產品不顯示該子區塊 ——
-     * 用「有沒有標題」單一事實決定顯示與否，避免旗標與文案各說各話。
-     */
-    scalesLabel: string | null;
   };
 
   /** 評估面板（dashboard）上的文案 */
@@ -175,7 +174,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     mode: 'full',
     brand: {
       documentTitle: '森心康 - 儿童发育评估系统',
-      headerTitle: '森心康儿童发展评估',
+      headerTitle: '森心康儿童综合发展评估',
       welcomeName: '森心康',
       reportTitle: '森心康 AI 神经网络分层评估报告生成器',
       systemName: '森心康（SenXinKang）儿童数字测听与康复分层评估系统',
@@ -192,7 +191,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       className: 'bg-brand-sage/40 text-brand-forest border-brand-stone/50',
     },
     nextStep: {
-      actionLabel: '第二层评估',
+      actionLabelHigh: '第二层评估',
+      actionLabelMedium: '第二层评估',
       alertText: '建议尽快进入第二层「量表评估中心」。',
       legendAttentionHint: '进入第二层评估',
       legendConcernHint: '建议进入第二层评估',
@@ -201,15 +201,10 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       screeningResultAllClear: '基本发育水平良好。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，您亦可点击下方一键对接 AI 判读建档并视情探索 T2/T3 检测。',
       action: 'goto_tier2',
     },
-    markedAreaSection: {
-      title: '标记领域说明与第二层建议量表',
-      subtitle: '针对有延迟风险的领域，提供深度评测指导及临床建议推荐量表',
-      scalesLabel: '📋 第二层（量表评估中心）建议量表与发展特训:',
-    },
     dashboard: {
       stepTwoHint: '点击高亮的黄色 / 红色维度卡片，进入 T2、T3 深度测评',
       stepTwoIsPaid: true,
-      screeningIntro: '根据孩子年龄段自适应匹配 36 题 ASQ-3/M-CHAT 问卷。完成基本评估后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。',
+      screeningIntro: 'T1 评估 36 题依据 HELP、儿童发展学、神经科学、语言科学综合而来。完成基本评估后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。',
       gridHintCompleted: '以下为 9 维 T1 评估结果。点击标有黄色/红色警告的维度卡片，直接推进 T2 问卷 与 T3 专项检测！',
       dimensionCardSubLabel: 'T2 自评量表 + T3 专项上传',
       dimensionCardHint: '点击进入本维度测定',
@@ -236,7 +231,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     // 而且備案與資料掌管方仍是森心康，掛對方的名字反而與事實不符。
     brand: {
       documentTitle: '儿童发育评估系统',
-      headerTitle: '儿童发展评估',
+      headerTitle: '儿童综合发展评估',
       welcomeName: null,
       reportTitle: 'AI 神经网络分层评估报告生成器',
       systemName: '本儿童数字测听与康复分层评估系统',
@@ -253,24 +248,22 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       className: 'bg-amber-400 text-brand-forest border-amber-500',
     },
     nextStep: {
-      actionLabel: '联系专家',
+      actionLabelHigh: '高度警告',
+      actionLabelMedium: '中度警告',
       alertText: '建议尽快联系专家进行一对一说明。',
-      legendAttentionHint: '可联系专家咨询',
-      legendConcernHint: '建议尽快联系专家',
+      // 圖例就在九維卡片正下方，跟卡片右下角的行動標籤是同一組語彙 ——
+      // 卡片改成「中度／高度警告」之後，圖例還寫「联系专家」等於同一頁兩套講法。
+      legendAttentionHint: '中度警告',
+      legendConcernHint: '高度警告',
       finishButtonLabel: '一键生成 AI 发展报告',
       screeningResultWithFindings: '为了更清楚了解孩子在这些维度上的发展状况，建议生成完整 AI 发展报告，并就标记的维度联系专家进行一对一说明。',
       screeningResultAllClear: '基本发育水平良好。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，可点击下方生成完整 AI 发展报告。',
       action: 'contact_expert',
     },
-    markedAreaSection: {
-      title: '标记领域说明与专家咨询方向',
-      subtitle: '针对有延迟风险的领域，提供居家观察建议与专家咨询方向',
-      scalesLabel: null,
-    },
     dashboard: {
       stepTwoHint: '查看 AI 发展报告，如有需要留意的维度，可联系专家一对一说明',
       stepTwoIsPaid: false,
-      screeningIntro: '根据孩子年龄段自适应匹配 36 题 ASQ-3/M-CHAT 问卷。完成后即时生成 AI 发展报告，涵盖全部 9 个维度的发展状况与居家观察建议。',
+      screeningIntro: 'T1 评估 36 题依据 HELP、儿童发展学、神经科学、语言科学综合而来，完成答题后生成 AI 发展报告，涵盖 9 个维度发展情况分析与建议。',
       gridHintCompleted: '以下为 9 维 T1 评估结果。点击上方「生成全维 AI 深度评估报告」查看完整解读与专家咨询方向。',
       dimensionCardSubLabel: null,
       dimensionCardHint: '点击联系专家说明',

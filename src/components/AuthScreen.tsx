@@ -169,9 +169,6 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
           <h2 className="text-xl font-black text-brand-forest tracking-tight">
             {PRODUCT.brand.headerTitle}
           </h2>
-          <p className="text-xs text-brand-charcoal/60 leading-relaxed font-medium">
-            9维3层多感官脑发育神经网络数字评估与分层评估系统
-          </p>
         </div>
 
         {/* Tab Selection */}

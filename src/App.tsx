@@ -527,7 +527,6 @@ export default function App() {
                 </span>
               </div>
               <div className="text-[10px] text-brand-charcoal/60 font-medium flex items-center gap-1.5 mt-0.5">
-                <span>9维3层神经网络AI多模分析 · 综合评估孩子发展现况</span>
                 {syncing && <span className="text-brand-moss animate-spin text-[11px]" title="正在云端保存中...">⏳</span>}
                 {syncError && <span className="text-red-500 text-[9px] font-bold" title={syncError}>⚠️ 同步失败</span>}
               </div>
@@ -810,7 +809,7 @@ export default function App() {
           <div className="py-12 animate-fade-in text-center w-full">
             <h2 className="text-2xl md:text-3xl font-black text-brand-forest tracking-tight max-w-lg mx-auto leading-tight mb-4">
               {/* 專案 B 的 welcomeName 是 null —— 整個強調 span 不渲染，不是留一個空的 */}
-              欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span></>} 儿童数字测听与康复分层评估系统
+              欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span> </>}儿童综合发展评估
             </h2>
             <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
               您的账户 (<span className="font-bold text-brand-forest">{userEmail}</span>) 已成功连线。为了开启全方位脑功能评估，请填写您孩子的基本信息，登记创建成长档案。
@@ -833,7 +832,7 @@ export default function App() {
                       儿童生长发育评定专家
                     </span>
                     <h2 className="text-2xl md:text-3xl font-black font-sans leading-tight">
-                      儿童神经网络分层发展综合评估
+                      儿童神经网络综合发展评估
                     </h2>
                     <div className="flex flex-col gap-1">
                       <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">1</span>点击「启动 T1 综合评估」，完成基础评估</p>
@@ -967,7 +966,7 @@ export default function App() {
                             <Layers size={16} />
                           </div>
                           <div>
-                            <h3 className="text-sm font-black text-brand-charcoal">T1 综合发展评估报告</h3>
+                            <h3 className="text-sm font-black text-brand-charcoal">儿童综合发展评估报告</h3>
                             <p className="text-[10px] text-brand-charcoal/50">9维度多感官神经网络基础评估</p>
                           </div>
                         </div>
@@ -1020,7 +1019,7 @@ export default function App() {
                                         查看报告 <ChevronRight size={10} />
                                       </span>
                                     </div>
-                                    <h5 className="text-xs font-bold text-brand-charcoal mt-1">T1 综合发展评估报告</h5>
+                                    <h5 className="text-xs font-bold text-brand-charcoal mt-1">儿童综合发展评估报告</h5>
                                     <div className="flex items-center gap-2 mt-2">
                                       <span className="text-[10px] bg-red-50 text-red-600 border border-red-100 rounded px-1.5 font-medium">
                                         迟缓维度: {delayCount}

@@ -39,7 +39,7 @@ const js = readFileSync(join(ASSETS_DIR, mainChunk), 'utf8');
 /** 專案 A 的品牌設定值，逐字取自 productConfig.ts 的 full profile。 */
 const PROJECT_A_BRAND = [
   '森心康 - 儿童发育评估系统',
-  '森心康儿童发展评估',
+  '森心康儿童综合发展评估',
   '森心康 AI 神经网络分层评估报告生成器',
   '森心康（SenXinKang）技术实验室',
   '© 2026 森心康（SenXinKang）神经网络科学技术实验室',

@@ -28,6 +28,7 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const MIGRATION = path.join(HERE, 'migrations', '2026-08-06-project-b-multi-company.sql');
 
 const confirm = process.argv.includes('--confirm');
+const listOnly = process.argv.includes('--list');
 
 const cfg = {
   host: process.env.MYSQL_HOST,
@@ -38,9 +39,35 @@ const cfg = {
   multipleStatements: false,
 };
 
-if (!cfg.host || !cfg.user || !cfg.password || !cfg.database) {
+if (!cfg.host || !cfg.user || !cfg.password || (!cfg.database && !listOnly)) {
   console.error('✗ 找不到完整的 MYSQL_* 連線資訊（需要 HOST / USER / PASSWORD / DATABASE）。');
   process.exit(1);
+}
+
+/**
+ * `--list`：這個帳號看得到哪些資料庫。
+ *
+ * 存在的理由是 ER_DBACCESS_DENIED_ERROR 分不出「不存在」與「沒權限」。
+ * `SHOW DATABASES` 只列出這個帳號有權限的庫，所以名字在清單裡就是權限問題、
+ * 不在就是還沒建立（或連看的權限都沒有）。**刻意不指定 database 就連線**，
+ * 否則會在同一個地方以同一個錯誤失敗。
+ */
+async function listDatabases() {
+  const { database, ...noDb } = cfg;
+  const conn = await mysql.createConnection(noDb);
+  const [rows] = await conn.query('SHOW DATABASES');
+  await conn.end();
+
+  const names = rows.map(r => Object.values(r)[0]);
+  const system = new Set(['information_schema', 'performance_schema', 'mysql', 'sys']);
+  const own = names.filter(n => !system.has(n));
+
+  console.log('');
+  console.log(`  ${cfg.user}@${cfg.host} 看得到的資料庫`);
+  console.log('');
+  if (own.length === 0) console.log('    （一個都沒有）');
+  else for (const n of own) console.log(`    ${n}`);
+  console.log('');
 }
 
 /**
@@ -72,6 +99,11 @@ function short(sql) {
 }
 
 async function main() {
+  if (listOnly) {
+    await listDatabases();
+    return;
+  }
+
   console.log('');
   console.log('  目標資料庫');
   console.log(`    主機　　 ${cfg.host}:${cfg.port}`);
@@ -155,8 +187,42 @@ async function main() {
   process.exit(ok ? 0 : 1);
 }
 
+/**
+ * 失敗的原因分開講。
+ *
+ * 原本這裡不管什麼錯都印「白名單沒放行你的 IP」，而 ER_DBACCESS_DENIED_ERROR
+ * 其實代表連線與帳密都成功了 —— 把人送去查防火牆，問題卻在權限。
+ * 一個猜錯方向的錯誤訊息比沒有訊息更花時間。
+ */
+function explain(err) {
+  switch (err.code) {
+    case 'ER_DBACCESS_DENIED_ERROR':
+      return [
+        '連線與帳號密碼都是對的，但這個帳號用不了那個資料庫。',
+        'MySQL 對「資料庫不存在」與「沒有權限」刻意回同一個錯誤（不讓人探測有哪些庫），',
+        '所以這兩種可能現在分不出來。跑這行看這個帳號看得到哪些資料庫：',
+        '',
+        '    node deploy/migrate.mjs --list',
+      ];
+    case 'ER_ACCESS_DENIED_ERROR':
+      return ['帳號或密碼不對。檢查 MYSQL_USER / MYSQL_PASSWORD。'];
+    case 'ER_BAD_DB_ERROR':
+      return ['這個資料庫不存在，需要先建立。'];
+    case 'ETIMEDOUT':
+    case 'ECONNREFUSED':
+    case 'ENOTFOUND':
+      return [
+        '連不上主機。常見原因：RDS 白名單沒有放行你目前的公網 IP、',
+        'MYSQL_HOST 打錯，或這台機器連不到外網。',
+      ];
+    default:
+      return [];
+  }
+}
+
 main().catch(err => {
-  console.error(`\n  ✗ 連不上資料庫：${err.code || ''} ${err.message}`);
-  console.error('  常見原因：RDS 白名單沒有放行你目前的 IP、或連線資訊打錯。\n');
+  console.error(`\n  ✗ ${err.code || ''} ${err.message}\n`);
+  for (const line of explain(err)) console.error(`  ${line}`);
+  console.error('');
   process.exit(1);
 });

@@ -70,10 +70,116 @@ export async function findUserByEmail(email: string): Promise<any | null> {
   return (rows as any[])[0] || null;
 }
 
-export async function createUser(email: string, password: string): Promise<void> {
+/**
+ * 建立家長帳號，並在此刻**一次性**寫入歸屬。
+ *
+ * `companyId` 只在這裡寫得進去。歸屬「註冊時綁定、此後不變」不是靠一條紀律
+ * 維持的，而是靠沒有第二個地方改得到它 —— 已註冊的家長再從別家公司的連結
+ * 進站時，`createUser` 根本不會被呼叫，於是歸屬自然不動。
+ */
+export async function createUser(
+  email: string,
+  password: string,
+  companyId: number | null = null
+): Promise<void> {
   const p = getPool();
   if (!p) throw new Error('MySQL not configured');
-  await p.execute('INSERT INTO users (email, password) VALUES (?, ?)', [email, password]);
+  await p.execute('INSERT INTO users (email, password, company_id) VALUES (?, ?, ?)', [
+    email,
+    password,
+    companyId,
+  ]);
+}
+
+// ---- Partner company (project B multi-company) ----
+
+export interface CompanyRow {
+  id: number;
+  name: string;
+  slug: string;
+  wecomWebhookUrl: string | null;
+  active: boolean;
+}
+
+function toCompanyRow(row: any): CompanyRow {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    slug: row.slug,
+    wecomWebhookUrl: row.wecom_webhook_url ?? null,
+    active: Number(row.active) === 1,
+  };
+}
+
+/**
+ * 依進站識別碼找合作公司。找不到或已停用一律回 `null`。
+ *
+ * 呼叫端拿到 `null` 時**必須讓歸屬留空**，不可退回任何預設公司 ——
+ * 打錯一個字元就把一位家長的孩子的健康資料送給錯的機構。
+ */
+export async function findCompanyBySlug(slug: string): Promise<CompanyRow | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute('SELECT * FROM companies WHERE slug = ? AND active = 1 LIMIT 1', [slug]);
+  const row = (rows as any[])[0];
+  return row ? toCompanyRow(row) : null;
+}
+
+/** 家長所屬公司（含通知位置）。未歸屬回 `null`。 */
+export async function findCompanyByUserId(userId: number): Promise<CompanyRow | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    `SELECT c.* FROM companies c JOIN users u ON u.company_id = c.id WHERE u.id = ? LIMIT 1`,
+    [userId]
+  );
+  const row = (rows as any[])[0];
+  return row ? toCompanyRow(row) : null;
+}
+
+// ---- Specialists (project B multi-company) ----
+
+export interface SpecialistRow {
+  id: number;
+  name: string;
+  title: string | null;
+  specialty: string | null;
+  experience: string | null;
+  avatarUrl: string | null;
+  slots: string[];
+}
+
+/**
+ * 某家公司**啟用中**的專家。家長端只走這一條路。
+ *
+ * `company_id` 是必要參數而非選填：沒有公司就沒有專家可看，而一個「不帶公司
+ * 就回全部」的預設值會讓未歸屬的家長看到別家公司的醫師名單。
+ */
+export async function listActiveSpecialists(companyId: number): Promise<SpecialistRow[]> {
+  const p = getPool();
+  if (!p) return [];
+  const [rows] = await p.execute(
+    'SELECT * FROM specialists WHERE company_id = ? AND active = 1 ORDER BY id ASC',
+    [companyId]
+  );
+  return (rows as any[]).map(r => ({
+    id: Number(r.id),
+    name: r.name,
+    title: r.title ?? null,
+    specialty: r.specialty ?? null,
+    experience: r.experience ?? null,
+    avatarUrl: r.avatar_url ?? null,
+    slots: typeof r.slots === 'string' ? safeJsonArray(r.slots) : Array.isArray(r.slots) ? r.slots : [],
+  }));
+}
+
+function safeJsonArray(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function updateUserPassword(email: string, password: string): Promise<void> {

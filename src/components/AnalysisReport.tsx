@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Child, DimensionScore, AssessmentRecord } from '../types';
 import { formatAge } from '../utils/dateUtils';
 import { 
@@ -11,16 +11,28 @@ import { DIMENSIONS_DATA } from '../data';
 import { DIMENSION_DETAILS } from '../dimensionContent';
 import { PRODUCT } from '../productConfig';
 import { peekDeviceId } from '../utils/deviceId';
+import {
+  emptySpecialistsMessage,
+  useReportSpecialists,
+  type ReportSpecialist,
+} from '../utils/specialists';
 import { 
   IntegrationGauges, NeuralNetworkTopology, WeeklyRehabPlanner, PrognosisTrajectoryChart 
 } from './ReportCharts';
 
-const SPECIALISTS = [
+/**
+ * 森心康自己的三位專家 —— **只有專案 A 用得到**。
+ *
+ * 專案 B 的每一家合作公司自備專家，名單改由 `/api/specialists` 依家長的歸屬
+ * 供應（見 `utils/specialists.ts`）。這份常數在 B 的建置裡不會被讀到，
+ * 也不會退回來當備援：那會讓合作公司的家長看到三位森心康醫師的姓名與照片。
+ */
+const BUILTIN_SPECIALISTS: ReportSpecialist[] = [
   {
     id: 'spec-1',
     name: '王素娟',
     title: '儿童专科医院 副主任医师',
-    avatar: '/expert-wang.jpg',
+    avatarUrl: '/expert-wang.jpg',
     specialty: '儿童脑瘫的系统管理与康复、脑损伤后遗症的全面康复干预、高危新生儿的长期随访与发育监测、学习障碍、阅读障碍、书写障碍等发育障碍的康复治疗。',
     experience: '从业30年，复旦大学附属儿科医院，中国康复医学会康复评定专委会委员，中国妇幼保健协会高危儿专业委员',
     slots: ['周四上午', '周五下午', '周六上午']
@@ -29,7 +41,7 @@ const SPECIALISTS = [
     id: 'spec-2',
     name: '何明哲',
     title: '国家合格康复督导师',
-    avatar: '/expert-he.jpg',
+    avatarUrl: '/expert-he.jpg',
     specialty: '儿童作业、心理、多动症、自闭症、学习障碍、言语功能等干预训练，儿童发育迟缓调整训练。',
     // 品牌職稱那一句由 PRODUCT.brand.bioClause 提供，B 為 null 即整段不出現。
     // 其餘資歷一字不動 —— 這是真人的簡歷，能省略但不能改寫。
@@ -40,12 +52,53 @@ const SPECIALISTS = [
     id: 'spec-3',
     name: '张厚亮',
     title: '神经内科医学博士、院长',
-    avatar: '/expert-zhang.png',
+    avatarUrl: '/expert-zhang.png',
     specialty: '神经内科医学、脑神经专家、神经内科疑难杂症干细胞修复治疗、功能医学辅助神经康复。',
     experience: '26 年神经系统疾病临床诊疗经验，美年大健康门诊部院长，华山医院神经内科、中心医院神经内科、上海新起点康复医院副院长',
     slots: ['周三上午', '周五上午', '周日上午']
   }
 ];
+
+/**
+ * 可預約日期的計算。
+ *
+ * 【為什麼不寫死】原本這裡是 `min="2026-07-09" max="2026-07-30"`，預設值 `2026-07-13`。
+ * 寫死的日期區間一定會過期，而過期的樣子很安靜：日曆上一個可選的日期都沒有，
+ * 預設值卻仍停在 7/13，於是每一筆送出的預約都寫著四週前的時段
+ * （`preferredSlot` 是 `${bookingDate} ${selectedSlot}` 直接組出來的）。
+ * 專案 B 沒有付費層，這張表單就是它唯一的轉換點 —— 它壞掉不會有人回報，
+ * 只會表現成「都沒有人來預約」。
+ */
+function bookingDayOffset(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  // 刻意不用 toISOString()：那是 UTC，在東八區會把當地凌晨算成前一天。
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** 沒有照片時的替代標記 —— 合作公司多半不會有每位治療師的沙龍照。 */
+function SpecialistAvatar({ spec, size }: { spec: ReportSpecialist; size: number }) {
+  if (spec.avatarUrl) {
+    return (
+      <img
+        src={spec.avatarUrl}
+        alt={spec.name}
+        referrerPolicy="no-referrer"
+        className="rounded-full object-cover border border-brand-stone/80"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className="rounded-full bg-brand-sage/30 border border-brand-stone/80 flex items-center justify-center text-brand-forest font-bold"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
+    >
+      {spec.name.slice(0, 1)}
+    </div>
+  );
+}
 
 const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => {
   switch (name) {
@@ -103,9 +156,14 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   }, [historicalRecord]);
 
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [selectedSpecialist, setSelectedSpecialist] = useState<string>('spec-1');
+  // 專案 A 是內建的三位；專案 B 是這位家長所屬合作公司的專家。
+  const { specialists, reason: specialistsReason } = useReportSpecialists(BUILTIN_SPECIALISTS);
+  const [selectedSpecialist, setSelectedSpecialist] = useState<string>('');
+  const currentSpecialist = specialists.find(s => s.id === selectedSpecialist) ?? null;
   const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [bookingDate, setBookingDate] = useState<string>('2026-07-13');
+  // 從明天起算 30 天。專家要有時間排班，所以不開放今天。
+  const bookingWindow = useMemo(() => ({ min: bookingDayOffset(1), max: bookingDayOffset(30) }), []);
+  const [bookingDate, setBookingDate] = useState<string>(() => bookingDayOffset(1));
   const [parentName, setParentName] = useState<string>('');
   const [parentPhone, setParentPhone] = useState<string>('');
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'success'>('idle');
@@ -114,6 +172,32 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [activePill, setActivePill] = useState<string | null>(null);
   const [showAllDomains, setShowAllDomains] = useState(false);
   const bookingSectionRef = useRef<HTMLDivElement>(null);
+
+  // 名單是非同步來的，預設選擇不能寫死成 'spec-1' —— 那個 id 在合作公司的名單裡
+  // 根本不存在，會讓「已選定」與「選了一個不存在的人」長得一模一樣。
+  //
+  // 比對在 effect 裡直接做，**不放進 setState 的 updater**：updater 必須是純函式，
+  // React 會在 StrictMode 下重複呼叫、也可能在並行渲染時丟棄後重跑，在裡面順手
+  // 改另一個 state 遲早會產生只在特定排程下重現的錯誤狀態。
+  useEffect(() => {
+    if (specialists.length === 0) {
+      setSelectedSpecialist('');
+      setSelectedSlot('');
+      return;
+    }
+    // 目前選的人還在新名單裡就不要動他 —— 名單重新抓取不該把使用者選到一半的
+    // 預約洗掉。不在了才換成第一位，並清掉屬於前一位的時段。
+    setSelectedSpecialist(prev => {
+      if (specialists.some(s => s.id === prev)) return prev;
+      return specialists[0].id;
+    });
+    if (!specialists.some(s => s.id === selectedSpecialist)) {
+      setSelectedSlot('');
+    }
+    // selectedSpecialist 刻意不在依賴裡：這個 effect 是「名單變了要不要改選擇」，
+    // 把它加進去會在每次使用者換人時多跑一輪，並在名單沒變時清掉剛選的時段。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [specialists]);
 
   // 專案 B 從維度卡片進來時捲到專家預約區塊。
   // 必須等 aiReport 就緒 —— 該區塊在 `{aiReport && ...}` 裡面，報告還在載入時
@@ -157,7 +241,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         },
         body: JSON.stringify({
           specialistId: selectedSpecialist,
-          specialistName: SPECIALISTS.find(s => s.id === selectedSpecialist)?.name,
+          specialistName: currentSpecialist?.name,
           parentName: parentName.trim(),
           parentPhone: parentPhone.trim(),
           childAgeMonth: child.ageMonth,
@@ -1208,11 +1292,27 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <div className="space-y-4 pt-4 border-t border-brand-cream/80">
             <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} />
             
-            {/* Highly visual Online Appointment Booking CTA card */}
+            {/*
+              沒有可預約的專家時，這裡**不出現空白的預約區塊**，而是說清楚為什麼。
+              一顆按不出東西的「立即預約」比沒有按鈕更糟：家長會以為是自己操作錯了。
+            */}
+            {specialists.length === 0 ? (
+              <div ref={bookingSectionRef} className="bg-brand-cream/30 border border-brand-stone rounded-3xl p-6 mt-6 text-left space-y-2">
+                <h3 className="text-sm font-bold text-brand-forest">
+                  {emptySpecialistsMessage(specialistsReason).title}
+                </h3>
+                {emptySpecialistsMessage(specialistsReason).body && (
+                  <p className="text-xs text-brand-charcoal/70 leading-relaxed max-w-xl">
+                    {emptySpecialistsMessage(specialistsReason).body}
+                  </p>
+                )}
+              </div>
+            ) : (
+            /* Highly visual Online Appointment Booking CTA card */
             <div ref={bookingSectionRef} className="bg-gradient-to-r from-brand-forest to-brand-moss text-white rounded-3xl p-6 shadow-md relative overflow-hidden mt-6 text-left">
               <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
               <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-brand-sage/20 rounded-full blur-2xl" />
-              
+
               <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
                 <div className="space-y-2">
                   <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
@@ -1223,7 +1323,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     基于本次 AI 九维评估报告，特邀三甲儿童发展评估专家提供在线可视化深度辅导，为您量身解密大脑特定环路发育，指导日常脑机及多媒体工具实操。
                   </p>
                 </div>
-                
+
                 <button
                   onClick={() => {
                     // 滚动到预约模块并居中
@@ -1249,6 +1349,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -1281,7 +1382,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     第一步: 选择特邀专家成员
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {SPECIALISTS.map((spec) => {
+                    {specialists.map((spec) => {
                       const isSelected = selectedSpecialist === spec.id;
                       return (
                         <div
@@ -1291,20 +1392,17 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                             setSelectedSlot('');
                           }}
                           className={`p-3 rounded-2xl border transition duration-200 cursor-pointer flex flex-col items-center text-center space-y-2 ${
-                            isSelected 
-                              ? 'border-brand-moss bg-brand-sage/10 ring-1 ring-brand-moss/30 shadow-sm' 
+                            isSelected
+                              ? 'border-brand-moss bg-brand-sage/10 ring-1 ring-brand-moss/30 shadow-sm'
                               : 'border-brand-stone hover:bg-brand-cream/20'
                           }`}
                         >
-                          <img 
-                            src={spec.avatar} 
-                            alt={spec.name} 
-                            referrerPolicy="no-referrer"
-                            className="w-12 h-12 rounded-full object-cover border border-brand-stone/80"
-                          />
+                          <SpecialistAvatar spec={spec} size={48} />
                           <div>
                             <h4 className="text-xs font-bold text-brand-forest">{spec.name}</h4>
-                            <span className="text-[8px] text-brand-charcoal/60 leading-none block mt-0.5">{spec.title}</span>
+                            {spec.title && (
+                              <span className="text-[8px] text-brand-charcoal/60 leading-none block mt-0.5">{spec.title}</span>
+                            )}
                           </div>
                         </div>
                       );
@@ -1313,22 +1411,22 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 </div>
 
                 {/* Selected Specialist Detail Card */}
-                {(() => {
-                  const spec = SPECIALISTS.find(s => s.id === selectedSpecialist);
-                  if (!spec) return null;
-                  return (
-                    <div className="bg-brand-cream/20 border border-brand-stone/60 rounded-2xl p-4 space-y-2 text-xs">
+                {currentSpecialist && (currentSpecialist.specialty || currentSpecialist.experience) && (
+                  <div className="bg-brand-cream/20 border border-brand-stone/60 rounded-2xl p-4 space-y-2 text-xs">
+                    {currentSpecialist.specialty && (
                       <div>
                         <span className="text-[10px] font-bold text-brand-moss block">专家执业专长:</span>
-                        <p className="text-brand-charcoal leading-relaxed">{spec.specialty}</p>
+                        <p className="text-brand-charcoal leading-relaxed">{currentSpecialist.specialty}</p>
                       </div>
+                    )}
+                    {currentSpecialist.experience && (
                       <div>
                         <span className="text-[10px] font-bold text-brand-clay block">学术及评估背景:</span>
-                        <p className="text-brand-charcoal/80">{spec.experience}</p>
+                        <p className="text-brand-charcoal/80">{currentSpecialist.experience}</p>
                       </div>
-                    </div>
-                  );
-                })()}
+                    )}
+                  </div>
+                )}
 
                 {/* Step 2: Select Date & Slot */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1339,8 +1437,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     <input 
                       type="date" 
                       value={bookingDate}
-                      min="2026-07-09"
-                      max="2026-07-30"
+                      min={bookingWindow.min}
+                      max={bookingWindow.max}
                       onChange={(e) => setBookingDate(e.target.value)}
                       className="w-full p-2.5 bg-brand-cream/20 border border-brand-stone/80 rounded-xl text-xs text-brand-charcoal font-semibold focus:outline-none focus:border-brand-forest"
                     />
@@ -1351,7 +1449,12 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                       第三步: 选择专家的出诊班次
                     </label>
                     <div className="flex gap-1.5 flex-wrap">
-                      {SPECIALISTS.find(s => s.id === selectedSpecialist)?.slots.map((slot) => {
+                      {currentSpecialist && currentSpecialist.slots.length === 0 && (
+                        <p className="text-[10px] text-brand-charcoal/60 leading-relaxed">
+                          这位专家尚未开放可预约的时段，请改选其他专家，或直接与机构联系。
+                        </p>
+                      )}
+                      {currentSpecialist?.slots.map((slot) => {
                         const isSlotSelected = selectedSlot === slot;
                         return (
                           <button
@@ -1417,7 +1520,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                 <button
                   type="button"
-                  disabled={!selectedSlot || !parentName.trim() || !parentPhone.trim() || bookingSubmitting}
+                  disabled={!currentSpecialist || !selectedSlot || !parentName.trim() || !parentPhone.trim() || bookingSubmitting}
                   onClick={handleSubmitBooking}
                   className="w-full py-3 bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-bold rounded-xl transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
                 >
@@ -1456,13 +1559,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     <div>
                       <span className="text-[9px] text-brand-charcoal/50 block">预定专家:</span>
                       <span className="font-bold text-brand-forest">
-                        {SPECIALISTS.find(s => s.id === selectedSpecialist)?.name}
+                        {currentSpecialist?.name}
                       </span>
                     </div>
                     <div>
                       <span className="text-[9px] text-brand-charcoal/50 block">出诊职称:</span>
                       <span className="font-bold text-brand-forest">
-                        {SPECIALISTS.find(s => s.id === selectedSpecialist)?.title.split(' ')[0]}
+                        {currentSpecialist?.title?.split(' ')[0] ?? '—'}
                       </span>
                     </div>
                   </div>

@@ -11,7 +11,26 @@
 -- 名词定义见项目根目录 CONTEXT.md。
 
 -- ============================================================
--- 帐号
+-- 合作公司（专案 B 多公司）
+-- ============================================================
+-- 一套部署同时服务多家合作公司，靠 users.company_id 区隔。
+-- 架构决定见 docs/adr/0001-project-b-multi-company.md。
+
+CREATE TABLE IF NOT EXISTS `companies` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  -- 后台显示用的名称。家长端不显示 —— 家长端维持中性品牌。
+  `name` VARCHAR(128) NOT NULL,
+  -- 进站连结的识别码：https://<域名>/?c=<slug>
+  -- UNIQUE 是归属正确性的前提：两家公司共用一个 slug 等于把家长送给错的公司。
+  `slug` VARCHAR(64) NOT NULL UNIQUE,
+  -- 该公司自己的企业微信群机器人 webhook。未设定时退回全域 WECOM_WEBHOOK_URL。
+  `wecom_webhook_url` VARCHAR(512) DEFAULT NULL,
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 帐号（家长）
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS `users` (
@@ -22,9 +41,22 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email` VARCHAR(255) DEFAULT NULL UNIQUE,
   `password` VARCHAR(255) DEFAULT NULL,
   `device_id` VARCHAR(255) DEFAULT NULL,
+  --
+  -- 归属：这位家长属于哪一家合作公司。注册时写入，此后不再改变。
+  -- NULL = 未归属（没带识别码、或识别码无效直接进站的家长）。
+  --
+  -- 归属**只定义在这一栏**。筛查结果、报告、专家预约都已经以 user_id 为外键，
+  -- 各自再复制一份归属只会制造两份可能不一致的事实。
+  --
+  -- ON DELETE SET NULL 而非 CASCADE：删掉一家合作公司不该连带删掉家长与
+  -- 孩子的健康资料，那些资料的掌管方是森心康，不是合作公司。
+  `company_id` INT UNSIGNED DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- phone / email 的 UNIQUE 本身已建索引，不另加 INDEX（避免重复索引）
-  INDEX `idx_device_id` (`device_id`)
+  INDEX `idx_device_id` (`device_id`),
+  -- 后台的家长列表永远带 company_id 条件，这个索引是它的主要存取路径
+  INDEX `idx_company_created` (`company_id`, `created_at`),
+  CONSTRAINT `fk_users_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `user_data` (
@@ -119,7 +151,8 @@ CREATE TABLE IF NOT EXISTS `expert_bookings` (
   -- 专案 B 采匿名流程，未注册时 user_id 为 NULL，以 device_id 追踪
   `user_id` INT UNSIGNED DEFAULT NULL,
   `device_id` VARCHAR(255) DEFAULT NULL,
-  -- 专家名单写死在程式中（AnalysisReport.tsx 的 SPECIALISTS）
+  -- specialists.id 的字串形式。刻意保留 VARCHAR 而非改成外键：
+  -- 专家停用或被删除之后，这笔预约仍然要说得出「当时预约的是谁」。
   `specialist_id` VARCHAR(64) NOT NULL,
   `parent_name` VARCHAR(64) NOT NULL,
   `parent_phone` VARCHAR(20) NOT NULL,
@@ -139,8 +172,78 @@ CREATE TABLE IF NOT EXISTS `expert_bookings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- 后台成员（管理中心）
+-- ============================================================
+-- 刻意与 `users` 分表，不加一个 is_admin 栏位：家长与后台成员是两种主体，
+-- 混在一张表里意味着任何一次家长端的写入错误都可能造成后台提权。
+
+CREATE TABLE IF NOT EXISTS `admin_users` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `email` VARCHAR(255) NOT NULL UNIQUE,
+  -- bcrypt 杂凑。此表**不接受**明码退路（家长端为了旧资料而保留的那条）。
+  `password` VARCHAR(255) NOT NULL,
+  -- 只有两种角色。合作公司无法自行增删员工帐号，由森心康代为处理。
+  `role` ENUM('global_admin','company_member') NOT NULL,
+  -- global_admin 为 NULL；company_member 必须有值（由应用层保证）
+  `company_id` INT UNSIGNED DEFAULT NULL,
+  -- 停用：对方有人离职时立刻切断存取。停用后既有 token 也必须失效，
+  -- 因此每次请求都要回查这一栏，不能只信 token。
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_company` (`company_id`),
+  CONSTRAINT `fk_admin_users_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 全域管理员的公司切换纪录。
+-- 「看得到所有公司」若是日常状态，误看永远不会被发现；切换是一个明确的动作，
+-- 明确的动作才留得下痕迹。
+CREATE TABLE IF NOT EXISTS `admin_company_switches` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `admin_user_id` INT UNSIGNED NOT NULL,
+  -- selection = 'unassigned' 时为 NULL（切到「未归属家长」视野）
+  `company_id` INT UNSIGNED DEFAULT NULL,
+  `selection` ENUM('company','unassigned') NOT NULL,
+  `request_ip` VARCHAR(45) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_admin_created` (`admin_user_id`, `created_at`),
+  CONSTRAINT `fk_switches_admin` FOREIGN KEY (`admin_user_id`) REFERENCES `admin_users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 专家（隶属于合作公司）
+-- ============================================================
+-- 从写死在 AnalysisReport.tsx 的三位森心康医师，变成各公司自备的资料。
+
+CREATE TABLE IF NOT EXISTS `specialists` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `company_id` INT UNSIGNED NOT NULL,
+  `name` VARCHAR(64) NOT NULL,
+  `title` VARCHAR(128) DEFAULT NULL,
+  -- 专长与资历分开：前者是「他看什么」，后者是「他凭什么」，家长端分段呈现
+  `specialty` TEXT,
+  `experience` TEXT,
+  `avatar_url` VARCHAR(512) DEFAULT NULL,
+  -- 可预约时段，字串阵列，例如 ["周四上午","周五下午"]
+  `slots` JSON DEFAULT NULL,
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_company_active` (`company_id`, `active`),
+  CONSTRAINT `fk_specialists_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 既有数据库的迁移（sxk_db 已建过旧版 users 时执行）
 -- ============================================================
+-- 多公司相关（专案 B）：companies 必须先建立，users.company_id 才加得上去。
+--
+-- ALTER TABLE `users` ADD COLUMN `company_id` INT UNSIGNED DEFAULT NULL AFTER `device_id`;
+-- ALTER TABLE `users` ADD INDEX `idx_company_created` (`company_id`, `created_at`);
+-- ALTER TABLE `users` ADD CONSTRAINT `fk_users_company`
+--   FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE SET NULL;
+--
+-- 既有家长一律留在 company_id = NULL（未归属）。**不可**批次指派给任何一家公司 ——
+-- 那等于把一批人的健康资料送给一家他们从未接触过的机构。
+
 -- 以下皆为「放宽限制」，对旧版应用向后相容（旧版永远会写入 email）。
 -- 执行前请先备份 RDS。
 --

@@ -6,6 +6,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 // tcb import removed - replaced with MySQL
 import * as mysqlDb from './src/db/mysql';
+import { createAdminRouter } from './src/admin/routes';
 import { notifyExpertBooking } from './src/notify';
 import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
 import * as wechatPay from './src/wechatPay';
@@ -151,6 +152,8 @@ const bookingLimiter = rateLimit({
 
 app.use('/api', apiLimiter);
 app.use('/api/expert-booking', bookingLimiter);
+// 後台登入與家長端登入是兩個不同的表面，但被爆破的方式一樣，套同一個預算。
+app.use('/api/admin/login', authLimiter);
 app.use(['/api/report', '/api/specialized-report', '/api/motion-eval',
   '/api/motion-report', '/api/ali-language-eval', '/api/asr'], aiLimiter);
 app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
@@ -1415,6 +1418,44 @@ paidOnly.get('/api/payment/status', async (req, res) => {
 });
 
 /**
+ * 家長端的專家名單 —— **只回他所屬公司的專家**。
+ *
+ * 回應刻意用一個明確的 `reason` 說明「為什麼是空的」，而不是回一個空陣列讓
+ * 前端自己猜。三種空法在畫面上要長得不一樣：
+ *   - `unassigned`：這位家長沒有歸屬，任何一家公司的專家都不該出現在他眼前
+ *   - `none_configured`：他的公司還沒設定專家，這是公司的待辦，不是系統故障
+ *   - `unavailable`：這個部署沒有資料庫（展示站），談不上專家名單
+ */
+app.get('/api/specialists', async (req, res) => {
+  try {
+    if (!mysqlDb.isConfigured()) {
+      res.json({ specialists: [], reason: 'unavailable' });
+      return;
+    }
+    const email = verifyToken(getBearerToken(req));
+    if (!email) {
+      // 未登入就沒有歸屬可言。與「未歸屬」回同一種結果 —— 兩者都不該看到任何公司的專家。
+      res.json({ specialists: [], reason: 'unassigned' });
+      return;
+    }
+    const user = await withTimeout(mysqlDb.findUserByEmail(email), 2000).catch(() => null);
+    const companyId = user?.company_id ?? null;
+    if (companyId === null) {
+      res.json({ specialists: [], reason: 'unassigned' });
+      return;
+    }
+    const specialists = await withTimeout(mysqlDb.listActiveSpecialists(Number(companyId)), 2000);
+    res.json({
+      specialists,
+      reason: specialists.length ? 'ok' : 'none_configured',
+    });
+  } catch (err: any) {
+    console.error('[Specialists] Lookup failed:', err.message);
+    res.status(500).json({ error: '读取专家名单失败。' });
+  }
+});
+
+/**
  * Expert consultation booking. Registered in both products — the booking flow
  * lives in the shared AnalysisReport, and it is project B's entire conversion
  * point (B has no paid tier; the consultation list IS the deliverable).
@@ -1461,6 +1502,13 @@ app.post('/api/expert-booking', async (req, res) => {
       if (user) userId = user.id;
     }
 
+    // 通知要送到**這位家長所屬公司**的企業微信，不是那個全域的單一位置。
+    // 未歸屬（或查不到）時 company 為 null，notify 會退回全域設定並在日誌說明。
+    const company =
+      userId !== null && mysqlDb.isConfigured()
+        ? await mysqlDb.findCompanyByUserId(userId).catch(() => null)
+        : null;
+
     let bookingId: number | null = null;
     let persisted = false;
     if (mysqlDb.isConfigured()) {
@@ -1500,6 +1548,8 @@ app.post('/api/expert-booking', async (req, res) => {
       childGender: typeof childGender === 'string' ? childGender : null,
       preferredSlot: slot,
       reportSummary: summary,
+      companyName: company?.name ?? null,
+      companyWebhookUrl: company?.wecomWebhookUrl ?? null,
     })
       .then(results => {
         if (persisted && bookingId && results.some(r => r.ok)) {
@@ -1513,10 +1563,35 @@ app.post('/api/expert-booking', async (req, res) => {
   }
 });
 
+/**
+ * 把進站識別碼換成合作公司 id —— 歸屬的唯一取得處。
+ *
+ * 三種情況都回 `null`，而 `null` 的意思是**未歸屬**，不是「用預設的那一家」：
+ * 沒帶識別碼、識別碼查無此公司、該公司已停用。
+ * 打錯一個字元就把一位家長的孩子的健康資料送給錯的機構，所以這裡沒有退路可退。
+ */
+async function resolveCompanyIdForSignup(raw: unknown): Promise<number | null> {
+  if (typeof raw !== 'string') return null;
+  const slug = raw.trim().toLowerCase();
+  if (!slug || slug.length > 64) return null;
+  try {
+    const company = await withTimeout(mysqlDb.findCompanyBySlug(slug), 2000);
+    if (!company) {
+      console.warn(`[Company] 进站识别码查无对应公司，该家长归属留空: ${slug}`);
+      return null;
+    }
+    return company.id;
+  } catch (err: any) {
+    // 查不動就當作未歸屬。猜一家公司塞進去是不可逆的錯误 —— 歸屬此後不再改變。
+    console.warn('[Company] 归属查询失败，该家长归属留空:', err.message);
+    return null;
+  }
+}
+
 // Endpoint to register user account
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, companySlug } = req.body;
     if (!email || !password) {
       res.status(400).json({ error: '请填写完整的邮箱和密码' });
       return;
@@ -1531,8 +1606,11 @@ app.post('/api/auth/register', async (req, res) => {
           res.status(400).json({ error: '该邮箱已被注册，请直接登录' });
           return;
         }
-        await withTimeout(mysqlDb.createUser(email, hashed), 2000);
-        console.log(`[MySQL] Registered account: ${email}`);
+        // 歸屬只在建立帳號的這一刻寫入。已註冊的家長再從別家公司的連結進站時
+        // 走的是登入那條路，這裡根本不會執行，歸屬因此不會被改動。
+        const companyId = await resolveCompanyIdForSignup(companySlug);
+        await withTimeout(mysqlDb.createUser(email, hashed, companyId), 2000);
+        console.log(`[MySQL] Registered account: ${email} (company: ${companyId ?? '未归属'})`);
         res.json({ success: true, email, token: signToken(email) });
         return;
       } catch (dbErr: any) {
@@ -1740,24 +1818,41 @@ app.post('/api/db/save', async (req, res) => {
   }
 });
 
-// Vite & Static file configurations
-async function startServer() {
-  // Anything under /api that reached this point matched no route. Answer with a
-  // JSON 404 before the SPA fallback below gets a chance to serve index.html.
-  //
-  // Without this, a GET to a route that is not registered — every tier-2/3 and
-  // paid endpoint in project B — falls through to `app.get('*')` and comes back
-  // as HTML with status 200. The client then parses a web page as JSON, and a
-  // deliberately disabled endpoint looks like a success. POSTs happened to 404
-  // correctly only because the catch-all is GET-only, which made the bug
-  // invisible on half the surface.
-  //
-  // Registered after every route because Express matches in registration order,
-  // and startServer() runs last.
-  app.use('/api', (req, res) => {
-    res.status(404).json({ error: 'Not found' });
-  });
+// ── 管理中心 ──
+// 掛在這裡（所有家長端路由之後、404 兜底之前）。路由本身在 src/admin/routes.ts，
+// 那個檔案不得直接碰資料庫 —— 後台的每一句家長查詢都必須經過帶公司條件的
+// 單一入口，見 src/admin/adminStore.ts 與 test/adminScope.structure.test.ts。
+app.use('/api/admin', createAdminRouter());
 
+// Anything under /api that reached this point matched no route. Answer with a
+// JSON 404 before the SPA fallback in startServer() gets a chance to serve
+// index.html.
+//
+// Without this, a GET to a route that is not registered — every tier-2/3 and
+// paid endpoint in project B — falls through to `app.get('*')` and comes back
+// as HTML with status 200. The client then parses a web page as JSON, and a
+// deliberately disabled endpoint looks like a success. POSTs happened to 404
+// correctly only because the catch-all is GET-only, which made the bug
+// invisible on half the surface.
+//
+// Registered here, at the bottom of the module, because Express matches in
+// registration order and every route above is already in. It deliberately does
+// NOT live inside startServer(): a test that loads the app without listening
+// must see the same 404 behaviour as production, or "the route exists" and
+// "the route is registered" stop being the same question.
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+/**
+ * Binds the port and mounts the SPA. Deliberately separate from the module body
+ * above, which only *defines* the app.
+ *
+ * The split is what makes the HTTP tests possible: importing this module gives
+ * a fully-routed Express app that has not touched the network. `main.ts` is the
+ * only caller — nothing else should start listening as an import side effect.
+ */
+export async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     // Dynamic import so `vite` (a devDependency) is never required in production,
     // where hosting platforms may prune devDependencies after build.
@@ -1809,4 +1904,4 @@ async function startServer() {
   });
 }
 
-startServer();
+export { app };

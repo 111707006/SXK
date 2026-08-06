@@ -1,4 +1,5 @@
 import { PRODUCT } from '../productConfig';
+import { peekCompanySlug } from '../utils/attribution';
 import React, { useState } from 'react';
 import { Mail, Lock, Sparkles, AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, FileText } from 'lucide-react';
 
@@ -84,7 +85,9 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         const resp = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          // 歸屬只在建立帳號的這一刻寫得進去。識別碼有效與否由後端判斷 ——
+          // 前端一律照送，查不到就是未歸屬，不猜任何一家公司。
+          body: JSON.stringify({ email, password, companySlug: peekCompanySlug() }),
         });
 
         let data: any = {};

@@ -21,6 +21,13 @@ export interface BookingNotification {
   preferredSlot: string | null;
   /** Which dimensions were flagged — the specialist's prep material. */
   reportSummary: string | null;
+  /** 這位家長所屬的合作公司；未歸屬為 `null`。只用於日誌與訊息抬頭。 */
+  companyName?: string | null;
+  /**
+   * 該公司自己的企業微信通知位置。`null` 代表未設定，退回全域
+   * `WECOM_WEBHOOK_URL` —— 退路存在，但每一次動用都會在日誌留下一行。
+   */
+  companyWebhookUrl?: string | null;
 }
 
 export interface NotifyResult {
@@ -33,6 +40,8 @@ export interface NotifyResult {
 function formatBooking(n: BookingNotification): string {
   const lines = [
     '【森心康】新的专家咨询预约',
+    // 全域退路可能同時收到多家公司的預約，所以抬頭要說得出這是誰的。
+    ...(n.companyName ? [`合作公司：${n.companyName}`] : []),
     `预约编号：${n.bookingId ?? '（未入库，记忆体模式）'}`,
     `家长：${n.parentName}　${n.parentPhone}`,
     `指定专家：${n.specialistName}`,
@@ -54,10 +63,21 @@ function formatBooking(n: BookingNotification): string {
  * NOTE: not yet exercised against a live webhook; if the format is wrong the
  * fix is confined to this function.
  */
-async function notifyWeCom(text: string): Promise<NotifyResult> {
-  const url = process.env.WECOM_WEBHOOK_URL;
+async function notifyWeCom(text: string, companyWebhookUrl: string | null): Promise<NotifyResult> {
+  // 該公司自己的位置優先。退回全域設定時**大聲說出來** —— 一個安靜的退路會讓
+  // 「A 公司的預約全部送到森心康的群」看起來與正常運作一模一樣。
+  const globalUrl = process.env.WECOM_WEBHOOK_URL || '';
+  const url = companyWebhookUrl || globalUrl;
+  // 條件與上一行取值時的判斷**必須一致**（都用真值）。寫成 `=== null` 的話，
+  // 一個空字串的 webhook 仍會退回全域，卻不會印出這一行 —— 而「A 公司的預約
+  // 全部送到森心康的群，且日誌看起來一切正常」正是這段程式碼要防的事。
+  if (!companyWebhookUrl && globalUrl) {
+    console.warn(
+      '[Notify/WeCom] 该合作公司未设定自己的企业微信通知位置，本则通知退回全域 WECOM_WEBHOOK_URL。'
+    );
+  }
   if (!url) {
-    return { channel: 'wecom', ok: false, detail: 'WECOM_WEBHOOK_URL not set' };
+    return { channel: 'wecom', ok: false, detail: 'no company webhook and WECOM_WEBHOOK_URL not set' };
   }
   try {
     const resp = await axios.post(
@@ -111,12 +131,17 @@ async function notifySms(text: string): Promise<NotifyResult> {
  */
 export async function notifyExpertBooking(n: BookingNotification): Promise<NotifyResult[]> {
   const text = formatBooking(n);
-  const results = await Promise.all([notifyWeCom(text), notifySms(text)]);
+  const results = await Promise.all([
+    notifyWeCom(text, n.companyWebhookUrl ?? null),
+    notifySms(text),
+  ]);
   const delivered = results.filter(r => r.ok).map(r => r.channel);
   if (delivered.length === 0) {
     // Loud, because the parent has already been told an expert will be in touch.
+    // 公司名一併印出來：沒有它，運維只知道「有一則通知掉了」，不知道該打給誰。
     console.error(
-      `[Notify] Expert booking ${n.bookingId ?? '(unsaved)'} reached NOBODY. ` +
+      `[Notify] Expert booking ${n.bookingId ?? '(unsaved)'} ` +
+      `(公司: ${n.companyName ?? '未归属'}) reached NOBODY. ` +
       results.map(r => `${r.channel}: ${r.detail}`).join(' | ')
     );
   } else {

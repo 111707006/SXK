@@ -148,6 +148,16 @@ export interface ProductProfile {
     /** 客服二維碼圖片路徑（放在 `public/`）；`null` 代表只顯示微信號 */
     wechatQrSrc: string | null;
     // 兩個都是 null 時，整個轉接區塊不顯示。
+    /**
+     * 報告頁的專家名單從哪裡來。
+     *
+     * - `builtin`：寫死在 `AnalysisReport.tsx` 的三位森心康醫師（專案 A）
+     * - `company`：家長所屬合作公司的專家，執行期向 `/api/specialists` 取得（專案 B）
+     *
+     * 兩者不能共存：若 B 在「該公司還沒設定專家」時退回內建名單，家長會看到
+     * 三位森心康醫師的姓名與照片 —— 那既是別人的品牌，也是家長預約不到的人。
+     */
+    specialistSource: 'builtin' | 'company';
   };
 
   features: {
@@ -210,6 +220,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     expertBooking: {
       wechatId: null,
       wechatQrSrc: '/kefu-qr.jpg',
+      specialistSource: 'builtin',
     },
     features: {
       tier2And3: true,
@@ -270,6 +281,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     expertBooking: {
       wechatId: null,
       wechatQrSrc: '/kefu-qr.jpg',
+      // 各公司自備專家，名單是資料不是常數。見 docs/adr/0001。
+      specialistSource: 'company',
     },
     features: {
       tier2And3: false,

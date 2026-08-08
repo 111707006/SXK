@@ -19,7 +19,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
   const [birthDate, setBirthDate] = useState<string>(() => {
     if (currentChild?.birthDate) return currentChild.birthDate;
     if (currentChild?.ageMonth) return getBirthDateFromAgeMonth(currentChild.ageMonth);
-    return '2023-07-08'; // Default ~3 years old in 2026
+    return getBirthDateFromAgeMonth(36); // 預設先擺在 3 歲，跟著今天走
   });
   const [gender, setGender] = useState<Gender>(currentChild?.gender || 'boy');
   const [error, setError] = useState('');

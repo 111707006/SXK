@@ -29,7 +29,7 @@ const Paywall = lazy(() => import('./components/Paywall'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
-import { formatAge } from './utils/dateUtils';
+import { formatAge, refreshChildAge } from './utils/dateUtils';
 import { authHeaders } from './utils/api';
 import { getDimensionAccess, isPaywallActive } from './utils/access';
 import { DEFAULT_UNLOCK_PRICE_FEN, formatFen } from './utils/price';
@@ -41,8 +41,24 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [child, setChild] = useState<Child | null>(null);
-  
+  const [child, setChildState] = useState<Child | null>(null);
+
+  /**
+   * 唯一把孩子檔案放進狀態的入口。
+   *
+   * 存下來的實足月齡是**寫入當下**算出來的，讀回來就已經過期了 —— 而它決定
+   * 篩查用哪一段的題目。所以檔案進到狀態的每一條路都得先重算，包括
+   * localStorage、雲端載入與登入帶回來的那一份。
+   *
+   * 篩查紀錄（`reportHistory`）**不走這裡**：那裡的 `child` 帶的是測評月齡，
+   * 是那一次篩查的事實記錄，永不重算。
+   */
+  const applyChild = (next: Child | null): Child | null => {
+    const fresh = refreshChildAge(next);
+    setChildState(fresh);
+    return fresh;
+  };
+
   // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'
   const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'>('dashboard');
   
@@ -157,8 +173,7 @@ export default function App() {
     try {
       const storedChild = localStorage.getItem('senxinkang_child');
       if (storedChild) {
-        localChild = JSON.parse(storedChild);
-        setChild(localChild);
+        localChild = applyChild(JSON.parse(storedChild));
       }
 
       const storedScores = localStorage.getItem('senxinkang_scores');
@@ -212,13 +227,13 @@ export default function App() {
         if (loadData.source === 'mysql' || loadData.source === 'memory') {
           if (loadData.child || loadData.completedScores?.length > 0) {
             // Server has data: sync to client and localStorage
-            setChild(loadData.child);
+            const freshChild = applyChild(loadData.child);
             setCompletedScores(loadData.completedScores || []);
             setOrders(loadData.orders || []);
             setReportHistory(loadData.reportHistory || []);
 
-            if (loadData.child) {
-              localStorage.setItem('senxinkang_child', JSON.stringify(loadData.child));
+            if (freshChild) {
+              localStorage.setItem('senxinkang_child', JSON.stringify(freshChild));
             } else {
               localStorage.removeItem('senxinkang_child');
             }
@@ -334,14 +349,14 @@ export default function App() {
     }
 
     // Update child profile, assessment scores, orders, and reports in state
-    setChild(cloudChild);
+    const freshChild = applyChild(cloudChild);
     setCompletedScores(cloudScores);
     setOrders(cloudOrders);
     setReportHistory(cloudHistory);
 
     // Save locally
-    if (cloudChild) {
-      localStorage.setItem('senxinkang_child', JSON.stringify(cloudChild));
+    if (freshChild) {
+      localStorage.setItem('senxinkang_child', JSON.stringify(freshChild));
     } else {
       localStorage.removeItem('senxinkang_child');
     }
@@ -355,10 +370,10 @@ export default function App() {
 
   // Save states to local storage and sync to Database
   const handleSaveChild = (newChild: Child) => {
-    setChild(newChild);
-    localStorage.setItem('senxinkang_child', JSON.stringify(newChild));
+    const fresh = applyChild(newChild);
+    localStorage.setItem('senxinkang_child', JSON.stringify(fresh));
     setCurrentView('dashboard'); // Go to dashboard to let user choose to enter T1
-    
+
     // Explicit save to trigger background sync
     try {
       const deviceId = getOrCreateDeviceId();
@@ -368,7 +383,7 @@ export default function App() {
         body: JSON.stringify({
           deviceId,
           email: userEmail,
-          child: newChild,
+          child: fresh,
           completedScores,
           orders,
           reportHistory
@@ -382,15 +397,15 @@ export default function App() {
   };
 
   const handleUpdateChild = (updatedChild: Child) => {
-    setChild(updatedChild);
-    localStorage.setItem('senxinkang_child', JSON.stringify(updatedChild));
+    const fresh = applyChild(updatedChild);
+    localStorage.setItem('senxinkang_child', JSON.stringify(fresh));
     setIsEditingProfile(false);
-    syncToCloud(updatedChild, completedScores, orders, reportHistory);
+    syncToCloud(fresh, completedScores, orders, reportHistory);
   };
 
   const handleClearProfile = () => {
     if (confirm('确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位！')) {
-      setChild(null);
+      applyChild(null);
       setCompletedScores([]);
       setOrders([]);
       setReportHistory([]);
@@ -405,7 +420,7 @@ export default function App() {
 
   const handleLogout = () => {
     if (confirm('确认登出当前邮箱并返回登录首页吗？您的数据安全保存在云端。')) {
-      setChild(null);
+      applyChild(null);
       setCompletedScores([]);
       setOrders([]);
       setReportHistory([]);

@@ -35,8 +35,14 @@ CREATE TABLE IF NOT EXISTS `companies` (
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  -- 手机号是主要身分：纯短信验证码登入，不设密码
-  `phone` VARCHAR(20) DEFAULT NULL UNIQUE,
+  --
+  -- 手机号是主要身分：纯短信验证码登入，不设密码。
+  --
+  -- **刻意没有全域 UNIQUE。** 家长的身分是（归属，手机号）这一组，不是手机号
+  -- 本身 —— 同一个人在两家合作公司进站是**两位家长**，各自独立的孩子档案与
+  -- 筛查结果。唯一性建在下面的 uk_company_phone 上，理由见
+  -- docs/adr/0002-parent-identity-is-company-plus-phone.md。
+  `phone` VARCHAR(20) DEFAULT NULL,
   -- email / password 为旧版邮箱登入保留；新用户两栏皆为 NULL
   `email` VARCHAR(255) DEFAULT NULL UNIQUE,
   `password` VARCHAR(255) DEFAULT NULL,
@@ -51,11 +57,26 @@ CREATE TABLE IF NOT EXISTS `users` (
   -- ON DELETE SET NULL 而非 CASCADE：删掉一家合作公司不该连带删掉家长与
   -- 孩子的健康资料，那些资料的掌管方是森心康，不是合作公司。
   `company_id` INT UNSIGNED DEFAULT NULL,
+  --
+  -- 归属并成一个具体的值，未归属为 0。存在的唯一理由是让下面的唯一索引
+  -- **对未归属也生效** —— MySQL 的唯一索引允许重复 NULL，直接写
+  -- UNIQUE (company_id, phone) 的话，未归属家长完全不受约束，
+  -- 而**专案 A 的家长全部都是未归属**（A 没有合作公司）。
+  --
+  -- 生成栏位而非应用层的「先查再写」：后者在两个请求同时进来时就会漏，
+  -- 而漏掉的后果是同一支手机号建出两个帐号，¥19.9 买的解锁权益留在
+  -- 家长再也走不回去的那一个上面。
+  `company_key` INT UNSIGNED AS (COALESCE(`company_id`, 0)) STORED,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  -- phone / email 的 UNIQUE 本身已建索引，不另加 INDEX（避免重复索引）
+  -- email 的 UNIQUE 本身已建索引，不另加 INDEX（避免重复索引）
   INDEX `idx_device_id` (`device_id`),
   -- 后台的家长列表永远带 company_id 条件，这个索引是它的主要存取路径
   INDEX `idx_company_created` (`company_id`, `created_at`),
+  --
+  -- 家长的身分：（归属，手机号）这一组。见 docs/adr/0002-...。
+  -- phone 为 NULL 的列不受约束（唯一索引允许重复 NULL），所以既有的
+  -- 电子邮件家长不必先补手机号。
+  UNIQUE KEY `uk_company_phone` (`company_key`, `phone`),
   CONSTRAINT `fk_users_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -278,12 +299,13 @@ CREATE TABLE IF NOT EXISTS `intervention_materials` (
 -- 既有家长一律留在 company_id = NULL（未归属）。**不可**批次指派给任何一家公司 ——
 -- 那等于把一批人的健康资料送给一家他们从未接触过的机构。
 
--- 以下皆为「放宽限制」，对旧版应用向后相容（旧版永远会写入 email）。
--- 执行前请先备份 RDS。
+-- 手机号登入相关（#17 / #25）：手机号栏位、归属合并唯一索引、验证码表。
+-- 完整的迁移与验证语句见：
+--   deploy/migrations/2026-08-10-phone-login.sql
 --
--- ALTER TABLE `users` MODIFY COLUMN `email` VARCHAR(255) DEFAULT NULL;
--- ALTER TABLE `users` MODIFY COLUMN `password` VARCHAR(255) DEFAULT NULL;
--- ALTER TABLE `users` ADD COLUMN `phone` VARCHAR(20) DEFAULT NULL UNIQUE AFTER `id`;
+-- ⚠️ 那份迁移会 DROP 掉旧版建过的**全域** phone UNIQUE 索引。全域唯一在单库
+-- 多公司的架构下是错的（见 docs/adr/0002-...），留着会让家长在乙公司登入时
+-- 进到她在甲公司的既有帐号。
 
 -- ============================================================
 -- 展示用测试帐号

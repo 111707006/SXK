@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import * as mysqlDb from './src/db/mysql';
 import { createAdminRouter } from './src/admin/routes';
 import { notifyExpertBooking } from './src/notify';
+import { sendVerificationCode } from './src/sms';
 import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
 import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
@@ -181,7 +182,8 @@ app.use('/api/expert-booking', bookingLimiter);
 app.use('/api/admin/login', authLimiter);
 app.use(['/api/report', '/api/specialized-report', '/api/motion-eval',
   '/api/motion-report', '/api/ali-language-eval', '/api/asr'], aiLimiter);
-app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
+app.use(['/api/auth/login', '/api/auth/register',
+  '/api/auth/sms/request', '/api/auth/sms/verify'], authLimiter);
 
 // ── Auth: password hashing (bcrypt) + stateless HMAC session tokens ──
 const BCRYPT_ROUNDS = 10;
@@ -276,9 +278,41 @@ function looksHashed(stored: string): boolean {
 
 // True if the password matches. Supports legacy plaintext rows so existing
 // accounts keep working; callers upgrade the stored value to a hash on success.
+//
+// ⚠️ 只給**密碼**用。驗證碼一律走 `bcrypt.compare` —— 這個函式對非 bcrypt 值會
+// 退回明文比對，那條退路對驗證碼是一個洞：`sms_codes` 裡若因故存進明碼，
+// 明碼會直接比對成功，而唯一的症狀是「登入正常」。
 async function verifyPassword(plain: string, stored: string): Promise<boolean> {
   if (looksHashed(stored)) return bcrypt.compare(plain, stored);
   return plain === stored;
+}
+
+// ── 手機號驗證碼登入（#25）──
+//
+// 純驗證碼登入沒有獨立的「註冊」動作：第一次驗證成功即建立帳號，歸屬在那一刻
+// 寫入，此後不變。家長端因此只需要兩個動作 —— 索取、核對。
+
+/** 中國大陸手機號。專家預約與登入是同一組規則，只寫一份。 */
+const PHONE_PATTERN = /^1[3-9]\d{9}$/;
+
+/** 驗證碼有效期。短到被側錄也來不及用，長到來得及切出去看簡訊再切回來。 */
+const SMS_CODE_TTL_MS = 5 * 60 * 1000;
+
+/** 兩次索取之間的等待。 */
+const SMS_CODE_COOLDOWN_MS = 60 * 1000;
+
+/**
+ * 同一筆驗證碼容許猜錯幾次。達到上限即鎖定該筆 —— 六位數字只有一百萬種，
+ * 沒有上限的話，在有效期內慢慢猜是划得來的。
+ */
+const SMS_CODE_MAX_ATTEMPTS = 5;
+
+/** 同一支手機號一天最多索取幾次。簡訊要錢，而收到的是一個真實的人。 */
+const SMS_CODE_DAILY_MAX_PER_PHONE = 10;
+
+/** 六位數字，取自 CSPRNG。`Math.random` 的輸出是可預測的。 */
+function generateSmsCode(): string {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
 }
 
 // ── coze-coding-dev-sdk LLM client ──
@@ -1574,7 +1608,7 @@ app.post('/api/expert-booking', async (req, res) => {
     }
     // Mainland mobile number. Staff call this back, so a malformed one is a
     // dead booking — reject at the door rather than storing garbage.
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
+    if (!PHONE_PATTERN.test(phone)) {
       res.status(400).json({ error: '请填写正确的 11 位手机号码。' });
       return;
     }
@@ -1654,28 +1688,22 @@ app.post('/api/expert-booking', async (req, res) => {
 });
 
 /**
- * 把進站識別碼換成合作公司 id —— 歸屬的唯一取得處。
+ * 把進站識別碼換成合作公司 id —— 電子郵件註冊那條路的歸屬取得處。
  *
  * 三種情況都回 `null`，而 `null` 的意思是**未歸屬**，不是「用預設的那一家」：
  * 沒帶識別碼、識別碼查無此公司、該公司已停用。
  * 打錯一個字元就把一位家長的孩子的健康資料送給錯的機構，所以這裡沒有退路可退。
+ *
+ * **查詢失敗時也留空**：這裡處理的一定是一個全新的帳號（已註冊的走登入那條
+ * 路），而未歸屬是一個正常狀態。手機號那條路不能這樣做 —— 它用同一個答案決定
+ * 「該去哪一個範圍找既有帳號」，見 `resolveCompanyScope` 的說明。
  */
 async function resolveCompanyIdForSignup(raw: unknown): Promise<number | null> {
-  if (typeof raw !== 'string') return null;
-  const slug = raw.trim().toLowerCase();
-  if (!slug || slug.length > 64) return null;
-  try {
-    const company = await withTimeout(mysqlDb.findCompanyBySlug(slug), 2000);
-    if (!company) {
-      console.warn(`[Company] 进站识别码查无对应公司，该家长归属留空: ${slug}`);
-      return null;
-    }
-    return company.id;
-  } catch (err: any) {
-    // 查不動就當作未歸屬。猜一家公司塞進去是不可逆的錯误 —— 歸屬此後不再改變。
-    console.warn('[Company] 归属查询失败，该家长归属留空:', err.message);
-    return null;
-  }
+  const scope = await resolveCompanyScope(raw);
+  if (scope.ok) return scope.companyId;
+  // 查不動就當作未歸屬。猜一家公司塞進去是不可逆的錯誤 —— 歸屬此後不再改變。
+  console.warn('[Company] 归属查询失败，该家长归属留空。');
+  return null;
 }
 
 // Endpoint to register user account
@@ -1810,6 +1838,214 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err: any) {
     console.error('[Auth Login Error]:', err.message);
     res.status(500).json({ error: `登录失败: ${err.message}` });
+  }
+});
+
+/**
+ * 這次登入落在哪一個歸屬範圍。
+ *
+ * 與 `resolveCompanyIdForSignup` 是**兩件不同的事**，所以是兩個函式：
+ * 那一個回答「這個新帳號屬於誰」，查不動就留空即可；這一個回答「該去哪一個
+ * 範圍找這位家長的既有帳號」，查不動時**沒有安全的預設值** —— 退成未歸屬會讓
+ * 一位歸屬甲公司的家長在那一刻查不到自己的帳號，於是在未歸屬範圍內被建出
+ * 第二個，孩子的檔案與分數留在他再也走不回去的那一個帳號裡。
+ *
+ * 因此查詢失敗時明確失敗，讓家長重試一次。
+ */
+type CompanyScope = { ok: true; companyId: number | null } | { ok: false; detail: string };
+
+async function resolveCompanyScope(raw: unknown): Promise<CompanyScope> {
+  if (typeof raw !== 'string') return { ok: true, companyId: null };
+  const slug = raw.trim().toLowerCase();
+  if (!slug || slug.length > 64) return { ok: true, companyId: null };
+  try {
+    const company = await withTimeout(mysqlDb.findCompanyBySlug(slug), 2000);
+    if (!company) {
+      // 查無此公司是一個**確定**的答案：這位家長落在未歸屬，不猜一家填上去。
+      console.warn(`[Company] 进站识别码查无对应公司，该家长归属留空: ${slug}`);
+      return { ok: true, companyId: null };
+    }
+    return { ok: true, companyId: company.id };
+  } catch (err: any) {
+    // 只报告「查不动」这件事。**怎么处置由呼叫端决定** —— 註冊那條路留空即可，
+    // 登入那條路必須拒絕，兩者在這裡各说各的会让日志与实际行为对不上。
+    console.warn('[Company] 归属查询失败:', err.message);
+    return { ok: false, detail: err.message };
+  }
+}
+
+/**
+ * 索取一則登入驗證碼。
+ *
+ * 順序是**先寫入、再送出**，而不是反過來。寫不進去時家長還沒收到任何東西，
+ * 重試一次就好；反過來的話，一則已經送達的驗證碼會因為那一列沒進資料庫而
+ * 永遠驗不了，而家長手上拿著它。
+ *
+ * 這條路徑**沒有記憶體模式**。電子郵件註冊那條路吞掉資料庫例外、退回記憶體、
+ * 仍回報成功並發 token —— 家長看到成功，帳號卻在下次重啟時消失。那不是降級，
+ * 是靜默的資料遺失，這裡不沿用。
+ */
+app.post('/api/auth/sms/request', async (req, res) => {
+  const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+  if (!PHONE_PATTERN.test(phone)) {
+    res.status(400).json({ error: '请填写正确的 11 位手机号码。' });
+    return;
+  }
+  if (!mysqlDb.isConfigured()) {
+    res.status(503).json({ error: '短信登录暂未开放，请稍后再试。' });
+    return;
+  }
+
+  let codeId: number | null = null;
+  try {
+    // ── 防刷：冷卻期與當日上限，兩者都以最近那一筆為準 ──
+    const latest = await withTimeout(mysqlDb.findLatestSmsCode(phone), 2000);
+    if (latest) {
+      const elapsed = Date.now() - new Date(latest.created_at).getTime();
+      if (elapsed < SMS_CODE_COOLDOWN_MS) {
+        const wait = Math.ceil((SMS_CODE_COOLDOWN_MS - elapsed) / 1000);
+        res.status(429).json({ error: `请求过于频繁，请 ${wait} 秒后再试。`, retryAfterSec: wait });
+        return;
+      }
+    }
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    if (await withTimeout(mysqlDb.countSmsCodesSince(phone, dayAgo), 2000) >= SMS_CODE_DAILY_MAX_PER_PHONE) {
+      res.status(429).json({ error: '今日验证码索取次数已达上限，请明天再试或联系客服。' });
+      return;
+    }
+
+    const code = generateSmsCode();
+    codeId = await withTimeout(mysqlDb.createSmsCode({
+      phone,
+      // 只存雜湊。這一列若是明碼，任何一份備份都等同一把能登入的鑰匙。
+      codeHash: await hashPassword(code),
+      expiresAt: new Date(Date.now() + SMS_CODE_TTL_MS),
+      requestIp: req.ip ?? null,
+    }), 2000);
+
+    const delivery = await sendVerificationCode(phone, code);
+    if (!delivery.ok) {
+      // 沒送出去的那一列必須收回去，否則冷卻期會把家長擋在門外一分鐘，
+      // 而他手上並沒有任何一組可以輸入的驗證碼。
+      try {
+        await withTimeout(mysqlDb.deleteSmsCode(codeId), 2000);
+      } catch (cleanupErr: any) {
+        console.error('[SMS] 未送出的验证码回收失败，该笔将留到过期:', cleanupErr.message);
+      }
+      res.status(503).json({
+        error: delivery.reason === 'not_configured'
+          ? '短信通道尚未开放，暂时无法发送验证码。'
+          : '验证码发送失败，请稍后再试。',
+      });
+      return;
+    }
+
+    // 回應裡**沒有驗證碼**。帶上去的話，這支 API 就是「誰打得到誰就能登入」。
+    res.json({
+      success: true,
+      expiresInSec: SMS_CODE_TTL_MS / 1000,
+      cooldownSec: SMS_CODE_COOLDOWN_MS / 1000,
+    });
+  } catch (err: any) {
+    console.error('[SMS Request Error]:', err.message);
+    res.status(500).json({ error: '验证码发送失败，请稍后再试。' });
+  }
+});
+
+/**
+ * 核對驗證碼。成功即登入 —— **第一次成功時建立帳號**，歸屬在那一刻寫入。
+ *
+ * 帳號是以（歸屬，手機號）這一組去找的，不是手機號本身：同一支手機號在兩家
+ * 合作公司是兩位家長（`docs/adr/0002-parent-identity-is-company-plus-phone.md`）。
+ */
+app.post('/api/auth/sms/verify', async (req, res) => {
+  const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  if (!PHONE_PATTERN.test(phone) || !/^\d{6}$/.test(code)) {
+    res.status(400).json({ error: '请填写手机号与 6 位验证码。' });
+    return;
+  }
+  if (!mysqlDb.isConfigured()) {
+    res.status(503).json({ error: '短信登录暂未开放，请稍后再试。' });
+    return;
+  }
+
+  try {
+    const row = await withTimeout(mysqlDb.findLatestSmsCode(phone), 2000);
+    // 不存在、已用過、已過期，對外是同一句話：多說一個字都是在告訴猜的人
+    // 他猜對了哪一半。
+    const stale = !row || row.consumed_at || new Date(row.expires_at).getTime() <= Date.now();
+    if (stale) {
+      res.status(401).json({ error: '验证码错误或已失效，请重新获取。' });
+      return;
+    }
+    if (Number(row.attempts) >= SMS_CODE_MAX_ATTEMPTS) {
+      res.status(401).json({ error: '错误次数过多，请重新获取验证码。' });
+      return;
+    }
+
+    // 刻意用 bcrypt.compare 而不是 verifyPassword：後者對非 bcrypt 值會退回
+    // 明文比對，那條為舊密碼保留的退路對驗證碼是一個洞（見 verifyPassword）。
+    if (!(await bcrypt.compare(code, row.code_hash))) {
+      await withTimeout(mysqlDb.incrementSmsCodeAttempts(row.id), 2000);
+      const left = SMS_CODE_MAX_ATTEMPTS - (Number(row.attempts) + 1);
+      res.status(401).json({
+        error: left > 0 ? `验证码错误，还可以再试 ${left} 次。` : '错误次数过多，请重新获取验证码。',
+      });
+      return;
+    }
+
+    // 先作廢再建帳號。反過來的話，同一組驗證碼在兩個同時進來的請求裡都會通過。
+    if (!await withTimeout(mysqlDb.consumeSmsCode(row.id), 2000)) {
+      res.status(401).json({ error: '验证码错误或已失效，请重新获取。' });
+      return;
+    }
+
+    const scope = await resolveCompanyScope(req.body?.companySlug);
+    if (!scope.ok) {
+      console.error('[SMS Verify] 归属查询失败，无法判断这次登入属于哪一个范围，拒绝继续。');
+      res.status(503).json({ error: '登录暂时不可用，请稍后再试。' });
+      return;
+    }
+
+    let user = await withTimeout(mysqlDb.findUserByPhone(scope.companyId, phone), 2000);
+    if (!user) {
+      // 歸屬只在這一行寫得進去，此後不再改變 —— 已有帳號的家長走的是上面那條路。
+      const newUserId = await withTimeout(mysqlDb.createPhoneUser(phone, scope.companyId), 2000);
+      user = { id: newUserId, phone, company_id: scope.companyId };
+      console.log(`[MySQL] Registered phone account (company: ${scope.companyId ?? '未归属'})`);
+    }
+
+    const sessionUserId: UserId = String(user.id);
+    let child = null;
+    let completedScores: any[] = [];
+    let orders: any[] = [];
+    let reportHistory: any[] = [];
+    try {
+      const dataRow = await withTimeout(mysqlDb.getUserDataByUserId(Number(user.id)), 2000);
+      if (dataRow) {
+        const parsed = mysqlDb.parseUserDataRow(dataRow);
+        child = parsed.child;
+        completedScores = parsed.completedScores;
+        orders = parsed.orders;
+        reportHistory = parsed.reportHistory;
+      }
+    } catch (dbErr: any) {
+      // 讀不到既有資料不該擋住登入 —— 帳號本身已經確定了，同步會再試一次。
+      console.warn('[MySQL] Load user data failed:', dbErr.message);
+    }
+
+    res.json({
+      success: true,
+      phone,
+      token: signToken(sessionUserId),
+      child, completedScores, orders, reportHistory,
+    });
+  } catch (err: any) {
+    // 建帳號寫不進去就是失敗。**不得**退回記憶體再發一張通行證 ——
+    // 家長會看到登入成功，而那個帳號在下一次重啟時就不存在了。
+    console.error('[SMS Verify Error]:', err.message);
+    res.status(500).json({ error: '登录失败，请稍后再试。' });
   }
 });
 

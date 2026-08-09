@@ -89,7 +89,16 @@ export default function App() {
   // Profile editing modal open/close
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
-  const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem('senxinkang_user_email'));
+  /**
+   * 畫面上顯示的那一個帳號 —— 手機號或（舊帳號的）電子郵件。
+   *
+   * **只是一個標籤，不是識別鍵。** 讀寫孩子檔案與分數認的是通行證裡的使用者
+   * id（見 `authHeaders`）；這個值換成手機號時，資料層一個字都不必動。
+   *
+   * localStorage 的鍵仍是 `senxinkang_user_email`：改掉它會讓每一位已登入的
+   * 家長在下次開啟時被登出，而它只是一個鍵名。
+   */
+  const [userIdentity, setUserIdentity] = useState<string | null>(() => localStorage.getItem('senxinkang_user_email'));
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('senxinkang_token'));
 
   // ── 付費解鎖狀態 ──
@@ -278,7 +287,7 @@ export default function App() {
    */
   useEffect(() => {
     if (!PRODUCT.features.paywall) return;
-    if (!userEmail) {
+    if (!userIdentity) {
       setUnlockedDimensionIds(null);
       setUnlocksAvailable(null);
       return;
@@ -300,7 +309,7 @@ export default function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, [userEmail, authToken]);
+  }, [userIdentity, authToken]);
 
   /**
    * 進入某維度的深度評估，未解鎖則先過付費牆。
@@ -312,7 +321,7 @@ export default function App() {
     const access = getDimensionAccess(dimensionId, {
       paywallEnabled: PRODUCT.features.paywall,
       unlocksAvailable,
-      isLoggedIn: Boolean(userEmail),
+      isLoggedIn: Boolean(userIdentity),
       unlockedDimensionIds,
     });
     // locked 與 demo 去的是同一個畫面，但結果相反：前者過不去，後者可以略過。
@@ -322,7 +331,7 @@ export default function App() {
       setCurrentView('paywall');
       return;
     }
-    // needs_login 時整個畫面本來就會是 AuthScreen（main 區塊以 userEmail 判斷），
+    // needs_login 時整個畫面本來就會是 AuthScreen（main 區塊以 userIdentity 判斷），
     // 這裡不另做導向。
     if (target === 'language_special') {
       setCurrentView('language_special');
@@ -333,16 +342,19 @@ export default function App() {
   };
 
   // Handler for successful authentication (registration or login)
+  //
+  // `identity` 是拿來顯示的標籤（手機號，或舊帳號的電子郵件），不是識別鍵 ——
+  // 識別鍵在 `token` 裡，而那是唯一被伺服器採信的東西。
   const handleAuthSuccess = (
-    email: string,
+    identity: string,
     token: string | null,
     cloudChild: Child | null,
     cloudScores: DimensionScore[],
     cloudOrders: MallOrder[],
     cloudHistory: AssessmentRecord[]
   ) => {
-    setUserEmail(email);
-    localStorage.setItem('senxinkang_user_email', email);
+    setUserIdentity(identity);
+    localStorage.setItem('senxinkang_user_email', identity);
     setAuthToken(token);
     if (token) {
       localStorage.setItem('senxinkang_token', token);
@@ -420,12 +432,12 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (confirm('确认登出当前邮箱并返回登录首页吗？您的数据安全保存在云端。')) {
+    if (confirm('确认登出当前账户并返回登录首页吗？您的数据安全保存在云端。')) {
       setChildProfile(null);
       setCompletedScores([]);
       setOrders([]);
       setReportHistory([]);
-      setUserEmail(null);
+      setUserIdentity(null);
       setAuthToken(null);
 
       localStorage.removeItem('senxinkang_child');
@@ -522,7 +534,7 @@ export default function App() {
   const accessOf = (dimensionId: string) => getDimensionAccess(dimensionId, {
     paywallEnabled: PRODUCT.features.paywall,
     unlocksAvailable,
-    isLoggedIn: Boolean(userEmail),
+    isLoggedIn: Boolean(userIdentity),
     unlockedDimensionIds,
   });
   // 卡片上要顯示 ¥19.9 徽章的維度：真的鎖住的，以及展示模式下「本來會鎖住」的。
@@ -814,10 +826,10 @@ export default function App() {
                 )}
               </div>
             </div>
-          ) : userEmail ? (
+          ) : userIdentity ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-brand-charcoal/60 font-medium">
-                当前账户: <span className="font-bold text-brand-forest">{userEmail}</span>
+                当前账户: <span className="font-bold text-brand-forest">{userIdentity}</span>
               </span>
               <button
                 onClick={handleLogout}
@@ -833,7 +845,7 @@ export default function App() {
 
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
-        {!userEmail ? (
+        {!userIdentity ? (
           <AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} />
         ) : !child ? (
           /* Profile Registry form shown when child is unconfigured */
@@ -843,7 +855,7 @@ export default function App() {
               欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span> </>}儿童综合发展评估
             </h2>
             <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
-              您的账户 (<span className="font-bold text-brand-forest">{userEmail}</span>) 已成功连线。为了开启全方位脑功能评估，请填写您孩子的基本信息，登记创建成长档案。
+              您的账户 (<span className="font-bold text-brand-forest">{userIdentity}</span>) 已成功连线。为了开启全方位脑功能评估，请填写您孩子的基本信息，登记创建成长档案。
             </p>
             <ChildProfileForm currentChild={child} onSave={handleSaveChild} />
           </div>

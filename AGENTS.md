@@ -72,14 +72,28 @@ pnpm run lint       # tsc --noEmit
 | `/api/ali-language-eval` | POST | 语言专项评估 | `audioData`, `context` |
 | `/api/asr` | POST | 语音识别 | `audioData` |
 | `/api/db/status` | GET | 数据库状态 | 无 |
-| `/api/auth/register` | POST | 用户注册 | `email`, `password` |
-| `/api/auth/login` | POST | 用户登录 | `email`, `password` |
+| `/api/auth/sms/request` | POST | 索取登录验证码 | `phone`, `companySlug`（选填） |
+| `/api/auth/sms/verify` | POST | 核对验证码并登录 | `phone`, `code`, `companySlug`（选填） |
+| `/api/auth/register` | POST | 用户注册（旧版邮箱，#27 将移除） | `email`, `password` |
+| `/api/auth/login` | POST | 用户登录（旧版邮箱，#27 将移除） | `email`, `password` |
 | `/api/db/load` | GET | 加载用户数据 | 已登录：`Authorization: Bearer <token>`；未登录：`deviceId` (query) |
 | `/api/db/save` | POST | 保存用户数据 | `deviceId`, `child`, `completedScores`, `orders`, `reportHistory`（身分取自 token） |
 
 > 同步端点以**使用者 id** 识别家长，那个 id 装在 session token 里。请求 body 或 query
 > 里的 `email` / `userId` 一律不被采信 —— 客户端送上来的识别键不是身分。资料层
 > （`src/db/mysql.ts`）同样只认使用者 id，护栏见 `test/userIdKey.structure.test.ts`。
+
+> **手机号登入**没有独立的「注册」动作：第一次验证成功即建立帐号，归属在那一刻
+> 写入，此后不变。帐号是以**（归属，手机号）**这一组去找的，不是手机号本身 ——
+> 同一支手机号在两家合作公司是**两位家长**（见 `docs/adr/0002-...`）。这条路径
+> **没有记忆体模式**：资料库写不进去就明确失败，不发 token。
+>
+> 短信通道是可抽换的一层（`src/sms.ts`），预设阿里云。`ALI_SMS_*` 未设齐时
+> `/api/auth/sms/request` 回 503「短信通道尚未开放」，**不会假装送出成功**。
+> 相关测试：`test/smsLogin.http.test.ts`、`test/smsSender.test.ts`。
+>
+> ⚠️ 手机号栏位、验证码表与归属合并唯一索引由
+> `deploy/migrations/2026-08-10-phone-login.sql` 建立，**必须先于新版程式码部署**。
 
 ## 环境变量
 
@@ -91,6 +105,14 @@ pnpm run lint       # tsc --noEmit
 | `CLOUDBASE_SECRET_ID` | 腾讯云 CloudBase Secret ID | 否 (未配置时使用本地存储) |
 | `CLOUDBASE_SECRET_KEY` | 腾讯云 CloudBase Secret Key | 否 |
 | `CLOUDBASE_ENV_ID` | 腾讯云 CloudBase 环境 ID | 否 |
+| `ALI_SMS_ACCESS_KEY_ID` | 阿里云短信 AccessKey ID | **手机号登入必需** |
+| `ALI_SMS_ACCESS_KEY_SECRET` | 阿里云短信 AccessKey Secret | **手机号登入必需** |
+| `ALI_SMS_SIGN_NAME` | 已审核的短信签名 | **手机号登入必需** |
+| `ALI_SMS_TEMPLATE_CODE` | 已审核的验证码范本（须含 `${code}` 变数） | **手机号登入必需** |
+| `SMS_PROVIDER` | `aliyun`（预设）或 `console`（本机开发，只印不送） | 否 |
+
+> 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，
+> 不会退回任何一种「看起来送出去了」的模式。
 
 ## 代码规范
 

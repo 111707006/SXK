@@ -1,29 +1,157 @@
 import { PRODUCT } from '../productConfig';
 import { peekCompanySlug } from '../utils/attribution';
-import React, { useState } from 'react';
-import { Mail, Lock, Sparkles, AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, FileText } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Mail, Lock, Sparkles, AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, FileText, Smartphone, KeyRound } from 'lucide-react';
 
 interface AuthScreenProps {
-  onAuthSuccess: (email: string, token: string | null, childData: any, scores: any[], orders: any[], history: any[]) => void;
+  /** `identity` 只是畫面上顯示的標籤（手機號或舊帳號的電子郵件），不是識別鍵。 */
+  onAuthSuccess: (identity: string, token: string | null, childData: any, scores: any[], orders: any[], history: any[]) => void;
   dbConfigured: boolean | null;
 }
 
+/**
+ * 登入方式。**預設是手機號** —— 家長記不住密碼，但手機一直在手上。
+ *
+ * 電子郵件那兩個分頁是給既有家長走的，會在 #27 一併移除；
+ * 純驗證碼登入沒有獨立的「註冊」動作，所以手機號只有一個分頁。
+ */
+type AuthMode = 'phone' | 'email_login' | 'email_register';
+
+/** 與後端 `PHONE_PATTERN` 相同。 */
+const PHONE_PATTERN = /^1[3-9]\d{9}$/;
+
 export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenProps) {
-  const [isLogin, setIsLogin] = useState<boolean>(true);
+  const [mode, setMode] = useState<AuthMode>('phone');
+  const isLogin = mode !== 'email_register';
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
-  
+
+  const [phone, setPhone] = useState<string>('');
+  const [smsCode, setSmsCode] = useState<string>('');
+  const [codeSent, setCodeSent] = useState<boolean>(false);
+  /** 還要等幾秒才能再索取一次。0 代表現在就可以。 */
+  const [cooldown, setCooldown] = useState<number>(0);
+  const [sendingCode, setSendingCode] = useState<boolean>(false);
+
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState<boolean>(false);
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
 
+  // 冷卻倒數。伺服器才是那個說了算的（它拿得到最近一次索取的時間），
+  // 這裡只是把它的答案顯示出來，讓家長知道還要等多久而不是一直按。
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+
+  const switchMode = (next: AuthMode) => {
+    setMode(next);
+    setError(null);
+    setSuccessMsg(null);
+  };
+
+  /** 讀回應內容，順便處理伺服器回了一頁 HTML 的情形。 */
+  const readJson = async (resp: Response, what: string): Promise<any> => {
+    try {
+      return await resp.json();
+    } catch {
+      if (!resp.ok) throw new Error(`${what}异常 (HTTP ${resp.status})`);
+      throw new Error('服务器返回了无效的响应格式，请稍后再试');
+    }
+  };
+
+  const handleRequestCode = async () => {
+    setError(null);
+    setSuccessMsg(null);
+    if (!PHONE_PATTERN.test(phone.trim())) {
+      setError('请填写正确的 11 位手机号码');
+      return;
+    }
+    setSendingCode(true);
+    try {
+      const resp = await fetch('/api/auth/sms/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // 歸屬只在建立帳號的那一刻寫得進去。識別碼有效與否由後端判斷 ——
+        // 前端一律照送，查不到就是未歸屬，不猜任何一家公司。
+        body: JSON.stringify({ phone: phone.trim(), companySlug: peekCompanySlug() }),
+      });
+      const data = await readJson(resp, '获取验证码');
+
+      if (!resp.ok) {
+        // 429 會附上還要等幾秒，照著倒數比讓家長盲按有用。
+        if (typeof data.retryAfterSec === 'number') setCooldown(data.retryAfterSec);
+        throw new Error(data.error || '验证码发送失败，请稍后再试');
+      }
+
+      setCodeSent(true);
+      setCooldown(typeof data.cooldownSec === 'number' ? data.cooldownSec : 60);
+      setSuccessMsg('验证码已发送，请查收短信。');
+    } catch (err: any) {
+      setError(err.message || '网络连接异常，请重试');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handlePhoneSubmit = async () => {
+    if (!PHONE_PATTERN.test(phone.trim())) {
+      setError('请填写正确的 11 位手机号码');
+      return;
+    }
+    if (!/^\d{6}$/.test(smsCode.trim())) {
+      setError('请填写 6 位验证码');
+      return;
+    }
+    // 第一次验证成功就会建立帐号，所以同意条款问在这里 ——
+    // 纯验证码登入没有另一个叫「注册」的时刻可以问。
+    if (!agreedToTerms) {
+      setError('请先审阅并同意服务及免责条款、隐私保护条款');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const resp = await fetch('/api/auth/sms/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: phone.trim(),
+          code: smsCode.trim(),
+          companySlug: peekCompanySlug(),
+        }),
+      });
+      const data = await readJson(resp, '登录请求');
+
+      if (!resp.ok) throw new Error(data.error || '登录失败，请重新获取验证码');
+
+      onAuthSuccess(
+        data.phone,
+        data.token || null,
+        data.child,
+        data.completedScores || [],
+        data.orders || [],
+        data.reportHistory || []
+      );
+    } catch (err: any) {
+      setError(err.message || '网络连接异常，请重试');
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
+
+    if (mode === 'phone') {
+      await handlePhoneSubmit();
+      return;
+    }
 
     // Validation
     if (!email.trim() || !password) {
@@ -130,12 +258,12 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                 loginData.reportHistory || []
               );
             } else {
-              setIsLogin(true);
+              setMode('email_login');
               setSuccessMsg(null);
               setLoading(false);
             }
           } catch (e) {
-            setIsLogin(true);
+            setMode('email_login');
             setSuccessMsg(null);
             setLoading(false);
           }
@@ -150,9 +278,14 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
   const handleUseDemoAccount = () => {
     setEmail('test@test.com');
     setPassword('123456');
-    setIsLogin(true);
-    setError(null);
+    switchMode('email_login');
   };
+
+  const TABS: Array<{ id: AuthMode; label: string }> = [
+    { id: 'phone', label: '手机号登录' },
+    { id: 'email_login', label: '邮箱登录' },
+    { id: 'email_register', label: '免费注册' },
+  ];
 
   return (
     <div className="max-w-md w-full mx-auto bg-white border border-brand-stone rounded-3xl p-8 shadow-xl text-left animate-fade-in relative overflow-hidden">
@@ -171,38 +304,22 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
           </h2>
         </div>
 
-        {/* Tab Selection */}
+        {/* Tab Selection — 手机号在第一个，且是预设 */}
         <div className="flex bg-brand-beige/50 p-1 rounded-2xl border border-brand-stone/40">
-          <button
-            type="button"
-            onClick={() => {
-              setIsLogin(true);
-              setError(null);
-              setSuccessMsg(null);
-            }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all duration-200 ${
-              isLogin
-                ? 'bg-white text-brand-forest shadow-sm border border-brand-stone/30 font-extrabold'
-                : 'text-brand-charcoal/60 hover:text-brand-forest'
-            }`}
-          >
-            邮箱登录
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsLogin(false);
-              setError(null);
-              setSuccessMsg(null);
-            }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all duration-200 ${
-              !isLogin
-                ? 'bg-white text-brand-forest shadow-sm border border-brand-stone/30 font-extrabold'
-                : 'text-brand-charcoal/60 hover:text-brand-forest'
-            }`}
-          >
-            免费注册
-          </button>
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => switchMode(tab.id)}
+              className={`flex-1 py-2.5 rounded-xl text-[11px] font-black transition-all duration-200 ${
+                mode === tab.id
+                  ? 'bg-white text-brand-forest shadow-sm border border-brand-stone/30 font-extrabold'
+                  : 'text-brand-charcoal/60 hover:text-brand-forest'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* Error Alert */}
@@ -223,69 +340,135 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
 
         {/* Auth Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
-              电子邮箱
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
-                <Mail size={14} />
-              </span>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="yourname@domain.com"
-                disabled={loading}
-                className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
-              登录密码
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
-                <Lock size={14} />
-              </span>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="请输入 6 位以上密码"
-                disabled={loading}
-                className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
-              />
-            </div>
-          </div>
-
-          {!isLogin && (
-            <div className="space-y-1.5 animate-fade-in">
-              <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
-                确认密码
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
-                  <Lock size={14} />
-                </span>
-                <input
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="请再次输入您的密码"
-                  disabled={loading}
-                  className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
-                />
+          {mode === 'phone' ? (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+                  手机号
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
+                    <Smartphone size={14} />
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    inputMode="numeric"
+                    maxLength={11}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                    placeholder="请输入 11 位手机号"
+                    disabled={loading}
+                    className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
+                  />
+                </div>
               </div>
-            </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+                  短信验证码
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
+                      <KeyRound size={14} />
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={smsCode}
+                      onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="6 位数字"
+                      disabled={loading}
+                      className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
+                    />
+                  </div>
+                  {/* 冷卻中按不下去，且按鈕自己说得出还要等多久 */}
+                  <button
+                    type="button"
+                    onClick={handleRequestCode}
+                    disabled={sendingCode || loading || cooldown > 0}
+                    className="shrink-0 px-4 py-2.5 rounded-2xl border border-brand-forest/30 bg-brand-sage/20 hover:bg-brand-sage/40 disabled:bg-brand-stone/20 disabled:text-brand-charcoal/40 disabled:border-brand-stone/40 text-brand-forest text-[11px] font-extrabold transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {cooldown > 0 ? `${cooldown} 秒后重发` : sendingCode ? '发送中…' : codeSent ? '重新获取' : '获取验证码'}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+                  电子邮箱
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
+                    <Mail size={14} />
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="yourname@domain.com"
+                    disabled={loading}
+                    className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+                  登录密码
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
+                    <Lock size={14} />
+                  </span>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="请输入 6 位以上密码"
+                    disabled={loading}
+                    className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
+                  />
+                </div>
+              </div>
+
+              {mode === 'email_register' && (
+                <div className="space-y-1.5 animate-fade-in">
+                  <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+                    确认密码
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
+                      <Lock size={14} />
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="请再次输入您的密码"
+                      disabled={loading}
+                      className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {!isLogin && (
+          {/*
+            同意条款问在**会建立帐号的那些流程**上。手机号那条路每次都问，
+            因为纯验证码登入没有另一个叫「注册」的时刻可以问 ——
+            而第一次验证成功就已经建好帐号了。
+          */}
+          {mode !== 'email_login' && (
             <label className="flex items-start gap-2 cursor-pointer group mt-1">
               <input
                 type="checkbox"
@@ -330,34 +513,44 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
               </span>
             ) : (
               <>
-                <span>{isLogin ? '立即登录' : '同意服务条款并注册'}</span>
+                <span>
+                  {mode === 'phone' ? '验证并登录' : isLogin ? '立即登录' : '同意服务条款并注册'}
+                </span>
                 <ArrowRight size={13} />
               </>
             )}
           </button>
+
+          {mode === 'phone' && (
+            <p className="text-[10px] text-brand-charcoal/55 leading-relaxed text-center">
+              首次验证成功即为您创建账户，无需单独注册，也不需要设置密码。
+            </p>
+          )}
         </form>
 
         {/* Divider & Sandbox evaluation quick login hint */}
-        <div className="pt-2 space-y-3.5">
+        {mode !== 'phone' && (
+          <div className="pt-2 space-y-3.5">
 
-          <div className="bg-brand-beige/40 p-3 rounded-2xl border border-brand-stone/50 text-[10px] space-y-1.5 leading-relaxed">
-            <div className="flex items-center gap-1.5 font-bold text-brand-forest">
-              <Sparkles size={11} className="text-brand-moss shrink-0" />
-              <span>💡 快速测试账号：</span>
+            <div className="bg-brand-beige/40 p-3 rounded-2xl border border-brand-stone/50 text-[10px] space-y-1.5 leading-relaxed">
+              <div className="flex items-center gap-1.5 font-bold text-brand-forest">
+                <Sparkles size={11} className="text-brand-moss shrink-0" />
+                <span>💡 快速测试账号：</span>
+              </div>
+              <p className="text-brand-charcoal/70">
+                如果您需要免去注册流程快速进行系统体验，我们为您内置了一键填充的测试账户。
+              </p>
+              <button
+                type="button"
+                onClick={handleUseDemoAccount}
+                className="text-brand-forest font-extrabold hover:underline text-[10px] flex items-center gap-1 cursor-pointer"
+              >
+                <span>使用一键填充 `test@test.com` 账号</span>
+                <ArrowRight size={10} />
+              </button>
             </div>
-            <p className="text-brand-charcoal/70">
-              如果您需要免去注册流程快速进行系统体验，我们为您内置了一键填充的测试账户。
-            </p>
-            <button
-              type="button"
-              onClick={handleUseDemoAccount}
-              className="text-brand-forest font-extrabold hover:underline text-[10px] flex items-center gap-1 cursor-pointer"
-            >
-              <span>使用一键填充 `test@test.com` 账号</span>
-              <ArrowRight size={10} />
-            </button>
           </div>
-        </div>
+        )}
 
         {/* 服务及隐私条款合并弹窗 */}
         {showTermsModal && (

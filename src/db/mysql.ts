@@ -86,6 +86,141 @@ export async function findUserByEmail(email: string): Promise<any | null> {
 }
 
 /**
+ * 未歸屬併成的那一個值。與資料庫的 `users.company_key` 生成欄位
+ * （`COALESCE(company_id, 0)`）**必須是同一個約定** —— 兩邊分岔的話，
+ * 應用層查不到的帳號資料庫查得到，於是同一支手機號在未歸屬範圍內建出第二個帳號。
+ */
+function toCompanyKey(companyId: number | null): number {
+  return companyId ?? 0;
+}
+
+/**
+ * 登入用：把（歸屬，手機號）換成帳號。
+ *
+ * `companyId` 是必要參數而非選填。手機號**不是**全域唯一的識別鍵 ——
+ * 同一支手機號在兩家合作公司是兩位家長（見 `docs/adr/0002-...`），
+ * 一個「不帶公司就查全部」的預設值會讓在乙公司登入的家長進到甲公司的帳號，
+ * 然後把小明在甲公司的檔案與分數覆蓋掉。
+ *
+ * 查的是生成欄位 `company_key` 而不是 `company_id`：未歸屬在 `company_id` 是
+ * NULL，而 `NULL = NULL` 在 SQL 裡不成立，用 `company_id` 查永遠查不到未歸屬的
+ * 家長 —— 而專案 A 的家長全部都是未歸屬。
+ */
+export async function findUserByPhone(companyId: number | null, phone: string): Promise<any | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    'SELECT * FROM users WHERE company_key = ? AND phone = ? LIMIT 1',
+    [toCompanyKey(companyId), phone]
+  );
+  return (rows as any[])[0] || null;
+}
+
+/**
+ * 建立手機號家長帳號，並在此刻**一次性**寫入歸屬。
+ *
+ * 與 `createUser` 同一條紀律：`companyId` 只在這裡寫得進去。電子郵件與密碼兩欄
+ * 皆留空 —— 純驗證碼登入沒有密碼，補一個假的進去只會讓「這個帳號能不能用密碼
+ * 登入」變成一個要靠讀程式碼才答得出來的問題。
+ *
+ * 唯一鍵 `uk_company_phone` 撞上時**丟例外**，呼叫端不得吞掉：兩個同時進來的
+ * 請求裡，先寫進去的那一個是帳號，另一個必須重查而不是再建一個。
+ */
+export async function createPhoneUser(phone: string, companyId: number | null = null): Promise<number> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL not configured');
+  const [result] = await p.execute(
+    'INSERT INTO users (phone, company_id) VALUES (?, ?)',
+    [phone, companyId]
+  );
+  return (result as mysql.ResultSetHeader).insertId;
+}
+
+// ---- SMS verification codes ----
+//
+// 只存雜湊。這張表裡的一列若是明碼，任何一份資料庫備份、任何一次慢查詢日誌
+// 都等同一把可以登入任何帳號的鑰匙 —— 而驗證碼只有六位數，看到就是看到了。
+
+export interface SmsCodeInput {
+  phone: string;
+  /** bcrypt 雜湊，不是驗證碼本身。 */
+  codeHash: string;
+  expiresAt: Date;
+  requestIp: string | null;
+}
+
+export async function createSmsCode(input: SmsCodeInput): Promise<number> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL not configured');
+  const [result] = await p.execute(
+    'INSERT INTO sms_codes (phone, code_hash, expires_at, request_ip) VALUES (?, ?, ?, ?)',
+    [input.phone, input.codeHash, input.expiresAt, input.requestIp]
+  );
+  return (result as mysql.ResultSetHeader).insertId;
+}
+
+/**
+ * 收回一筆從來沒送出去的驗證碼。
+ *
+ * 簡訊送失敗時呼叫。留著的話，那一列會讓冷卻期把家長擋在門外一分鐘，
+ * 而他手上並沒有任何一組可以輸入的驗證碼。
+ */
+export async function deleteSmsCode(id: number): Promise<void> {
+  const p = getPool();
+  if (!p) return;
+  await p.execute('DELETE FROM sms_codes WHERE id = ?', [id]);
+}
+
+/** 這支手機號最近索取的那一筆。冷卻期與核對都認這一筆，舊的一律作廢。 */
+export async function findLatestSmsCode(phone: string): Promise<any | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    'SELECT * FROM sms_codes WHERE phone = ? ORDER BY id DESC LIMIT 1',
+    [phone]
+  );
+  return (rows as any[])[0] || null;
+}
+
+/** 防刷：這支手機號在某個時間點之後索取了幾次。 */
+export async function countSmsCodesSince(phone: string, since: Date): Promise<number> {
+  const p = getPool();
+  if (!p) return 0;
+  const [rows] = await p.execute(
+    'SELECT COUNT(*) AS n FROM sms_codes WHERE phone = ? AND created_at >= ?',
+    [phone, since]
+  );
+  return Number((rows as any[])[0]?.n ?? 0);
+}
+
+/**
+ * 累加錯誤次數。在資料庫裡做加法而不是「讀出來加一再寫回去」——
+ * 後者在兩個請求同時猜的時候會把其中一次的計數蓋掉，於是上限形同虛設。
+ */
+export async function incrementSmsCodeAttempts(id: number): Promise<void> {
+  const p = getPool();
+  if (!p) return;
+  await p.execute('UPDATE sms_codes SET attempts = attempts + 1 WHERE id = ?', [id]);
+}
+
+/**
+ * 把驗證碼標記為已用。**只有真的完成這次轉換的那一個呼叫回 true。**
+ *
+ * `AND consumed_at IS NULL` 是這裡的整個重點：同一組驗證碼被送兩次時，
+ * 只有一個請求拿得到 true，另一個看到 false 就必須當作驗證失敗。
+ * 少了它，一組被側錄到的驗證碼可以重複登入直到過期。
+ */
+export async function consumeSmsCode(id: number): Promise<boolean> {
+  const p = getPool();
+  if (!p) return false;
+  const [result] = await p.execute(
+    'UPDATE sms_codes SET consumed_at = NOW() WHERE id = ? AND consumed_at IS NULL',
+    [id]
+  );
+  return (result as mysql.ResultSetHeader).affectedRows === 1;
+}
+
+/**
  * 建立家長帳號，並在此刻**一次性**寫入歸屬。
  *
  * `companyId` 只在這裡寫得進去。歸屬「註冊時綁定、此後不變」不是靠一條紀律

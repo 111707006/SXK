@@ -103,6 +103,11 @@ async function notifyWeCom(text: string, companyWebhookUrl: string | null): Prom
 /**
  * Aliyun SMS — deliberately NOT implemented yet.
  *
+ * NOTE: 登入驗證碼那條路已經有可用的阿里雲傳輸層了（`src/sms.ts`，#25）。
+ * 這裡沒有直接接過去，是因為兩者送的是不同東西：驗證碼走的是一個只帶
+ * `${code}` 的已審核範本，而這裡要送的是一整段自由文字的預約摘要 ——
+ * 那需要另一個範本（或改用其他通道）。要補的是那個範本，不是簽名程式碼。
+ *
  * Aliyun's Dysmsapi needs a signature over a canonicalised query string plus a
  * pre-approved sign name and template (1–2 business days of review). Writing
  * that signing code without credentials to test against would ship unverifiable

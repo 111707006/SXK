@@ -53,6 +53,17 @@ describe('「今天」不得再被寫死', () => {
     expect(years, `${DATE_UTILS_PATH} 出現寫死的年份`).toEqual([]);
   });
 
+  /**
+   * 唯一的例外：阿里雲的 API 版本號恰好長得像日期。
+   *
+   * 它不是「今天」，也不參與任何一次年齡計算 —— 那是簽名的一部分，改掉它
+   * 只會讓簡訊送不出去。刻意用**整行全等比對**而不是關鍵字白名單：
+   * 這樣它只放行這一行，任何其他寫死的日期照樣會被抓到。
+   */
+  const ALLOWED_DATE_SHAPED_LINES = new Set([
+    "src/sms.ts: const ALIYUN_API_VERSION = '2017-05-25';",
+  ]);
+
   it('src 底下沒有任何寫死的日期', () => {
     // 工具修好了，但同一個錯誤可以在任何一個元件裡重新長出來。
     const files = sourceFiles('src');
@@ -63,15 +74,24 @@ describe('「今天」不得再被寫死', () => {
     for (const file of files) {
       const source = stripComments(read(file));
       for (const line of source.split('\n')) {
+        const found = `${file}: ${line.trim()}`;
+        if (ALLOWED_DATE_SHAPED_LINES.has(found)) continue;
         // 字串形式：new Date('2026-07-08')、birthDate = '2026-07-08'
-        if (/['"`](19|20)\d{2}-\d{2}-\d{2}/.test(line)) offenders.push(`${file}: ${line.trim()}`);
+        if (/['"`](19|20)\d{2}-\d{2}-\d{2}/.test(line)) offenders.push(found);
         // 數字形式：new Date(2026, 6, 8)、new Date(1783283200000)。
         // 只查 `new Date(` 後面**緊接著字面值**的情形 —— 由變數構造（本模組自己
         // 就是這樣做的）不算。少了這一條，把 bug 改用這個寫法放回去測試照樣全綠。
-        else if (/new Date\(\s*['"`\d]/.test(line)) offenders.push(`${file}: ${line.trim()}`);
+        else if (/new Date\(\s*['"`\d]/.test(line)) offenders.push(found);
       }
     }
     expect(offenders, '這些地方把某一天寫死了，該改成由執行期算出').toEqual([]);
+  });
+
+  it('那條例外真的只放行那一行 —— 換一個檔案寫同一句仍然會被抓到', () => {
+    // 沒有這一條，上面那個 Set 遲早會被當成「加進去就過了」的旁路。
+    const line = "const ALIYUN_API_VERSION = '2017-05-25';";
+    expect(ALLOWED_DATE_SHAPED_LINES.has(`src/notify.ts: ${line}`)).toBe(false);
+    expect(ALLOWED_DATE_SHAPED_LINES.has(`src/sms.ts: const T = '2026-07-08';`)).toBe(false);
   });
 });
 

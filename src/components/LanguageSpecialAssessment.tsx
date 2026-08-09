@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Child } from '../types';
 import { transcribeWithQwenASR, judgeArticulation } from '../utils/asr';
+import { bookingWindow } from '../utils/bookingWindow';
 import { authHeaders } from '../utils/api';
 import { peekDeviceId } from '../utils/deviceId';
 import { PRODUCT } from '../productConfig';
@@ -263,7 +264,10 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
   // Booking Online State
   const [selectedTherapistForBooking, setSelectedTherapistForBooking] = useState<typeof THERAPISTS[0] | null>(null);
-  const [bookingDate, setBookingDate] = useState('');
+  // 與報告頁同一支工具：從明天起算 30 天。原本這裡沒有上下界，預設也是空字串 ——
+  // 家長選得到昨天，也可以完全不選就送出，客服會收到一筆沒有日期的預約。
+  const bookingRange = useMemo(() => bookingWindow(), []);
+  const [bookingDate, setBookingDate] = useState(() => bookingWindow().min);
   const [bookingTime, setBookingTime] = useState('09:30 - 10:20');
   const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
@@ -857,6 +861,12 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
     // 哪裡錯，而不是送出後才收到 400。
     if (!/^1[3-9]\d{9}$/.test(phone)) {
       setBookingError('请填写正确的 11 位手机号码。');
+      return;
+    }
+    // `min`／`max` 只擋日曆上的點選，鍵盤打進去的值照樣過得了。少了這一條，
+    // 一筆日期空白或已經過去的預約會安靜地送進資料庫，客服約不到人。
+    if (bookingDate < bookingRange.min || bookingDate > bookingRange.max) {
+      setBookingError(`请选择 ${bookingRange.min} 至 ${bookingRange.max} 之间的会诊日期。`);
       return;
     }
 
@@ -2046,6 +2056,8 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       <input
                         type="date"
                         value={bookingDate}
+                        min={bookingRange.min}
+                        max={bookingRange.max}
                         onChange={(e) => setBookingDate(e.target.value)}
                         className="w-full p-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-moss font-semibold"
                       />

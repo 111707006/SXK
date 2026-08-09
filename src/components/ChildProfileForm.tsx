@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { Child, Gender } from '../types';
-import { User, Calendar, Smile, AlertCircle, Sparkles } from 'lucide-react';
+import { User, Smile, AlertCircle, Sparkles } from 'lucide-react';
 import { calculateAgeMonth, formatAge, getBirthDateFromAgeMonth } from '../utils/dateUtils';
+import { useToday } from '../utils/useToday';
+import { APPLICABLE_RANGE_TEXT } from '../utils/birthDateOptions';
+import { T1_AGE_RANGE } from '../t1Data';
+import BirthDateSelect from './BirthDateSelect';
 
 interface ChildProfileFormProps {
   currentChild: Child | null;
@@ -24,9 +28,10 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
   });
   const [gender, setGender] = useState<Gender>(currentChild?.gender || 'boy');
   const [error, setError] = useState('');
+  const today = useToday();
 
   // Calculate age real-time；讀不出來是 null，不是某個看起來很正常的數字
-  const calculatedAgeMonth = calculateAgeMonth(birthDate);
+  const calculatedAgeMonth = calculateAgeMonth(birthDate, today);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +47,10 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
       setError('出生日期无法识别，请重新选择（不能晚于今天）');
       return;
     }
-    if (calculatedAgeMonth < 12 || calculatedAgeMonth > 180) {
-      setError('系统评估与量表适用范围为12-180个月（1-15岁），请选择正确的出生日期');
+    // 三個下拉已經選不到範圍外的日期了，這一條留著是因為 `birthDate` 也可能來自
+    // 資料樣例或既有檔案 —— 表單的規則不該只靠輸入控制項擋。
+    if (calculatedAgeMonth < T1_AGE_RANGE.minMonths || calculatedAgeMonth > T1_AGE_RANGE.maxMonths) {
+      setError(`系统评估与量表适用范围为${APPLICABLE_RANGE_TEXT}，请选择正确的出生日期`);
       return;
     }
     setError('');
@@ -113,20 +120,17 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
             <label className="text-xs font-semibold text-brand-charcoal flex items-center gap-1.5">
               出生日期 <span className="text-rose-500">*</span>
             </label>
-            <div className="relative">
-              <input
-                id="child-birthdate-input"
-                type="date"
-                value={birthDate}
-                onChange={(e) => {
-                  setBirthDate(e.target.value);
-                  setError('');
-                }}
-                className="w-full pl-10 pr-4 py-3 bg-brand-cream/30 border border-brand-stone/60 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-moss/20 focus:border-brand-moss text-brand-charcoal transition"
-              />
-              <Calendar className="absolute left-3.5 top-3.5 text-brand-charcoal/40" size={16} />
-            </div>
-            
+            <BirthDateSelect
+              idPrefix="child-birthdate"
+              value={birthDate}
+              today={today}
+              storedBirthDate={currentChild?.birthDate}
+              onChange={(next) => {
+                setBirthDate(next);
+                setError('');
+              }}
+            />
+
             {birthDate && calculatedAgeMonth !== null && (
               <div className="flex items-center gap-1.5 bg-brand-sage/10 rounded-xl p-2.5 border border-brand-stone/40 animate-fade-in">
                 <Sparkles size={12} className="text-brand-moss" />
@@ -143,7 +147,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
                 <p className="text-[11px] text-rose-700 font-bold leading-none">这个出生日期无法识别，请重新选择</p>
               </div>
             )}
-            <p className="text-[10px] text-brand-charcoal/50 leading-relaxed">系统适用范围为1岁至15岁 (12-180个月)</p>
+            <p className="text-[10px] text-brand-charcoal/50 leading-relaxed">系统适用范围为 {APPLICABLE_RANGE_TEXT}，超出范围的日期不会出现在选项中</p>
           </div>
         </div>
 

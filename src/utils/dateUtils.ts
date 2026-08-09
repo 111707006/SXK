@@ -102,17 +102,50 @@ export function formatAge(ageMonth: number): string {
   return `${years}岁${months}个月`;
 }
 
-/** 某年某月有幾天。`day = 0` 取的是上個月的最後一天。 */
-function daysInMonth(year: number, monthIndex: number): number {
-  return new Date(year, monthIndex + 1, 0).getDate();
+const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+/**
+ * 某年某月有幾天。
+ *
+ * 刻意用算的而不是 `new Date(year, monthIndex + 1, 0)`：那個寫法在年份是 0–99 時
+ * 會被 `Date` 建構子映射到 1900 年代，量到的是**另一年**的二月。這個函式的呼叫端
+ * 正好都在處理「往回推很多個月之後掉出四位數年份」的邊界。
+ */
+export function daysInMonth(year: number, monthIndex: number): number {
+  return monthIndex === 1 && isLeapYear(year) ? 29 : DAYS_PER_MONTH[monthIndex];
+}
+
+/**
+ * 從 `from` 往回 n 個月的**同一日**。
+ *
+ * 不能用 `setMonth(月 - n)`：往回落在較短的月份時會溢位 —— 3 月 31 日減一個月
+ * 成了「2 月 31 日」，JS 安靜地推成 3 月 3 日，於是推出來的日子整整晚了三天，
+ * 再算回月齡就少一個月。這裡改成把日子夾在該月的最後一天。
+ *
+ * `months` 收負數（往未來推）。年份掉出四位數時回 `null` —— 那樣的日子
+ * `parseBirthDate` 讀不回來，而且 0–99 會被 `Date` 映射到 1900 年代。
+ */
+export function monthsBefore(from: Date, months: number): Date | null {
+  const totalMonths = from.getFullYear() * 12 + from.getMonth() - months;
+  const year = Math.floor(totalMonths / 12);
+  if (year < 1000 || year > 9999) return null;
+
+  const monthIndex = totalMonths - year * 12;
+  return new Date(year, monthIndex, Math.min(from.getDate(), daysInMonth(year, monthIndex)));
+}
+
+/** 把一個 `Date` 寫成 `YYYY-MM-DD`，取的是它的**本地**年月日（不是 UTC 的）。 */
+export function formatLocalDate(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 /**
  * 由月齡反推出生日期（`YYYY-MM-DD`），用來給日期欄位一個起始位置。
- *
- * 不能用 `setMonth(月 - n)`：往回落在較短的月份時會溢位 —— 3 月 31 日減一個月
- * 成了「2 月 31 日」，JS 安靜地推成 3 月 3 日，於是反推出來的生日整整晚了三天，
- * 再算回月齡就少一個月。這裡改成把日子夾在該月的最後一天。
  *
  * 月齡若不是一個合理的正整數就回**空字串** —— 它可能直接來自 localStorage 或
  * 雲端 JSON，沒有人保證它的形狀。硬算會產出 `2023-1.5-09`、`NaN-NaN-NaN` 這種
@@ -120,14 +153,6 @@ function daysInMonth(year: number, monthIndex: number): number {
  */
 export function getBirthDateFromAgeMonth(ageMonth: number, now: Date = new Date()): string {
   if (!Number.isInteger(ageMonth) || ageMonth < 0) return '';
-
-  const totalMonths = now.getFullYear() * 12 + now.getMonth() - ageMonth;
-  const year = Math.floor(totalMonths / 12);
-  const monthIndex = totalMonths - year * 12;
-  const day = Math.min(now.getDate(), daysInMonth(year, monthIndex));
-
-  // 四位數以外的年份 `parseBirthDate` 讀不回來（而且 0–99 會被 JS 映射到 1900 年代）
-  if (year < 1000 || year > 9999) return '';
-
-  return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const birth = monthsBefore(now, ageMonth);
+  return birth ? formatLocalDate(birth) : '';
 }

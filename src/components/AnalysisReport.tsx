@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Child, DimensionScore, AssessmentRecord } from '../types';
 import { formatAge } from '../utils/dateUtils';
+import { bookingWindow } from '../utils/bookingWindow';
 import { 
   ArrowLeft, Brain, Sparkles, CheckCircle2, AlertTriangle, AlertCircle, 
   RefreshCw, Layers, ShieldAlert, Award, Compass, HeartHandshake, Printer,
@@ -57,24 +58,6 @@ const BUILTIN_SPECIALISTS: ReportSpecialist[] = [
     slots: ['周三上午', '周五上午', '周日上午']
   }
 ];
-
-/**
- * 可預約日期的計算。
- *
- * 【為什麼不寫死】原本這裡是 `min="2026-07-09" max="2026-07-30"`，預設值 `2026-07-13`。
- * 寫死的日期區間一定會過期，而過期的樣子很安靜：日曆上一個可選的日期都沒有，
- * 預設值卻仍停在 7/13，於是每一筆送出的預約都寫著四週前的時段
- * （`preferredSlot` 是 `${bookingDate} ${selectedSlot}` 直接組出來的）。
- * 專案 B 沒有付費層，這張表單就是它唯一的轉換點 —— 它壞掉不會有人回報，
- * 只會表現成「都沒有人來預約」。
- */
-function bookingDayOffset(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  // 刻意不用 toISOString()：那是 UTC，在東八區會把當地凌晨算成前一天。
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 /** 沒有照片時的替代標記 —— 合作公司多半不會有每位治療師的沙龍照。 */
 function SpecialistAvatar({ spec, size }: { spec: ReportSpecialist; size: number }) {
@@ -169,9 +152,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [selectedSpecialist, setSelectedSpecialist] = useState<string>('');
   const currentSpecialist = specialists.find(s => s.id === selectedSpecialist) ?? null;
   const [selectedSlot, setSelectedSlot] = useState<string>('');
-  // 從明天起算 30 天。專家要有時間排班，所以不開放今天。
-  const bookingWindow = useMemo(() => ({ min: bookingDayOffset(1), max: bookingDayOffset(30) }), []);
-  const [bookingDate, setBookingDate] = useState<string>(() => bookingDayOffset(1));
+  const bookingRange = useMemo(() => bookingWindow(), []);
+  const [bookingDate, setBookingDate] = useState<string>(() => bookingWindow().min);
   const [parentName, setParentName] = useState<string>('');
   const [parentPhone, setParentPhone] = useState<string>('');
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'success'>('idle');
@@ -1195,8 +1177,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     <input 
                       type="date" 
                       value={bookingDate}
-                      min={bookingWindow.min}
-                      max={bookingWindow.max}
+                      min={bookingRange.min}
+                      max={bookingRange.max}
                       onChange={(e) => setBookingDate(e.target.value)}
                       className="w-full p-2.5 bg-brand-cream/20 border border-brand-stone/80 rounded-xl text-xs text-brand-charcoal font-semibold focus:outline-none focus:border-brand-forest"
                     />

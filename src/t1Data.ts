@@ -331,17 +331,23 @@ export const T1_AGE_BANDS: T1AgeBand[] = [
   }
 ];
 
-export function getT1QuestionsForAge(ageMonth: number): T1Question[] {
+/**
+ * 適用範圍外的月齡一律落到最近的一段。
+ *
+ * 題目與名稱**必須落到同一段**：舊版的名稱退回值是「1岁以下量表」與
+ * 「15岁以上青少年量表」——兩個沒有題目的量表。於是畫面標著一個量表名，
+ * 家長答的卻是另一個量表的題目，而那份結果之後沒有人讀得懂。
+ */
+function closestBand(ageMonth: number): T1AgeBand {
   const matched = T1_AGE_BANDS.find(b => ageMonth >= b.minAge && ageMonth <= b.maxAge);
-  if (matched) return matched.questions;
-  // Fallback to closest band
-  if (ageMonth < 12) return T1_AGE_BANDS[0].questions;
-  return T1_AGE_BANDS[T1_AGE_BANDS.length - 1].questions;
+  if (matched) return matched;
+  return ageMonth < T1_AGE_BANDS[0].minAge ? T1_AGE_BANDS[0] : T1_AGE_BANDS[T1_AGE_BANDS.length - 1];
+}
+
+export function getT1QuestionsForAge(ageMonth: number): T1Question[] {
+  return closestBand(ageMonth).questions;
 }
 
 export function getT1AgeBandName(ageMonth: number): string {
-  const matched = T1_AGE_BANDS.find(b => ageMonth >= b.minAge && ageMonth <= b.maxAge);
-  if (matched) return matched.name;
-  if (ageMonth < 12) return '1岁以下量表';
-  return '15岁以上青少年量表';
+  return closestBand(ageMonth).name;
 }

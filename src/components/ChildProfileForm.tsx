@@ -18,13 +18,14 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
   const [name, setName] = useState(currentChild?.name || '');
   const [birthDate, setBirthDate] = useState<string>(() => {
     if (currentChild?.birthDate) return currentChild.birthDate;
-    if (currentChild?.ageMonth) return getBirthDateFromAgeMonth(currentChild.ageMonth);
-    return getBirthDateFromAgeMonth(36); // 預設先擺在 3 歲，跟著今天走
+    // 只有月齡的舊檔案不反推一個生日填進去 —— 那是猜的，一旦按下保存就變成事實。
+    if (currentChild) return '';
+    return getBirthDateFromAgeMonth(36); // 全新檔案：日期欄位先停在 3 歲
   });
   const [gender, setGender] = useState<Gender>(currentChild?.gender || 'boy');
   const [error, setError] = useState('');
 
-  // Calculate age real-time
+  // Calculate age real-time；讀不出來是 null，不是某個看起來很正常的數字
   const calculatedAgeMonth = calculateAgeMonth(birthDate);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -37,16 +38,20 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
       setError('请选择儿童出生日期');
       return;
     }
+    if (calculatedAgeMonth === null) {
+      setError('出生日期无法识别，请重新选择（不能晚于今天）');
+      return;
+    }
     if (calculatedAgeMonth < 12 || calculatedAgeMonth > 180) {
       setError('系统评估与量表适用范围为12-180个月（1-15岁），请选择正确的出生日期');
       return;
     }
     setError('');
-    onSave({ 
-      name: name.trim(), 
+    onSave({
+      name: name.trim(),
       birthDate,
-      ageMonth: calculatedAgeMonth, 
-      gender 
+      ageMonth: calculatedAgeMonth,
+      gender
     });
   };
 
@@ -122,7 +127,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
               <Calendar className="absolute left-3.5 top-3.5 text-brand-charcoal/40" size={16} />
             </div>
             
-            {birthDate && (
+            {birthDate && calculatedAgeMonth !== null && (
               <div className="flex items-center gap-1.5 bg-brand-sage/10 rounded-xl p-2.5 border border-brand-stone/40 animate-fade-in">
                 <Sparkles size={12} className="text-brand-moss" />
                 <p className="text-[11px] text-brand-forest font-bold leading-none">
@@ -130,6 +135,12 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
                   <span className="text-brand-clay text-xs ml-0.5">{formatAge(calculatedAgeMonth)}</span>
                   <span className="text-brand-charcoal/60 font-medium ml-1">({calculatedAgeMonth} 个月)</span>
                 </p>
+              </div>
+            )}
+            {birthDate && calculatedAgeMonth === null && (
+              <div className="flex items-center gap-1.5 bg-rose-50 rounded-xl p-2.5 border border-rose-100 animate-fade-in">
+                <AlertCircle size={12} className="text-rose-500 shrink-0" />
+                <p className="text-[11px] text-rose-700 font-bold leading-none">这个出生日期无法识别，请重新选择</p>
               </div>
             )}
             <p className="text-[10px] text-brand-charcoal/50 leading-relaxed">系统适用范围为1岁至15岁 (12-180个月)</p>

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, lazy } from 'react';
+import React, { useState, useEffect, useMemo, lazy } from 'react';
 import { Child, DimensionScore, MallOrder, AssessmentRecord } from './types';
 import { DIMENSIONS_DATA } from './data';
 import { PRODUCT } from './productConfig';
@@ -30,6 +30,7 @@ const Paywall = lazy(() => import('./components/Paywall'));
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
 import { formatAge, refreshChildAge } from './utils/dateUtils';
+import { useToday } from './utils/useToday';
 import { authHeaders } from './utils/api';
 import { getDimensionAccess, isPaywallActive } from './utils/access';
 import { DEFAULT_UNLOCK_PRICE_FEN, formatFen } from './utils/price';
@@ -41,23 +42,22 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [child, setChildState] = useState<Child | null>(null);
+  /** 孩子檔案，**照存下來的樣子**。上面的 `ageMonth` 是寫入當下的值，會過期。 */
+  const [childProfile, setChildProfile] = useState<Child | null>(null);
+
+  const today = useToday();
 
   /**
-   * 唯一把孩子檔案放進狀態的入口。
+   * 畫面上的孩子 —— 實足月齡永遠是**算到今天**的。
    *
-   * 存下來的實足月齡是**寫入當下**算出來的，讀回來就已經過期了 —— 而它決定
-   * 篩查用哪一段的題目。所以檔案進到狀態的每一條路都得先重算，包括
-   * localStorage、雲端載入與登入帶回來的那一份。
+   * 存下來的 `ageMonth` 是寫入當下算出來的，放著就會過期，而它決定篩查出哪一段
+   * 的題目。與其在每一條寫入路徑上記得重算一次（漏掉一條就沒有人會發現），不如
+   * 讓它成為推導值：`childProfile` 或 `today` 一變，這裡就跟著變。
    *
-   * 篩查紀錄（`reportHistory`）**不走這裡**：那裡的 `child` 帶的是測評月齡，
+   * 全App 只有這一個地方重算。篩查紀錄裡的 `child` **不經過這裡**：那是測評月齡，
    * 是那一次篩查的事實記錄，永不重算。
    */
-  const applyChild = (next: Child | null): Child | null => {
-    const fresh = refreshChildAge(next);
-    setChildState(fresh);
-    return fresh;
-  };
+  const child = useMemo(() => refreshChildAge(childProfile, today), [childProfile, today]);
 
   // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'
   const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'>('dashboard');
@@ -173,7 +173,8 @@ export default function App() {
     try {
       const storedChild = localStorage.getItem('senxinkang_child');
       if (storedChild) {
-        localChild = applyChild(JSON.parse(storedChild));
+        localChild = JSON.parse(storedChild);
+        setChildProfile(localChild);
       }
 
       const storedScores = localStorage.getItem('senxinkang_scores');
@@ -227,13 +228,13 @@ export default function App() {
         if (loadData.source === 'mysql' || loadData.source === 'memory') {
           if (loadData.child || loadData.completedScores?.length > 0) {
             // Server has data: sync to client and localStorage
-            const freshChild = applyChild(loadData.child);
+            setChildProfile(loadData.child);
             setCompletedScores(loadData.completedScores || []);
             setOrders(loadData.orders || []);
             setReportHistory(loadData.reportHistory || []);
 
-            if (freshChild) {
-              localStorage.setItem('senxinkang_child', JSON.stringify(freshChild));
+            if (loadData.child) {
+              localStorage.setItem('senxinkang_child', JSON.stringify(loadData.child));
             } else {
               localStorage.removeItem('senxinkang_child');
             }
@@ -349,14 +350,14 @@ export default function App() {
     }
 
     // Update child profile, assessment scores, orders, and reports in state
-    const freshChild = applyChild(cloudChild);
+    setChildProfile(cloudChild);
     setCompletedScores(cloudScores);
     setOrders(cloudOrders);
     setReportHistory(cloudHistory);
 
     // Save locally
-    if (freshChild) {
-      localStorage.setItem('senxinkang_child', JSON.stringify(freshChild));
+    if (cloudChild) {
+      localStorage.setItem('senxinkang_child', JSON.stringify(cloudChild));
     } else {
       localStorage.removeItem('senxinkang_child');
     }
@@ -370,8 +371,8 @@ export default function App() {
 
   // Save states to local storage and sync to Database
   const handleSaveChild = (newChild: Child) => {
-    const fresh = applyChild(newChild);
-    localStorage.setItem('senxinkang_child', JSON.stringify(fresh));
+    setChildProfile(newChild);
+    localStorage.setItem('senxinkang_child', JSON.stringify(newChild));
     setCurrentView('dashboard'); // Go to dashboard to let user choose to enter T1
 
     // Explicit save to trigger background sync
@@ -383,7 +384,7 @@ export default function App() {
         body: JSON.stringify({
           deviceId,
           email: userEmail,
-          child: fresh,
+          child: newChild,
           completedScores,
           orders,
           reportHistory
@@ -397,15 +398,15 @@ export default function App() {
   };
 
   const handleUpdateChild = (updatedChild: Child) => {
-    const fresh = applyChild(updatedChild);
-    localStorage.setItem('senxinkang_child', JSON.stringify(fresh));
+    setChildProfile(updatedChild);
+    localStorage.setItem('senxinkang_child', JSON.stringify(updatedChild));
     setIsEditingProfile(false);
-    syncToCloud(fresh, completedScores, orders, reportHistory);
+    syncToCloud(updatedChild, completedScores, orders, reportHistory);
   };
 
   const handleClearProfile = () => {
     if (confirm('确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位！')) {
-      applyChild(null);
+      setChildProfile(null);
       setCompletedScores([]);
       setOrders([]);
       setReportHistory([]);
@@ -420,7 +421,7 @@ export default function App() {
 
   const handleLogout = () => {
     if (confirm('确认登出当前邮箱并返回登录首页吗？您的数据安全保存在云端。')) {
-      applyChild(null);
+      setChildProfile(null);
       setCompletedScores([]);
       setOrders([]);
       setReportHistory([]);
@@ -1148,7 +1149,6 @@ export default function App() {
                 {reportHistory.find(r => r.id === activeSpecializedRecordId) ? (
                   <LazyBoundary>
                     <SpecializedReportView
-                      child={child!}
                       record={reportHistory.find(r => r.id === activeSpecializedRecordId)!}
                       onBack={() => {
                         setCurrentView('report');

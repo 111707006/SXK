@@ -146,6 +146,15 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [isAiGenerated, setIsAiGenerated] = useState<boolean | null>(false);
   const [error, setError] = useState('');
 
+  /**
+   * 這份報告該用誰的年齡來讀。
+   *
+   * 看歷史紀錄時是**那一次篩查當下**的孩子（測評月齡），不是今天的孩子 ——
+   * 分數是照那個年齡段的題目算出來的，配上今天的年齡就沒有人讀得懂了。
+   * 只有現場產出的新報告才用 `child`，那時兩者本來就是同一個。
+   */
+  const reportChild = historicalRecord?.child ?? child;
+
   useEffect(() => {
     if (historicalRecord && historicalRecord.aiReport) {
       setAiReport(historicalRecord.aiReport);
@@ -241,8 +250,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           specialistName: currentSpecialist?.name,
           parentName: parentName.trim(),
           parentPhone: parentPhone.trim(),
-          childAgeMonth: child.ageMonth,
-          childGender: child.gender,
+          childAgeMonth: reportChild.ageMonth,
+          childGender: reportChild.gender,
           reportSummary: summary,
           preferredSlot: `${bookingDate} ${selectedSlot}`,
           deviceId: peekDeviceId(),
@@ -331,7 +340,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           返回评估面板
         </button>
         <span className="text-xs bg-brand-sage px-3 py-1 text-brand-forest border border-brand-stone/40 rounded-full font-bold">
-          受测儿档案：{child.name} ({child.gender === 'boy' ? '男' : '女'}) | {formatAge(child.ageMonth)}
+          受测儿档案：{reportChild.name} ({reportChild.gender === 'boy' ? '男' : '女'}) | {formatAge(reportChild.ageMonth)}
         </span>
       </div>
 
@@ -1326,7 +1335,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     </div>
                     <div>
                       <span className="text-[9px] text-brand-charcoal/50 block">受测儿档案:</span>
-                      <span className="font-bold text-brand-forest">{child.name} ({formatAge(child.ageMonth)})</span>
+                      <span className="font-bold text-brand-forest">{reportChild.name} ({formatAge(reportChild.ageMonth)})</span>
                     </div>
                     <div>
                       <span className="text-[9px] text-brand-charcoal/50 block">联系家长:</span>

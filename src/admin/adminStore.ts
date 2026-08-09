@@ -17,6 +17,7 @@ import type { Pool, ResultSetHeader } from 'mysql2/promise';
 import { getPool, isConfigured } from '../db/mysql';
 import { companyWhereSql, type CompanyCondition } from './companyScope';
 import type { AssessmentRecord, DimensionScore } from '../types';
+import { calculateAgeMonth } from '../utils/dateUtils';
 
 // ── 對外型別 ──
 
@@ -146,6 +147,23 @@ function flaggedFrom(scores: DimensionScore[]): ParentListItem['flaggedDimension
     .map(s => ({ dimensionId: s.dimensionId, dimensionName: s.dimensionName, status: s.status }));
 }
 
+/**
+ * 家長列表上的實足月齡。
+ *
+ * 不能直接讀存下來的 `ageMonth`：那是家長端**上一次寫入當下**算出來的值，
+ * 而家長端現在是照今天推導的 —— 家長不必再存一次檔，兩邊就會愈差愈多，
+ * 後台和專家於是照著一個過期的年齡在讀那份篩查結果。
+ *
+ * 只有沒存出生日期的舊檔案才退回存下來的月齡，那是我們僅有的資訊。
+ */
+function currentAgeMonth(child: any): number | null {
+  if (typeof child?.birthDate === 'string') {
+    const derived = calculateAgeMonth(child.birthDate);
+    if (derived !== null) return derived;
+  }
+  return typeof child?.ageMonth === 'number' ? child.ageMonth : null;
+}
+
 function rowToListItem(row: any): ParentListItem {
   const scores = parseJson<DimensionScore[]>(row.completed_scores, []);
   const child = parseJson<any>(row.child, null);
@@ -155,7 +173,7 @@ function rowToListItem(row: any): ParentListItem {
     phone: row.phone ?? null,
     companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
     childName: child?.name ?? null,
-    childAgeMonth: typeof child?.ageMonth === 'number' ? child.ageMonth : null,
+    childAgeMonth: currentAgeMonth(child),
     childGender: child?.gender ?? null,
     flaggedDimensions: flaggedFrom(scores),
     screenedAt: toIso(row.screened_at),

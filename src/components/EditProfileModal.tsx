@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Child, Gender } from '../types';
 import { X, User, Calendar, AlertCircle, Save, Trash2, Sparkles } from 'lucide-react';
-import { calculateAgeMonth, formatAge, getBirthDateFromAgeMonth } from '../utils/dateUtils';
+import { calculateAgeMonth, formatAge } from '../utils/dateUtils';
 
 interface EditProfileModalProps {
   child: Child;
@@ -11,16 +11,18 @@ interface EditProfileModalProps {
 }
 
 export default function EditProfileModal({ child, onSave, onClose, onResetAll }: EditProfileModalProps) {
+  const storedBirthDate = child.birthDate || '';
   const [name, setName] = useState(child.name);
-  const [birthDate, setBirthDate] = useState<string>(() => {
-    if (child.birthDate) return child.birthDate;
-    return getBirthDateFromAgeMonth(child.ageMonth);
-  });
+  // 只有月齡的舊檔案不反推一個生日填進去 —— 那是猜的，而且會隨著今天一天一天往後
+  // 滑；家長哪一天按下保存，那個猜出來的日子就變成孩子永久的生日。
+  const [birthDate, setBirthDate] = useState<string>(storedBirthDate);
   const [gender, setGender] = useState<Gender>(child.gender);
   const [error, setError] = useState('');
 
-  // Calculate age real-time
+  // Calculate age real-time；讀不出來是 null，不是某個看起來很正常的數字
   const calculatedAgeMonth = calculateAgeMonth(birthDate);
+  const birthDateChanged = birthDate !== storedBirthDate;
+  const outOfRange = calculatedAgeMonth !== null && (calculatedAgeMonth < 12 || calculatedAgeMonth > 180);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +34,14 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
       setError('请选择儿童出生日期');
       return;
     }
-    if (calculatedAgeMonth < 12 || calculatedAgeMonth > 180) {
+    if (calculatedAgeMonth === null) {
+      setError('出生日期无法识别，请重新选择（不能晚于今天）');
+      return;
+    }
+    // 適用範圍是用來擋**打錯的生日**的，不是用來擋孩子長大的。實足月齡會隨時間
+    // 走，孩子滿 15 歲的那天就會越過上限 —— 若連沒改生日的存檔都一起擋掉，家長
+    // 從此連改個名字都做不到，只剩下「重置檔案與所有測評成績」這條毀滅性的路。
+    if (outOfRange && birthDateChanged) {
       setError('系统评估适用范围为12-180个月（1-15岁）');
       return;
     }
@@ -114,7 +123,12 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
               />
               <Calendar className="absolute left-3 top-3 text-brand-charcoal/40" size={14} />
             </div>
-            {birthDate && (
+            {!storedBirthDate && (
+              <p className="text-[10px] text-brand-clay font-bold leading-relaxed mt-1">
+                这份档案还没有出生日期，请补上，系统才能自动换算实足月龄
+              </p>
+            )}
+            {birthDate && calculatedAgeMonth !== null && (
               <div className="flex items-center gap-1.5 bg-brand-sage/10 rounded-xl p-2 border border-brand-stone/40 animate-fade-in mt-1.5">
                 <Sparkles size={11} className="text-brand-moss" />
                 <p className="text-[10px] text-brand-forest font-bold leading-none">
@@ -123,6 +137,17 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
                   <span className="text-brand-charcoal/60 font-medium ml-1">({calculatedAgeMonth} 个月)</span>
                 </p>
               </div>
+            )}
+            {birthDate && calculatedAgeMonth === null && (
+              <div className="flex items-center gap-1.5 bg-rose-50 rounded-xl p-2 border border-rose-100 animate-fade-in mt-1.5">
+                <AlertCircle size={11} className="text-rose-500 shrink-0" />
+                <p className="text-[10px] text-rose-700 font-bold leading-none">这个出生日期无法识别，请重新选择</p>
+              </div>
+            )}
+            {outOfRange && !birthDateChanged && (
+              <p className="text-[10px] text-brand-clay font-bold leading-relaxed mt-1.5">
+                目前的实足月龄已超出量表适用范围，档案仍可修改，但暂时无法开始新的筛查
+              </p>
             )}
             <p className="text-[10px] text-brand-charcoal/50 leading-relaxed mt-1">系统适用范围为1岁至15岁 (12-180个月)</p>
           </div>

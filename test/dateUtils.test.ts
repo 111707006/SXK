@@ -34,6 +34,22 @@ describe('實足月齡照今天算', () => {
     vi.setSystemTime(new Date(2026, 8, 14)); // 2026-09-14，生日當天
     expect(calculateAgeMonth('2022-01-14')).toBe(56);
   });
+
+  it('算不出來就回 null，不回一個看起來很正常的數字', () => {
+    // 舊版讀不出來一律回 36。36 落在表單「12–180 個月」的合法範圍內，
+    // 所以一個壞掉的出生日期會安靜地變成「3 歲」被存起來，畫面上毫無異狀。
+    expect(calculateAgeMonth('')).toBeNull();
+    expect(calculateAgeMonth('不是日期')).toBeNull();
+    expect(calculateAgeMonth('2022-02-30')).toBeNull();
+  });
+
+  it('出生日期在未來時回 null —— 那不是 0 歲，那是資料有問題', () => {
+    // 裝置時鐘被重設、或年份打錯成 2027，都會走到這裡。
+    // 夾成 0 會讓四歲的孩子拿到 12–23 個月的題目。
+    expect(calculateAgeMonth('2027-01-14', new Date(2026, 7, 9))).toBeNull();
+    // 邊界：今天出生是 0 個月，不是錯誤
+    expect(calculateAgeMonth('2026-08-09', new Date(2026, 7, 9))).toBe(0);
+  });
 });
 
 /**
@@ -51,16 +67,21 @@ describe('出生日期以本地時區構造', () => {
     expect(d!.getHours()).toBe(0);
   });
 
-  it('帶時間的舊資料只取日期部分，一樣落在本地零時', () => {
-    const d = parseBirthDate('2022-01-14T00:00:00.000Z');
-    expect([d!.getFullYear(), d!.getMonth(), d!.getDate()]).toEqual([2022, 0, 14]);
-  });
-
   it('讀不出來的值回 null，不回一個 Invalid Date', () => {
     expect(parseBirthDate('')).toBeNull();
     expect(parseBirthDate('不是日期')).toBeNull();
     expect(parseBirthDate('2022-13-01')).toBeNull(); // 沒有 13 月
     expect(parseBirthDate('2022-02-30')).toBeNull(); // 2 月沒有 30 日
+  });
+
+  it('只認整串就是一個日期，多一個字都不收', () => {
+    // 前綴比對會把截斷或黏在一起的髒值讀成一個看起來很正常的日期，
+    // 於是「讀不出來就沿用存下來的月齡」那道保險完全不會啟動。
+    expect(parseBirthDate('2022-01-1499')).toBeNull();
+    expect(parseBirthDate('2022-01-14garbage')).toBeNull();
+    // 帶時間的值也不收：它是一個時間點，取它的 UTC 日期部分在本地會差一天，
+    // 正是這個函式存在的理由。目前沒有任何地方寫得出這種值。
+    expect(parseBirthDate('2022-01-14T00:00:00.000Z')).toBeNull();
   });
 });
 
@@ -104,6 +125,25 @@ describe('由月齡反推出生日期', () => {
     vi.setSystemTime(new Date(2026, 7, 9));
     expect(getBirthDateFromAgeMonth(0)).toBe('2026-08-09');
     expect(getBirthDateFromAgeMonth(42)).toBe('2023-02-09');
+  });
+
+  it('算不出一個真的日期時回空字串，不回一個畸形的字串', () => {
+    // 月齡是從 localStorage / 雲端 JSON 直接拿的，沒有人保證它是正整數。
+    // 畸形的字串會被 parseBirthDate 擋下 → 日期欄位變空白 → 年齡讀不出來，
+    // 一路傳下去只會讓錯誤更難找。
+    const ref = new Date(2026, 7, 9);
+    expect(getBirthDateFromAgeMonth(42.5, ref)).toBe('');
+    expect(getBirthDateFromAgeMonth(NaN, ref)).toBe('');
+    expect(getBirthDateFromAgeMonth(-6, ref)).toBe(''); // 負數會推出一個未來的日期
+    expect(getBirthDateFromAgeMonth(24000, ref)).toBe(''); // 年份會掉到 4 位數以下
+  });
+
+  it('產出的字串一定讀得回來', () => {
+    const ref = new Date(2026, 7, 9);
+    for (let n = 0; n <= 180; n++) {
+      const s = getBirthDateFromAgeMonth(n, ref);
+      expect(parseBirthDate(s), `${n} 個月推出的 ${s} 讀不回來`).not.toBeNull();
+    }
   });
 });
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Child, DimensionScore, AssessmentRecord } from '../types';
+import { DimensionScore, AssessmentRecord } from '../types';
 import { formatAge } from '../utils/dateUtils';
 import {
   ArrowLeft, Brain, Sparkles, AlertCircle, Printer, Award, Activity,
@@ -10,13 +10,19 @@ import {
 import { DIMENSIONS_DATA } from '../data';
 
 interface SpecializedReportViewProps {
-  child: Child;
   record: AssessmentRecord;
   onBack: () => void;
   onGoToMall?: () => void;
 }
 
-export default function SpecializedReportView({ child, record, onBack, onGoToMall }: SpecializedReportViewProps) {
+export default function SpecializedReportView({ record, onBack, onGoToMall }: SpecializedReportViewProps) {
+  /**
+   * 孩子取自紀錄本身，不從外面傳進來。
+   *
+   * 這是一份已經產出的報告，上面印著它的生成日期；配一個「今天的年齡」進去，
+   * 就會出現「年龄 4岁6个月」壓在「档案生成 2026/1/20」上面的臨床文件。
+   */
+  const child = record.child;
   // Extract associated dimension
   const dimId = record.dimensionId || 'language';
   const dimConfig = DIMENSIONS_DATA.find(d => d.id === dimId) || DIMENSIONS_DATA[0];

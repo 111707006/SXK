@@ -16,6 +16,7 @@ import type { ParentDetail } from './adminStore';
 // 只要有人改了其中一邊，同一位孩子在螢幕上與在交給專家的那張紙上就會有兩種判定。
 // 那個模組是純函式，不碰 DOM，伺服器端載入它是安全的。
 import { formatDateTime as fmtDate, genderLabel, statusLabel } from './adminView';
+import { ageBandDrift } from '../utils/ageBandDrift';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -54,6 +55,14 @@ export function renderParentExportHtml(parent: ParentDetail): string {
     )
     .join('');
 
+  // 交給專家的那張紙上也要有測評月齡與年齡段，而且說法與詳情畫面相同。
+  // 只寫「月龄 54」的話，專家會照 54 個月的常模去讀一份 40 個月時測出來的表。
+  const crossBand = ageBandDrift(parent.childAgeMonth, parent.assessedAgeMonth);
+  const assessedLine =
+    parent.assessedAgeMonth === null
+      ? '未记录测评月龄（本栏位之前存下的旧资料）'
+      : `${parent.assessedAgeMonth} 个月・${parent.assessedBandName}`;
+
   const list = (items: string[] | undefined) =>
     items && items.length ? `<ul>${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '<p>—</p>';
 
@@ -72,6 +81,7 @@ export function renderParentExportHtml(parent: ParentDetail): string {
   th { background: #f0f4f8; }
   .s-delay { color: #b91c1c; font-weight: 600; }
   .s-borderline { color: #b45309; font-weight: 600; }
+  .drift { color: #b45309; }
   .card { border: 1px solid #d9e2ec; border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; font-size: 14px; }
   ul { margin: 4px 0 0 18px; padding: 0; }
   .hint { font-size: 12px; color: #829ab1; margin-top: 32px; }
@@ -86,6 +96,15 @@ export function renderParentExportHtml(parent: ParentDetail): string {
   </div>
 
   <h2>九维筛查结果</h2>
+  ${
+    scoreRows
+      ? `<p class="meta">筛查当时：${esc(assessedLine)}${
+          crossBand
+            ? `　<strong class="drift">孩子现在已进入「${esc(crossBand.currentBand.name)}」，与下表不同段</strong>`
+            : ''
+        }</p>`
+      : ''
+  }
   ${
     scoreRows
       ? `<table><thead><tr><th>维度</th><th>层级</th><th>得分</th><th>判定</th></tr></thead><tbody>${scoreRows}</tbody></table>`

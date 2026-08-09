@@ -14,6 +14,7 @@ import {
   type AdminParentListItem,
 } from '../adminApi';
 import { formatDateTime, genderLabel, statusLabel, type AdminErrorView } from '../adminView';
+import { ageBandDrift } from '../../utils/ageBandDrift';
 import {
   Button,
   EmptyState,
@@ -288,6 +289,7 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
     .filter(r => r.aiReport)
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
   const ai = latestReport?.aiReport;
+  const crossBand = ageBandDrift(parent.childAgeMonth, parent.assessedAgeMonth);
 
   return (
     <>
@@ -305,6 +307,26 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
       </Section>
 
       <Section icon={<FileText size={12} />} title="九维筛查结果">
+        {/*
+          测评月龄与年龄段必须写在分数**上面**。分数是照当时那一段的题目与判准算出来的，
+          而标头那个月龄是照今天算的 —— 孩子跨段之后两者会分岔，此时照今天的年龄段去
+          读下面这张表就会读错，而画面上看不出任何异状。
+
+          没有分数就不写这一行：那时没有一张要读的表，一句「未记录测评月龄」只是杂讯。
+        */}
+        {parent.scores.length > 0 && (
+          <p className="mb-2 text-[11px] text-brand-charcoal/60">
+            筛查当时：
+            {parent.assessedAgeMonth === null
+              ? '未记录测评月龄（本栏位之前存下的旧资料）'
+              : `${parent.assessedAgeMonth} 个月・${parent.assessedBandName}`}
+            {crossBand && (
+              <span className="ml-1 font-bold text-amber-700">
+                （孩子现在已进入「{crossBand.currentBand.name}」，与下表不同段）
+              </span>
+            )}
+          </p>
+        )}
         {parent.scores.length === 0 ? (
           <p className="text-xs text-brand-charcoal/50">尚未完成筛查。</p>
         ) : (

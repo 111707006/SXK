@@ -350,16 +350,16 @@ export const T1_AGE_RANGE = {
  * 「15岁以上青少年量表」——兩個沒有題目的量表。於是畫面標著一個量表名，
  * 家長答的卻是另一個量表的題目，而那份結果之後沒有人讀得懂。
  */
-function closestBand(ageMonth: number): T1AgeBand {
+export function getT1AgeBand(ageMonth: number): T1AgeBand {
   const matched = T1_AGE_BANDS.find(b => ageMonth >= b.minAge && ageMonth <= b.maxAge);
   if (matched) return matched;
   return ageMonth < T1_AGE_BANDS[0].minAge ? T1_AGE_BANDS[0] : T1_AGE_BANDS[T1_AGE_BANDS.length - 1];
 }
 
 export function getT1QuestionsForAge(ageMonth: number): T1Question[] {
-  return closestBand(ageMonth).questions;
+  return getT1AgeBand(ageMonth).questions;
 }
 
 export function getT1AgeBandName(ageMonth: number): string {
-  return closestBand(ageMonth).name;
+  return getT1AgeBand(ageMonth).name;
 }

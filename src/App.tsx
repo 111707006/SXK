@@ -14,6 +14,7 @@ import AnalysisReport from './components/AnalysisReport';
 import T1Screening from './components/T1Screening';
 import EditProfileModal from './components/EditProfileModal';
 import AuthScreen from './components/AuthScreen';
+import AgeBandDriftNotice from './components/AgeBandDriftNotice';
 
 /**
  * 專案 A 專屬的大型元件，改用 lazy 載入切成獨立 chunk。
@@ -30,6 +31,7 @@ const Paywall = lazy(() => import('./components/Paywall'));
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
 import { formatAge, refreshChildAge } from './utils/dateUtils';
+import { ageBandDrift, latestAssessedAgeMonth } from './utils/ageBandDrift';
 import { useToday } from './utils/useToday';
 import { authHeaders } from './utils/api';
 import { getDimensionAccess, isPaywallActive } from './utils/access';
@@ -502,6 +504,21 @@ export default function App() {
   const activeDimension = DIMENSIONS_DATA.find(d => d.id === selectedDimensionId);
   const paywallDimension = DIMENSIONS_DATA.find(d => d.id === paywallDimensionId);
 
+  /**
+   * 孩子的實足月齡是否已經跨出上一次篩查所在的年齡段。
+   *
+   * 與 `child` 一樣是**推導值**：`today` 一往前走就跟著重算，所以一個開著不動的
+   * 分頁跨過生日當天也會自己長出提示。判斷本身在 `ageBandDrift`（純函式，有測試），
+   * 這裡只負責把資料餵進去。
+   *
+   * `reportHistory` 只是**讀**來找測評月齡，一筆都沒有被過濾或改寫 —— 舊報告照常
+   * 可讀是這張票的驗收條件之一。
+   */
+  const bandDrift = useMemo(
+    () => ageBandDrift(child?.ageMonth, latestAssessedAgeMonth(completedScores, reportHistory)),
+    [child?.ageMonth, completedScores, reportHistory]
+  );
+
   // 付費 UI 是否該出現。只有專案 B 完全沒有 —— 展示模式仍要看得到付費牆長什麼樣子。
   const paywallActive = isPaywallActive({ paywallEnabled: PRODUCT.features.paywall });
   const accessOf = (dimensionId: string) => getDimensionAccess(dimensionId, {
@@ -856,6 +873,15 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/*
+                  跨年齡段的提示。放在維度卡片**之上** —— 家長讀那九張卡片上的
+                  燈號之前就得知道它們是用另一組題目測出來的。
+                */}
+                <AgeBandDriftNotice
+                  drift={bandDrift}
+                  onStartT1Screening={() => setCurrentView('t1_screening')}
+                />
 
                 <DimensionGrid
                   completedScores={completedScores}

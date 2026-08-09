@@ -18,6 +18,7 @@ import { getPool, isConfigured } from '../db/mysql';
 import { companyWhereSql, type CompanyCondition } from './companyScope';
 import type { AssessmentRecord, DimensionScore } from '../types';
 import { calculateAgeMonth } from '../utils/dateUtils';
+import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
 
 // ── 對外型別 ──
 
@@ -54,6 +55,15 @@ export interface ParentDetail extends ParentListItem {
   scores: DimensionScore[];
   reportHistory: AssessmentRecord[];
   bookings: ParentBooking[];
+  /**
+   * 最近一次篩查**當下**的測評月齡，以及它決定的年齡段。找不到時兩者都是 null。
+   *
+   * 專家沒有這兩個數字就讀不懂那份結果：`childAgeMonth` 是照**今天**算的，孩子
+   * 跨段之後兩者會分岔，而分數是照當時那一段的題目與判準算出來的。少了它，一份
+   * B 段的結果會被照著 C 段的常模去讀 —— 而畫面上看起來完全正常。
+   */
+  assessedAgeMonth: number | null;
+  assessedBandName: string | null;
 }
 
 export interface SpecialistRecord {
@@ -293,10 +303,18 @@ export async function getParentDetail(
     [...scope.params, parentId]
   );
 
+  const scores = parseJson<DimensionScore[]>(row.completed_scores, []);
+  const reportHistory = parseJson<AssessmentRecord[]>(row.report_history, []);
+  // 家長端與這裡走**同一支**判斷（`ageBandDrift.ts`），因此兩邊說出來的年齡段
+  // 名稱一定一致。各自查一次表就有兩種說法的空間，而專家與家長講的是同一份結果。
+  const assessedAgeMonth = latestAssessedAgeMonth(scores, reportHistory);
+
   return {
     ...rowToListItem(row),
-    scores: parseJson<DimensionScore[]>(row.completed_scores, []),
-    reportHistory: parseJson<AssessmentRecord[]>(row.report_history, []),
+    scores,
+    reportHistory,
+    assessedAgeMonth,
+    assessedBandName: assessedAgeMonth === null ? null : ageBandOf(assessedAgeMonth).name,
     bookings: (bookingRows as any[]).map(b => ({
       id: Number(b.id),
       specialistId: String(b.specialist_id),

@@ -17,6 +17,18 @@ export interface DimensionScore {
   maxScore: number;
   status: AssessmentStatus;
   completedAt: string;
+  /**
+   * 這一筆成績測出來的當下，孩子的**測評月齡**。寫進去之後永不改變。
+   *
+   * 它決定了當時出的是哪一個年齡段的題目，因此也決定了這個分數該怎麼讀 ——
+   * 孩子的實足月齡會自己往前走，配上今天的年齡去讀就會讀錯（見
+   * `src/utils/ageBandDrift.ts`）。
+   *
+   * 選填，而且 `undefined` 有意義：代表這是加入本欄位（issue #24）之前存下的
+   * 舊成績，當時的月齡沒有被記下來。呼叫端**不可**用今天的月齡補上去 —— 那樣
+   * 一次跨了段的篩查會偽裝成從沒跨段。退路是讀最近一份篩查紀錄裡的孩子。
+   */
+  assessedAgeMonth?: number;
 }
 
 export interface Question {

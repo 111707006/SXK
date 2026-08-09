@@ -38,6 +38,12 @@ export interface AdminParentListItem {
 }
 
 export interface AdminParentDetail extends AdminParentListItem {
+  /**
+   * 最近一次篩查當下的測評月齡與年齡段。`childAgeMonth` 是照今天算的實足月齡，
+   * 孩子跨段之後兩者會分岔 —— 而分數是照當時那一段的判準算出來的。
+   */
+  assessedAgeMonth: number | null;
+  assessedBandName: string | null;
   scores: Array<{
     dimensionId: string; dimensionName: string; tierId: string;
     score: number; maxScore: number; status: string; completedAt: string;

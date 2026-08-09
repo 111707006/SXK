@@ -193,10 +193,13 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
 
           {/*
             展示模式的略過入口。
-            這段**只在後端沒有持久層時渲染** —— 那種環境下沒有人買得成，
-            付費牆本來就擋不住任何東西，藏起來只是讓展示站的深度評估無路可走。
-            `MYSQL_*` 一設定，isDemo 就永遠是 false，這整塊從畫面上消失。
-            文案刻意寫得直白：正式環境不會有這個按鈕。
+            付費牆在這種環境下擋不住任何東西，藏起來只是讓展示站的深度評估無路可走。
+
+            觸發它的後端狀況有兩種（都由 `/api/unlocks` 的 `available: false` 表示）：
+            沒有持久層，或 `PAYWALL_DEMO_OPEN=1`。文案刻意**不說是哪一種** ——
+            早期版本寫死「未连接数据库」，開關上線後那句話在資料庫連著的展示站上
+            就成了畫面上的假話，而這個畫面正是要拿給人看的那一個。
+            正式環境兩種都不成立，這整塊從畫面上消失。
           */}
           {isDemo && (
             <div className="rounded-2xl border border-dashed border-brand-moss/50 bg-brand-sage/10 p-4 space-y-2.5">
@@ -205,7 +208,7 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
                 展示模式
               </div>
               <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
-                当前环境未连接数据库，无法产生真实订单，付费墙仅供预览。正式环境不会出现下面这个按钮。
+                当前为展示环境，不会产生真实订单，付费墙仅供预览。正式环境不会出现下面这个按钮。
               </p>
               <button
                 onClick={onAlreadyUnlocked}

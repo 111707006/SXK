@@ -20,6 +20,11 @@ for (const key of ['DASHSCOPE_API_KEY', 'GEMINI_API_KEY', 'WECOM_WEBHOOK_URL',
   process.env[key] = '';
 }
 
+// 付費牆的展示開關一律關閉。它打開時後端閘門整個不執行，若讓開發機的 `.env`
+// 漏進來，`paywallGate.http.test.ts` 會全部變成綠燈卻什麼都沒驗到 ——
+// 需要「開關打開」的測試自己設定它（見 `paywallDemoSwitch.http.test.ts`）。
+process.env.PAYWALL_DEMO_OPEN = '';
+
 // 固定的簽章密鑰，讓測試簽出來的 token 在同一支測試裡穩定可用。
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-session-secret';
 

@@ -43,6 +43,31 @@ function resolveAppMode(raw: string | undefined): AppMode {
 
 const APP_MODE = resolveAppMode(process.env.APP_MODE);
 
+// ── Demo switch: paywall on screen, no gate behind it ──
+//
+// For live demos of project A. The parent-facing paywall still renders (it is
+// part of what gets demonstrated), but the tier-2/3 endpoints stop checking for
+// an unlock and /api/unlocks reports `available: false`, which is the signal the
+// frontend already uses for a skippable demo paywall (see src/utils/access.ts).
+//
+// This exists as its own flag rather than "just unset MYSQL_*" because the
+// database also holds accounts, expert bookings and admin data — dropping it to
+// open the paywall would take those down as collateral.
+//
+// ⚠️ While this is on, anyone who reaches the deployment gets the paid reports
+// for free. It is fail-closed by default and by typo: unset, empty or '0'/'false'
+// means enforced, and an unrecognised value refuses to boot rather than leaving
+// the operator guessing which way it landed.
+function resolveDemoOpen(raw: string | undefined): boolean {
+  if (raw === undefined || raw === '' || raw === '0' || raw === 'false') return false;
+  if (raw === '1' || raw === 'true') return true;
+  throw new Error(
+    `PAYWALL_DEMO_OPEN is not recognised: ${JSON.stringify(raw)}. Only '1'/'true' (paywall NOT enforced) or '0'/'false' (enforced) are accepted.`
+  );
+}
+
+const PAYWALL_DEMO_OPEN = resolveDemoOpen(process.env.PAYWALL_DEMO_OPEN);
+
 // The tier-2/3 AI endpoints exist only in project A. Project B registers them
 // on a Router that is never mounted, so the paths genuinely do not exist and
 // requests fall through to 404. That is stronger than registering a handler
@@ -629,6 +654,10 @@ type UnlockDenial = { status: number; body: { error: string; code: string } };
 
 async function denyIfLocked(req: express.Request, dimensionId: unknown): Promise<UnlockDenial | null> {
   if (!mysqlDb.isConfigured()) return null;
+  // Demo switch. Sits above the dimension check on purpose: the demo paywall's
+  // skip entry sends the parent straight into the assessment without a purchase,
+  // so a 400 here would break the very flow this flag exists to show.
+  if (PAYWALL_DEMO_OPEN) return null;
 
   // No dimension means we cannot tell what was purchased. Refuse rather than
   // guess — guessing wrong in the permissive direction gives away paid content.
@@ -1128,7 +1157,12 @@ paidOnly.get('/api/unlocks', async (req, res) => {
     // here would leave the client unable to learn that — it would fail closed
     // and lock a demo box out of its own deep assessment. Saying "this server
     // keeps no purchases" leaks nothing.
-    if (!mysqlDb.isConfigured()) {
+    // `available: false` is the frontend's cue that no purchase can gate anything
+    // here, so the paywall renders with its skip entry. Two different reasons
+    // produce it — no durable store, or the demo switch — and neither one lets a
+    // 401 happen first, because a client that cannot ask is a client that fails
+    // closed and locks a demo box out of its own deep assessment.
+    if (!mysqlDb.isConfigured() || PAYWALL_DEMO_OPEN) {
       res.json({ dimensionIds: [], available: false, priceFen: UNLOCK_PRICE_FEN });
       return;
     }
@@ -1891,9 +1925,11 @@ export async function startServer() {
     // silent giveaway on a production one.
     if (APP_MODE === 'full') {
       console.log(
-        mysqlDb.isConfigured()
-          ? '[SenXinKang Server] Paywall ENFORCED — tier-2/3 requests require a matching unlock.'
-          : '[SenXinKang Server] Paywall NOT enforced (no MYSQL_* configured): tier-2/3 endpoints are open to anyone. Demo mode only.'
+        PAYWALL_DEMO_OPEN
+          ? '[SenXinKang Server] Paywall NOT enforced (PAYWALL_DEMO_OPEN=1): the wall still renders but tier-2/3 endpoints are open to anyone. Demo only — unset this before selling.'
+          : mysqlDb.isConfigured()
+            ? '[SenXinKang Server] Paywall ENFORCED — tier-2/3 requests require a matching unlock.'
+            : '[SenXinKang Server] Paywall NOT enforced (no MYSQL_* configured): tier-2/3 endpoints are open to anyone. Demo mode only.'
       );
       console.log(
         wechatPayStatus.config

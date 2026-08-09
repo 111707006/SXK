@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import crypto from 'crypto';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
+import { bearer } from './helpers/session';
 
 /**
  * 付費閘門的 HTTP 回歸測試 —— 本專案第一條看得到伺服器的測試。
@@ -19,17 +19,18 @@ const OWNED_NAME = '语言沟通';
 const TARGET_DIMENSION = 'cognitive';     // 攻擊者想白拿的維度
 const TARGET_NAME = '认知';
 
-const ATTACKER_EMAIL = 'attacker@test.com';
+const ATTACKER_ID = 1;
 
 // 只提供 server.ts 真的會呼叫到的那些；多的不補，少的會在測試裡當場炸掉。
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
-  findUserByEmail: async (email: string) =>
-    email === ATTACKER_EMAIL ? { id: 1, email, password: 'x' } : null,
-  listUnlockedDimensions: async (userId: number) => (userId === 1 ? [OWNED_DIMENSION] : []),
-  createUser: async () => {},
+  findUserById: async (id: number) =>
+    id === ATTACKER_ID ? { id, email: 'attacker@test.com', password: 'x' } : null,
+  findUserByEmail: async () => null,
+  listUnlockedDimensions: async (userId: number) => (userId === ATTACKER_ID ? [OWNED_DIMENSION] : []),
+  createUser: async () => ATTACKER_ID,
   updateUserPassword: async () => {},
-  getUserData: async () => null,
+  getUserDataByUserId: async () => null,
   getUserDataByDevice: async () => null,
   saveUserData: async () => {},
   createPayment: async () => 1,
@@ -58,23 +59,12 @@ vi.mock('coze-coding-dev-sdk', () => ({
   },
 }));
 
-/** 與 server.ts 的 signToken 同一套 HMAC —— 測試要能簽出一張真的通行證。 */
-function signToken(email: string): string {
-  const b64url = (buf: Buffer | string) =>
-    Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const payload = b64url(JSON.stringify({ email, exp: Date.now() + 60_000 }));
-  const sig = b64url(
-    crypto.createHmac('sha256', process.env.SESSION_SECRET!).update(payload).digest()
-  );
-  return `${payload}.${sig}`;
-}
-
 let client: TestClient;
 let auth: Record<string, string>;
 
 beforeAll(async () => {
   client = await startTestApp(await loadApp());
-  auth = { Authorization: `Bearer ${signToken(ATTACKER_EMAIL)}` };
+  auth = bearer(ATTACKER_ID);
 });
 
 afterAll(async () => {

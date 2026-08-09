@@ -198,14 +198,26 @@ function b64url(buf: Buffer | string): string {
   return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function signToken(email: string): string {
-  const payload = b64url(JSON.stringify({ email, exp: Date.now() + TOKEN_TTL_MS }));
+/**
+ * 一位家長的識別鍵 —— **通行證裡裝的、資料層唯一認得的那個值**。
+ *
+ * 有資料庫時是 `users.id` 的十進位字串；記憶體模式是 `mem:N`。前綴刻意不同：
+ * 註冊在資料庫寫入失敗時會退回記憶體，兩種帳號因此可能同時活在一個行程裡，
+ * 而兩邊各自從 1 開始編號 —— 沒有前綴的話，記憶體的 1 號會讀到資料庫 1 號的
+ * 孩子檔案。
+ *
+ * 對外不做任何承諾：它是不透明的字串，客戶端只負責原封不動送回來。
+ */
+type UserId = string;
+
+function signToken(userId: UserId): string {
+  const payload = b64url(JSON.stringify({ uid: userId, exp: Date.now() + TOKEN_TTL_MS }));
   const sig = b64url(crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest());
   return `${payload}.${sig}`;
 }
 
-// Returns the token's email if the signature is valid and unexpired, else null.
-function verifyToken(token: string | null | undefined): string | null {
+// Returns the token's user id if the signature is valid and unexpired, else null.
+function verifyToken(token: string | null | undefined): UserId | null {
   if (!token || typeof token !== 'string' || !token.includes('.')) return null;
   const [payload, sig] = token.split('.');
   const expected = b64url(crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest());
@@ -214,8 +226,9 @@ function verifyToken(token: string | null | undefined): string | null {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try {
     const data = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
-    if (!data.email || typeof data.exp !== 'number' || Date.now() > data.exp) return null;
-    return data.email as string;
+    if (typeof data.uid !== 'string' || !data.uid) return null;
+    if (typeof data.exp !== 'number' || Date.now() > data.exp) return null;
+    return data.uid as UserId;
   } catch {
     return null;
   }
@@ -224,6 +237,33 @@ function verifyToken(token: string | null | undefined): string | null {
 function getBearerToken(req: express.Request): string | null {
   const h = req.headers.authorization || '';
   return h.startsWith('Bearer ') ? h.slice(7) : null;
+}
+
+/** 這次請求的家長是誰。沒帶通行證或通行證無效一律 `null`。 */
+function currentUserId(req: express.Request): UserId | null {
+  return verifyToken(getBearerToken(req));
+}
+
+/**
+ * 把識別鍵換成資料庫的 `users.id`。記憶體模式的帳號回 `null` ——
+ * 它在資料庫裡根本不存在，拿 `mem:3` 去 `WHERE id = 3` 會讀到別人的資料。
+ */
+function toDbUserId(userId: UserId | null): number | null {
+  if (!userId || !/^\d+$/.test(userId)) return null;
+  const id = Number(userId);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+/**
+ * 通行證上的識別鍵換回帳號本身。帳號已被刪除、或那是一個記憶體模式的識別鍵
+ * （資料庫模式下不成立）時回 `null` —— 呼叫端一律當作「登入狀態已失效」。
+ *
+ * 簽章有效不等於帳號還在，這一步是那個差別。
+ */
+async function findSessionUser(userId: UserId | null): Promise<any | null> {
+  const id = toDbUserId(userId);
+  if (id === null) return null;
+  return mysqlDb.findUserById(id);
 }
 
 async function hashPassword(plain: string): Promise<string> {
@@ -665,10 +705,10 @@ async function denyIfLocked(req: express.Request, dimensionId: unknown): Promise
     return { status: 400, body: { error: '缺少有效的维度标识。', code: 'DIMENSION_REQUIRED' } };
   }
 
-  const email = verifyToken(getBearerToken(req));
-  if (!email) return { status: 401, body: { error: '请先登录后再使用深度评估。', code: 'UNAUTHENTICATED' } };
+  const userId = currentUserId(req);
+  if (!userId) return { status: 401, body: { error: '请先登录后再使用深度评估。', code: 'UNAUTHENTICATED' } };
 
-  const user = await mysqlDb.findUserByEmail(email);
+  const user = await findSessionUser(userId);
   if (!user) return { status: 401, body: { error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' } };
 
   const owned = await mysqlDb.listUnlockedDimensions(user.id);
@@ -1115,8 +1155,24 @@ tier2Only.post('/api/asr', async (req: express.Request, res: express.Response) =
 // mysqlDb imported at top of file
 
 // Offline-mode fallback in-memory datastores (used when MySQL is not configured)
+//
+// 兩張表的鍵刻意不同，而那正是這次改動的形狀：
+//   offlineUsers    以**電子郵件**為鍵 —— 登入時把外部憑據換成帳號用的，
+//                   換成手機號登入時整張表跟著換鍵。
+//   offlineUserData 以**使用者 id** 為鍵 —— 孩子檔案與分數認的是帳號本身，
+//                   登入方式怎麼變都不關它的事。
 const offlineUsers = new Map<string, any>();
-const offlineUserData = new Map<string, any>();
+const offlineUserData = new Map<UserId, any>();
+
+// 記憶體帳號的編號。`mem:` 前綴讓它永遠不會被誤認成資料庫的 users.id
+// （見 UserId 的說明）。
+let nextOfflineUserSeq = 1;
+
+function createOfflineUser(email: string, password: string): any {
+  const user = { id: `mem:${nextOfflineUserSeq++}` as UserId, email, password };
+  offlineUsers.set(email, user);
+  return user;
+}
 // Bookings taken while MySQL is unconfigured. Lost on restart — acceptable for
 // demos, NOT for production: a real booking that vanishes is a parent left
 // waiting for a call. The response tells the client which mode it landed in.
@@ -1129,7 +1185,7 @@ const offlineBookings: any[] = [];
 // （目前的 sxk.onrender.com）也跑這個模式，而 verifyPassword 對非 bcrypt 值
 // 會退回明文比對 —— 也就是說這組帳密在公開站台上等同人人可登入。
 // 正式收費環境接上 MySQL 後，這個記憶體分支不會生效。
-offlineUsers.set('test@test.com', { email: 'test@test.com', password: '123456' });
+createOfflineUser('test@test.com', '123456');
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 2500): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -1166,12 +1222,12 @@ paidOnly.get('/api/unlocks', async (req, res) => {
       res.json({ dimensionIds: [], available: false, priceFen: UNLOCK_PRICE_FEN });
       return;
     }
-    const email = verifyToken(getBearerToken(req));
-    if (!email) {
+    const userId = currentUserId(req);
+    if (!userId) {
       res.status(401).json({ error: '请先登录。' });
       return;
     }
-    const user = await mysqlDb.findUserByEmail(email);
+    const user = await findSessionUser(userId);
     if (!user) {
       res.status(401).json({ error: '登录状态已失效，请重新登录。' });
       return;
@@ -1202,8 +1258,8 @@ paidOnly.get('/api/unlocks', async (req, res) => {
  */
 paidOnly.post('/api/payment/create', async (req, res) => {
   try {
-    const email = verifyToken(getBearerToken(req));
-    if (!email) {
+    const userId = currentUserId(req);
+    if (!userId) {
       res.status(401).json({ error: '请先登录后再购买。' });
       return;
     }
@@ -1219,7 +1275,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       return;
     }
 
-    const user = await mysqlDb.findUserByEmail(email);
+    const user = await findSessionUser(userId);
     if (!user) {
       res.status(401).json({ error: '登录状态已失效，请重新登录。' });
       return;
@@ -1405,8 +1461,8 @@ paidOnly.post('/api/pay/wechat/notify', async (req: any, res) => {
  */
 paidOnly.get('/api/payment/status', async (req, res) => {
   try {
-    const email = verifyToken(getBearerToken(req));
-    if (!email) {
+    const userId = currentUserId(req);
+    if (!userId) {
       res.status(401).json({ error: '请先登录。' });
       return;
     }
@@ -1420,7 +1476,7 @@ paidOnly.get('/api/payment/status', async (req, res) => {
       return;
     }
 
-    const user = await mysqlDb.findUserByEmail(email);
+    const user = await findSessionUser(userId);
     const payment = await mysqlDb.findPaymentByOutTradeNo(outTradeNo);
     // Only the owner may ask. Otherwise the endpoint becomes an oracle for
     // anyone guessing order numbers.
@@ -1466,13 +1522,13 @@ app.get('/api/specialists', async (req, res) => {
       res.json({ specialists: [], reason: 'unavailable' });
       return;
     }
-    const email = verifyToken(getBearerToken(req));
-    if (!email) {
+    const userId = currentUserId(req);
+    if (!userId) {
       // 未登入就沒有歸屬可言。與「未歸屬」回同一種結果 —— 兩者都不該看到任何公司的專家。
       res.json({ specialists: [], reason: 'unassigned' });
       return;
     }
-    const user = await withTimeout(mysqlDb.findUserByEmail(email), 2000).catch(() => null);
+    const user = await withTimeout(findSessionUser(userId), 2000).catch(() => null);
     const companyId = user?.company_id ?? null;
     if (companyId === null) {
       res.json({ specialists: [], reason: 'unassigned' });
@@ -1530,9 +1586,9 @@ app.post('/api/expert-booking', async (req, res) => {
     // Resolve the signed-in user when a token is present. Project B is
     // anonymous, so absence of a token is normal, not an error.
     let userId: number | null = null;
-    const tokenEmail = verifyToken(getBearerToken(req));
-    if (tokenEmail) {
-      const user = await mysqlDb.findUserByEmail(tokenEmail).catch(() => null);
+    const sessionUserId = currentUserId(req);
+    if (sessionUserId) {
+      const user = await findSessionUser(sessionUserId).catch(() => null);
       if (user) userId = user.id;
     }
 
@@ -1643,9 +1699,11 @@ app.post('/api/auth/register', async (req, res) => {
         // 歸屬只在建立帳號的這一刻寫入。已註冊的家長再從別家公司的連結進站時
         // 走的是登入那條路，這裡根本不會執行，歸屬因此不會被改動。
         const companyId = await resolveCompanyIdForSignup(companySlug);
-        await withTimeout(mysqlDb.createUser(email, hashed, companyId), 2000);
+        const newUserId = await withTimeout(mysqlDb.createUser(email, hashed, companyId), 2000);
         console.log(`[MySQL] Registered account: ${email} (company: ${companyId ?? '未归属'})`);
-        res.json({ success: true, email, token: signToken(email) });
+        // 通行證帶的是剛寫進去的那一個 id。回頭用電子郵件查一次也拿得到，
+        // 但那是第二條可能答錯的路 —— 註冊當下就知道的事不必再問一次。
+        res.json({ success: true, email, token: signToken(String(newUserId)) });
         return;
       } catch (dbErr: any) {
         console.warn('[MySQL] Registration failed, falling back to memory:', dbErr.message);
@@ -1657,9 +1715,9 @@ app.post('/api/auth/register', async (req, res) => {
       res.status(400).json({ error: '该邮箱已被注册，请直接登录' });
       return;
     }
-    offlineUsers.set(email, { email, password: hashed });
+    const offlineUser = createOfflineUser(email, hashed);
     console.log(`[Memory] Registered local account fallback: ${email}`);
-    res.json({ success: true, email, token: signToken(email) });
+    res.json({ success: true, email, token: signToken(offlineUser.id) });
   } catch (err: any) {
     console.error('[Auth Register Error]:', err.message);
     res.status(500).json({ error: `注册失败: ${err.message}` });
@@ -1685,7 +1743,7 @@ app.post('/api/auth/login', async (req, res) => {
           // Transparently upgrade legacy plaintext rows to a bcrypt hash.
           if (!looksHashed(found.password)) {
             try {
-              await withTimeout(mysqlDb.updateUserPassword(email, await hashPassword(password)), 2000);
+              await withTimeout(mysqlDb.updateUserPassword(found.id, await hashPassword(password)), 2000);
               console.log(`[MySQL] Upgraded legacy password to bcrypt for ${email}`);
             } catch (upErr: any) {
               console.warn('[MySQL] Password upgrade failed (non-fatal):', upErr.message);
@@ -1712,15 +1770,20 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
 
+    // 認證到此為止 —— 從這一行之後，這位家長就只剩下一個識別鍵。
+    // 電子郵件只再出現在回應裡（畫面上顯示的是它），不再參與任何一次讀寫。
+    const sessionUserId: UserId = String(authenticatedUser.id);
+    const dbUserId = toDbUserId(sessionUserId);
+
     // Load associated child data
     let child = null;
     let completedScores: any[] = [];
     let orders: any[] = [];
     let reportHistory: any[] = [];
 
-    if (mysqlDb.isConfigured()) {
+    if (mysqlDb.isConfigured() && dbUserId !== null) {
       try {
-        const row = await withTimeout(mysqlDb.getUserData(email), 2000);
+        const row = await withTimeout(mysqlDb.getUserDataByUserId(dbUserId), 2000);
         if (row) {
           const parsed = mysqlDb.parseUserDataRow(row);
           child = parsed.child;
@@ -1734,7 +1797,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (!child && !completedScores.length) {
-      const data = offlineUserData.get(email);
+      const data = offlineUserData.get(sessionUserId);
       if (data) {
         child = data.child || null;
         completedScores = data.completedScores || [];
@@ -1743,40 +1806,53 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
 
-    res.json({ success: true, email: authenticatedUser.email, token: signToken(authenticatedUser.email), child, completedScores, orders, reportHistory });
+    res.json({ success: true, email: authenticatedUser.email, token: signToken(sessionUserId), child, completedScores, orders, reportHistory });
   } catch (err: any) {
     console.error('[Auth Login Error]:', err.message);
     res.status(500).json({ error: `登录失败: ${err.message}` });
   }
 });
 
+/**
+ * 這一位家長是誰，以及他有沒有資格問。
+ *
+ * 三種答案：登入了（`userId`）、沒登入（兩者皆空）、拿了一張不算數的通行證
+ * （`unauthorized`）。第三種要與第二種分開：**帶著壞掉的通行證不能悄悄退回
+ * 裝置紀錄** —— 那會讓一位其實已經登入的家長看到裝置上的舊檔案，而他不會知道
+ * 自己看的不是自己的那一份。
+ *
+ * 身分只從通行證來。query 或 body 裡的 `email`、`userId` 一律不看 ——
+ * 客戶端送上來的識別鍵不是身分，是一個請求。
+ */
+function resolveSyncIdentity(req: express.Request): { userId: UserId } | 'anonymous' | 'unauthorized' {
+  if (!getBearerToken(req)) return 'anonymous';
+  const userId = currentUserId(req);
+  return userId ? { userId } : 'unauthorized';
+}
+
 // Endpoint to load child assessment records
 app.get('/api/db/load', async (req, res) => {
   try {
-    const { deviceId, email } = req.query;
-
-    // Email-scoped data is private: require a session token for that email.
-    // Device-scoped data is keyed by an unguessable client-generated UUID and
-    // stays accessible without a token (anonymous, pre-registration use).
-    if (email && typeof email === 'string') {
-      const authEmail = verifyToken(getBearerToken(req));
-      if (authEmail !== email) {
-        res.status(401).json({ error: '未授权：请重新登录' });
-        return;
-      }
+    const { deviceId } = req.query;
+    const identity = resolveSyncIdentity(req);
+    if (identity === 'unauthorized') {
+      res.status(401).json({ error: '未授权：请重新登录' });
+      return;
+    }
+    // 登入了就讀他自己的那一份；沒登入才讀裝置紀錄 —— 後者的鍵是客戶端產生的
+    // 不可猜測 UUID，那是註冊之前的匿名使用方式，行為不變。
+    const userId = identity === 'anonymous' ? null : identity.userId;
+    if (!userId && (!deviceId || typeof deviceId !== 'string')) {
+      res.status(400).json({ error: 'Missing deviceId parameter.' });
+      return;
     }
 
-    if (mysqlDb.isConfigured()) {
+    const dbUserId = toDbUserId(userId);
+    if (mysqlDb.isConfigured() && (!userId || dbUserId !== null)) {
       try {
-        let row = null;
-        if (email && typeof email === 'string') {
-          row = await withTimeout(mysqlDb.getUserData(email as string), 2000);
-        } else if (deviceId && typeof deviceId === 'string') {
-          row = await withTimeout(mysqlDb.getUserDataByDevice(deviceId as string), 2000);
-        } else {
-          res.status(400).json({ error: 'Missing deviceId or email parameter.' });
-          return;
-        }
+        const row = userId
+          ? await withTimeout(mysqlDb.getUserDataByUserId(dbUserId as number), 2000)
+          : await withTimeout(mysqlDb.getUserDataByDevice(deviceId as string), 2000);
 
         if (row) {
           const parsed = mysqlDb.parseUserDataRow(row);
@@ -1791,8 +1867,8 @@ app.get('/api/db/load', async (req, res) => {
     }
 
     // Memory fallback
-    if (email && typeof email === 'string') {
-      const localData = offlineUserData.get(email);
+    if (userId) {
+      const localData = offlineUserData.get(userId);
       if (localData) {
         res.json({ source: 'memory', child: localData.child || null, completedScores: localData.completedScores || [], orders: localData.orders || [], reportHistory: localData.reportHistory || [] });
         return;
@@ -1807,35 +1883,33 @@ app.get('/api/db/load', async (req, res) => {
 // Endpoint to save child assessment records
 app.post('/api/db/save', async (req, res) => {
   try {
-    const { deviceId, email, child, completedScores, orders, reportHistory } = req.body;
-    if (!deviceId && !email) {
-      res.status(400).json({ error: 'Missing deviceId or email.' });
+    const { deviceId, child, completedScores, orders, reportHistory } = req.body;
+    const identity = resolveSyncIdentity(req);
+    if (identity === 'unauthorized') {
+      res.status(401).json({ error: '未授权：请重新登录' });
+      return;
+    }
+    const userId = identity === 'anonymous' ? null : identity.userId;
+    if (!userId && !deviceId) {
+      res.status(400).json({ error: 'Missing deviceId.' });
       return;
     }
 
-    // Writing to an email-scoped record requires a matching session token.
-    if (email) {
-      const authEmail = verifyToken(getBearerToken(req));
-      if (authEmail !== email) {
-        res.status(401).json({ error: '未授权：请重新登录' });
-        return;
-      }
-    }
-
     // Always save to memory as hot-backup
-    if (email) {
-      offlineUserData.set(email, { child, completedScores, orders, reportHistory });
+    if (userId) {
+      offlineUserData.set(userId, { child, completedScores, orders, reportHistory });
     }
 
-    if (mysqlDb.isConfigured() && email) {
+    const dbUserId = toDbUserId(userId);
+    if (mysqlDb.isConfigured() && dbUserId !== null) {
       try {
-        // The token guarantees this email belongs to an authenticated account,
-        // so the user row already exists — no implicit account creation here.
+        // 通行證保證這個 id 來自一次成功的登入，帳號因此已經存在 ——
+        // 這裡不會、也不該隱式建立帳號。
         await withTimeout(
-          mysqlDb.saveUserData(email, deviceId || null, child, completedScores || [], orders || [], reportHistory || []),
+          mysqlDb.saveUserData(dbUserId, deviceId || null, child, completedScores || [], orders || [], reportHistory || []),
           2000
         );
-        console.log(`[MySQL] Saved data for ${email}`);
+        console.log(`[MySQL] Saved data for user ${dbUserId}`);
         res.json({ success: true });
         return;
       } catch (err: any) {

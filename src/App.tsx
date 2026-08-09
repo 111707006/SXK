@@ -124,12 +124,13 @@ export default function App() {
     const deviceId = getOrCreateDeviceId();
     try {
       setSyncing(true);
+      // 不送任何識別欄位 —— 家長是誰由 `authHeaders()` 帶的通行證決定。
+      // 客戶端送上來的識別鍵不是身分，伺服器也不再看它。
       const resp = await fetch('/api/db/save', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
           deviceId,
-          email: userEmail,
           child: currentChild,
           completedScores: currentScores,
           orders: currentOrders,
@@ -212,16 +213,15 @@ export default function App() {
         setDbConfigured(statusData.configured);
         setDbEnvId(statusData.envId);
 
-        const activeEmail = localStorage.getItem('senxinkang_user_email');
         const activeToken = localStorage.getItem('senxinkang_token');
         const deviceId = getOrCreateDeviceId();
-        // Email-scoped load needs a session token; without one, fall back to
-        // the device-scoped record instead of issuing a guaranteed 401.
-        const queryParam = (activeEmail && activeToken)
-          ? `email=${encodeURIComponent(activeEmail)}`
-          : `deviceId=${deviceId}`;
+        // 有通行證就讀自己的那一份（識別鍵在通行證裡，不放進網址）；沒有才讀
+        // 裝置紀錄。兩者不併送 —— 帶著過期的通行證卻附上 deviceId，伺服器就得
+        // 在「你是誰」與「這台裝置上有什麼」之間挑一個，而挑錯的那一次會把別的
+        // 孩子的檔案端到已登入的家長面前。
+        const loadUrl = activeToken ? '/api/db/load' : `/api/db/load?deviceId=${deviceId}`;
 
-        const loadResp = await fetch(`/api/db/load?${queryParam}`, { headers: authHeaders() });
+        const loadResp = await fetch(loadUrl, { headers: authHeaders() });
         if (!loadResp.ok) return;
         const loadCt = loadResp.headers.get('content-type');
         if (!loadCt || !loadCt.includes('application/json')) return;
@@ -251,7 +251,6 @@ export default function App() {
               headers: authHeaders(),
               body: JSON.stringify({
                 deviceId,
-                email: activeEmail,
                 child: localChild,
                 completedScores: localScores,
                 orders: localOrders,
@@ -385,7 +384,6 @@ export default function App() {
         headers: authHeaders(),
         body: JSON.stringify({
           deviceId,
-          email: userEmail,
           child: newChild,
           completedScores,
           orders,

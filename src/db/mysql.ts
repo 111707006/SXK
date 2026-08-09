@@ -63,6 +63,21 @@ export function isConfigured(): boolean {
 
 // ---- User operations ----
 
+/**
+ * 依使用者 id 取帳號。**這是身分被驗證之後唯一該走的查法。**
+ *
+ * 其他 `findUserBy*` 是登入那一刻把外部憑據換成帳號用的，一次登入只走一次；
+ * 通行證發出去之後帶的是使用者 id，所以此後的每一次查詢都從這裡進來 ——
+ * 換掉登入方式（電子郵件 → 手機號）時，動的是那一族函式，這一個不動。
+ */
+export async function findUserById(id: number): Promise<any | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+  return (rows as any[])[0] || null;
+}
+
+/** 登入用：把電子郵件換成帳號。手機號登入上線後，這裡會多一個同族的兄弟。 */
 export async function findUserByEmail(email: string): Promise<any | null> {
   const p = getPool();
   if (!p) return null;
@@ -81,14 +96,16 @@ export async function createUser(
   email: string,
   password: string,
   companyId: number | null = null
-): Promise<void> {
+): Promise<number> {
   const p = getPool();
   if (!p) throw new Error('MySQL not configured');
-  await p.execute('INSERT INTO users (email, password, company_id) VALUES (?, ?, ?)', [
-    email,
-    password,
-    companyId,
-  ]);
+  // 回傳新帳號的 id：呼叫端**當場**就要用它簽通行證，再回頭用電子郵件查一次
+  // 等於讓「剛註冊的人是誰」這件事有第二條可能答錯的路。
+  const [result] = await p.execute(
+    'INSERT INTO users (email, password, company_id) VALUES (?, ?, ?)',
+    [email, password, companyId]
+  );
+  return (result as mysql.ResultSetHeader).insertId;
 }
 
 // ---- Partner company (project B multi-company) ----
@@ -182,22 +199,24 @@ function safeJsonArray(raw: string): string[] {
   }
 }
 
-export async function updateUserPassword(email: string, password: string): Promise<void> {
+export async function updateUserPassword(userId: number, password: string): Promise<void> {
   const p = getPool();
   if (!p) throw new Error('MySQL not configured');
-  await p.execute('UPDATE users SET password = ? WHERE email = ?', [password, email]);
+  await p.execute('UPDATE users SET password = ? WHERE id = ?', [password, userId]);
 }
 
 // ---- User data operations ----
+//
+// 孩子檔案、篩查分數與報告歷史一律以**使用者 id** 為鍵。這一族函式收不到電子
+// 郵件，也就不會在電子郵件下線的那一天跟著壞掉 —— 那時要換的只有「外部憑據
+// 換成帳號」的那一步（見 findUserByEmail 一族），資料層一個字都不必動。
 
-export async function getUserData(email: string): Promise<any | null> {
+export async function getUserDataByUserId(userId: number): Promise<any | null> {
   const p = getPool();
   if (!p) return null;
   const [rows] = await p.execute(
-    `SELECT ud.* FROM user_data ud
-     JOIN users u ON ud.user_id = u.id
-     WHERE u.email = ? LIMIT 1`,
-    [email]
+    'SELECT * FROM user_data WHERE user_id = ? LIMIT 1',
+    [userId]
   );
   return (rows as any[])[0] || null;
 }
@@ -213,7 +232,7 @@ export async function getUserDataByDevice(deviceId: string): Promise<any | null>
 }
 
 export async function saveUserData(
-  email: string,
+  userId: number,
   deviceId: string | null,
   child: any,
   completedScores: any[],
@@ -222,10 +241,6 @@ export async function saveUserData(
 ): Promise<void> {
   const p = getPool();
   if (!p) throw new Error('MySQL not configured');
-
-  // Get user_id from email
-  const user = await findUserByEmail(email);
-  if (!user) throw new Error('User not found');
 
   const childJson = JSON.stringify(child);
   const scoresJson = JSON.stringify(completedScores);
@@ -241,7 +256,7 @@ export async function saveUserData(
        completed_scores = VALUES(completed_scores),
        orders = VALUES(orders),
        report_history = VALUES(report_history)`,
-    [user.id, deviceId, childJson, scoresJson, ordersJson, historyJson]
+    [userId, deviceId, childJson, scoresJson, ordersJson, historyJson]
   );
 }
 

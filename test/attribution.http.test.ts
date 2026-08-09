@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
-import crypto from 'crypto';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
+import { bearer } from './helpers/session';
 
 /**
  * 歸屬（#5）與家長端專家名單（#9）的 HTTP 測試。
@@ -14,14 +14,21 @@ const VALID_SLUG = 'jia';
 const COMPANY_ID = 7;
 
 const created: Array<{ email: string; companyId: number | null }> = [];
+/** 登入那條路的索引：外部憑據 → 帳號。 */
 const users = new Map<string, any>();
+/** 通行證那條路的索引：使用者 id → 帳號。登入之後的每一次查詢都走這一條。 */
+const usersById = new Map<number, any>();
 
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
   findUserByEmail: async (email: string) => users.get(email) ?? null,
+  findUserById: async (id: number) => usersById.get(id) ?? null,
   createUser: async (email: string, password: string, companyId: number | null = null) => {
     created.push({ email, companyId });
-    users.set(email, { id: users.size + 1, email, password, company_id: companyId });
+    const row = { id: users.size + 1, email, password, company_id: companyId };
+    users.set(email, row);
+    usersById.set(row.id, row);
+    return row.id;
   },
   findCompanyBySlug: async (slug: string) =>
     slug === VALID_SLUG
@@ -33,7 +40,7 @@ vi.mock('../src/db/mysql', () => ({
       ? [{ id: 1, name: '甲机构的治疗师', title: null, specialty: null, experience: null, avatarUrl: null, slots: ['周一上午'] }]
       : [],
   updateUserPassword: async () => {},
-  getUserData: async () => null,
+  getUserDataByUserId: async () => null,
   getUserDataByDevice: async () => null,
   saveUserData: async () => {},
   listUnlockedDimensions: async () => [],
@@ -46,13 +53,8 @@ vi.mock('../src/db/mysql', () => ({
   parseUserDataRow: () => null,
 }));
 
-function signToken(email: string): string {
-  const b64url = (buf: Buffer | string) =>
-    Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const payload = b64url(JSON.stringify({ email, exp: Date.now() + 60_000 }));
-  const sig = b64url(crypto.createHmac('sha256', process.env.SESSION_SECRET!).update(payload).digest());
-  return `${payload}.${sig}`;
-}
+/** 那位家長註冊之後拿到的通行證 —— 帶的是使用者 id。 */
+const asParent = (email: string) => bearer(users.get(email).id);
 
 let client: TestClient;
 
@@ -63,6 +65,7 @@ beforeAll(async () => {
 beforeEach(() => {
   created.length = 0;
   users.clear();
+  usersById.clear();
 });
 
 afterAll(async () => {
@@ -126,7 +129,7 @@ describe('家長端只看得到自己歸屬公司的專家（#9）', () => {
       email: 'p5@x.com', password: 'pw', companySlug: VALID_SLUG,
     });
     const body = await (
-      await client.get('/api/specialists', { Authorization: `Bearer ${signToken('p5@x.com')}` })
+      await client.get('/api/specialists', asParent('p5@x.com'))
     ).json();
     expect(body.reason).toBe('ok');
     expect(body.specialists.map((s: any) => s.name)).toEqual(['甲机构的治疗师']);
@@ -135,7 +138,7 @@ describe('家長端只看得到自己歸屬公司的專家（#9）', () => {
   it('未歸屬的家長看不到任何一家公司的專家，且理由是明確的', async () => {
     await client.postJson('/api/auth/register', { email: 'p6@x.com', password: 'pw' });
     const body = await (
-      await client.get('/api/specialists', { Authorization: `Bearer ${signToken('p6@x.com')}` })
+      await client.get('/api/specialists', asParent('p6@x.com'))
     ).json();
     expect(body.specialists).toEqual([]);
     // 空陣列不夠 —— 前端要能分辨「沒有歸屬」與「公司還沒設定專家」，

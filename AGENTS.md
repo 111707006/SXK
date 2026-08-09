@@ -74,8 +74,12 @@ pnpm run lint       # tsc --noEmit
 | `/api/db/status` | GET | 数据库状态 | 无 |
 | `/api/auth/register` | POST | 用户注册 | `email`, `password` |
 | `/api/auth/login` | POST | 用户登录 | `email`, `password` |
-| `/api/db/load` | GET | 加载用户数据 | `deviceId` 或 `email` (query) |
-| `/api/db/save` | POST | 保存用户数据 | `deviceId`, `email`, `child`, `completedScores`, `orders`, `reportHistory` |
+| `/api/db/load` | GET | 加载用户数据 | 已登录：`Authorization: Bearer <token>`；未登录：`deviceId` (query) |
+| `/api/db/save` | POST | 保存用户数据 | `deviceId`, `child`, `completedScores`, `orders`, `reportHistory`（身分取自 token） |
+
+> 同步端点以**使用者 id** 识别家长，那个 id 装在 session token 里。请求 body 或 query
+> 里的 `email` / `userId` 一律不被采信 —— 客户端送上来的识别键不是身分。资料层
+> （`src/db/mysql.ts`）同样只认使用者 id，护栏见 `test/userIdKey.structure.test.ts`。
 
 ## 环境变量
 

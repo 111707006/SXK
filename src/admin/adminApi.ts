@@ -6,6 +6,8 @@
  * 對方登入狀態的 bug，而那種 bug 在後台最不該出現。
  */
 
+import type { MaterialInput, MaterialRecord } from '../utils/materialCells';
+
 const TOKEN_KEY = 'sxk_admin_token';
 
 export interface AdminIdentityView {
@@ -81,6 +83,15 @@ export interface AdminUser {
   companyId: number | null;
   active: boolean;
 }
+
+/**
+ * 素材的型別直接沿用 `src/utils/materialCells.ts`，**不在這裡另外抄一份**。
+ *
+ * 其他後台型別（家長、專家）在這裡各有一份是因為它們的來源是資料庫的形狀；
+ * 素材的形狀則由那個純模組定義，而同一個模組也負責檢查後端收到的內容 ——
+ * 抄一份的結果會是畫面存得下去、後端收不下來，兩邊各自都覺得自己是對的。
+ */
+export type { MaterialRecord as AdminMaterial, MaterialInput as AdminMaterialInput } from '../utils/materialCells';
 
 export interface CompanySummaryRow {
   companyId: number | null;
@@ -236,6 +247,18 @@ export const adminApi = {
     }),
 
   summary: () => request<{ summary: CompanySummaryRow[] }>('/summary'),
+
+  // 素材庫不吃公司條件 —— 它不是家長資料，因此這三支不需要先選定公司。
+  materials: () => request<{ materials: MaterialRecord[] }>('/materials'),
+
+  createMaterial: (input: MaterialInput) =>
+    request<{ material: MaterialRecord }>('/materials', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  updateMaterial: (id: number, input: MaterialInput) =>
+    request<{ ok: true }>(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
 };
 
 /** 匯出走瀏覽器分頁開新視窗，因此需要一條帶得上 token 的路。 */

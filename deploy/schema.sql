@@ -232,6 +232,40 @@ CREATE TABLE IF NOT EXISTS `specialists` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- 干预素材库（仅专案 A 使用，T2 深度评估）
+-- ============================================================
+-- 以（维度，年龄段，严重度）为索引键的一张 90 格的表：9 × 5 × 2。
+-- 内容以**图文为主、影片链接为辅**——因此这张表不需要任何文件上传或对象储存，
+-- 决定与理由见 docs/adr/0003-intervention-materials-are-images-and-text.md。
+--
+-- 刻意**没有 company_id**：素材是森心康的干预内容，不是家长资料，
+-- 也不属于任何一家合作公司。取资料仍须经过 src/admin/adminStore.ts 这个单一入口。
+
+CREATE TABLE IF NOT EXISTS `intervention_materials` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  -- 九维之一。字串而非外键：维度是程式码里的常数（src/data.ts），不是资料表。
+  `dimension_id` VARCHAR(64) NOT NULL,
+  -- 年龄段 A–E，来自 src/t1Data.ts。
+  `age_band_id` VARCHAR(8) NOT NULL,
+  -- 与报告上的判定同一组字串。normal 不在其中：没被标记的维度不需要干预素材。
+  `severity` ENUM('borderline','delay') NOT NULL,
+  `title` VARCHAR(128) NOT NULL,
+  -- 分解步骤，有序阵列：[{"imageUrl":"…","instruction":"…"}, …]
+  -- 阵列顺序就是家长照着做的顺序，因此顺序是资料的一部分，不是显示时才决定的事。
+  `steps` JSON NOT NULL,
+  -- 选填的影片链接。NULL = 这一格没有影片，不是「还没填」。
+  `video_url` VARCHAR(512) DEFAULT NULL,
+  -- 停用而非删除：家长端不再取到它，但内容还在，可以再打开。
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  -- 一格一笔。少了这个唯一键，同一格会有两笔素材，而配对逻辑（issue #26）
+  -- 取到哪一笔要看资料库的心情——两个孩子会拿到不同的训练步骤。
+  UNIQUE KEY `uk_material_cell` (`dimension_id`, `age_band_id`, `severity`),
+  INDEX `idx_active` (`active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 既有数据库的迁移（sxk_db 已建过旧版 users 时执行）
 -- ============================================================
 -- 多公司相关（专案 B）：companies 必须先建立，users.company_id 才加得上去。

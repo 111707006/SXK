@@ -24,6 +24,7 @@ import {
   scopeKey,
   selectionLabel,
   switcherOptions,
+  tabNeedsCompany,
   visibleTabs,
   type AdminErrorView,
   type AdminTabId,
@@ -35,6 +36,7 @@ import CompanySettingsPanel from './panels/CompanySettingsPanel';
 import CompaniesPanel from './panels/CompaniesPanel';
 import AdminUsersPanel from './panels/AdminUsersPanel';
 import SummaryPanel from './panels/SummaryPanel';
+import MaterialsPanel from './panels/MaterialsPanel';
 
 export default function AdminApp() {
   const [identity, setIdentity] = useState<AdminIdentityView | null>(null);
@@ -230,23 +232,27 @@ export default function AdminApp() {
           </div>
         </div>
 
-        {screen.kind === 'ready' && (
-          <nav className="mt-4 flex flex-wrap gap-1.5 border-t border-brand-stone pt-3">
-            {tabs.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                  t.id === activeTab
-                    ? 'bg-brand-forest text-white'
-                    : 'text-brand-charcoal/60 hover:bg-brand-sage'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-        )}
+        {/*
+          尚未選定公司時**選單照樣顯示**。全域的分頁（合作公司、後台帳號、
+          跨公司彙總、素材庫）一位家長的資料都不回，後端也不要求選定 ——
+          把它們一起藏起來，維護素材的人得先隨便挑一家合作公司才進得去，
+          而那一下會在切換紀錄裡留下一筆他其實沒有要看的公司。
+        */}
+        <nav className="mt-4 flex flex-wrap gap-1.5 border-t border-brand-stone pt-3">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                t.id === activeTab
+                  ? 'bg-brand-forest text-white'
+                  : 'text-brand-charcoal/60 hover:bg-brand-sage'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
       </header>
 
       {notice && (
@@ -255,7 +261,7 @@ export default function AdminApp() {
         </div>
       )}
 
-      {screen.kind === 'needs_company' ? (
+      {screen.kind === 'needs_company' && tabNeedsCompany(activeTab) ? (
         <div className="rounded-3xl border border-brand-stone bg-white p-8 text-center">
           <Building2 size={26} className="mx-auto text-brand-moss" />
           <p className="mt-3 text-xs font-bold text-brand-forest">请先选定要查看的合作公司</p>
@@ -276,6 +282,7 @@ export default function AdminApp() {
           {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} />}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} />}
           {activeTab === 'summary' && <SummaryPanel onError={handleError} />}
+          {activeTab === 'materials' && <MaterialsPanel onError={handleError} />}
         </div>
       )}
     </Shell>

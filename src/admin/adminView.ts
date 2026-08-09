@@ -70,28 +70,53 @@ export function scopeKey(identity: AdminIdentityView): string {
 // 分頁
 // ══════════════════════════════════════════════
 
-export type AdminTabId = 'parents' | 'specialists' | 'company' | 'companies' | 'adminUsers' | 'summary';
+export type AdminTabId =
+  | 'parents'
+  | 'specialists'
+  | 'company'
+  | 'companies'
+  | 'adminUsers'
+  | 'summary'
+  | 'materials';
 
 export interface AdminTab {
   id: AdminTabId;
   label: string;
 }
 
+/** 看得到家長資料的分頁。**每一個都要先有公司條件**，見 `tabNeedsCompany`。 */
 const SCOPED_TABS: AdminTab[] = [
   { id: 'parents', label: '家长列表' },
   { id: 'specialists', label: '专家名单' },
   { id: 'company', label: '本机构设定' },
 ];
 
-/** 只有森心康看得到的分頁。合作公司連選單上都不該出現這三個字。 */
+/** 只有森心康看得到的分頁。合作公司連選單上都不該出現這幾個字。 */
 const GLOBAL_TABS: AdminTab[] = [
   { id: 'companies', label: '合作公司' },
   { id: 'adminUsers', label: '后台帐号' },
   { id: 'summary', label: '跨公司汇总' },
+  // 素材庫是森心康的干預內容，合作公司不維護它（專案 B 也沒有深度評估）。
+  { id: 'materials', label: '素材库' },
 ];
 
 export function visibleTabs(identity: AdminIdentityView): AdminTab[] {
   return identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
+}
+
+/**
+ * 這個分頁要不要先選定一家合作公司。
+ *
+ * 需要的恰好是那三個看家長資料的分頁 —— 與後端 `withScope` 涵蓋的範圍相同。
+ * 全域的分頁（合作公司名冊、後台帳號、跨公司彙總、素材庫）**不需要**：它們
+ * 一位家長的資料都不回，後端也不要求選定。
+ *
+ * 分錯的方向很安靜：把全域分頁也擋在「請先選定公司」後面，維護素材的人得先
+ * 隨便選一家合作公司才進得去自己的素材庫，畫面上看起來只是多按一下 ——
+ * 而那一下同時會在切換紀錄裡留下一筆他其實沒有要看的公司。
+ */
+export function tabNeedsCompany(tab: AdminTabId): boolean {
+  return SCOPED_TABS.some(t => t.id === tab);
 }
 
 // ══════════════════════════════════════════════

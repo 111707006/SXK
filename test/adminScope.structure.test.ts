@@ -31,6 +31,22 @@ function stripComments(source: string): string {
 const SCOPED_TABLES = ['users', 'user_data', 'expert_bookings', 'specialists'];
 
 /**
+ * 不帶公司條件的表，每一張都要寫明為什麼它不是家長資料。
+ *
+ * 有這份清單，「新開一張表而忘了想公司條件」就會是一個測試失敗，而不是一件
+ * 沒有人注意到的事 —— 上面那組 `SCOPED_TABLES` 只擋得住已知的四張表，
+ * 第五張表可以完全不帶條件地溜過去。
+ */
+const GLOBAL_TABLES: Record<string, string> = {
+  companies: '合作公司本身的名冊。誰看得到由路由層的 requireGlobal 決定，不是公司條件。',
+  admin_users: '後台成員，不是家長。只有全域管理員碰得到。',
+  admin_company_switches: '切換紀錄。寫入的是檢視者自己的行為，不是任何一位家長的資料。',
+  intervention_materials:
+    '干預素材庫（issue #20）。是森心康的干預內容，不屬於任何一家合作公司，' +
+    '也不含任何一位家長的資料；路由層限定全域管理員。',
+};
+
+/**
  * 唯一允許不帶 `${scope.sql}` 的函式，每一個都要寫明理由。
  *
  * 這份清單本身就是護欄的一部分：想再開一個例外，必須先來改這個檔案，
@@ -114,6 +130,33 @@ describe('後台的每一句家長查詢都帶公司條件', () => {
       offenders.map(o => `${o.fn}: ${o.sql.replace(/\s+/g, ' ').slice(0, 120)}`),
       `以下查詢碰了 ${table} 卻沒有帶公司條件，也不在例外清單裡`
     ).toEqual([]);
+  });
+
+  /**
+   * 每一張被碰到的表，不是帶公司條件的，就是列在 `GLOBAL_TABLES` 裡有理由的。
+   *
+   * 這一條擋的是「新開一張表」——上面那組 it.each 只走訪已知的四張表，
+   * 一張沒人想過公司條件的新表可以完全不帶條件地溜過去。
+   */
+  it('沒有第三種表：不是帶公司條件，就是列在全域清單裡', () => {
+    const tableRe = /\b(?:FROM|JOIN|UPDATE|INTO)\s+`?([a-z_][a-z0-9_]*)`?/gi;
+    const touched = new Set<string>();
+    for (const call of calls) {
+      for (const m of call.sql.matchAll(tableRe)) touched.add(m[1].toLowerCase());
+    }
+    // information_schema 之類的系統來源不在此列；目前一句都沒有，出現了就該想一想。
+    const unknown = [...touched].filter(t => !SCOPED_TABLES.includes(t) && !(t in GLOBAL_TABLES));
+    expect(unknown, '這些表既不在受公司條件保護的清單裡，也沒有被說明為什麼不需要').toEqual([]);
+  });
+
+  it('全域清單裡的每一張表都真的被用到，沒有留下過期的豁免', () => {
+    const touched = new Set<string>();
+    for (const call of calls) {
+      for (const m of call.sql.matchAll(/\b(?:FROM|JOIN|UPDATE|INTO)\s+`?([a-z_][a-z0-9_]*)`?/gi)) {
+        touched.add(m[1].toLowerCase());
+      }
+    }
+    expect(Object.keys(GLOBAL_TABLES).filter(t => !touched.has(t))).toEqual([]);
   });
 
   it('例外清單裡的每一個名字都真的存在，沒有留下過期的豁免', () => {

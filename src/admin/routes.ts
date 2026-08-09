@@ -15,6 +15,7 @@ import * as store from './adminStore';
 import { resolveCompanyCondition, type AdminIdentity, type CompanyCondition } from './companyScope';
 import { buildIdentity, signAdminToken, verifyAdminToken } from './adminAuth';
 import { renderParentExportHtml } from './exportView';
+import { readMaterialInput } from '../utils/materialCells';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -507,6 +508,77 @@ export function createAdminRouter(): express.Router {
     } catch (err: any) {
       console.error('[Admin] summary failed:', err.message);
       res.status(500).json({ error: '读取汇总失败。' });
+    }
+  });
+
+  // ── 干預素材庫（issue #20）──
+  //
+  // 素材不是家長資料，因此這三支**不經過 `withScope`** —— 沒有一位家長的資料
+  // 會從這裡出去，硬套一個公司條件只會讓人以為素材分公司。
+  //
+  // 但它們仍然限定全域管理員：素材是森心康的干預內容，合作公司不維護它，
+  // 而專案 B 根本沒有深度評估。少了 `requireGlobal`，一家合作公司就能改掉
+  // 所有孩子拿到的訓練步驟。
+
+  router.get('/materials', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    try {
+      res.json({ materials: await store.listMaterials() });
+    } catch (err: any) {
+      console.error('[Admin] listMaterials failed:', err.message);
+      // 讀取失敗與「一格都還沒建立」必須分得開：混成同一種回應的話，
+      // 沒跑遷移會被看成「還沒有人建素材」，然後一路帶到家長端。
+      res.status(500).json({ error: '读取素材库失败。' });
+    }
+  });
+
+  router.post('/materials', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    const parsed = readMaterialInput(req.body);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    try {
+      res.json({ material: await store.createMaterial(parsed.input) });
+    } catch (err: any) {
+      // 一格一筆由資料庫的唯一鍵保證。撞上代表這一格已經有素材了，
+      // 該做的是去編輯它 —— 而不是多一筆讓配對邏輯自己挑一個。
+      if (err?.code === 'ER_DUP_ENTRY') {
+        res.status(409).json({ error: '这一格已经建立过素材，请直接编辑既有的那一笔。' });
+        return;
+      }
+      console.error('[Admin] createMaterial failed:', err.message);
+      res.status(500).json({ error: '建立素材失败。' });
+    }
+  });
+
+  router.put('/materials/:id', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(404).json({ error: '找不到该素材。' });
+      return;
+    }
+    const parsed = readMaterialInput(req.body);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    try {
+      const affected = await store.updateMaterial(id, parsed.input);
+      if (affected === 0) {
+        res.status(404).json({ error: '找不到该素材。' });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err: any) {
+      if (err?.code === 'ER_DUP_ENTRY') {
+        res.status(409).json({ error: '这一格已经有别的素材了，请先处理那一笔。' });
+        return;
+      }
+      console.error('[Admin] updateMaterial failed:', err.message);
+      res.status(500).json({ error: '更新素材失败。' });
     }
   });
 

@@ -19,6 +19,7 @@ import { companyWhereSql, type CompanyCondition } from './companyScope';
 import type { AssessmentRecord, DimensionScore } from '../types';
 import { calculateAgeMonth } from '../utils/dateUtils';
 import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
+import type { MaterialInput, MaterialRecord, MaterialStep } from '../utils/materialCells';
 
 // ── 對外型別 ──
 
@@ -563,6 +564,113 @@ export async function createAdminUser(
 export async function setAdminUserActive(id: number, active: boolean): Promise<number> {
   const p = requirePool();
   const [result] = await p.execute('UPDATE admin_users SET active = ? WHERE id = ?', [active ? 1 : 0, id]);
+  return (result as ResultSetHeader).affectedRows;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 干預素材庫（issue #20）—— 不是家長資料，因此不吃公司條件
+// ══════════════════════════════════════════════════════════════
+//
+// 素材是森心康的干預內容，不屬於任何一家合作公司，也不含任何一位家長的資料，
+// 因此這幾支查詢**刻意沒有** `${scope.sql}`。這個豁免不是靠紀律維持的：
+// `test/adminScope.structure.test.ts` 有一份「這張表是全域的」的明列清單，
+// 想讓一張新表不帶公司條件，必須先去改那個檔案 —— 那是一個看得見的動作。
+//
+// 它們仍然住在這裡而不是路由層：單一入口的規則對全域的表一樣適用，
+// 否則「路由裡沒有 SQL」這條護欄就會有第一個例外，而例外會長出第二個。
+
+function rowToMaterial(row: any): MaterialRecord {
+  return {
+    id: Number(row.id),
+    dimensionId: row.dimension_id,
+    ageBandId: row.age_band_id,
+    severity: row.severity,
+    title: row.title,
+    // 壞掉的 JSON 退回空陣列而不是拋例外：一格素材存壞不該讓整個素材庫讀不出來。
+    // 空步驟在畫面上看得見（「0 步」），而整頁失敗只會顯示一句讀取失敗。
+    steps: parseJson<MaterialStep[]>(row.steps, []),
+    videoUrl: row.video_url ?? null,
+    active: Number(row.active) === 1,
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+/**
+ * 整份素材庫，含已停用的。
+ *
+ * 後台要的是 90 格的全貌 —— 「未建立」與「已停用」在畫面上必須分得開，
+ * 而只回啟用中的素材會讓後者變成前者。家長端取的是另一條路（issue #26），
+ * 那裡才只認啟用中的。
+ */
+export async function listMaterials(): Promise<MaterialRecord[]> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT * FROM intervention_materials
+      ORDER BY dimension_id ASC, age_band_id ASC, severity ASC`,
+    []
+  );
+  return (rows as any[]).map(rowToMaterial);
+}
+
+export async function findMaterialById(id: number): Promise<MaterialRecord | null> {
+  const p = requirePool();
+  const [rows] = await p.execute('SELECT * FROM intervention_materials WHERE id = ? LIMIT 1', [id]);
+  const row = (rows as any[])[0];
+  return row ? rowToMaterial(row) : null;
+}
+
+/**
+ * 建立一格素材。同一格已經有素材時會撞上 `uk_material_cell` 並拋出
+ * `ER_DUP_ENTRY` —— 由路由層翻成「這一格已經建立過」，而不是靜靜多一筆。
+ */
+export async function createMaterial(input: MaterialInput): Promise<MaterialRecord> {
+  const p = requirePool();
+  const [result] = await p.execute(
+    `INSERT INTO intervention_materials
+       (dimension_id, age_band_id, severity, title, steps, video_url, active)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      input.dimensionId,
+      input.ageBandId,
+      input.severity,
+      input.title,
+      JSON.stringify(input.steps),
+      input.videoUrl,
+      input.active ? 1 : 0,
+    ]
+  );
+  const created = await findMaterialById((result as ResultSetHeader).insertId);
+  if (!created) throw new Error('建立素材后读不回来');
+  return created;
+}
+
+/**
+ * 覆寫一格素材，**格子本身也可以改**。
+ *
+ * 允許改格子是為了讓「建錯格」修得回來（把 C 段的步驟誤存到 B 段），而不必
+ * 刪掉重建 —— 這張表沒有刪除。改到一個已經有素材的格子會撞上唯一鍵，
+ * 與新增走同一條路。
+ *
+ * 回傳受影響的列數；0 代表這個 id 不存在，路由層當作找不到。
+ */
+export async function updateMaterial(id: number, input: MaterialInput): Promise<number> {
+  const p = requirePool();
+  const [result] = await p.execute(
+    `UPDATE intervention_materials
+        SET dimension_id = ?, age_band_id = ?, severity = ?, title = ?,
+            steps = ?, video_url = ?, active = ?
+      WHERE id = ?`,
+    [
+      input.dimensionId,
+      input.ageBandId,
+      input.severity,
+      input.title,
+      JSON.stringify(input.steps),
+      input.videoUrl,
+      input.active ? 1 : 0,
+      id,
+    ]
+  );
   return (result as ResultSetHeader).affectedRows;
 }
 

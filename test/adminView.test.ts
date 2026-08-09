@@ -8,6 +8,7 @@ import {
   selectionLabel,
   parseSlots,
   formatSlots,
+  tabNeedsCompany,
   describeApiError,
   statusLabel,
   genderLabel,
@@ -137,7 +138,7 @@ describe('分頁可見性', () => {
     expect(idsOf(member)).toEqual(['parents', 'specialists', 'company']);
   });
 
-  it('全域管理員多出合作公司、後台帳號與跨公司彙總', () => {
+  it('全域管理員多出合作公司、後台帳號、跨公司彙總與素材庫', () => {
     expect(idsOf(globalOnCompany)).toEqual([
       'parents',
       'specialists',
@@ -145,13 +146,14 @@ describe('分頁可見性', () => {
       'companies',
       'adminUsers',
       'summary',
+      'materials',
     ]);
   });
 
   // 「後端會擋」不是不顯示的理由：選單上出現「跨公司彙總」本身就告訴合作公司
   // 有別家公司存在，而那是他們不該知道的事。
   it('全域管理員專屬的分頁不出現在公司成員的選單裡', () => {
-    const globalOnly: AdminTabId[] = ['companies', 'adminUsers', 'summary'];
+    const globalOnly: AdminTabId[] = ['companies', 'adminUsers', 'summary', 'materials'];
     for (const id of globalOnly) {
       expect(idsOf(member)).not.toContain(id);
     }
@@ -160,6 +162,27 @@ describe('分頁可見性', () => {
   it('每個分頁都有可顯示的名稱', () => {
     for (const tab of visibleTabs(globalOnCompany)) {
       expect(tab.label.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('哪些分頁要先選定公司', () => {
+  // 需要公司條件的恰好是那三個看家長資料的分頁 —— 與後端 withScope 涵蓋的
+  // 範圍相同。兩邊分岔的話，畫面會擋下一件後端明明允許的事（或反過來）。
+  it('看家長資料的三個分頁都要', () => {
+    for (const id of ['parents', 'specialists', 'company'] as AdminTabId[]) {
+      expect(tabNeedsCompany(id), id).toBe(true);
+    }
+  });
+
+  /**
+   * 素材庫不需要。它不是家長資料，後端也不要求選定 —— 擋在「請先選定公司」
+   * 後面的話，維護素材的人得先隨便挑一家合作公司，而那一下會在切換紀錄裡
+   * 留下一筆他其實沒有要看的公司。
+   */
+  it('全域的四個分頁都不需要', () => {
+    for (const id of ['companies', 'adminUsers', 'summary', 'materials'] as AdminTabId[]) {
+      expect(tabNeedsCompany(id), id).toBe(false);
     }
   });
 });

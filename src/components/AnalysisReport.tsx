@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Child, DimensionScore, AssessmentRecord } from '../types';
 import { formatAge } from '../utils/dateUtils';
-import { bookingWindow } from '../utils/bookingWindow';
+import { bookingDateError, bookingWindow } from '../utils/bookingWindow';
+import { useToday } from '../utils/useToday';
 import { 
   ArrowLeft, Brain, Sparkles, CheckCircle2, AlertTriangle, AlertCircle, 
   RefreshCw, Layers, ShieldAlert, Award, Compass, HeartHandshake, Printer,
@@ -152,8 +153,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [selectedSpecialist, setSelectedSpecialist] = useState<string>('');
   const currentSpecialist = specialists.find(s => s.id === selectedSpecialist) ?? null;
   const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const bookingRange = useMemo(() => bookingWindow(), []);
-  const [bookingDate, setBookingDate] = useState<string>(() => bookingWindow().min);
+  // 區間跟著今天走。凍在掛載當下的話，開著不動的分頁跨過午夜就會拿昨天的區間
+  // 在驗，於是「今天」變成一個可以預約的日子 —— 而專家排不進去。
+  const today = useToday();
+  const bookingRange = useMemo(() => bookingWindow(today), [today]);
+  const [bookingDate, setBookingDate] = useState<string>(() => bookingWindow(today).min);
   const [parentName, setParentName] = useState<string>('');
   const [parentPhone, setParentPhone] = useState<string>('');
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'success'>('idle');
@@ -210,6 +214,15 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
    * 才切到成功畫面，寫不進去就顯示錯誤，不再給假的成功。
    */
   const handleSubmitBooking = async () => {
+    // `min`／`max` 只擋日曆上的點選，清空欄位或鍵盤打進去的值照樣過得了。
+    // 少了這一條，`preferredSlot` 會組成「` 09:30 - 10:20`」送進資料庫，
+    // 客服拿到一筆沒有日期的預約，而家長看到的是「預約成功」。
+    const dateError = bookingDateError(bookingDate, bookingRange);
+    if (dateError) {
+      setBookingError(dateError);
+      return;
+    }
+
     setBookingSubmitting(true);
     setBookingError('');
     try {

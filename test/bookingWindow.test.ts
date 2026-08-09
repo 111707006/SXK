@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { bookingDayOffset, bookingWindow } from '../src/utils/bookingWindow';
+import { bookingDateError, bookingDayOffset, bookingWindow } from '../src/utils/bookingWindow';
 
 /**
  * 可預約日期的區間。
@@ -47,5 +47,42 @@ describe('可預約日期的區間', () => {
     expect('2026-08-09' < min).toBe(true); // 今天
     expect('2026-09-09' > max).toBe(true); // 超過四週
     expect('2026-08-20' >= min && '2026-08-20' <= max).toBe(true);
+  });
+});
+
+/**
+ * 送出前的檢查。
+ *
+ * `min`／`max` 只擋日曆上的點選 —— 清空欄位、或用鍵盤打進去的值照樣過得了。
+ * 少了這一條，一筆日期空白的預約會安靜地送進資料庫，客服拿到它約不到人，
+ * 而家長那一頭看到的是「預約成功」。
+ *
+ * 檢查抽成函式而不是各自寫一次 if：報告頁與語言專項評估是兩張長得不一樣的表單，
+ * 而這個 bug 的第一版就是只補了其中一張。
+ */
+describe('送出前擋掉區間外的預約日期', () => {
+  const window = bookingWindow(new Date(2026, 7, 9)); // 2026-08-10 ~ 2026-09-08
+
+  it('沒選日期擋下來', () => {
+    expect(bookingDateError('', window)).toContain('2026-08-10');
+  });
+
+  it('今天與更早的日子擋下來', () => {
+    expect(bookingDateError('2026-08-09', window)).not.toBeNull();
+    expect(bookingDateError('2025-01-01', window)).not.toBeNull();
+  });
+
+  it('超出四週擋下來', () => {
+    expect(bookingDateError('2026-09-09', window)).not.toBeNull();
+  });
+
+  it('區間內（含兩端）放行', () => {
+    expect(bookingDateError('2026-08-10', window)).toBeNull();
+    expect(bookingDateError('2026-08-20', window)).toBeNull();
+    expect(bookingDateError('2026-09-08', window)).toBeNull();
+  });
+
+  it('訊息把區間寫出來，家長才知道該選哪裡', () => {
+    expect(bookingDateError('', window)).toBe('请选择 2026-08-10 至 2026-09-08 之间的会诊日期。');
   });
 });

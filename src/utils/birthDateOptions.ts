@@ -22,6 +22,14 @@ export interface BirthDateWindow {
   earliest: Date;
   /** 最晚選得到的那一天。再晚一天，孩子就不滿適用範圍下限。 */
   latest: Date;
+  /**
+   * 區間之外**額外放行的那一天**：檔案上已經存下來的生日。
+   *
+   * 只放行這一天，不是把區間的端點拉過去。拉端點的話，它與原本端點之間那一整段
+   * （孩子滿 15 歲三個月，就是三個月份、上百天）會全部變成選得到卻存不進去 ——
+   * 正是這張票要取代的「選完才跳錯誤訊息」。
+   */
+  allowed: Date | null;
 }
 
 /**
@@ -61,10 +69,10 @@ function range(from: number, to: number): number[] {
   return out;
 }
 
-/** 選項都是連續的整數區間，所以夾值就是夾在頭尾之間。空陣列代表這個位置無解。 */
-function clampInto(value: number, options: number[]): number | null {
-  if (options.length === 0) return null;
-  return Math.min(Math.max(value, options[0]), options[options.length - 1]);
+/** 把額外放行的那一個值併進選項。選項因此可能不連續 —— 這是刻意的。 */
+function withAllowed(options: number[], extra: number | null): number[] {
+  if (extra === null || options.includes(extra)) return options;
+  return [...options, extra].sort((a, b) => a - b);
 }
 
 /**
@@ -76,8 +84,8 @@ function clampInto(value: number, options: number[]): number | null {
  *
  * `storedBirthDate` 是檔案上**已經存下來的**那一天。它可能已經超出適用範圍 ——
  * 孩子滿 15 歲之後檔案仍要能改（見 `EditProfileModal` 的判斷）。存下來的日子若
- * 選不到，家長光是改個名字就會把孩子的生日弄丟，所以區間為它往外讓一步。
- * 讓出來的那一段仍存得不進去：`EditProfileModal` 會擋下「改動過又落在範圍外」。
+ * 選不到，家長光是改個名字就會把孩子的生日弄丟，所以**額外放行那一天**。
+ * 只有那一天：它與區間端點之間的日子仍然選不到。
  */
 export function birthDateWindow(today: Date = new Date(), storedBirthDate?: string | null): BirthDateWindow {
   // `today` 來自 `useToday()` 或 `new Date()`，往回十五年不可能掉出四位數年份。
@@ -85,17 +93,52 @@ export function birthDateWindow(today: Date = new Date(), storedBirthDate?: stri
   const earliest = addDays(monthsBefore(today, T1_AGE_RANGE.maxMonths + 1)!, 1);
 
   const stored = storedBirthDate ? parseBirthDate(storedBirthDate) : null;
-  if (!stored) return { earliest, latest };
+  const outsideRange = stored !== null && (stored < earliest || stored > latest);
 
-  return {
-    earliest: stored < earliest ? stored : earliest,
-    latest: stored > latest ? stored : latest,
-  };
+  return { earliest, latest, allowed: outsideRange ? stored : null };
+}
+
+/** 額外放行的那一天在這個位置上的值；不在同一年／同一月時不算數。 */
+function allowedYear(w: BirthDateWindow): number | null {
+  return w.allowed === null ? null : w.allowed.getFullYear();
+}
+
+function allowedMonth(w: BirthDateWindow, year: number | null): number | null {
+  if (w.allowed === null || w.allowed.getFullYear() !== year) return null;
+  return w.allowed.getMonth() + 1;
+}
+
+function allowedDay(w: BirthDateWindow, year: number | null, month: number | null): number | null {
+  if (allowedMonth(w, year) !== month) return null;
+  return w.allowed!.getDate();
+}
+
+/** 區間本身涵蓋到的年份，不含額外放行的那一天。 */
+function yearsInRange(w: BirthDateWindow): number[] {
+  return range(w.earliest.getFullYear(), w.latest.getFullYear());
+}
+
+function monthsInRange(w: BirthDateWindow, year: number): number[] {
+  if (year < w.earliest.getFullYear() || year > w.latest.getFullYear()) return [];
+  const first = year === w.earliest.getFullYear() ? w.earliest.getMonth() + 1 : 1;
+  const last = year === w.latest.getFullYear() ? w.latest.getMonth() + 1 : 12;
+  return range(first, last);
+}
+
+function daysInRange(w: BirthDateWindow, year: number, month: number): number[] {
+  if (!monthsInRange(w, year).includes(month)) return [];
+
+  const isEarliestMonth = year === w.earliest.getFullYear() && month === w.earliest.getMonth() + 1;
+  const isLatestMonth = year === w.latest.getFullYear() && month === w.latest.getMonth() + 1;
+
+  const first = isEarliestMonth ? w.earliest.getDate() : 1;
+  const last = isLatestMonth ? w.latest.getDate() : daysInMonth(year, month - 1);
+  return range(first, last);
 }
 
 /** 區間涵蓋到的年份，由早到晚。 */
 export function yearOptions(window: BirthDateWindow): number[] {
-  return range(window.earliest.getFullYear(), window.latest.getFullYear());
+  return withAllowed(yearsInRange(window), allowedYear(window));
 }
 
 /**
@@ -106,11 +149,7 @@ export function yearOptions(window: BirthDateWindow): number[] {
  */
 export function monthOptions(window: BirthDateWindow, year: number | null): number[] {
   if (year === null) return ALL_MONTHS;
-  if (year < window.earliest.getFullYear() || year > window.latest.getFullYear()) return [];
-
-  const first = year === window.earliest.getFullYear() ? window.earliest.getMonth() + 1 : 1;
-  const last = year === window.latest.getFullYear() ? window.latest.getMonth() + 1 : 12;
-  return range(first, last);
+  return withAllowed(monthsInRange(window, year), allowedMonth(window, year));
 }
 
 /**
@@ -121,30 +160,42 @@ export function monthOptions(window: BirthDateWindow, year: number | null): numb
  */
 export function dayOptions(window: BirthDateWindow, year: number | null, month: number | null): number[] {
   if (year === null || month === null) return range(1, LONGEST_MONTH);
-  if (!monthOptions(window, year).includes(month)) return [];
+  return withAllowed(daysInRange(window, year, month), allowedDay(window, year, month));
+}
 
-  const isEarliestMonth = year === window.earliest.getFullYear() && month === window.earliest.getMonth() + 1;
-  const isLatestMonth = year === window.latest.getFullYear() && month === window.latest.getMonth() + 1;
-
-  const first = isEarliestMonth ? window.earliest.getDate() : 1;
-  const last = isLatestMonth ? window.latest.getDate() : daysInMonth(year, month - 1);
-  return range(first, last);
+/** 選項裡沒有這個值就退回未選。硬換成別的值等於替家長做決定。 */
+function keepIfOffered(value: number | null, options: number[]): number | null {
+  if (value === null) return null;
+  return options.includes(value) ? value : null;
 }
 
 /**
- * 把一組選擇夾回選得到的範圍。每動一個下拉就跑一次。
+ * 把一組選擇對齊到選得到的範圍。每動一個下拉就跑一次。
  *
- * 兩件事會讓一組原本合法的選擇失效：換到較短的月份（1 月 31 日 → 2 月沒有 31 日），
- * 以及換到區間邊界那一年（2011 年只從 7 月 10 日開始）。交給 `Date` 正規化會安靜地
- * 跳到下個月 —— 家長選的是 2 月，存下來的是 3 月 3 日。
+ * 兩種失效分開處理，因為家長的意思不同：
+ *
+ * **那個月沒有那一天**（1 月 31 日換到 2 月）—— 夾到該月最後一天。家長要的是
+ * 「月底」，而 2 月的月底就是 28。交給 `Date` 正規化則會安靜地跳到下個月，
+ * 家長選的是 2 月，存下來的是 3 月 3 日。
+ *
+ * **值落在可選範圍外**（先選了 3 月，再選到區間起點那一年，那年只從 7 月開始）
+ * —— **退回未選**。夾成 7 月是把家長的選擇換掉，孩子的生日差了四個月，而畫面上
+ * 只是安靜地變了一個數字。空著的下拉他看得見，被換掉的數字他看不見。
  *
  * **沒選的位置維持沒選**。補一個值進去，家長一按保存那個猜出來的日子就變成孩子
  * 永久的生日。
  */
 export function clampSelection(selection: BirthDateSelection, window: BirthDateWindow): BirthDateSelection {
-  const year = selection.year === null ? null : clampInto(selection.year, yearOptions(window));
-  const month = selection.month === null ? null : clampInto(selection.month, monthOptions(window, year));
-  const day = selection.day === null ? null : clampInto(selection.day, dayOptions(window, year, month));
+  const year = keepIfOffered(selection.year, yearOptions(window));
+  const month = keepIfOffered(selection.month, monthOptions(window, year));
+
+  // 先夾到那個月真的有的天數，再看它在不在可選範圍內
+  const dayInMonth =
+    selection.day === null || year === null || month === null
+      ? selection.day
+      : Math.min(selection.day, daysInMonth(year, month - 1));
+  const day = keepIfOffered(dayInMonth, dayOptions(window, year, month));
+
   return { year, month, day };
 }
 

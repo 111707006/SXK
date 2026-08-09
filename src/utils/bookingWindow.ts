@@ -38,3 +38,20 @@ export function bookingWindow(today: Date = new Date()): BookingWindow {
     max: bookingDayOffset(LAST_DAY_OFFSET, today),
   };
 }
+
+/**
+ * 送出前擋掉區間外的日期。合法時回 `null`，否則回一句給家長看的話。
+ *
+ * `min`／`max` 只擋日曆上的點選 —— 清空欄位、或用鍵盤打進去的值照樣過得了，
+ * 所以送出前一定要再擋一次。`YYYY-MM-DD` 的字典序等於日期序，空字串比任何
+ * 日期都小，所以「沒選」跟「選了過去」是同一條判斷。
+ *
+ * 為什麼是一個函式而不是各自寫一次 if：報告頁與語言專項評估是兩張長得不一樣的
+ * 表單，而這個檢查的第一版只補了其中一張 —— 另一張照樣送得出沒有日期的預約。
+ */
+export function bookingDateError(bookingDate: string, window: BookingWindow): string | null {
+  if (bookingDate < window.min || bookingDate > window.max) {
+    return `请选择 ${window.min} 至 ${window.max} 之间的会诊日期。`;
+  }
+  return null;
+}

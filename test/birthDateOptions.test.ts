@@ -73,23 +73,35 @@ describe('可選的生日區間由適用範圍反推', () => {
     expect(selectionToBirthDate(birthDateToSelection(toIso(birthDateWindow(new Date()).latest)))).toBe('2025-08-09');
   });
 
-  it('已存的生日已經超出適用範圍時，區間往外讓它容得下', () => {
+  it('已存的生日已經超出適用範圍時，只多放行那一天', () => {
     // 孩子滿 15 歲之後檔案仍要能改（EditProfileModal 已有這條判斷）。
     // 存下來的那一天若選不到，家長光是改個名字就會把孩子的生日弄丟。
+    //
+    // 但只放行**那一天**。把區間的端點拉到它那裡，中間那一整段（這個例子是
+    // 十四個月）就全部變成選得到卻存不進去 —— 正是這張票要取代的行為。
     const today = new Date(2026, 7, 9);
     const agedOut = '2010-05-03'; // 約 195 個月
     const plain = birthDateWindow(today);
     const widened = birthDateWindow(today, agedOut);
 
-    expect(plain.earliest.getFullYear()).toBeGreaterThan(2010);
-    expect(toIso(widened.earliest)).toBe(agedOut);
+    expect(plain.allowed).toBeNull();
+    expect(toIso(widened.earliest)).toBe(toIso(plain.earliest));
     expect(toIso(widened.latest)).toBe(toIso(plain.latest));
+    expect(toIso(widened.allowed!)).toBe(agedOut);
+  });
+
+  it('已存的生日還在範圍內時不必額外放行', () => {
+    const today = new Date(2026, 7, 9);
+    expect(birthDateWindow(today, '2018-03-07').allowed).toBeNull();
   });
 
   it('讀不出來的已存生日不動到區間', () => {
     const today = new Date(2026, 7, 9);
-    expect(toIso(birthDateWindow(today, '不是日期').earliest)).toBe(toIso(birthDateWindow(today).earliest));
-    expect(toIso(birthDateWindow(today, '').earliest)).toBe(toIso(birthDateWindow(today).earliest));
+    for (const bad of ['不是日期', '', '2018-02-30']) {
+      const w = birthDateWindow(today, bad);
+      expect(toIso(w.earliest)).toBe(toIso(birthDateWindow(today).earliest));
+      expect(w.allowed).toBeNull();
+    }
   });
 });
 
@@ -99,24 +111,46 @@ function toIso(d: Date): string {
 }
 
 describe('選不到適用範圍外的日期', () => {
-  it('每一個選得到的組合都落在適用範圍內', () => {
-    // 這是這張票的核心：範圍外的日期不該存在於選項裡，而不是選完才跳錯誤訊息。
-    const today = new Date(2026, 2, 31); // 月底，最容易露出溢位
-    const w = birthDateWindow(today);
-    const offenders: string[] = [];
-
+  /** 把三個下拉能組出來的每一天列出來。 */
+  function everySelectableDate(w: ReturnType<typeof birthDateWindow>): string[] {
+    const out: string[] = [];
     for (const year of yearOptions(w)) {
       for (const month of monthOptions(w, year)) {
         for (const day of dayOptions(w, year, month)) {
-          const age = ageOn(year, month - 1, day, today);
-          if (age === null || age < T1_AGE_RANGE.minMonths || age > T1_AGE_RANGE.maxMonths) {
-            offenders.push(`${year}-${month}-${day} → ${age}`);
-          }
+          out.push(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
         }
       }
     }
+    return out;
+  }
 
-    expect(offenders).toEqual([]);
+  function outOfRange(dates: string[], today: Date): string[] {
+    return dates.filter(iso => {
+      const age = calculateAgeMonth(iso, today);
+      return age === null || age < T1_AGE_RANGE.minMonths || age > T1_AGE_RANGE.maxMonths;
+    });
+  }
+
+  it('每一個選得到的組合都落在適用範圍內', () => {
+    // 這是這張票的核心：範圍外的日期不該存在於選項裡，而不是選完才跳錯誤訊息。
+    const today = new Date(2026, 2, 31); // 月底，最容易露出溢位
+    expect(outOfRange(everySelectableDate(birthDateWindow(today)), today)).toEqual([]);
+  });
+
+  it('已存的生日超出範圍時，選得到的範圍外日期就只有它一天', () => {
+    // 只釘沒有 storedBirthDate 的那條路徑是不夠的：撐開區間的寫法在這條路徑上
+    // 會多開出四百多個選得到卻存不進去的日子，而上面那條測試看不到它。
+    const today = new Date(2026, 2, 31);
+    for (const stored of ['2010-05-03', '2026-01-15']) { // 太老 / 太小
+      const w = birthDateWindow(today, stored);
+      expect(outOfRange(everySelectableDate(w), today), `已存 ${stored}`).toEqual([stored]);
+    }
+  });
+
+  it('已存的那一天真的選得到', () => {
+    const today = new Date(2026, 2, 31);
+    const stored = '2010-05-03';
+    expect(everySelectableDate(birthDateWindow(today, stored))).toContain(stored);
   });
 
   it('適用範圍內的每一天都選得到', () => {
@@ -210,53 +244,74 @@ describe('日的選項依已選年月動態產生', () => {
   });
 });
 
-describe('夾值：換了年或月之後，原本選的日不會變成一個不存在的日子', () => {
+describe('對齊：換了年或月之後，原本選的值不會變成一個錯的日子', () => {
   const today = new Date(2026, 7, 9);
-  const w = birthDateWindow(today);
+  const w = birthDateWindow(today); // 2011-07-10 ~ 2025-08-09
 
   it('1 月 31 日換到 2 月變成 2 月 28 日，不是 3 月 3 日', () => {
-    // 交給 Date 正規化會安靜地跳到下個月，於是家長選的日期與存下來的差三天。
+    // 那個月根本沒有 31 日，而家長要的是「月底」—— 夾到該月最後一天正是他的意思。
+    // 交給 Date 正規化則會安靜地跳到下個月，選的日期與存下來的差三天。
     expect(clampSelection({ year: 2015, month: 2, day: 31 }, w)).toEqual({ year: 2015, month: 2, day: 28 });
     expect(clampSelection({ year: 2016, month: 2, day: 31 }, w)).toEqual({ year: 2016, month: 2, day: 29 });
     expect(clampSelection({ year: 2018, month: 4, day: 31 }, w)).toEqual({ year: 2018, month: 4, day: 30 });
   });
 
-  it('落在區間外的年份被夾回最近的一端', () => {
-    expect(clampSelection({ year: 1990, month: 6, day: 15 }, w).year).toBe(w.earliest.getFullYear());
-    expect(clampSelection({ year: 2099, month: 6, day: 15 }, w).year).toBe(w.latest.getFullYear());
+  it('落在區間外的年份退回未選，不會被換成另一年', () => {
+    // 這裡不能夾。家長選 1990 年，夾成 2011 年就是把他的選擇換掉了，
+    // 而畫面上只是安靜地變了一個數字。
+    expect(clampSelection({ year: 1990, month: 6, day: 15 }, w).year).toBeNull();
+    expect(clampSelection({ year: 2099, month: 6, day: 15 }, w).year).toBeNull();
   });
 
-  it('邊界年份裡落在區間外的月與日一起被夾回來', () => {
-    const early = clampSelection({ year: w.earliest.getFullYear(), month: 1, day: 1 }, w);
-    expect(early).toEqual({
-      year: w.earliest.getFullYear(),
-      month: w.earliest.getMonth() + 1,
-      day: w.earliest.getDate(),
-    });
+  it('先選了月，再選到區間邊界那一年，月退回未選而不是跳到別的月', () => {
+    // 年還沒選時十二個月都給，所以家長選得到 3 月；接著選 2011 年（那年只從
+    // 7 月開始）。把 3 月夾成 7 月，孩子的生日就差了四個月，而家長不會發現。
+    const early = clampSelection({ year: w.earliest.getFullYear(), month: 3, day: 15 }, w);
+    expect(early.year).toBe(w.earliest.getFullYear());
+    expect(early.month).toBeNull();
 
-    const late = clampSelection({ year: w.latest.getFullYear(), month: 12, day: 31 }, w);
-    expect(late).toEqual({
-      year: w.latest.getFullYear(),
-      month: w.latest.getMonth() + 1,
-      day: w.latest.getDate(),
-    });
+    const late = clampSelection({ year: w.latest.getFullYear(), month: 12, day: 15 }, w);
+    expect(late.year).toBe(w.latest.getFullYear());
+    expect(late.month).toBeNull();
   });
 
-  it('夾出來的一定是一個選得到、而且落在適用範圍內的日子', () => {
+  it('落在區間邊界那個月之外的日也退回未選', () => {
+    // 區間從 2011-07-10 起算，7 月 5 日不在範圍內。
+    const sel = clampSelection(
+      { year: w.earliest.getFullYear(), month: w.earliest.getMonth() + 1, day: 5 },
+      w
+    );
+    expect(sel.month).toBe(w.earliest.getMonth() + 1);
+    expect(sel.day).toBeNull();
+  });
+
+  it('對齊過的選擇要嘛還沒選完，要嘛是一個落在適用範圍內的日子', () => {
+    // 沒有第三種結果 —— 尤其不會是「看起來選完了、但存不進去」。
     const wild = [
       { year: 1900, month: 1, day: 1 },
       { year: 2100, month: 12, day: 31 },
       { year: 2011, month: 1, day: 31 },
       { year: 2025, month: 12, day: 31 },
       { year: 2016, month: 2, day: 30 },
+      { year: 2018, month: 3, day: 7 },
     ];
     for (const sel of wild) {
-      const clamped = clampSelection(sel, w);
-      const age = calculateAgeMonth(selectionToBirthDate(clamped), today);
-      expect(age, `${JSON.stringify(sel)} 夾成 ${selectionToBirthDate(clamped)}`).not.toBeNull();
+      const aligned = clampSelection(sel, w);
+      const iso = selectionToBirthDate(aligned);
+      if (iso === '') continue; // 還沒選完，表單自己會擋
+      const age = calculateAgeMonth(iso, today);
+      expect(age, `${JSON.stringify(sel)} 對齊成 ${iso}`).not.toBeNull();
       expect(age!).toBeGreaterThanOrEqual(T1_AGE_RANGE.minMonths);
       expect(age!).toBeLessThanOrEqual(T1_AGE_RANGE.maxMonths);
     }
+  });
+
+  it('已存的那一天即使超出範圍也留得住 —— 家長改名字不會弄丟孩子的生日', () => {
+    const stored = '2010-05-03';
+    const widened = birthDateWindow(today, stored);
+    expect(clampSelection({ year: 2010, month: 5, day: 3 }, widened)).toEqual({ year: 2010, month: 5, day: 3 });
+    // 但它旁邊那些日子仍然選不到
+    expect(clampSelection({ year: 2010, month: 5, day: 4 }, widened).day).toBeNull();
   });
 
   it('還沒選的位置維持沒選，不憑空補一個值', () => {

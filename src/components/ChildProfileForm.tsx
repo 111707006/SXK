@@ -20,12 +20,14 @@ const SAMPLE_CHILDREN: { name: string; ageMonth: number; gender: Gender }[] = [
 
 export default function ChildProfileForm({ currentChild, onSave }: ChildProfileFormProps) {
   const [name, setName] = useState(currentChild?.name || '');
-  const [birthDate, setBirthDate] = useState<string>(() => {
-    if (currentChild?.birthDate) return currentChild.birthDate;
-    // 只有月齡的舊檔案不反推一個生日填進去 —— 那是猜的，一旦按下保存就變成事實。
-    if (currentChild) return '';
-    return getBirthDateFromAgeMonth(36); // 全新檔案：日期欄位先停在 3 歲
-  });
+  // 三個下拉一開始都是空的，包括全新的檔案。
+  //
+  // 舊版預設在 3 歲：一個日期輸入框顯示一個預設值，讀起來還像個起始位置；
+  // 但三個下拉一起預選好、底下再配一行「年龄：3岁 (36 个月)」，讀起來就是
+  // 已經確認過的資料。家長只填了姓名就按下確認，那個猜出來的日子就變成孩子
+  // 永久的生日 —— 而年齡決定篩查出哪一段的題目。修改檔案彈窗已經拒絕猜，
+  // 同一個元件的兩個用法不該一個猜一個不猜。
+  const [birthDate, setBirthDate] = useState<string>(() => currentChild?.birthDate || '');
   const [gender, setGender] = useState<Gender>(currentChild?.gender || 'boy');
   const [error, setError] = useState('');
   const today = useToday();
@@ -120,11 +122,16 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
             <label className="text-xs font-semibold text-brand-charcoal flex items-center gap-1.5">
               出生日期 <span className="text-rose-500">*</span>
             </label>
+            {/*
+              這裡不傳 `storedBirthDate`：這張表單只在「還沒有孩子檔案」時出現
+              （`App.tsx` 以 `!child` 判斷），沒有已存的生日要保住。放一個永遠是
+              undefined 的 prop 在這裡，會讓人以為兩張表單都處理了「孩子滿 15 歲」
+              那個情況，而實際上只有修改檔案彈窗處理了。
+            */}
             <BirthDateSelect
               idPrefix="child-birthdate"
               value={birthDate}
               today={today}
-              storedBirthDate={currentChild?.birthDate}
               onChange={(next) => {
                 setBirthDate(next);
                 setError('');

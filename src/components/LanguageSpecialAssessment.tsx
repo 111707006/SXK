@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Child } from '../types';
 import { transcribeWithQwenASR, judgeArticulation } from '../utils/asr';
-import { bookingWindow } from '../utils/bookingWindow';
+import { bookingDateError, bookingWindow } from '../utils/bookingWindow';
+import { useToday } from '../utils/useToday';
 import { authHeaders } from '../utils/api';
 import { peekDeviceId } from '../utils/deviceId';
 import { PRODUCT } from '../productConfig';
@@ -266,8 +267,9 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
   const [selectedTherapistForBooking, setSelectedTherapistForBooking] = useState<typeof THERAPISTS[0] | null>(null);
   // 與報告頁同一支工具：從明天起算 30 天。原本這裡沒有上下界，預設也是空字串 ——
   // 家長選得到昨天，也可以完全不選就送出，客服會收到一筆沒有日期的預約。
-  const bookingRange = useMemo(() => bookingWindow(), []);
-  const [bookingDate, setBookingDate] = useState(() => bookingWindow().min);
+  const today = useToday();
+  const bookingRange = useMemo(() => bookingWindow(today), [today]);
+  const [bookingDate, setBookingDate] = useState(() => bookingWindow(today).min);
   const [bookingTime, setBookingTime] = useState('09:30 - 10:20');
   const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
@@ -865,8 +867,9 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
     }
     // `min`／`max` 只擋日曆上的點選，鍵盤打進去的值照樣過得了。少了這一條，
     // 一筆日期空白或已經過去的預約會安靜地送進資料庫，客服約不到人。
-    if (bookingDate < bookingRange.min || bookingDate > bookingRange.max) {
-      setBookingError(`请选择 ${bookingRange.min} 至 ${bookingRange.max} 之间的会诊日期。`);
+    const dateError = bookingDateError(bookingDate, bookingRange);
+    if (dateError) {
+      setBookingError(dateError);
       return;
     }
 

@@ -12,6 +12,8 @@
  * 後端有對應的開關：`server.ts` 依 `process.env.APP_MODE` 決定是否註冊付費相關路由。
  */
 
+import type { AdminCenterShape } from './admin/companyScope';
+
 export type ProductMode = 'full' | 't1only';
 
 /** 篩查報告中，一個維度被標記為需關注時，「下一步」該引導使用者去哪裡 */
@@ -129,9 +131,15 @@ export interface ProductProfile {
     gridHintCompleted: string;
     /** 維度卡片上的子標籤；`null` 代表不顯示 */
     dimensionCardSubLabel: string | null;
-    /** 維度卡片底部的點擊提示（該維度尚無 T1 紀錄時顯示） */
+    /**
+     * 維度卡片底部的點擊提示（該維度尚無 T1 紀錄時顯示）。
+     *
+     * ⚠️ **不得寫成「聯繫專家」那一類的字**（issue #18 / p.9）。這張卡片點下去
+     * 到的是報告，聯繫專家是報告裡的下一步 —— 把終點寫在起點上，家長點一次
+     * 發現不是那件事，就不會再點第二次。文案要說**這一下會發生什麼**。
+     */
     dimensionCardHint: string;
-    /** 維度卡片右下角的行動提示（該維度亮黃燈或紅燈時顯示） */
+    /** 維度卡片右下角的行動提示（該維度亮黃燈或紅燈時顯示）。同上，說去向不說終點。 */
     dimensionCardCta: string;
   };
 
@@ -158,6 +166,23 @@ export interface ProductProfile {
      */
     specialistSource: 'builtin' | 'company';
   };
+
+  /**
+   * 管理中心的形狀 —— 這個產品**有沒有**合作公司這回事（issue #19）。
+   *
+   * 專案 B 交付給多家合作公司，全域管理員切換視野、維護公司名冊、看跨公司彙總。
+   * 專案 A 一家合作公司都沒有：它的家長全部未歸屬，也就是森心康直屬。於是
+   * 「合作公司」「跨公司彙總」「本機構設定」三個分頁永遠是空的，而登入後還得
+   * 先選一家不存在的公司才看得到人。
+   *
+   * ⚠️ 伺服器端有**對應的一份**，由 `APP_MODE` 決定（見 `server.ts`）——
+   * 那邊決定路由掛不掛載，這邊決定畫面畫不畫。兩份必須說同一件事：畫面藏了
+   * 分頁而路由還在，是功能還在只是找不到；反過來則是一顆按下去 404 的按鈕。
+   *
+   * 型別借用伺服器端的定義（`admin/companyScope.ts`），只是型別，編譯後不留
+   * 任何東西 —— 但兩邊寫成同一個型別，欄位改名時兩邊會一起紅。
+   */
+  adminCenter: AdminCenterShape;
 
   features: {
     /** 深度評估（T2/T3） */
@@ -217,6 +242,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       wechatQrSrc: '/kefu-qr.jpg',
       specialistSource: 'builtin',
     },
+    // 森心康自己的產品，沒有合作公司 —— 家長全部未歸屬（即直屬）。
+    adminCenter: { multiCompany: false },
     features: {
       tier2And3: true,
       paywall: true,
@@ -266,8 +293,10 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       screeningIntro: 'T1 评估 36 题依据 HELP、儿童发展学、神经科学、语言科学综合而来，完成答题后生成 AI 发展报告，涵盖 9 个维度发展情况分析与建议。',
       gridHintCompleted: '以下为 9 维 T1 评估结果。点击上方「生成全维 AI 深度评估报告」查看完整解读与专家咨询方向。',
       dimensionCardSubLabel: null,
-      dimensionCardHint: '点击联系专家说明',
-      dimensionCardCta: '联系专家',
+      // 「联系专家」在 issue #18 / p.9 被拿掉：這張卡片點下去到的是 AI 發展報告，
+      // 專家諮詢是報告裡的下一步。改成說出這一下真正會發生的事。
+      dimensionCardHint: '点击查看该维度说明',
+      dimensionCardCta: '查看说明',
     },
     // 同專案 A：企業微信二維碼，不列微信號。
     // B 交付給合作公司後，可能要換成對方的客服二維碼。
@@ -277,6 +306,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       // 各公司自備專家，名單是資料不是常數。見 docs/adr/0001。
       specialistSource: 'company',
     },
+    // 交付給多家合作公司，見 docs/adr/0001。
+    adminCenter: { multiCompany: true },
     features: {
       tier2And3: false,
       paywall: false,

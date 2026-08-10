@@ -76,6 +76,13 @@ pnpm run lint       # tsc --noEmit
 | `/api/auth/sms/verify` | POST | 核对验证码并登录 | `phone`, `code`, `companySlug`（选填） |
 | `/api/db/load` | GET | 加载用户数据 | 已登录：`Authorization: Bearer <token>`；未登录：`deviceId` (query) |
 | `/api/db/save` | POST | 保存用户数据 | `deviceId`, `child`, `completedScores`, `orders`, `reportHistory`（身分取自 token） |
+| `/api/report-link` | POST | 取得该份报告的扫码连结与二维码 | `reportId`；`Authorization: Bearer <token>` |
+| `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**） | 无 |
+
+> 扫码带走的报告连结（#22）**永久有效且没有撤回手段** —— 二维码被拍到就等于那份
+> 报告永久公开。此取舍由产品端在规格阶段选定，不是遗漏；剩下的防线是 token 猜不到
+> （32 位元组乱数，见 `src/utils/reportLink.ts`）。二维码里那串网址的来源由
+> `PUBLIC_BASE_URL` 决定，没设定就用请求本身的来源。
 
 > 同步端点以**使用者 id** 识别家长，那个 id 装在 session token 里。请求 body 或 query
 > 里的 `email` / `userId` 一律不被采信 —— 客户端送上来的识别键不是身分。资料层

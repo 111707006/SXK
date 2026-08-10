@@ -13,6 +13,8 @@ import {
   statusLabel,
   genderLabel,
   formatDateTime,
+  showCompanySwitcher,
+  type AdminCenterShape,
   type AdminTabId,
 } from '../src/admin/adminView';
 import type { AdminCompany, AdminIdentityView } from '../src/admin/adminApi';
@@ -31,6 +33,11 @@ import type { AdminCompany, AdminIdentityView } from '../src/admin/adminApi';
  * 2. 公司成員不得看到全域管理員的分頁。後端擋得住（403），但選單本身就洩漏了
  *    「還有別家公司、還有跨公司彙總」這件事。
  */
+
+/** 專案 B：多合作公司。既有的每一條測試都是在這個模式下寫的。 */
+const MULTI: AdminCenterShape = { multiCompany: true };
+/** 專案 A：沒有合作公司，視野固定在未歸屬（issue #19）。 */
+const SINGLE: AdminCenterShape = { multiCompany: false };
 
 const member: AdminIdentityView = {
   role: 'company_member',
@@ -67,37 +74,74 @@ const companies: AdminCompany[] = [
 
 describe('畫面分流', () => {
   it('沒有身分時要求登入', () => {
-    expect(resolveScreen({ identity: null, unavailable: false })).toEqual({ kind: 'login' });
+    expect(resolveScreen({ identity: null, unavailable: false, shape: MULTI })).toEqual({ kind: 'login' });
   });
 
   // 資料庫沒設定時後端整組回 503。這要與「沒登入」分開講，否則維運人員會一直
   // 重打密碼去修一個跟密碼無關的問題。
   it('後台不可用時優先於一切，包含已登入的狀態', () => {
-    expect(resolveScreen({ identity: null, unavailable: true }).kind).toBe('unavailable');
-    expect(resolveScreen({ identity: globalOnCompany, unavailable: true }).kind).toBe('unavailable');
+    expect(resolveScreen({ identity: null, unavailable: true, shape: MULTI }).kind).toBe('unavailable');
+    expect(resolveScreen({ identity: globalOnCompany, unavailable: true, shape: MULTI }).kind).toBe('unavailable');
   });
 
   it('公司成員登入後直接進到資料畫面', () => {
-    expect(resolveScreen({ identity: member, unavailable: false })).toEqual({ kind: 'ready' });
+    expect(resolveScreen({ identity: member, unavailable: false, shape: MULTI })).toEqual({ kind: 'ready' });
   });
 
   // 這一條是本檔案的核心。放行的話畫面會顯示一個空列表，而空列表與
   // 「這家公司真的沒有家長」在螢幕上長得一模一樣。
   it('全域管理員未選定公司時不得進到資料畫面', () => {
-    expect(resolveScreen({ identity: globalUnselected, unavailable: false })).toEqual({
+    expect(resolveScreen({ identity: globalUnselected, unavailable: false, shape: MULTI })).toEqual({
       kind: 'needs_company',
     });
   });
 
   it('全域管理員選定公司或未歸屬後才進到資料畫面', () => {
-    expect(resolveScreen({ identity: globalOnCompany, unavailable: false })).toEqual({ kind: 'ready' });
-    expect(resolveScreen({ identity: globalOnUnassigned, unavailable: false })).toEqual({ kind: 'ready' });
+    expect(resolveScreen({ identity: globalOnCompany, unavailable: false, shape: MULTI })).toEqual({ kind: 'ready' });
+    expect(resolveScreen({ identity: globalOnUnassigned, unavailable: false, shape: MULTI })).toEqual({ kind: 'ready' });
   });
 
   // 公司成員的 selection 永遠是 null（視野由帳號決定）。若分流只看
   // `selection === null`，整家合作公司都會被鎖在「請先選定公司」的畫面外。
   it('公司成員的 selection 為 null 不代表未選定', () => {
-    expect(resolveScreen({ identity: member, unavailable: false }).kind).not.toBe('needs_company');
+    expect(resolveScreen({ identity: member, unavailable: false, shape: MULTI }).kind).not.toBe('needs_company');
+  });
+});
+
+/**
+ * 單一機構模式（專案 A，issue #19）。
+ *
+ * 專案沒有 jsdom，這一整組是「森心康登入後看到什麼」唯一驗得到的地方。
+ * 錯掉的樣子全都很正常：多三個空分頁、一個只有一項的下拉、一句
+ * 「請先選定要查看的合作公司」配著空的公司清單。
+ */
+describe('單一機構模式下的畫面分流', () => {
+  // 本 issue 的核心。放行的話森心康每次登入都會撞上一個選不出東西的畫面。
+  it('全域管理員未選定公司也直接進到資料畫面', () => {
+    expect(resolveScreen({ identity: globalUnselected, unavailable: false, shape: SINGLE })).toEqual({
+      kind: 'ready',
+    });
+  });
+
+  it('後台不可用仍然優先，這一條不因模式而改變', () => {
+    expect(resolveScreen({ identity: globalUnselected, unavailable: true, shape: SINGLE }).kind).toBe(
+      'unavailable'
+    );
+  });
+
+  it('沒有身分時仍然要求登入', () => {
+    expect(resolveScreen({ identity: null, unavailable: false, shape: SINGLE })).toEqual({
+      kind: 'login',
+    });
+  });
+
+  // 兩種模式在這裡刻意分岔：多公司時「沒選公司」是一個真實的狀態，
+  // 單一機構時它不存在。把 bug 放回去（拿掉 shape 判斷）這一條會紅。
+  it('同一個身分在兩種模式下走到不同的畫面', () => {
+    const asMulti = resolveScreen({ identity: globalUnselected, unavailable: false, shape: MULTI });
+    const asSingle = resolveScreen({ identity: globalUnselected, unavailable: false, shape: SINGLE });
+    expect(asMulti.kind).toBe('needs_company');
+    expect(asSingle.kind).toBe('ready');
   });
 });
 
@@ -106,10 +150,10 @@ describe('視野識別碼', () => {
   // 上一家公司的家長就留在畫面上直到新請求回來 —— 那不是閃爍，是外洩。
   it('每一種視野都給出不同的識別碼', () => {
     const keys = [
-      scopeKey(member),
-      scopeKey(globalUnselected),
-      scopeKey(globalOnCompany),
-      scopeKey(globalOnUnassigned),
+      scopeKey(member, MULTI),
+      scopeKey(globalUnselected, MULTI),
+      scopeKey(globalOnCompany, MULTI),
+      scopeKey(globalOnUnassigned, MULTI),
     ];
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -119,20 +163,31 @@ describe('視野識別碼', () => {
       ...globalOnCompany,
       selection: { kind: 'company', companyId: 7 },
     };
-    expect(scopeKey(globalOnMembersCompany)).toBe(scopeKey(member));
+    expect(scopeKey(globalOnMembersCompany, MULTI)).toBe(scopeKey(member, MULTI));
   });
 
   it('未歸屬不會與任何一家公司撞在一起', () => {
     const companyIds = [0, 1, 7, 9, 999];
     for (const companyId of companyIds) {
       const identity: AdminIdentityView = { ...globalOnCompany, selection: { kind: 'company', companyId } };
-      expect(scopeKey(identity)).not.toBe(scopeKey(globalOnUnassigned));
+      expect(scopeKey(identity, MULTI)).not.toBe(scopeKey(globalOnUnassigned, MULTI));
     }
+  });
+
+  /**
+   * 單一機構只有一個視野，識別碼必須說出那個視野本身 —— 而不是 token 裡碰巧
+   * 還留著的某家公司。畫面上的 key 說一家公司、後端撈的是未歸屬，兩邊講的
+   * 不是同一件事，而那個落差在螢幕上長得完全正常。
+   */
+  it('單一機構的識別碼一律是未歸屬，不理會殘留的公司選擇', () => {
+    const keys = [globalUnselected, globalOnCompany, globalOnUnassigned].map(i => scopeKey(i, SINGLE));
+    expect(new Set(keys).size).toBe(1);
+    expect(keys[0]).toBe(scopeKey(globalOnUnassigned, MULTI));
   });
 });
 
 describe('分頁可見性', () => {
-  const idsOf = (identity: AdminIdentityView): AdminTabId[] => visibleTabs(identity).map(t => t.id);
+  const idsOf = (identity: AdminIdentityView): AdminTabId[] => visibleTabs(identity, MULTI).map(t => t.id);
 
   it('公司成員只有自己那三個分頁', () => {
     expect(idsOf(member)).toEqual(['parents', 'specialists', 'company']);
@@ -160,9 +215,55 @@ describe('分頁可見性', () => {
   });
 
   it('每個分頁都有可顯示的名稱', () => {
-    for (const tab of visibleTabs(globalOnCompany)) {
+    for (const tab of visibleTabs(globalOnCompany, MULTI)) {
       expect(tab.label.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('單一機構模式下的分頁可見性', () => {
+  const idsOf = (identity: AdminIdentityView): AdminTabId[] =>
+    visibleTabs(identity, SINGLE).map(t => t.id);
+
+  /**
+   * 這三個在專案 A 上永遠是空的：一家合作公司都沒有，所以沒有名冊可看、
+   * 沒有跨公司可彙總；而「本機構設定」設定的是那家合作公司的企業微信通知
+   * 位置，未歸屬不是一家公司，沒有位置可以設定。
+   */
+  it('合作公司、跨公司彙總、本機構設定都不在選單裡', () => {
+    for (const id of ['companies', 'summary', 'company'] as AdminTabId[]) {
+      expect(idsOf(globalUnselected), id).not.toContain(id);
+    }
+  });
+
+  // 素材庫是專案 A **才有**的東西（深度評估的干預內容），後台帳號則是這個
+  // 部署唯一開得出帳號的地方。連它們一起收掉會把功能藏起來。
+  it('家長列表、專家名單、後台帳號與素材庫仍然在', () => {
+    expect(idsOf(globalUnselected)).toEqual(['parents', 'specialists', 'adminUsers', 'materials']);
+  });
+
+  it('對應的後端路由不掛載，所以留著分頁就是留著 404', () => {
+    // 這一條是提醒，不是斷言邏輯：兩邊的清單必須一起改。
+    expect(idsOf(globalUnselected)).not.toContain('companies');
+    expect(visibleTabs(globalOnCompany, MULTI).map(t => t.id)).toContain('companies');
+  });
+});
+
+describe('公司切換下拉的去留', () => {
+  it('多合作公司時，全域管理員看得到', () => {
+    expect(showCompanySwitcher(globalOnCompany, MULTI)).toBe(true);
+  });
+
+  // 公司成員的視野由帳號決定，切換對他沒有意義（後端也會回 403）。
+  it('公司成員看不到，兩種模式都一樣', () => {
+    expect(showCompanySwitcher(member, MULTI)).toBe(false);
+    expect(showCompanySwitcher(member, SINGLE)).toBe(false);
+  });
+
+  // 只有一項的下拉是請人做一個沒有選擇的選擇，而每按一次都會留下一筆切換紀錄。
+  it('單一機構時誰都看不到', () => {
+    expect(showCompanySwitcher(globalUnselected, SINGLE)).toBe(false);
+    expect(showCompanySwitcher(globalOnCompany, SINGLE)).toBe(false);
   });
 });
 
@@ -225,23 +326,29 @@ describe('公司切換選單', () => {
 
 describe('目前視野的說法', () => {
   it('公司成員顯示自己的公司名', () => {
-    expect(selectionLabel(member, companies)).toBe('康行儿童');
+    expect(selectionLabel(member, companies, MULTI)).toBe('康行儿童');
   });
 
   it('全域管理員依選定顯示', () => {
-    expect(selectionLabel(globalOnCompany, companies)).toBe('明德早疗');
-    expect(selectionLabel(globalOnUnassigned, companies)).toBe('未归属的家长');
+    expect(selectionLabel(globalOnCompany, companies, MULTI)).toBe('明德早疗');
+    expect(selectionLabel(globalOnUnassigned, companies, MULTI)).toBe('未归属的家长');
   });
 
   it('未選定時說的是「尚未選定」，不是空字串', () => {
-    expect(selectionLabel(globalUnselected, companies)).toBe('尚未选定');
+    expect(selectionLabel(globalUnselected, companies, MULTI)).toBe('尚未选定');
   });
 
   // 公司成員的公司不在他拿得到的清單裡（`/me` 只給全域管理員公司清單）。
   // 這時要說「本机构」，不能顯示成空白或 undefined。
   it('查不到公司名時有替代說法', () => {
-    expect(selectionLabel(member, [])).toBe('本机构');
-    expect(selectionLabel(globalOnCompany, [])).toBe('公司 #9');
+    expect(selectionLabel(member, [], MULTI)).toBe('本机构');
+    expect(selectionLabel(globalOnCompany, [], MULTI)).toBe('公司 #9');
+  });
+
+  // 單一機構沒有東西待選。說「尚未选定」會讓人去找一個不存在的下拉。
+  it('單一機構一律說未歸屬，不說「尚未選定」', () => {
+    expect(selectionLabel(globalUnselected, companies, SINGLE)).toBe('未归属的家长');
+    expect(selectionLabel(globalOnCompany, companies, SINGLE)).toBe('未归属的家长');
   });
 });
 

@@ -10,6 +10,15 @@ import { createAdminRouter } from './src/admin/routes';
 import { notifyExpertBooking } from './src/notify';
 import { sendVerificationCode } from './src/sms';
 import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
+import {
+  generateReportLinkToken,
+  isValidReportLinkToken,
+  reportLinkPath,
+  resolveReportLinkBase,
+} from './src/utils/reportLink';
+import { renderParentExportHtml } from './src/admin/exportView';
+import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
+import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
@@ -81,6 +90,17 @@ const tier2Only = APP_MODE === 'full' ? app : express.Router();
 // two different product facts, and a pilot build with free T2/T3 would need them
 // to diverge. One concept, one gate — same rule as productConfig's feature flags.
 const paidOnly = APP_MODE === 'full' ? app : express.Router();
+
+// ── Admin centre shape (backend counterpart of PRODUCT.adminCenter) ──
+// Project B is delivered to several partner companies; project A has none, so
+// every one of its parents is unassigned — which is exactly what "森心康直屬"
+// means. The admin router uses this to decide two things: whether the company
+// condition is fixed to `unassigned`, and whether the company-management routes
+// are registered at all.
+//
+// It lives here rather than being read from src/productConfig.ts because that
+// module reads `import.meta.env`, which only exists in the browser build.
+const ADMIN_MULTI_COMPANY = APP_MODE === 't1only';
 
 // ── Branding (backend counterpart of PRODUCT.brand) ──
 // Project B ships to a partner company and must not say "森心康" anywhere the
@@ -199,6 +219,9 @@ const bookingLimiter = rateLimit({
 });
 
 app.use('/api', apiLimiter);
+// 掃碼報告是 /api 之外唯一的公開路徑（issue #22）。token 猜不到，所以這不是
+// 防暴力破解 —— 是防一支迴圈把一條打得到資料庫的公開路徑當成免費的壓力測試。
+app.use('/r', apiLimiter);
 app.use('/api/expert-booking', bookingLimiter);
 // 後台登入與家長端登入是兩個不同的表面，但被爆破的方式一樣，套同一個預算。
 app.use('/api/admin/login', authLimiter);
@@ -2136,11 +2159,202 @@ app.post('/api/db/save', async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════
+// 掃碼帶走報告（issue #22）
+// ══════════════════════════════════════════════════════════════
+//
+// 家長在合作公司的 iPad 上看完報告，掃畫面上的二維碼，同一份報告就在他自己的
+// 手機上打開。手機沒有登入，所以那條連結**本身就是憑據**。
+//
+// ⚠️ 已知取捨：**永久有效，沒有撤回手段**。二維碼被拍到就等於那份報告永久
+// 公開，而系統沒有任何作廢的動作可以做。此取捨在規格階段被明確提出並由產品端
+// 選定（issue #22 / #14），不是遺漏。剩下的唯一防線是猜不到 —— 32 位元組的
+// 密碼學亂數，見 src/utils/reportLink.ts。
+//
+// 這裡刻意**複用後台匯出的那個 HTML 產生器**（src/admin/exportView.ts），不另寫
+// 一份：兩邊各寫一份的話，同一位孩子的判定說法會在兩張紙上分岔，而那正是
+// issue #8 當初把 statusLabel 收成一份的理由。
+
+/** 二維碼裡那串網址的來源。沒設定就用請求本身的來源（見 resolveReportLinkBase）。 */
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
+
+function requestOrigin(req: express.Request): string {
+  // `trust proxy` 已設為 1，因此 nginx 帶進來的 X-Forwarded-Proto／Host 算數。
+  return `${req.protocol}://${req.get('host') ?? ''}`;
+}
+
+/**
+ * 把網址畫成二維碼（SVG）。
+ *
+ * 在伺服器端做，理由是**前端包裡不必多一個編碼器** —— 二維碼一份報告只需要
+ * 產生一次，而那個編碼器（Reed-Solomon、遮罩、格式資訊）在瀏覽器裡的唯一用途
+ * 就是這一張圖。
+ *
+ * 糾錯等級選 M（約 15%）而不是 L：這張圖會被印在 iPad 螢幕上、隔著反光與指紋
+ * 被另一支手機拍下來，容錯多一點的代價只是圖密一點。
+ */
+function renderQrSvg(url: string): string {
+  // typeNumber 0 = 依內容自動挑最小的版本。
+  const qr = qrcode(0, 'M');
+  qr.addData(url);
+  qr.make();
+  // `scalable` 讓 SVG 帶 viewBox 而不是寫死的像素尺寸 —— 畫面上要多大由 CSS 決定。
+  return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+}
+
+/**
+ * 為某一份報告取得（必要時建立）它的永久連結。
+ *
+ * 回應刻意分成三種而不是「成功／失敗」：
+ *   - `available: false` + 原因碼 → 這個部署沒有資料庫，做不出永久連結。
+ *     畫面因此整個不顯示二維碼區塊，而不是顯示一個掃出來 404 的二維碼。
+ *   - 401 → 沒登入。連結綁在帳號上，匿名的裝置紀錄沒有 user id 可以綁。
+ *   - 200 + url/qrSvg → 有連結。
+ */
+app.post('/api/report-link', async (req, res) => {
+  try {
+    const userId = currentUserId(req);
+    const dbUserId = toDbUserId(userId);
+    if (!userId) {
+      res.status(401).json({ error: '未授权：请重新登录' });
+      return;
+    }
+
+    const reportId = typeof req.body?.reportId === 'string' ? req.body.reportId.trim() : '';
+    if (!reportId || reportId.length > 128) {
+      res.status(400).json({ error: '缺少报告编号。' });
+      return;
+    }
+
+    // 記憶體模式沒有 user_data 以外的持久層，發出去的 token 重啟就消失 ——
+    // 那不是「永久連結」，是一條會在某個看不見的時刻壞掉的連結。明說做不到。
+    if (!mysqlDb.isConfigured() || dbUserId === null) {
+      res.json({ available: false, reason: 'NO_DATABASE' });
+      return;
+    }
+
+    const token = await withTimeout(
+      mysqlDb.issueReportLink(dbUserId, reportId, generateReportLinkToken()),
+      2000
+    );
+    if (!token) {
+      res.status(500).json({ error: '产生报告连结失败，请稍后再试。' });
+      return;
+    }
+
+    const url = resolveReportLinkBase(PUBLIC_BASE_URL, requestOrigin(req)) + reportLinkPath(token);
+    res.json({ available: true, url, qrSvg: renderQrSvg(url) });
+  } catch (err: any) {
+    console.error('[ReportLink] issue failed:', err.message);
+    res.status(500).json({ error: '产生报告连结失败，请稍后再试。' });
+  }
+});
+
+/**
+ * 掃碼之後打開的那一頁。**公開，不需要登入** —— 那正是這個功能存在的理由。
+ *
+ * 走的是伺服器端渲染的 HTML，不是 SPA：手機上打開就是一頁純文件，
+ * 不必下載整個前端，離線存下來也還讀得到。
+ */
+app.get('/r/:token', async (req, res) => {
+  try {
+    const token = req.params.token;
+    // 形狀不對的一律 404，不去碰資料庫。這是一條公開路徑，每一次查詢都是
+    // 別人可以免費叫我們做的工。
+    if (!isValidReportLinkToken(token) || !mysqlDb.isConfigured()) {
+      res.status(404).type('html').send(reportLinkNotFoundHtml());
+      return;
+    }
+
+    const link = await withTimeout(mysqlDb.findReportLinkByToken(token), 2000);
+    if (!link) {
+      res.status(404).type('html').send(reportLinkNotFoundHtml());
+      return;
+    }
+
+    const row = await withTimeout(mysqlDb.getUserDataByUserId(link.userId), 2000);
+    const data = row ? mysqlDb.parseUserDataRow(row) : null;
+    const reportHistory: any[] = data?.reportHistory ?? [];
+    const record = reportHistory.find(r => r?.id === link.reportId);
+
+    // token 有效但那份報告已經不在歷史裡（家長刪掉了、或舊資料被覆蓋）。
+    // 這裡刻意不退回「最新的那一份」—— 拿著這張二維碼的人可能是另一位醫師，
+    // 他不會知道自己看的已經換了一份。
+    if (!record) {
+      res.status(404).type('html').send(reportLinkNotFoundHtml());
+      return;
+    }
+
+    // 分數取自**那一筆報告紀錄**，不是家長當下的 completedScores：紀錄是
+    // 當時的事實快照，重測之後仍然要讀得出這份報告當初說了什麼。
+    const scores = Array.isArray(record.scores) ? record.scores : [];
+    const assessedAgeMonth = latestAssessedAgeMonth(scores, [record]);
+
+    res.type('html').send(
+      renderParentExportHtml(
+        {
+          childName: record.child?.name ?? null,
+          childAgeMonth: typeof record.child?.ageMonth === 'number' ? record.child.ageMonth : null,
+          childGender: record.child?.gender ?? null,
+          // 帳號那一欄留空：這是給家長自己與他挑的醫師看的一頁，
+          // 手機號印在一條撤不回的連結上沒有任何好處。
+          email: null,
+          phone: null,
+          screenedAt: record.createdAt ?? null,
+          scores,
+          reportHistory: [record],
+          bookings: [],
+          assessedAgeMonth,
+          assessedBandName: assessedAgeMonth === null ? null : ageBandOf(assessedAgeMonth).name,
+        },
+        {
+          reportId: link.reportId,
+          includeBookings: false,
+          hint: '这一页是您扫码带走的报告，网址可以收藏起来，之后随时打开。',
+        }
+      )
+    );
+  } catch (err: any) {
+    console.error('[ReportLink] render failed:', err.message);
+    res.status(500).type('html').send(reportLinkNotFoundHtml('报告暂时读取不了，请稍后再扫一次。'));
+  }
+});
+
+/**
+ * 掃不到東西時的那一頁。
+ *
+ * 刻意是一頁人看得懂的中文，不是 JSON 也不是 SPA：站在這一頁前面的是一位
+ * 拿著手機的家長，`{"error":"Not found"}` 對他沒有任何意義。
+ */
+function reportLinkNotFoundHtml(message = '这个报告连结无效，或对应的报告已经不在了。'): string {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>找不到这份报告</title>
+<style>
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #1f2933;
+         margin: 0; min-height: 100vh; display: flex; align-items: center;
+         justify-content: center; background: #f0f4f8; padding: 24px; }
+  .box { background: #fff; border-radius: 16px; padding: 28px 24px; max-width: 380px;
+         text-align: center; line-height: 1.8; }
+  p { margin: 0; font-size: 15px; }
+  .sub { margin-top: 10px; font-size: 13px; color: #829ab1; }
+</style>
+</head>
+<body><div class="box">
+  <p>${message.replace(/</g, '&lt;')}</p>
+  <p class="sub">请回到评估现场的画面，重新扫一次二维码。</p>
+</div></body>
+</html>`;
+}
+
 // ── 管理中心 ──
 // 掛在這裡（所有家長端路由之後、404 兜底之前）。路由本身在 src/admin/routes.ts，
 // 那個檔案不得直接碰資料庫 —— 後台的每一句家長查詢都必須經過帶公司條件的
 // 單一入口，見 src/admin/adminStore.ts 與 test/adminScope.structure.test.ts。
-app.use('/api/admin', createAdminRouter());
+app.use('/api/admin', createAdminRouter({ multiCompany: ADMIN_MULTI_COMPANY }));
 
 // Anything under /api that reached this point matched no route. Answer with a
 // JSON 404 before the SPA fallback in startServer() gets a chance to serve

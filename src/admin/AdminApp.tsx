@@ -23,12 +23,14 @@ import {
   resolveScreen,
   scopeKey,
   selectionLabel,
+  showCompanySwitcher,
   switcherOptions,
   tabNeedsCompany,
   visibleTabs,
   type AdminErrorView,
   type AdminTabId,
 } from './adminView';
+import { PRODUCT } from '../productConfig';
 import { Button, ErrorNote, Field, Spinner, TextInput, toErrorView } from './ui';
 import ParentsPanel from './panels/ParentsPanel';
 import SpecialistsPanel from './panels/SpecialistsPanel';
@@ -37,6 +39,16 @@ import CompaniesPanel from './panels/CompaniesPanel';
 import AdminUsersPanel from './panels/AdminUsersPanel';
 import SummaryPanel from './panels/SummaryPanel';
 import MaterialsPanel from './panels/MaterialsPanel';
+
+/**
+ * 這個產品有沒有合作公司這回事。**分歧只有一個入口**（`productConfig.ts`），
+ * 不在下面的 JSX 裡出現任何 `mode === ...`。
+ *
+ * 伺服器端有對應的一份，由 `APP_MODE` 決定（見 `server.ts`）。兩邊必須一致：
+ * 畫面藏了分頁而路由還在，等於功能還在只是找不到；反過來則是一顆按下去 404
+ * 的按鈕。
+ */
+const ADMIN_SHAPE = PRODUCT.adminCenter;
 
 export default function AdminApp() {
   const [identity, setIdentity] = useState<AdminIdentityView | null>(null);
@@ -133,7 +145,7 @@ export default function AdminApp() {
     );
   }
 
-  const screen = resolveScreen({ identity, unavailable });
+  const screen = resolveScreen({ identity, unavailable, shape: ADMIN_SHAPE });
 
   if (screen.kind === 'unavailable') {
     return (
@@ -176,7 +188,7 @@ export default function AdminApp() {
 
   // screen 是 needs_company 或 ready，兩者都已經有身分。
   const current = identity!;
-  const tabs = visibleTabs(current);
+  const tabs = visibleTabs(current, ADMIN_SHAPE);
   const activeTab = tabs.some(t => t.id === tab) ? tab : 'parents';
 
   return (
@@ -188,13 +200,13 @@ export default function AdminApp() {
             <div>
               <p className="text-sm font-bold text-brand-forest">管理中心</p>
               <p className="text-[11px] text-brand-charcoal/50">
-                当前视野：{selectionLabel(current, companies)}
+                当前视野：{selectionLabel(current, companies, ADMIN_SHAPE)}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {current.role === 'global_admin' && (
+            {showCompanySwitcher(current, ADMIN_SHAPE) && (
               <div className="relative">
                 <select
                   value={scopeValue(current)}
@@ -275,7 +287,7 @@ export default function AdminApp() {
       ) : (
         // key 讓分頁在切換視野時整個重掛。沿用舊 state 會把上一家公司的家長
         // 留在畫面上直到新請求回來，而那不是閃爍，是外洩。
-        <div key={scopeKey(current)}>
+        <div key={scopeKey(current, ADMIN_SHAPE)}>
           {activeTab === 'parents' && <ParentsPanel onError={handleError} />}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
           {activeTab === 'company' && <CompanySettingsPanel onError={handleError} />}

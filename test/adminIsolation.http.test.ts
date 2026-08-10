@@ -2,6 +2,14 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vites
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 
 /**
+ * ⚠️ **必須在載入 `server.ts` 之前設定。** 公司隔離是專案 B 的功能：合作公司、
+ * 公司切換、跨公司彙總這些路由只在多合作公司的模式下掛載（issue #19）。
+ * 少了這一行，整組測試會在專案 A 的伺服器上跑，而那裡那些路徑根本不存在 ——
+ * 拿到的是 404，不是「隔離生效」。
+ */
+process.env.APP_MODE = 't1only';
+
+/**
  * 公司隔離的 HTTP 測試 —— 本規格的主接縫。
  *
  * 送一個真的請求、看回應，一次驗到角色、公司範圍與路由有沒有註冊三件事。

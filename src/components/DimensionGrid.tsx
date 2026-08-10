@@ -127,7 +127,12 @@ export default function DimensionGrid({
         {/* Header grid title */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-brand-stone shadow-sm">
           <div className="text-left flex-1">
-            <h2 className="text-base font-extrabold text-brand-forest">神经网络 9 维精细图层</h2>
+            {/*
+              字級字重與上方那張 STEP 01 卡的標題同一套（issue #18 / p.6）。
+              兩個區塊在畫面上是並列的兩步，標題卻是 20px 黑體對 16px ——
+              看起來像兩個不同時期做的頁面拼在一起。
+            */}
+            <h2 className="text-xl font-black text-brand-forest tracking-tight">神经网络 9 维精细图层</h2>
             <p className="text-[11px] text-brand-charcoal/70 mt-1">
               {isT1Completed
                 ? PRODUCT.dashboard.gridHintCompleted
@@ -137,13 +142,20 @@ export default function DimensionGrid({
           </div>
           <div className="flex flex-wrap items-center gap-3 justify-start lg:justify-end shrink-0">
             {completedDimensionsCount > 0 && (
+              /*
+                這一頁的主要動作（issue #18 / p.8）。原本是一顆與旁邊進度數字
+                同一個量級的小按鈕，家長答完 36 題之後停在這裡不知道還要按什麼 ——
+                而「生成報告」正是他來這一頁要做的那件事。
+                放大、加粗、加上箭頭，讓它一眼就是這一列裡唯一會前進的東西。
+              */
               <button
                 id="view-assessment-report-btn"
                 onClick={onViewReport}
-                className="py-2.5 px-4 bg-brand-moss hover:bg-brand-moss/90 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-brand-moss/25 active:scale-[0.98] cursor-pointer"
+                className="py-3.5 px-6 bg-brand-forest hover:bg-brand-forest/95 text-white rounded-2xl text-sm font-black transition flex items-center gap-2 shadow-lg shadow-brand-forest/25 ring-4 ring-brand-forest/10 active:scale-[0.98] cursor-pointer"
               >
-                <PieChart size={14} />
+                <PieChart size={16} />
                 生成全维 AI 深度评估报告
+                <ChevronRight size={15} />
               </button>
             )}
             <div className="flex items-center gap-2">
@@ -215,7 +227,8 @@ export default function DimensionGrid({
 
                 {/* Dimension Details */}
                 <div className="mt-3">
-                  <h3 className="text-sm font-extrabold text-brand-forest">{dim.name}</h3>
+                  {/* 與區段標題同一套字重、小一階（issue #18 / p.6）。 */}
+                  <h3 className="text-base font-extrabold text-brand-forest">{dim.name}</h3>
                   {PRODUCT.dashboard.dimensionCardSubLabel && (
                     <p className="text-[10px] text-brand-charcoal/60 mt-0.5">{PRODUCT.dashboard.dimensionCardSubLabel}</p>
                   )}

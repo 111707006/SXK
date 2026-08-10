@@ -10,7 +10,8 @@
  * 現有的報告列印也是走 `window.print()` 這條路（`AnalysisReport.tsx`）。
  * 若之後要真的產出 PDF 檔，改的只有這個檔案，取資料那一段不會動。
  */
-import type { ParentDetail } from './adminStore';
+import type { ParentBooking, ParentDetail } from './adminStore';
+import type { AssessmentRecord, DimensionScore } from '../types';
 // 判定、性別與時間的說法與詳情畫面共用同一份（`adminView.ts`）。
 // issue #8 的驗收條件是「內容與詳情畫面一致」，而兩邊各留一份 statusLabel 的話，
 // 只要有人改了其中一邊，同一位孩子在螢幕上與在交給專家的那張紙上就會有兩種判定。
@@ -26,10 +27,61 @@ function esc(value: unknown): string {
     .replace(/"/g, '&quot;');
 }
 
-export function renderParentExportHtml(parent: ParentDetail): string {
-  const latestReport = parent.reportHistory
-    .filter(r => r.aiReport)
-    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+/**
+ * 這一頁真正用得到的欄位。
+ *
+ * `ParentDetail` 是它的**超集**，所以後台的匯出路徑照樣把整份詳情傳進來就好。
+ * 拆出這個較小的型別是為了讓第二個呼叫端存在：家長掃碼帶走報告的那條路
+ * （issue #22）走的不是後台的資料入口，它拿不到 `companyId`、`hasBooking`
+ * 這些後台專用的欄位，而要求它捏造幾個用不到的值只會讓「這一頁需要什麼」
+ * 這件事變得看不出來。
+ */
+export interface ReportSubject {
+  childName: string | null;
+  childAgeMonth: number | null;
+  childGender: string | null;
+  email: string | null;
+  phone: string | null;
+  screenedAt: string | null;
+  scores: DimensionScore[];
+  reportHistory: AssessmentRecord[];
+  bookings: ParentBooking[];
+  assessedAgeMonth: number | null;
+  assessedBandName: string | null;
+}
+
+export interface ReportRenderOptions {
+  /**
+   * 只呈現這一份報告。`undefined` = 最近一份（後台匯出的既有行為）。
+   *
+   * 家長掃到的 token 對應的是**某一份**報告，不是「這位家長最新的那份」——
+   * 否則同一張二維碼會在下次重測之後指向另一份內容，而拿著它的人（可能是
+   * 另一位醫師）不會知道自己看的已經換了一份。
+   */
+  reportId?: string;
+  /**
+   * 要不要列出專家預約。預設要（後台的匯出交給客服，那是他們接人的依據）。
+   *
+   * 家長端的永久連結**刻意關掉**：預約區塊裡有聯絡人姓名與手機號，而這條連結
+   * 撤不回來。報告本身已經是敏感資料，沒有理由讓它再多帶一組聯絡方式出門。
+   */
+  includeBookings?: boolean;
+  /** 頁尾那一行提示。兩個呼叫端的讀者不同，說的話也不同。 */
+  hint?: string;
+}
+
+export function renderParentExportHtml(
+  parent: ReportSubject,
+  options: ReportRenderOptions = {}
+): string {
+  const includeBookings = options.includeBookings !== false;
+  const hint = options.hint ?? '这一页可直接用浏览器「列印 → 另存为 PDF」交给专家。';
+
+  const withAi = parent.reportHistory.filter(r => r.aiReport);
+  const latestReport =
+    options.reportId === undefined
+      ? withAi.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0]
+      : withAi.find(r => r.id === options.reportId);
   const ai = latestReport?.aiReport;
 
   const scoreRows = parent.scores
@@ -70,6 +122,12 @@ export function renderParentExportHtml(parent: ParentDetail): string {
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<!--
+  手機上打得開才算數（issue #22）：家長掃碼之後看的是這一頁。少了這一行，
+  iOS Safari 會用 980px 的假想寬度排版再整頁縮小，字小到讀不了 ——
+  而畫面上看起來「有內容」，只是全部擠成一團。
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>筛查资料 - ${esc(parent.childName || '未填姓名')}</title>
 <style>
   body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #1f2933; margin: 32px; line-height: 1.7; }
@@ -86,6 +144,17 @@ export function renderParentExportHtml(parent: ParentDetail): string {
   ul { margin: 4px 0 0 18px; padding: 0; }
   .hint { font-size: 12px; color: #829ab1; margin-top: 32px; }
   @media print { .hint { display: none; } body { margin: 0; } }
+  /*
+    手機。九維那張表有四欄，在 375px 寬的螢幕上一定要能橫向捲動 ——
+    否則不是被裁掉（讀不到判定那一欄），就是把整個 body 撐寬。
+  */
+  @media (max-width: 600px) {
+    body { margin: 16px 12px; font-size: 15px; }
+    h1 { font-size: 19px; }
+    h2 { font-size: 15px; }
+    .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { min-width: 420px; }
+  }
 </style>
 </head>
 <body>
@@ -107,12 +176,12 @@ export function renderParentExportHtml(parent: ParentDetail): string {
   }
   ${
     scoreRows
-      ? `<table><thead><tr><th>维度</th><th>层级</th><th>得分</th><th>判定</th></tr></thead><tbody>${scoreRows}</tbody></table>`
+      ? `<div class="scroll-x"><table><thead><tr><th>维度</th><th>层级</th><th>得分</th><th>判定</th></tr></thead><tbody>${scoreRows}</tbody></table></div>`
       : '<p>尚未完成筛查。</p>'
   }
 
-  <h2>专家预约</h2>
-  ${bookingBlocks || '<p>尚未送出预约。</p>'}
+  ${includeBookings ? `<h2>专家预约</h2>
+  ${bookingBlocks || '<p>尚未送出预约。</p>'}` : ''}
 
   <h2>AI 发展报告</h2>
   ${
@@ -132,7 +201,7 @@ export function renderParentExportHtml(parent: ParentDetail): string {
       : '<p>尚未产生 AI 发展报告。</p>'
   }
 
-  <p class="hint">这一页可直接用浏览器「列印 → 另存为 PDF」交给专家。</p>
+  <p class="hint">${esc(hint)}</p>
 </body>
 </html>`;
 }

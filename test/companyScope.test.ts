@@ -3,6 +3,7 @@ import {
   companyWhereSql,
   matchesCompanyCondition,
   resolveCompanyCondition,
+  type AdminCenterShape,
   type AdminIdentity,
   type CompanyCondition,
 } from '../src/admin/companyScope';
@@ -15,6 +16,11 @@ import {
  * 釘成斷言。寫法參照 `test/access.test.ts`：不確定的時候一律當作未授權。
  */
 
+/** 專案 B：多合作公司，視野由選擇決定。 */
+const MULTI: AdminCenterShape = { multiCompany: true };
+/** 專案 A：沒有合作公司，家長全部未歸屬。 */
+const SINGLE: AdminCenterShape = { multiCompany: false };
+
 const memberA: AdminIdentity = { role: 'company_member', adminUserId: 1, email: 'a@x', companyId: 7 };
 const globalUnselected: AdminIdentity = { role: 'global_admin', adminUserId: 2, email: 'g@x', selection: null };
 const globalOnB: AdminIdentity = {
@@ -24,9 +30,9 @@ const globalOnUnassigned: AdminIdentity = {
   role: 'global_admin', adminUserId: 2, email: 'g@x', selection: { kind: 'unassigned' },
 };
 
-describe('從身分產生公司條件', () => {
+describe('從身分產生公司條件（多合作公司，專案 B）', () => {
   it('公司成員一律綁自己的公司', () => {
-    expect(resolveCompanyCondition(memberA)).toEqual({
+    expect(resolveCompanyCondition(memberA, MULTI)).toEqual({
       ok: true,
       condition: { kind: 'company', companyId: 7 },
     });
@@ -34,25 +40,73 @@ describe('從身分產生公司條件', () => {
 
   // 若「看得到所有公司」是預設狀態，誤看永遠不會被發現。
   it('全域管理員未選定公司時取不到任何條件', () => {
-    expect(resolveCompanyCondition(globalUnselected)).toEqual({
+    expect(resolveCompanyCondition(globalUnselected, MULTI)).toEqual({
       ok: false,
       reason: 'NO_COMPANY_SELECTED',
     });
   });
 
   it('全域管理員選定公司後，條件與該公司的成員完全相同', () => {
-    const asAdmin = resolveCompanyCondition(globalOnB);
-    const asMember = resolveCompanyCondition({
-      role: 'company_member', adminUserId: 3, email: 'm@x', companyId: 9,
-    });
+    const asAdmin = resolveCompanyCondition(globalOnB, MULTI);
+    const asMember = resolveCompanyCondition(
+      { role: 'company_member', adminUserId: 3, email: 'm@x', companyId: 9 },
+      MULTI
+    );
     expect(asAdmin).toEqual(asMember);
   });
 
   it('全域管理員可以明確選定「未歸屬」視野', () => {
-    expect(resolveCompanyCondition(globalOnUnassigned)).toEqual({
+    expect(resolveCompanyCondition(globalOnUnassigned, MULTI)).toEqual({
       ok: true,
       condition: { kind: 'unassigned' },
     });
+  });
+});
+
+/**
+ * 單一機構模式（專案 A，issue #19）。
+ *
+ * 專案 A 沒有合作公司，它的家長全部沒有歸屬 —— 「未歸屬」在語意上剛好就是
+ * 「森心康直屬」。因此視野**固定**在未歸屬，全域管理員不必先選一家不存在的公司。
+ *
+ * 這裡刻意不新增第三種 `CompanyCondition`：`unassigned` 本來就是合法的值，
+ * 「條件永遠非空、沒有『全部公司』」這兩個型別層的不變量一個字都不用改。
+ */
+describe('從身分產生公司條件（單一機構，專案 A）', () => {
+  it('全域管理員未選定公司也拿得到條件，而且是未歸屬', () => {
+    expect(resolveCompanyCondition(globalUnselected, SINGLE)).toEqual({
+      ok: true,
+      condition: { kind: 'unassigned' },
+    });
+  });
+
+  /**
+   * **固定**的意思是連舊 token 帶進來的選擇也不算數。
+   *
+   * 專案 A 的切換路由根本不掛載，但一顆在切換路由還在時簽出來的 token 仍然
+   * 帶得動 `selection`。照著它走的話，一個早已不存在的公司視野會在專案 A 上
+   * 復活 —— 而畫面上只是一個空列表，看不出任何異狀。
+   */
+  it('token 裡殘留的公司選擇不算數，一律仍是未歸屬', () => {
+    expect(resolveCompanyCondition(globalOnB, SINGLE)).toEqual({
+      ok: true,
+      condition: { kind: 'unassigned' },
+    });
+  });
+
+  // 專案 A 建不出合作公司，因此也不該有公司成員。萬一資料庫裡真有一個，
+  // 他的視野仍以他的公司為準 —— 往「未歸屬」放大會讓他看到森心康直屬的家長。
+  it('公司成員仍綁自己的公司，不被放大到未歸屬', () => {
+    expect(resolveCompanyCondition(memberA, SINGLE)).toEqual({
+      ok: true,
+      condition: { kind: 'company', companyId: 7 },
+    });
+  });
+
+  it('任何身分都取得到條件，沒有「請先選定公司」這個狀態', () => {
+    for (const identity of [memberA, globalUnselected, globalOnB, globalOnUnassigned]) {
+      expect(resolveCompanyCondition(identity, SINGLE).ok, identity.role).toBe(true);
+    }
   });
 });
 

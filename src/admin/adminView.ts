@@ -13,6 +13,11 @@
  * 因此判斷全部住在這裡，`AdminApp.tsx` 只負責把結果畫出來。
  */
 import type { AdminCompany, AdminErrorCode, AdminIdentityView } from './adminApi';
+import type { AdminCenterShape } from './companyScope';
+
+// 形狀的型別與伺服器端共用同一份定義（`companyScope.ts`）。只是型別，編譯後
+// 不留任何東西 —— 這個模組仍然不匯入任何伺服器端的執行期程式碼。
+export type { AdminCenterShape };
 
 /** 「未歸屬」在選單、視野識別碼與畫面文字上的三個固定寫法，只此一處。 */
 const UNASSIGNED_VALUE = 'unassigned';
@@ -37,13 +42,22 @@ export type AdminScreen =
 export function resolveScreen(input: {
   identity: AdminIdentityView | null;
   unavailable: boolean;
+  shape: AdminCenterShape;
 }): AdminScreen {
   if (input.unavailable) return { kind: 'unavailable' };
   if (!input.identity) return { kind: 'login' };
 
   // 公司成員的 `selection` 永遠是 null —— 他的視野由帳號決定，不由選擇決定。
   // 只看 `selection === null` 會把整家合作公司鎖在「請先選定公司」外面。
-  if (input.identity.role === 'global_admin' && input.identity.selection === null) {
+  //
+  // 單一機構（專案 A）也永遠不進這個畫面：那裡沒有合作公司可選，後端的公司
+  // 條件固定在未歸屬。少了這個判斷，森心康每次登入都會撞上一個「請先選定要
+  // 查看的合作公司」，而下拉裡一家公司都沒有。
+  if (
+    input.shape.multiCompany &&
+    input.identity.role === 'global_admin' &&
+    input.identity.selection === null
+  ) {
     return { kind: 'needs_company' };
   }
 
@@ -59,8 +73,12 @@ export function resolveScreen(input: {
  *
  * `unassigned` 刻意不寫成 `company:null` 之類的形式，避免與任何一家公司撞號。
  */
-export function scopeKey(identity: AdminIdentityView): string {
+export function scopeKey(identity: AdminIdentityView, shape: AdminCenterShape): string {
   if (identity.role === 'company_member') return `company:${identity.companyId}`;
+  // 單一機構的視野固定在未歸屬，與後端 `resolveCompanyCondition` 同一句話。
+  // 照著 token 裡殘留的 `selection` 走的話，畫面上的 key 會說一家公司，
+  // 而後端撈的是未歸屬 —— 兩邊講不同的事，錯的時候看起來完全正常。
+  if (!shape.multiCompany) return UNASSIGNED_VALUE;
   if (identity.selection === null) return 'none';
   if (identity.selection.kind === 'unassigned') return UNASSIGNED_VALUE;
   return `company:${identity.selection.companyId}`;
@@ -100,8 +118,35 @@ const GLOBAL_TABS: AdminTab[] = [
   { id: 'materials', label: '素材库' },
 ];
 
-export function visibleTabs(identity: AdminIdentityView): AdminTab[] {
-  return identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
+/**
+ * 只有多合作公司才有意義的分頁 —— 專案 A 上這三個永遠是空的。
+ *
+ * 對應的後端路由在專案 A **根本沒有掛載**（見 `routes.ts` 的 `multiCompanyOnly`），
+ * 所以留著分頁不只是多三個空白畫面，是三個按下去會拿到 404 的按鈕。
+ *
+ * 「合作公司」與「跨公司彙總」不必解釋。「本機構設定」是同一件事的另一面：
+ * 它設定的是那家合作公司的企業微信通知位置，而未歸屬不是一家公司，沒有位置
+ * 可以設定 —— 後端本來就回「「未归属」不是一家公司」。
+ */
+const MULTI_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['company', 'companies', 'summary'];
+
+export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape): AdminTab[] {
+  const all = identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
+  if (shape.multiCompany) return all;
+  return all.filter(t => !MULTI_COMPANY_ONLY_TABS.includes(t.id));
+}
+
+/**
+ * 頁首要不要顯示公司切換下拉。
+ *
+ * 單一機構沒有第二個視野可切；擺一個只有「未归属的家长」一項的下拉，等於
+ * 請人做一個沒有選擇的選擇，而每按一次都會在切換紀錄裡留下一筆。
+ */
+export function showCompanySwitcher(
+  identity: AdminIdentityView,
+  shape: AdminCenterShape
+): boolean {
+  return shape.multiCompany && identity.role === 'global_admin';
 }
 
 /**
@@ -157,7 +202,11 @@ export function parseSwitcherValue(value: string): { companyId: number } | 'unas
 }
 
 /** 目前視野的說法。任何情況下都要有話可說 —— 空字串會讓人以為畫面壞了。 */
-export function selectionLabel(identity: AdminIdentityView, companies: AdminCompany[]): string {
+export function selectionLabel(
+  identity: AdminIdentityView,
+  companies: AdminCompany[],
+  shape: AdminCenterShape
+): string {
   const nameOf = (id: number) => companies.find(c => c.id === id)?.name;
 
   if (identity.role === 'company_member') {
@@ -165,6 +214,10 @@ export function selectionLabel(identity: AdminIdentityView, companies: AdminComp
     // 因此這裡查不到名字是正常狀況，不是錯誤。
     return (identity.companyId !== null ? nameOf(identity.companyId) : undefined) ?? '本机构';
   }
+
+  // 單一機構的視野固定在未歸屬。說「尚未选定」是假的 —— 沒有東西待選，
+  // 而那句話會讓人去找一個不存在的下拉。
+  if (!shape.multiCompany) return UNASSIGNED_LABEL;
 
   if (identity.selection === null) return '尚未选定';
   if (identity.selection.kind === 'unassigned') return UNASSIGNED_LABEL;

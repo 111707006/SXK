@@ -70,14 +70,53 @@ export type ScopeResult =
   | { ok: false; reason: ScopeDenialReason };
 
 /**
+ * 管理中心的形狀 —— 這個產品**有沒有**合作公司這回事。
+ *
+ * 專案 B 交付給多家合作公司，視野由選擇決定；專案 A 是森心康自己的產品，
+ * 一家合作公司都沒有，它的家長全部沒有歸屬。
+ *
+ * 型別住在這裡而不是產品設定檔，是因為伺服器端也要用它，而產品設定檔讀的是
+ * `import.meta.env`（只在瀏覽器建置裡存在）。值的來源仍然只有一處：
+ * 瀏覽器端是 `PRODUCT.adminCenter`，伺服器端是 `server.ts` 依 `APP_MODE` 給的
+ * 同一組事實 —— 與 `BRAND_NAME`、`tier2Only` 的作法相同。
+ */
+export interface AdminCenterShape {
+  /**
+   * 這個產品模式是不是多合作公司。
+   *
+   * `false` 時全域管理員的視野**固定在未歸屬**，沒有「請先選定公司」這個狀態。
+   */
+  multiCompany: boolean;
+}
+
+/**
  * 從身分產生公司條件。**後台的每一次家長資料查詢都必須經過這裡。**
  *
- * 全域管理員未選定公司時回 `ok: false` 而不是「看得到全部」：若「看得到所有
- * 公司」是預設狀態，誤看永遠不會被發現。看別家的資料必須是一個明確的動作。
+ * 多合作公司時，全域管理員未選定公司回 `ok: false` 而不是「看得到全部」：若
+ * 「看得到所有公司」是預設狀態，誤看永遠不會被發現。看別家的資料必須是一個
+ * 明確的動作。
+ *
+ * 單一機構（專案 A）時，全域管理員的條件**固定**為未歸屬 —— 那不是一個放寬，
+ * 是同一句話的另一種說法：專案 A 的家長全部未歸屬，所以「未歸屬」就是「全部」，
+ * 而這一點可以被證明（公司管理路由根本沒掛載，建不出任何一家公司）。
+ *
+ * `shape` 沒有預設值是刻意的：多一個呼叫端就多一次「忘了傳」的機會，而忘了傳
+ * 的那一支路由會安靜地回到多公司的行為 —— 在專案 A 上就是一個空列表。
  */
-export function resolveCompanyCondition(identity: AdminIdentity): ScopeResult {
+export function resolveCompanyCondition(
+  identity: AdminIdentity,
+  shape: AdminCenterShape
+): ScopeResult {
+  // 公司成員先判斷，兩種模式都一樣：他的視野由帳號決定。專案 A 不該有公司成員
+  // （建不出公司就開不出公司成員帳號），但資料庫裡萬一留著一個，把他放大到
+  // 「未歸屬」會讓他看到森心康直屬的家長。
   if (identity.role === 'company_member') {
     return { ok: true, condition: { kind: 'company', companyId: identity.companyId } };
+  }
+
+  if (!shape.multiCompany) {
+    // 連 token 裡殘留的 `selection` 也不採用 —— 見上方「固定」二字。
+    return { ok: true, condition: { kind: 'unassigned' } };
   }
 
   if (identity.selection === null) {

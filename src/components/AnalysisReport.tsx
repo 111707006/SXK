@@ -99,6 +99,126 @@ const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => 
 };
 
 /**
+ * 掃碼把報告帶回家（issue #22）。
+ *
+ * 場景是合作公司的 iPad：家長看完報告，掃畫面上的二維碼，同一份報告就在他自己
+ * 的手機上打開，而且之後隨時打得開。
+ *
+ * ⚠️ **那條連結永久有效，而且沒有撤回手段** —— 二維碼被拍到就等於那份報告永久
+ * 公開。這個取捨由產品端在規格階段選定（issue #22），不是遺漏；剩下的防線是
+ * token 猜不到（32 位元組亂數，見 `src/utils/reportLink.ts`）。
+ *
+ * 二維碼由**伺服器**畫好（SVG），前端只負責顯示：一份報告只需要畫一次，
+ * 把整個編碼器塞進瀏覽器包裡不划算。
+ *
+ * 三種狀態各自有明確的畫面，沒有一種是「什麼都不說」：
+ *   - 還沒好 → 一句「正在产生…」
+ *   - 這個部署沒有資料庫（`available: false`）→ **整張卡片不出現**。做不出永久
+ *     連結時，一張掃出來是 404 的二維碼比沒有二維碼糟得多。
+ *   - 失敗 → 說出來，不留一個空框。
+ */
+function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
+  const [state, setState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'loading' }
+    | { kind: 'ready'; url: string; qrSvg: string }
+    | { kind: 'unavailable' }
+    | { kind: 'error'; message: string }
+  >({ kind: 'idle' });
+
+  useEffect(() => {
+    // 沒有報告編號（還沒存進歷史）或沒登入就不要問 —— 連結綁在帳號上，
+    // 匿名的裝置紀錄沒有 user id 可以綁，問了只會拿到 401。
+    const token = localStorage.getItem('senxinkang_token');
+    if (!reportId || !token) {
+      setState({ kind: 'idle' });
+      return;
+    }
+
+    let cancelled = false;
+    setState({ kind: 'loading' });
+    (async () => {
+      try {
+        const resp = await fetch('/api/report-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ reportId }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!resp.ok) throw new Error(data.error || '产生报告连结失败。');
+        if (!data.available) {
+          setState({ kind: 'unavailable' });
+          return;
+        }
+        setState({ kind: 'ready', url: data.url, qrSvg: data.qrSvg });
+      } catch (err: any) {
+        if (!cancelled) setState({ kind: 'error', message: err.message || '产生报告连结失败。' });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reportId]);
+
+  if (state.kind === 'idle' || state.kind === 'unavailable') return null;
+
+  return (
+    // `print:hidden`：列印出來的那張紙上不需要一個指回螢幕的二維碼，
+    // 而且既有的「打印报告」行為不該因為多了這張卡片而改變。
+    <div className="print:hidden bg-white border border-brand-stone rounded-3xl p-6 mt-6 text-left flex flex-col sm:flex-row items-center gap-5">
+      {/*
+        144px 是量出來的下限，不是隨手挑的。這串網址編出來是 37×37 個模組，
+        144px 下每個模組約 3.9px —— 隔著 iPad 的反光用另一支手機拍還讀得到。
+        再小（例如 112px，約 3px）在髒鏡頭上就開始失敗，而失敗的樣子是家長
+        對著螢幕舉半天手機，什麼都沒發生。
+      */}
+      <div className="w-40 h-40 shrink-0 flex items-center justify-center rounded-2xl border border-brand-stone/60 bg-brand-cream/30">
+        {state.kind === 'ready' ? (
+          <img
+            // 伺服器畫好的 SVG 以 data URI 帶進來，不用 dangerouslySetInnerHTML ——
+            // 這張圖沒有任何理由需要注入 HTML 的能力。
+            src={`data:image/svg+xml;utf8,${encodeURIComponent(state.qrSvg)}`}
+            alt="扫码在手机上打开这份报告"
+            className="w-36 h-36"
+          />
+        ) : (
+          <QrCode size={36} className="text-brand-charcoal/25" />
+        )}
+      </div>
+
+      <div className="space-y-1.5 text-center sm:text-left">
+        <h3 className="text-sm font-bold text-brand-forest flex items-center gap-1.5 justify-center sm:justify-start">
+          <QrCode size={15} className="text-brand-moss" />
+          把这份报告带回家
+        </h3>
+        {state.kind === 'loading' && (
+          <p className="text-xs text-brand-charcoal/60">正在产生报告连结…</p>
+        )}
+        {state.kind === 'error' && (
+          <p className="text-xs text-rose-600">{state.message}</p>
+        )}
+        {state.kind === 'ready' && (
+          <>
+            <p className="text-xs text-brand-charcoal/70 leading-relaxed max-w-md">
+              用手机相机扫一下，这份报告就会在您自己的手机上打开，之后随时都能再看。
+            </p>
+            {/*
+              網址也印出來：掃碼失敗（反光、鏡頭髒了）時還有一條路，
+              而且家長看得到自己收藏的是什麼。
+            */}
+            <p className="text-[10px] text-brand-charcoal/40 break-all max-w-md">{state.url}</p>
+            <p className="text-[10px] text-brand-clay leading-relaxed max-w-md">
+              这个连结长期有效，拿到的人都能打开这份报告，请不要转发给不相干的人。
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Normalise a score from any tier onto the shared 0-8 "concern" scale used by
  * the report's badges, bars and radar. T1 is scored out of 8, but T2/T3 are out
  * of 50/120, so the previous `8 - score` produced negative values and coloured
@@ -129,6 +249,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   // 三態：true = AI 生成、false = 本地模板兜底、null = 來源不明（舊的歷史紀錄沒存這個旗標）
   const [isAiGenerated, setIsAiGenerated] = useState<boolean | null>(false);
   const [error, setError] = useState('');
+  /**
+   * 這份報告在歷史紀錄裡的編號 —— 掃碼連結綁的就是它（issue #22）。
+   *
+   * 從歷史紀錄開啟時是那一筆的 id；現場生成時是剛存下去的那一筆。`null` 代表
+   * 還沒有報告可以帶走（尚未生成），此時二維碼那張卡片整個不出現。
+   */
+  const [reportId, setReportId] = useState<string | null>(null);
 
   /**
    * 這份報告該用誰的年齡來讀。
@@ -144,6 +271,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       setAiReport(historicalRecord.aiReport);
       // 舊紀錄沒有 isAiGenerated 欄位，此時來源不明，不能預設成 AI 生成
       setIsAiGenerated(historicalRecord.isAiGenerated ?? null);
+      setReportId(historicalRecord.id);
     }
   }, [historicalRecord]);
 
@@ -307,10 +435,15 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         createdAt: new Date().toISOString()
       };
       onSaveReportToHistory(newRecord);
+      // 掃碼連結綁的是這一筆的編號。設在存進歷史之後 —— 家長掃到的那一頁
+      // 是從資料庫的 report_history 讀出來的，順序反了就會有一小段時間掃出 404。
+      setReportId(newRecord.id);
 
     } catch (e: any) {
       console.error(e);
-      setError('AI 评估报告生成中偏离：' + (e.message || '未知微差'));
+      // 家長看得懂才有用：「生成中偏离」與「未知微差」既沒說發生什麼，
+      // 也沒說接下來能做什麼（issue #18 / p.10）。
+      setError('AI 报告生成失败：' + (e.message || '请稍后再试一次'));
     } finally {
       setLoading(false);
     }
@@ -390,11 +523,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
               <h2 className="text-sm font-bold font-sans flex items-center gap-1.5">
                 {PRODUCT.brand.reportTitle}
                 <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-brand-sage/20 border border-brand-sage/30 text-[9px] font-bold text-brand-sage">
-                  <Sparkles size={8} /> 脑发育前额叶机制算法
+                  <Sparkles size={8} /> 9 维发育分析
                 </span>
               </h2>
               <p className="text-[11px] text-brand-cream/80 max-w-xl">
-                结合 9 维神经网络，由 康复AI多模 机制算法计算，输出综合发育程度评价、神经网络发育解析、动作/感统训练建议及居家互动方案。
+                根据 9 个维度的筛查结果，生成发育程度评价、康复训练建议与居家互动方案。
               </p>
             </div>
           </div>
@@ -407,7 +540,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 onClick={handleGenerateReport}
                 className="px-5 py-2.5 bg-brand-moss hover:bg-brand-moss/90 border border-brand-sage/20 text-white text-xs font-bold rounded-xl shadow-md transition active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
               >
-                {loading ? '神经网络解析中...' : '一键启动 AI 突触分析'}
+                {loading ? '正在生成报告…' : '一键生成 AI 发展报告'}
               </button>
             ) : (
               <div className="flex items-center gap-2">
@@ -446,7 +579,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h3 className="text-base font-bold text-brand-forest">9 维度评估结果明细</h3>
-              <p className="text-xs text-brand-charcoal/60 mt-1">精细化脑网络评测数据，直观展示多维神经网络发育的均衡性</p>
+              <p className="text-xs text-brand-charcoal/60 mt-1">9 个维度各自的得分，看得出哪几项需要先跟进</p>
             </div>
           </div>
           
@@ -532,7 +665,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             <div>
               <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
                 <Award size={14} />
-                {isAiGenerated ? '神经网络康复AI大模型生成' : '深度特型匹配知识库组装'}
+                {isAiGenerated ? 'AI 生成' : '本地模板生成'}
               </div>
               <h2 className="text-xl font-bold text-brand-forest mt-1">儿童综合发展评估报告</h2>
             </div>
@@ -762,7 +895,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <div className="border-b border-brand-cream pb-2.5">
                   <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
                     <ClipboardCheck size={15} className="text-brand-moss" />
-                    9 大维度结论 —— 雷达图分析
+                    {/* 客戶指定的字串，一字不動（issue #18 / p.12）：不加空格、破折號用兩個全形。 */}
+                    9大维度结论——雷达图分析
                   </h3>
                   <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
                     共评测 9 项发育维度，检测到 <span className="font-bold text-rose-600">{attentionCount} 项</span> 需留意/关注领域（其中 <span className="font-bold text-rose-600">{redCount} 项</span> 需重点关注）
@@ -1003,11 +1137,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 if (avgPct < 40) {
                   return `您的孩子 (${child.name}) 整体发育进度相对滞后，处于偏弱区间。推荐重点跟进最下方制定的 7日感官训练行事历，及预约线上专家一对一指导。`;
                 } else if (avgPct < 70) {
-                  return `您的孩子 (${child.name}) 整体发育进度处于中等稍弱水平。部分脑网络突触传递尚有边缘滞后，多进行互动OT实操与居家共读有助于极快提升。`;
+                  return `您的孩子 (${child.name}) 整体发育进度处于中等稍弱水平。有几项处于边缘区间，多做亲子互动与居家共读会有帮助。`;
                 } else if (avgPct < 85) {
                   return `您的孩子 (${child.name}) 整体发育处于同龄人平均水平偏上。在大部分测验维度中表现良好，通过针对性轻度干预可巩固优势。`;
                 } else {
-                  return `您的孩子 (${child.name}) 发育进度整体处于高于平均的优良状态！前额叶认知网络可塑性极佳，脑网络连接协同效率突出。`;
+                  return `您的孩子 (${child.name}) 发育进度整体高于同龄平均水平，各维度表现均衡。`;
                 }
               })()}
             </div>
@@ -1033,13 +1167,16 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             <div className="bg-brand-sand/50 p-4 rounded-2xl border border-brand-stone/60 text-left">
               <span className="text-[10px] font-bold text-brand-clay uppercase tracking-wider flex items-center gap-1 mb-1.5">
                 <Compass size={11} className="text-brand-clay" />
-                脑发育预后轨迹预测与家属指导指引:
+                后续发展预判与家长指引
               </span>
               <p className="text-xs text-brand-charcoal leading-relaxed font-semibold">
                 {aiReport.prognosisPrediction}
               </p>
             </div>
           </div>
+
+          {/* 掃碼把報告帶回自己的手機（issue #22）*/}
+          <ReportTakeawayCard reportId={reportId} />
 
           {/* 3. Gamified Weekly Sensori-Motor Training Calendar - MOVED TO THE BOTTOM AS REQUESTED */}
           <div className="space-y-4 pt-4 border-t border-brand-cream/80">
@@ -1069,11 +1206,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
               <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
                 <div className="space-y-2">
                   <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
-                    ⭐ 线上发育辅导连通系统
+                    线上专家咨询
                   </span>
-                  <h3 className="text-lg font-bold">线上预约 1对1 脑发育与感统指导专家说明指导</h3>
+                  <h3 className="text-lg font-bold">线上预约 1 对 1 专家解读这份报告</h3>
                   <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
-                    基于本次 AI 九维评估报告，特邀三甲儿童发展评估专家提供在线可视化深度辅导，为您量身解密大脑特定环路发育，指导日常脑机及多媒体工具实操。
+                    由儿童发展评估专家在线为您逐项说明这份报告，并给出接下来在家可以怎么做。
                   </p>
                 </div>
 

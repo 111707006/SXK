@@ -296,6 +296,33 @@ CREATE TABLE IF NOT EXISTS `intervention_materials` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- 扫码带走的报告连结（issue #22）
+-- ============================================================
+-- 家长在合作公司的 iPad 上看完报告，扫画面上的二维码就能在自己手机上打开
+-- 同一份报告。手机没有登入，所以**连结本身就是凭据**。
+--
+-- ⚠️ 已知取舍：**永久有效，没有撤回手段**。二维码被拍到、萤幕被录影、连结被
+-- 转传，那份报告就永久公开。此取舍在规格阶段被明确提出并由产品端选定
+-- （见 issue #22 与 #14），不是遗漏。既然没有撤回，唯一剩下的防线就是猜不到 ——
+-- token 是 32 位元组的密码学乱数（见 src/utils/reportLink.ts）。
+
+CREATE TABLE IF NOT EXISTS `report_links` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  -- 32 位元组的乱数，base64url 后恰好 43 个字元。
+  `token` VARCHAR(64) NOT NULL,
+  `user_id` INT UNSIGNED NOT NULL,
+  -- report_history 里那一笔的 id（AssessmentRecord.id，客户端产生的字串）。
+  -- 不是外键：报告存在 user_data.report_history 这个 JSON 栏位里，不是一张表。
+  `report_id` VARCHAR(128) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_report_link_token` (`token`),
+  -- 一份报告一条连结。少了这个唯一键，家长每次打开报告页都会产生一个新的
+  -- token，而**旧的每一个都还永久有效** —— 一份报告散出十几条撤不回的连结。
+  UNIQUE KEY `uk_user_report` (`user_id`, `report_id`),
+  CONSTRAINT `fk_report_links_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 既有数据库的迁移（sxk_db 已建过旧版 users 时执行）
 -- ============================================================
 -- 多公司相关（专案 B）：companies 必须先建立，users.company_id 才加得上去。

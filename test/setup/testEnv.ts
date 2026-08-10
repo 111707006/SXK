@@ -20,6 +20,14 @@ for (const key of ['DASHSCOPE_API_KEY', 'GEMINI_API_KEY', 'WECOM_WEBHOOK_URL',
   process.env[key] = '';
 }
 
+// 產品模式釘在專案 A（空字串即 'full'，見 server.ts 的 resolveAppMode）。
+//
+// 它決定的東西已經不只有 tier-2/3 路由掛不掛載了 —— issue #19 之後它同時決定
+// 管理中心有沒有合作公司這回事。開發機的 `.env` 一旦漏一個 APP_MODE 進來，
+// 後台那幾支 HTTP 測試會安靜地驗到另一個產品。
+// 需要專案 B 的測試自己在檔案最上方覆寫它（見 adminIsolation.http.test.ts）。
+process.env.APP_MODE = '';
+
 // 付費牆的展示開關一律關閉。它打開時後端閘門整個不執行，若讓開發機的 `.env`
 // 漏進來，`paywallGate.http.test.ts` 會全部變成綠燈卻什麼都沒驗到 ——
 // 需要「開關打開」的測試自己設定它（見 `paywallDemoSwitch.http.test.ts`）。

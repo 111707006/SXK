@@ -12,7 +12,12 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import * as store from './adminStore';
-import { resolveCompanyCondition, type AdminIdentity, type CompanyCondition } from './companyScope';
+import {
+  resolveCompanyCondition,
+  type AdminCenterShape,
+  type AdminIdentity,
+  type CompanyCondition,
+} from './companyScope';
 import { buildIdentity, signAdminToken, verifyAdminToken } from './adminAuth';
 import { renderParentExportHtml } from './exportView';
 import { readMaterialInput } from '../utils/materialCells';
@@ -55,8 +60,25 @@ function issueToken(identity: AdminIdentity): string {
   );
 }
 
-export function createAdminRouter(): express.Router {
+/**
+ * @param shape 這個部署有沒有合作公司這回事。**沒有預設值**：忘了傳就是型別
+ *   錯誤，而不是安靜地退回多公司行為 —— 那在專案 A 上的樣子是一個空列表。
+ */
+export function createAdminRouter(shape: AdminCenterShape): express.Router {
   const router = express.Router();
+
+  /**
+   * 只有多合作公司才存在的路由（issue #19）。
+   *
+   * 專案 A 把它們註冊在一個**永遠不會被掛載**的 Router 上，於是那些路徑真的
+   * 不存在，請求落到 `/api` 的 404 兜底 —— 與 `server.ts` 對 tier-2/3 端點的
+   * 手法相同（見那裡的 `tier2Only`）。
+   *
+   * 這比「註冊處理函式再從裡面回 403」強兩件事：沒有處理函式就沒有東西可繞過；
+   * 而 403 等於承認「這條路徑存在，只是你不能用」，404 什麼都沒承認。對
+   * 「專案 A 上根本建不出合作公司」這句話來說，前者是可以被證明的，後者不是。
+   */
+  const multiCompanyOnly = shape.multiCompany ? router : express.Router();
 
   // ── 資料庫閘門 ──
   // 後台刻意沒有記憶體模式。家長端的記憶體降級是為了讓展示站跑得起來；
@@ -153,8 +175,11 @@ export function createAdminRouter(): express.Router {
    * 全域管理員切換視野。**每一次都留下紀錄。**
    *
    * 公司成員呼叫得到但改不了任何事 —— 他的視野由帳號決定，不由請求決定。
+   *
+   * 專案 A 沒有這條路徑：那裡只有一個視野（未歸屬），切換是一個沒有內容的
+   * 動作，而它每被呼叫一次就在切換紀錄裡留下一筆沒有意義的資料。
    */
-  router.post('/select-company', async (req: AuthedRequest, res) => {
+  multiCompanyOnly.post('/select-company', async (req: AuthedRequest, res) => {
     const identity = req.admin!;
     if (identity.role !== 'global_admin') {
       res.status(403).json({ error: '只有全域管理员能切换公司。', code: 'FORBIDDEN' });
@@ -197,7 +222,7 @@ export function createAdminRouter(): express.Router {
    * `null` 時**必須立刻 return**，不可自行決定要不要繼續。
    */
   function withScope(req: AuthedRequest, res: express.Response): CompanyCondition | null {
-    const result = resolveCompanyCondition(req.admin!);
+    const result = resolveCompanyCondition(req.admin!, shape);
     if (!result.ok) {
       res.status(409).json({
         error: '请先选定一家合作公司，才能查看资料。',
@@ -351,7 +376,10 @@ export function createAdminRouter(): express.Router {
   });
 
   // ── 本公司設定（企業微信通知位置） ──
-  router.get('/company', async (req: AuthedRequest, res) => {
+  //
+  // 專案 A 不掛載：未歸屬不是一家公司，沒有通知位置可以設定。留著的話那個分頁
+  // 讀出 null、存下去回 400，是一個看起來壞掉但其實是設計的畫面。
+  multiCompanyOnly.get('/company', async (req: AuthedRequest, res) => {
     const condition = withScope(req, res);
     if (!condition) return;
     try {
@@ -362,7 +390,7 @@ export function createAdminRouter(): express.Router {
     }
   });
 
-  router.put('/company', async (req: AuthedRequest, res) => {
+  multiCompanyOnly.put('/company', async (req: AuthedRequest, res) => {
     const condition = withScope(req, res);
     if (!condition) return;
     const raw = req.body?.wecomWebhookUrl;
@@ -395,12 +423,14 @@ export function createAdminRouter(): express.Router {
     return true;
   }
 
-  router.get('/companies', async (req: AuthedRequest, res) => {
+  // 合作公司名冊。專案 A 不掛載 —— 「專案 A 上根本建不出合作公司」這句話
+  // 要能被證明，靠的是這條路徑不存在，不是靠沒有人去按那個按鈕。
+  multiCompanyOnly.get('/companies', async (req: AuthedRequest, res) => {
     if (!requireGlobal(req, res)) return;
     res.json({ companies: await store.listCompanies() });
   });
 
-  router.post('/companies', async (req: AuthedRequest, res) => {
+  multiCompanyOnly.post('/companies', async (req: AuthedRequest, res) => {
     if (!requireGlobal(req, res)) return;
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     const slug = typeof req.body?.slug === 'string' ? req.body.slug.trim().toLowerCase() : '';
@@ -500,8 +530,12 @@ export function createAdminRouter(): express.Router {
     res.json({ ok: true });
   });
 
-  /** 跨公司彙總：只回統計數字，不回任何個別家長。 */
-  router.get('/summary', async (req: AuthedRequest, res) => {
+  /**
+   * 跨公司彙總：只回統計數字，不回任何個別家長。
+   *
+   * 專案 A 不掛載：一家公司都沒有，「跨公司」沒有東西可跨。
+   */
+  multiCompanyOnly.get('/summary', async (req: AuthedRequest, res) => {
     if (!requireGlobal(req, res)) return;
     try {
       res.json({ summary: await store.summaryByCompany() });

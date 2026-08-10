@@ -36,6 +36,7 @@ import { useToday } from './utils/useToday';
 import { authFetch, setUnauthorizedHandler } from './utils/api';
 import { getDimensionAccess, isPaywallActive } from './utils/access';
 import { DEFAULT_UNLOCK_PRICE_FEN, formatFen } from './utils/price';
+import { BeianFooter } from './components/BeianFooter';
 import { 
   Activity, ShoppingBag, BarChart3, User, RefreshCw, 
   Heart, HeartHandshake, FileText, CheckCircle2, ListFilter,
@@ -1318,6 +1319,8 @@ export default function App() {
             <span>•</span>
             <a href="#specs" className="hover:text-brand-forest transition-colors">发育评估量表归档声明</a>
           </div>
+          {/* 備案號。未設定時整段不渲染 —— 見 BeianFooter 的說明。 */}
+          <BeianFooter />
         </div>
       </footer>
 

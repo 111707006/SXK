@@ -14,6 +14,17 @@ interface ImportMetaEnv {
    * 在執行期驗證並在無法辨識時直接拋錯。
    */
   readonly VITE_APP_MODE?: string;
+
+  /**
+   * ICP 備案號，顯示在頁面底部並連回工信部查詢頁（`src/components/BeianFooter.tsx`）。
+   *
+   * 未設定是正常狀態 —— 本機開發與境外部署都沒有備案號，那時整段不渲染。
+   * 但**中國大陸的正式站少了它會被要求整改乃至關停接入**，所以正式建置一定要帶。
+   */
+  readonly VITE_ICP_BEIAN?: string;
+
+  /** 公安網備號，上線滿 30 日內辦理。與 ICP 號同一處顯示。 */
+  readonly VITE_POLICE_BEIAN?: string;
 }
 
 interface ImportMeta {

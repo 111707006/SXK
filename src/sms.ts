@@ -8,10 +8,14 @@
  * 供應商是可抽換的一層。換掉阿里雲時動的是這個檔案裡的一個函式，
  * `server.ts` 只認得 `sendVerificationCode` 這個介面。
  *
- * ⚠️ 阿里雲那一層的簽名**尚未對真實端點驗證過**（測試環境沒有可用的
- * AccessKey，且簽名與範本都需要審核才發得出第一則）。規範化字串的規則由
- * `test/smsSender.test.ts` 逐條釘住 —— 那是這段程式碼最容易錯的地方，
- * 而阿里雲對簽名錯誤只會回一個 `SignatureDoesNotMatch`，看不出錯在哪一步。
+ * 簽名已於 2026-08-10 對真實端點驗證通過（`scripts/sms-smoke.ts` 發出真實簡訊、
+ * 拿到 BizId、手機收到）。規範化字串的規則由 `test/smsSender.test.ts` 逐條釘住 ——
+ * 那是這段程式碼最容易錯的地方，而阿里雲對簽名錯誤只會回一個
+ * `SignatureDoesNotMatch`，看不出錯在哪一步。
+ *
+ * ⚠️ 那些單元測試釘的是「規範化字串長什麼樣」，不是「阿里雲收不收」。動過
+ * `buildAliyunSmsRequest` 之後，測試全綠**不代表還發得出去** ——
+ * 再跑一次 `npx tsx scripts/sms-smoke.ts <手機號>` 撞真實端點。
  */
 
 import crypto from 'crypto';

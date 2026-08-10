@@ -22,25 +22,24 @@ sudo bash setup-server.sh
 
 安装内容: Node.js 20 + pnpm + Nginx + PM2
 
-## 三、上传代码
+## 三、上传代码（两个产品，两个目录）
 
-推荐用 Git（后续更新只需 `git pull`）：
-
-```bash
-# 在服务器上创建项目目录并拉取代码
-sudo mkdir -p /var/www/sxk
-sudo chown $USER:$USER /var/www/sxk
-git clone https://github.com/111707006/SXK.git /var/www/sxk
-```
-
-或用打包上传（无需 Git）：
+两个产品共用同一份源码，但 `VITE_APP_MODE` 是**构建期**常数（见 `src/productConfig.ts`），
+所以 A 和 B 是两份不同的 `dist/` —— 同一个目录跑两个进程办不到。
 
 ```bash
-# 本地打包上传 (在本地执行，排除 node_modules / dist)
-scp SXK.zip root@你的IP:/var/www/sxk/
-# 服务器上解压
-cd /var/www/sxk && unzip SXK.zip
+sudo mkdir -p /var/www/sxk-a /var/www/sxk-b /var/log/sxk
+sudo chown $USER:$USER /var/www/sxk-a /var/www/sxk-b /var/log/sxk
+git clone https://github.com/111707006/SXK.git /var/www/sxk-a
+git clone https://github.com/111707006/SXK.git /var/www/sxk-b
 ```
+
+| 目录 | 产品 | `APP_MODE` | 数据库 | 端口 | 域名 |
+|---|---|---|---|---|---|
+| `/var/www/sxk-a` | 专案 A | `full` | `sxk_db` | 5000 | `sxkscreen.com` |
+| `/var/www/sxk-b` | 专案 B | `t1only` | `sxk_t1_db` | 5001 | `t1.sxkscreen.com` |
+
+> 只上其中一个产品的话，另一个目录不建即可 —— `deploy-app.sh` 一次只部署一个。
 
 ## 四、配置环境变量（密钥写入 .env，不要写进 ecosystem.config.js）
 
@@ -83,15 +82,35 @@ SESSION_SECRET=在此粘贴一段随机字符串
 
 ## 五、部署应用
 
-```bash
-# 复制部署脚本到项目根目录
-cp deploy/deploy-app.sh .
-cp deploy/ecosystem.config.js .
+**先在本机构建再上传** —— 主机只有 2 GiB，vite + esbuild 容易 OOM，而 OOM 杀掉的
+可能是正在服务的另一个产品。`VITE_APP_MODE` 必须显式指定，认不得的值会让构建直接
+失败（fail-closed，打错字不会静静建出一份专案 A 交给合作公司）：
 
-# 执行部署
-chmod +x deploy-app.sh
-bash deploy-app.sh
+```bash
+# 本机：专案 A
+VITE_ICP_BEIAN="浙ICP备xxxxxxxx号-1" VITE_APP_MODE=full pnpm run build \
+  && scp -r dist root@你的IP:/var/www/sxk-a/
+
+# 本机：专案 B
+VITE_ICP_BEIAN="浙ICP备xxxxxxxx号-1" VITE_APP_MODE=t1only pnpm run build \
+  && scp -r dist root@你的IP:/var/www/sxk-b/
 ```
+
+> ⚠️ `VITE_ICP_BEIAN` 是**构建期**常数，设在服务器的 `.env` 里不会有任何效果。
+> 备案通过却没在页面底部挂号码，阿里云的处理是要求整改乃至关停接入 ——
+> 也就是说漏了这一项，域名会打不开。未设定时整段不渲染（见 `src/components/BeianFooter.tsx`）。
+
+主机上各跑一次（脚本会检查 `.env` 与 `dist/` 在不在，缺了就地停下）：
+
+```bash
+cd /var/www/sxk-a && bash deploy/deploy-app.sh a
+cd /var/www/sxk-b && bash deploy/deploy-app.sh b
+
+# 第一次部署跑一次开机自启，照它印出来的那行 sudo 命令执行
+pm2 startup
+```
+
+> 实在要在主机上构建：`bash deploy/deploy-app.sh a --build`（脚本会先警告 OOM 风险）。
 
 ## 六、配置 Nginx
 

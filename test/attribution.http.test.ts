@@ -49,14 +49,25 @@ vi.mock('../src/db/mysql', () => ({
   createSmsCode: async (input: any) => {
     const row = {
       id: nextCodeId++, phone: input.phone, code_hash: input.codeHash,
-      expires_at: input.expiresAt, attempts: 0, consumed_at: null, created_at: new Date(),
+      expires_at: new Date(Date.now() + input.ttlSec * 1000),
+      attempts: 0, consumed_at: null, created_at: new Date(),
     };
     smsCodes.push(row);
     return row.id;
   },
   deleteSmsCode: async (id: number) => { smsCodes = smsCodes.filter(c => c.id !== id); },
-  findLatestSmsCode: async (phone: string) =>
-    [...smsCodes].reverse().find(c => c.phone === phone) ?? null,
+  // `age_sec` 與 `is_expired` 由資料庫算好帶回來，替身照做。少了它們，這個檔案
+  // 裡的每一次索取都會走進伺服器「冷卻期算不出來，本次不套用」的那條退路 ——
+  // 測試於是繞過了真正的路徑，而且會在有人把那條退路收緊時無故變紅。
+  findLatestSmsCode: async (phone: string) => {
+    const row = [...smsCodes].reverse().find(c => c.phone === phone);
+    if (!row) return null;
+    return {
+      ...row,
+      age_sec: Math.floor((Date.now() - row.created_at.getTime()) / 1000),
+      is_expired: row.expires_at.getTime() <= Date.now() ? 1 : 0,
+    };
+  },
   countRecentSmsCodesByPhone: async () => 0,
   countRecentSmsCodesByIp: async () => 0,
   incrementSmsCodeAttempts: async () => {},

@@ -656,15 +656,17 @@ export async function createMaterial(input: MaterialInput): Promise<MaterialReco
  * 或儲存鍵被按了兩下）會拿到 0，而那與「這筆不存在」是同一個數字 ——
  * 維護的人會被告知他正看著的素材找不到。
  *
- * 所以先確認它在不在。**不改用連線層的 `CLIENT_FOUND_ROWS`**：
- * `markPaymentSuccess` 與 `consumeSmsCode` 靠的正是 affectedRows 的現有語意
- * （「只有真的完成那次轉換的呼叫回 1」），全域打開那個旗標會讓那兩道閘門
- * 對每一個併發的呼叫都回真。
+ * 所以 0 之後**才**去問這個 id 在不在，而不是每一次儲存都先問一遍：
+ * 「改到了」本身就證明它存在，那是常見的那一條路，一次來回就夠。存下一份
+ * 一模一樣的內容是罕見的那一條，多問一句無妨。
+ *
+ * **不改用連線層的 `CLIENT_FOUND_ROWS`**：`markPaymentSuccess` 與
+ * `consumeSmsCode` 靠的正是 affectedRows 的現有語意（「只有真的完成那次
+ * 轉換的呼叫回 1」），全域打開那個旗標會讓那兩道閘門對每一個併發的呼叫都回真。
  */
 export async function updateMaterial(id: number, input: MaterialInput): Promise<boolean> {
   const p = requirePool();
-  if (!(await findMaterialById(id))) return false;
-  await p.execute(
+  const [result] = await p.execute(
     `UPDATE intervention_materials
         SET dimension_id = ?, age_band_id = ?, severity = ?, title = ?,
             steps = ?, video_url = ?, active = ?
@@ -680,7 +682,8 @@ export async function updateMaterial(id: number, input: MaterialInput): Promise<
       id,
     ]
   );
-  return true;
+  if ((result as ResultSetHeader).affectedRows > 0) return true;
+  return (await findMaterialById(id)) !== null;
 }
 
 /** 每一次公司切換都留下紀錄 —— 越界行為要有痕跡。 */

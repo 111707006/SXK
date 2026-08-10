@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS `sms_codes` (
   `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
   -- 已消费时间。非 NULL 代表这组验证码用过了，不得再用第二次。
   `consumed_at` DATETIME DEFAULT NULL,
+  -- 防刷用的来源键。存的是**收敛过的值**而不是原始位址 —— IPv4-mapped 併回
+  -- 纯 IPv4，IPv6 截到 /64（见 server.ts 的 normalizeRequestIp）。
   `request_ip` VARCHAR(45) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- 冷却期与当日上限查的是「这支手机号最近／今天索取了几次」，走这个索引。

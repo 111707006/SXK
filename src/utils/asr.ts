@@ -1,4 +1,4 @@
-import { authHeaders } from './api';
+import { authFetch } from './api';
 
 /**
  * Shared Qwen3-ASR speech recognition helper.
@@ -19,9 +19,8 @@ export async function transcribeWithQwenASR(
       reader.onerror = reject;
       reader.readAsDataURL(audioBlob);
     });
-    const resp = await fetch('/api/asr', {
+    const resp = await authFetch('/api/asr', {
       method: 'POST',
-      headers: authHeaders(),
       body: JSON.stringify({ audioData: dataUrl, context: `儿童正在朗读："${contextPrompt}"`, dimensionId })
     });
     if (!resp.ok) return null;

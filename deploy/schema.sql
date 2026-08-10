@@ -109,7 +109,8 @@ CREATE TABLE IF NOT EXISTS `sms_codes` (
   -- 错误次数，达上限即锁定该笔验证码
   `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
   `consumed_at` DATETIME DEFAULT NULL,
-  -- 防刷用：同 IP 每日发送上限
+  -- 防刷用：同来源每日发送上限。存的是**收敛过的键**而不是原始位址 ——
+  -- IPv4-mapped 併回纯 IPv4，IPv6 截到 /64（见 server.ts 的 normalizeRequestIp）。
   `request_ip` VARCHAR(45) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_phone_created` (`phone`, `created_at`),

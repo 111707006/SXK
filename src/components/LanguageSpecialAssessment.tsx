@@ -3,7 +3,7 @@ import { Child } from '../types';
 import { transcribeWithQwenASR, judgeArticulation } from '../utils/asr';
 import { bookingDateError, bookingWindow } from '../utils/bookingWindow';
 import { useToday } from '../utils/useToday';
-import { authHeaders } from '../utils/api';
+import { authFetch } from '../utils/api';
 import { peekDeviceId } from '../utils/deviceId';
 import { PRODUCT } from '../productConfig';
 import {
@@ -794,9 +794,8 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
         }]`;
       }).join('\n');
 
-      const response = await fetch('/api/ali-language-eval', {
+      const response = await authFetch('/api/ali-language-eval', {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({
           child,
           audioTranscribedText: `10题综合语篇测试：\n${questionSummaries}`,
@@ -885,9 +884,8 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
         flagged.length ? `发音异常 ${flagged.length} 项 —— ${flagged.join('；')}` : '各题发音表现正常'
       }；构音${articulation}；流畅度${fluency}`;
 
-      const resp = await fetch('/api/expert-booking', {
+      const resp = await authFetch('/api/expert-booking', {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({
           specialistId: selectedTherapistForBooking.id,
           specialistName: selectedTherapistForBooking.name,

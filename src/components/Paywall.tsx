@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DimensionConfig } from '../types';
-import { authHeaders } from '../utils/api';
+import { authFetch } from '../utils/api';
 import { formatFen } from '../utils/price';
 import {
   ArrowLeft, Lock, ShieldCheck, Sparkles, Infinity as InfinityIcon,
@@ -63,9 +63,7 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
     setIsChecking(true);
     (async () => {
       try {
-        const resp = await fetch(`/api/payment/status?outTradeNo=${encodeURIComponent(saved.outTradeNo!)}`, {
-          headers: authHeaders(),
-        });
+        const resp = await authFetch(`/api/payment/status?outTradeNo=${encodeURIComponent(saved.outTradeNo!)}`);
         const data = await resp.json().catch(() => ({}));
         if (cancelled) return;
         if (resp.ok && data.status === 'success') {
@@ -88,9 +86,8 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
     setError(null);
     setIsCreating(true);
     try {
-      const resp = await fetch('/api/payment/create', {
+      const resp = await authFetch('/api/payment/create', {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({ dimensionId: dimension.id }),
       });
       const ct = resp.headers.get('content-type');

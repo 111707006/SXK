@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DimensionConfig, Question, DimensionScore, Child, AssessmentRecord } from '../types';
 import { transcribeWithQwenASR } from '../utils/asr';
-import { authHeaders } from '../utils/api';
+import { authFetch } from '../utils/api';
 import MotionVideoAssessment from './MotionVideoAssessment';
 import { 
   ArrowLeft, Clock, Save, Info, AlertTriangle, CheckCircle2,
@@ -567,9 +567,8 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
       const t2Rec = existingScores.find(s => s.dimensionId === dimension.id && s.tierId === 'T2');
       const t2Percent = t2Rec ? Math.round((t2Rec.score / t2Rec.maxScore) * 100) : null;
       const t3Percent = Math.round((earned / max) * 100);
-      const resp = await fetch('/api/specialized-report', {
+      const resp = await authFetch('/api/specialized-report', {
         method: 'POST',
-        headers: authHeaders(),
         // 不送 dimensionName —— 後端從 dimensionId 自己查，那才是它驗過的那一個。
         body: JSON.stringify({ child, dimensionId: dimension.id, t2Percent, t3Percent, status })
       });

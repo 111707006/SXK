@@ -147,16 +147,32 @@ export interface SmsCodeInput {
   phone: string;
   /** bcrypt 雜湊，不是驗證碼本身。 */
   codeHash: string;
-  expiresAt: Date;
+  /** 有效期，**幾秒**。不是一個 `Date` —— 到期時刻由資料庫自己算，見下。 */
+  ttlSec: number;
   requestIp: string | null;
 }
 
+/**
+ * 寫一筆驗證碼。**這張表的三個時間戳全部由資料庫寫。**
+ *
+ * `expires_at` 曾經是應用程式算好的一個 `Date`，於是同一列裡 `created_at`
+ * （`DEFAULT CURRENT_TIMESTAMP`，資料庫的時鐘）與 `expires_at`（Node 的時鐘）
+ * 分屬兩個時區 —— RDS 在 +08:00 而容器在 UTC 是預設值撞出來的常見組合，
+ * 那一列於是自己跟自己差八小時。程式碼當時靠「哪一欄歸誰管」的約定繞開它，
+ * 但那個約定寫在註解裡，擋不住下一支查詢，也擋不住任何一句臨時的
+ * `DELETE ... WHERE expires_at < NOW()`。
+ *
+ * 改成 `DATE_ADD(NOW(), INTERVAL ? SECOND)` 之後整張表只剩一個時鐘，
+ * 沒有東西要記，連線也不必去動全域的 `timezone`（那會讓既有的每一欄
+ * DATETIME 被重新解讀，牽動的遠不只這張表）。
+ */
 export async function createSmsCode(input: SmsCodeInput): Promise<number> {
   const p = getPool();
   if (!p) throw new Error('MySQL not configured');
   const [result] = await p.execute(
-    'INSERT INTO sms_codes (phone, code_hash, expires_at, request_ip) VALUES (?, ?, ?, ?)',
-    [input.phone, input.codeHash, input.expiresAt, input.requestIp]
+    `INSERT INTO sms_codes (phone, code_hash, expires_at, request_ip)
+     VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?)`,
+    [input.phone, input.codeHash, input.ttlSec, input.requestIp]
   );
   return (result as mysql.ResultSetHeader).insertId;
 }
@@ -174,27 +190,25 @@ export async function deleteSmsCode(id: number): Promise<void> {
 }
 
 /**
- * 這支手機號最近索取的那一筆，附上 `age_sec` —— **由資料庫算出的**已經過了幾秒。
- * 冷卻期與核對都認這一筆，舊的一律作廢。
+ * 這支手機號最近索取的那一筆。冷卻期與核對都認這一筆，舊的一律作廢。
  *
- * ⚠️ 兩欄時間戳歸兩個不同的時鐘管，而那不是巧合：
+ * 兩個衍生欄位都**由資料庫算**，因為被比較的三個時間戳也都是資料庫寫的
+ * （見 `createSmsCode`）：
  *
- *   - `created_at` 由**資料庫**寫（`DEFAULT CURRENT_TIMESTAMP`），所以只能跟
- *     資料庫的 `NOW()` 相減，那個減法因此做在 SQL 裡。把它交給應用程式去減
- *     `Date.now()` 需要一個沒有人保證過的前提：資料庫的時區與 Node 行程的
- *     時區剛好一樣。連線沒有釘 `timezone`，兩邊各自取自各自的環境 ——
- *     RDS 在 +08:00 而容器在 UTC 是預設值撞出來的常見組合，差的那八小時會讓
- *     冷卻期不是整個失效（永遠是「很久以前」）就是變成八小時（永遠 429），
- *     而後者等於所有家長都登不進來，因為登入只剩這一條路。
- *   - `expires_at` 由**應用程式**寫（`createSmsCode` 傳進來的 `Date`，以 Node
- *     的時區序列化），所以反過來：它只能跟 Node 的時鐘比，不可以拿去跟
- *     `NOW()` 比。同一個道理，只是寫的人不同。
+ *   - `age_sec`：距離索取過了幾秒，冷卻期看它。
+ *   - `is_expired`：1 代表已過期，核對看它。
+ *
+ * 把任何一個搬回應用程式做，都需要一個沒有人保證過的前提 —— 資料庫的時區與
+ * Node 行程的時區剛好一樣。差八小時往一邊是冷卻期整個失效、過期的驗證碼還能
+ * 用；往另一邊是每一次索取都回 429，而**登入只剩這一條路**。
  */
 export async function findLatestSmsCode(phone: string): Promise<any | null> {
   const p = getPool();
   if (!p) return null;
   const [rows] = await p.execute(
-    `SELECT *, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age_sec
+    `SELECT *,
+            TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age_sec,
+            (expires_at <= NOW()) AS is_expired
        FROM sms_codes WHERE phone = ? ORDER BY id DESC LIMIT 1`,
     [phone]
   );

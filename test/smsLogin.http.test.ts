@@ -41,8 +41,11 @@ interface SmsCodeRow {
    * 「資料庫算出來的已經過了幾秒」。真實的那一支查詢用 `TIMESTAMPDIFF` 算好
    * 帶回來，所以替身預設也從 `created_at` 推算 —— 冷卻期那一組測試則直接指定
    * 它並且**不給** `created_at`，藉此證明伺服器不會偷偷回去減兩個時鐘。
+   *
+   * `null` 是特別要餵的一個值：`Number(null)` 是 0 而 0 是有限的，所以
+   * 「算不出來」的那條退路很容易只擋得住 `undefined`。
    */
-  age_sec?: number;
+  age_sec?: number | null;
 }
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -55,25 +58,32 @@ let nextCodeId = 1;
 let dbWriteFails = false;
 /** 歸屬查詢炸掉時，這次登入該落在哪一個範圍就成了一個沒有答案的問題。 */
 let companyLookupFails = false;
+/** 「這支號碼在這個範圍裡有帳號嗎」查不動。與上面一樣，是一次沒有副作用的讀。 */
+let userLookupFails = false;
 
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
   findUserById: async (id: number) => users.find(u => u.id === id) ?? null,
-  findUserByPhone: async (companyId: number | null, phone: string) =>
-    users.find(u => u.phone === phone && companyKey(u.company_id) === companyKey(companyId)) ?? null,
+  findUserByPhone: async (companyId: number | null, phone: string) => {
+    if (userLookupFails) throw new Error('ETIMEDOUT');
+    return users.find(u => u.phone === phone && companyKey(u.company_id) === companyKey(companyId)) ?? null;
+  },
   createPhoneUser: async (phone: string, companyId: number | null) => {
     if (dbWriteFails) throw new Error('ER_NO_SUCH_TABLE: users.phone 不存在');
     const row = { id: nextUserId++, phone, email: null, company_id: companyId };
     users.push(row);
     return row.id;
   },
+  // 到期時刻由**資料庫**算（`DATE_ADD(NOW(), INTERVAL ? SECOND)`），所以進來的
+  // 是秒數而不是一個 `Date` —— 替身照做，否則測試驗的是一個真實環境裡不存在的
+  // 介面。整張表的三個時間戳因此同屬一個時鐘。
   createSmsCode: async (input: any) => {
     if (dbWriteFails) throw new Error("ER_NO_SUCH_TABLE: Table 'sms_codes' doesn't exist");
     const row: SmsCodeRow = {
       id: nextCodeId++,
       phone: input.phone,
       code_hash: input.codeHash,
-      expires_at: input.expiresAt,
+      expires_at: new Date(Date.now() + input.ttlSec * 1000),
       attempts: 0,
       consumed_at: null,
       request_ip: input.requestIp,
@@ -85,15 +95,18 @@ vi.mock('../src/db/mysql', () => ({
   deleteSmsCode: async (id: number) => {
     smsCodes = smsCodes.filter(c => c.id !== id);
   },
-  // `age_sec` 由資料庫算好送回來 —— 替身也照做，否則測試驗的是一個真實環境
-  // 裡不存在的介面。伺服器**不會**再去碰 `created_at`（見 findLatestSmsCode
-  // 的說明：那一欄歸資料庫的時鐘管）。
+  // `age_sec` 與 `is_expired` 都由資料庫算好送回來 —— 替身也照做。伺服器
+  // **不會**再去碰 `created_at` 或 `expires_at`（見 findLatestSmsCode 的說明：
+  // 那兩欄歸資料庫的時鐘管）。
   findLatestSmsCode: async (phone: string) => {
     const row = [...smsCodes].reverse().find(c => c.phone === phone);
     if (!row) return null;
     return {
       ...row,
-      age_sec: row.age_sec ?? Math.floor((Date.now() - row.created_at.getTime()) / 1000),
+      age_sec: row.age_sec === undefined
+        ? Math.floor((Date.now() - row.created_at.getTime()) / 1000)
+        : row.age_sec,
+      is_expired: row.expires_at.getTime() <= Date.now() ? 1 : 0,
     };
   },
   countRecentSmsCodesByPhone: async (phone: string, withinHours: number) =>
@@ -161,6 +174,7 @@ beforeEach(() => {
   nextCodeId = 1;
   dbWriteFails = false;
   companyLookupFails = false;
+  userLookupFails = false;
   smsChannelOpen = true;
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -261,6 +275,20 @@ describe('索取驗證碼', () => {
       expect(resp.status).toBe(200);
       expect(sent).toHaveLength(1);
     });
+
+    /**
+     * `age_sec` 是 NULL 時要走「算不出來，這次不擋」，**不是**「才過了 0 秒」。
+     *
+     * `Number(null)` 是 0，而 0 是有限的 —— 只用 `Number.isFinite` 判斷的話，
+     * NULL 會被讀成剛剛才索取過，於是每一次索取都回 429、等待 60 秒，
+     * 而那 60 秒永遠不會過去。登入只剩這一條路，那就是全體家長進不來。
+     */
+    it('age_sec 是 null 時不擋 —— 0 不是「剛剛才索取過」', async () => {
+      smsCodes.push({ ...latestWithAge(0), age_sec: null } as any);
+      const resp = await client.postJson('/api/auth/sms/request', { phone: PHONE });
+      expect(resp.status).toBe(200);
+      expect(sent).toHaveLength(1);
+    });
   });
 
   // ── 同一個來源的當日上限 ──
@@ -313,6 +341,82 @@ describe('索取驗證碼', () => {
       const resp = await client.postJson('/api/auth/sms/request', { phone: '13911112222' });
 
       expect(resp.status).toBe(200);
+    });
+
+    /**
+     * 兩道上限的錯誤訊息**必須分得開**。
+     *
+     * 被位址那一道擋下的家長自己一次都沒索取過 —— 他只是跟別人共用一條網路。
+     * 兩種原因回同一句「本手机号今日…已达上限」，他會照著去等一個永遠不會到的
+     * 明天，而客服從他的轉述裡分不出是哪一種。
+     */
+    it('位址上限與號碼上限說的不是同一句話', async () => {
+      const ip = await probeRequestIp();
+      fillFromSameIp(49, ip);
+      const byIp = await client.postJson('/api/auth/sms/request', { phone: '13911112222' });
+      const byIpText = (await byIp.json()).error as string;
+
+      smsCodes = [];
+      for (let i = 0; i < 10; i++) {
+        smsCodes.push({
+          id: nextCodeId++, phone: PHONE, code_hash: 'x',
+          expires_at: new Date(), attempts: 0, consumed_at: null,
+          request_ip: '203.0.113.77', created_at: hoursAgo(2), age_sec: 7200,
+        });
+      }
+      const byPhone = await client.postJson('/api/auth/sms/request', { phone: PHONE });
+      const byPhoneText = (await byPhone.json()).error as string;
+
+      expect(byIp.status).toBe(429);
+      expect(byPhone.status).toBe(429);
+      expect(byIpText).not.toBe(byPhoneText);
+      // 位址那一句要講得出「這是共用網路的問題」，否則家長無從判斷該怎麼辦。
+      expect(byIpText).toContain('网络');
+    });
+
+    /**
+     * IPv6 換位址跟換字串一樣便宜 —— 按單一位址算等於沒有算。
+     *
+     * 一般接取拿到的是一整段 /64（2^64 個位址）。上限若以完整位址為鍵，
+     * 「一台機器帶著號碼表跑過去」這件事連繞都不必繞：每一次請求換一個位址，
+     * 額度永遠從頭開始，而帳單與收到簡訊的人都是真的。
+     */
+    it('同一段 IPv6 /64 裡換位址算同一個來源', async () => {
+      const ipv6 = (n: number) => ({ 'X-Forwarded-For': `2001:db8:abcd:1234::${n.toString(16)}` });
+
+      // 先讓伺服器自己記下第一筆，看它把這一段收斂成什麼鍵。
+      await client.postJson('/api/auth/sms/request', { phone: '13700000001' }, ipv6(1));
+      const key = smsCodes[smsCodes.length - 1].request_ip!;
+      expect(key).toBe('2001:db8:abcd:1234::/64');
+
+      fillFromSameIp(49, key); // 連上面那一筆共 50 筆
+      sent.length = 0;
+
+      // 換一個從沒出現過的位址、換一支沒用過的號碼 —— 同一段就是同一個來源。
+      const resp = await client.postJson('/api/auth/sms/request', { phone: '13911112222' }, ipv6(0xbeef));
+      expect(resp.status).toBe(429);
+      expect(sent).toEqual([]);
+    });
+
+    /** 別的 /64 是另一個來源，不該被前一段的用量牽連。 */
+    it('另一段 /64 不受影響', async () => {
+      fillFromSameIp(80, '2001:db8:abcd:1234::/64');
+      const resp = await client.postJson(
+        '/api/auth/sms/request',
+        { phone: '13911112222' },
+        { 'X-Forwarded-For': '2001:db8:abcd:9999::7' }
+      );
+      expect(resp.status).toBe(200);
+    });
+
+    /** IPv4-mapped 與純 IPv4 是同一個客戶端，不是兩個額度。 */
+    it('::ffff:a.b.c.d 與 a.b.c.d 算同一個來源', async () => {
+      await client.postJson(
+        '/api/auth/sms/request',
+        { phone: '13700000002' },
+        { 'X-Forwarded-For': '::ffff:203.0.113.9' }
+      );
+      expect(smsCodes[smsCodes.length - 1].request_ip).toBe('203.0.113.9');
     });
   });
 });
@@ -408,6 +512,29 @@ describe('驗證碼的核對', () => {
 
     expect(resp.status).toBe(401);
     expect(users).toEqual([]);
+  });
+
+  /**
+   * 到期與否認**資料庫**的答案（`is_expired`），不是拿 `expires_at` 自己減。
+   *
+   * 與冷卻期是同一個理由：`expires_at` 現在由資料庫寫（`DATE_ADD(NOW(), …)`），
+   * 拿它去跟 `Date.now()` 比需要兩邊時區剛好一樣。這一條讓兩個答案**對不上** ——
+   * 到期時刻在未來，但資料庫說已經過期 —— 伺服器要是偷偷自己減就會放行。
+   */
+  it('伺服器認 is_expired，不自己拿 expires_at 減 Date.now()', async () => {
+    const code = await requestCode();
+    // 到期時刻看起來還早得很（若自己減，這一筆是有效的）。
+    smsCodes[0].expires_at = new Date(Date.now() + 60 * 60 * 1000);
+    // 而資料庫說它過期了。
+    const real = smsCodes[0];
+    const spy = vi.spyOn(await import('../src/db/mysql'), 'findLatestSmsCode');
+    spy.mockResolvedValueOnce({ ...real, age_sec: 5, is_expired: 1 });
+
+    const resp = await client.postJson('/api/auth/sms/verify', { phone: PHONE, code });
+
+    expect(resp.status).toBe(401);
+    expect(users).toEqual([]);
+    spy.mockRestore();
   });
 
   it('同一組驗證碼不能用第二次', async () => {
@@ -545,6 +672,31 @@ describe('同一支手機號在兩家公司是兩位家長（ADR-0002）', () =>
     expect(smsCodes[0].consumed_at).toBeNull();
 
     companyLookupFails = false;
+    const retry = await client.postJson('/api/auth/sms/verify', {
+      phone: PHONE, code, companySlug: VALID_SLUG,
+    });
+    expect(retry.status).toBe(200);
+    expect((await retry.json()).token).toBeTruthy();
+  });
+
+  /**
+   * 同一件事的另一半：`findUserByPhone` 也是一次**沒有副作用的讀**。
+   *
+   * 它排在作廢之後的話，那次逾時會把家長手上那組正確的驗證碼一起帶走 ——
+   * 症狀與歸屬查不動時一模一樣（500、冷卻期、一組再也驗不過的號碼），
+   * 只是換一個查詢。讀全部做完再作廢，一個都不留在後面。
+   */
+  it('查帳號查不動時驗證碼不被作廢 —— 資料庫回來之後同一組還能用', async () => {
+    const code = await requestCode(PHONE, VALID_SLUG);
+
+    userLookupFails = true;
+    const failed = await client.postJson('/api/auth/sms/verify', {
+      phone: PHONE, code, companySlug: VALID_SLUG,
+    });
+    expect(failed.status).toBe(500);
+    expect(smsCodes[0].consumed_at).toBeNull();
+
+    userLookupFails = false;
     const retry = await client.postJson('/api/auth/sms/verify', {
       phone: PHONE, code, companySlug: VALID_SLUG,
     });

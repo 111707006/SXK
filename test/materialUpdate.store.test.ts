@@ -19,6 +19,9 @@ const executed: string[] = [];
 /** 資料庫裡有沒有這一筆。null 代表這個 id 不存在。 */
 let storedRow: any = null;
 
+/** UPDATE 回報改到了幾列。預設 0 —— 那正是 bug 的形狀。 */
+let updateAffectedRows = 0;
+
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
   getPool: () => ({
@@ -27,7 +30,7 @@ vi.mock('../src/db/mysql', () => ({
       if (/^\s*SELECT/i.test(sql)) return [storedRow ? [storedRow] : []];
       // ── bug 的形狀就在這一行 ──
       // 內容一模一樣時，真正的 MySQL 回的就是 affectedRows: 0。
-      return [{ affectedRows: 0 }];
+      return [{ affectedRows: updateAffectedRows }];
     },
   }),
 }));
@@ -63,6 +66,7 @@ beforeAll(async () => {
 beforeEach(() => {
   executed.length = 0;
   storedRow = { ...ROW };
+  updateAffectedRows = 0;
 });
 
 describe('覆寫一格素材', () => {
@@ -76,7 +80,15 @@ describe('覆寫一格素材', () => {
   it('id 不存在才算找不到', async () => {
     storedRow = null;
     expect(await store.updateMaterial(999, VALID_INPUT)).toBe(false);
-    // 不存在就不該再去改任何一列。
-    expect(executed).not.toContain('UPDATE');
+    // 「不存在」是**問過才知道**的，不是從 affectedRows: 0 推出來的 ——
+    // 那個 0 兩件事都可能。UPDATE 先跑過（對不存在的 id 一列都改不到，
+    // 無害），0 之後才去問。
+    expect(executed).toContain('SELECT');
+  });
+
+  it('改到了就不必再問一次 —— 常見的那條路只有一次來回', async () => {
+    updateAffectedRows = 1;
+    expect(await store.updateMaterial(1, VALID_INPUT)).toBe(true);
+    expect(executed).toEqual(['UPDATE']);
   });
 });

@@ -141,25 +141,47 @@ app.set('trust proxy', 1);
 const jsonTooMany = (req: express.Request, res: express.Response) =>
   res.status(429).json({ error: '请求过于频繁，请稍后再试。' });
 
+/**
+ * 讀一個非負整數的環境變數。
+ *
+ * 不用 `Number(process.env.X) || fallback` 的理由是**它會吃掉 0**：把某個上限
+ * 調成 0 是「現在就停止」這個最急的操作，而那個寫法會安靜地還你預設值 ——
+ * 唯一的症狀是「我明明調過了」而它照送。打錯字同理：`RATE_AUTH_MAX="3O"`
+ * 退回預設而不留任何痕跡，等於那次調整從來沒發生過。
+ *
+ * 刻意**沒有**套用在 `PORT`（0 不是一個埠號）與 `UNLOCK_PRICE_FEN`
+ * （0 元解鎖是真的會把付費內容送出去，那個值該被擋下而不是被接受）。
+ */
+function readIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    console.warn(`[Env] ${name}="${raw}" 不是非负整数，改用预设值 ${fallback}。`);
+    return fallback;
+  }
+  return parsed;
+}
+
 // Generous defaults (tunable via env) so a full CPMV assessment (dozens of AI
 // calls) never trips the limit, while a runaway loop hits it within seconds.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: Number(process.env.RATE_API_MAX) || 800,
+  limit: readIntEnv('RATE_API_MAX', 800),
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonTooMany,
 });
 const aiLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  limit: Number(process.env.RATE_AI_MAX) || 200,
+  limit: readIntEnv('RATE_AI_MAX', 200),
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonTooMany,
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: Number(process.env.RATE_AUTH_MAX) || 30,
+  limit: readIntEnv('RATE_AUTH_MAX', 30),
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonTooMany,
@@ -170,7 +192,7 @@ const authLimiter = rateLimit({
 // enough that a loop cannot bury the team in messages.
 const bookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: Number(process.env.RATE_BOOKING_MAX) || 10,
+  limit: readIntEnv('RATE_BOOKING_MAX', 10),
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonTooMany,
@@ -290,8 +312,13 @@ async function hashSecret(plain: string): Promise<string> {
 /** 中國大陸手機號。專家預約與登入是同一組規則，只寫一份。 */
 const PHONE_PATTERN = /^1[3-9]\d{9}$/;
 
-/** 驗證碼有效期。短到被側錄也來不及用，長到來得及切出去看簡訊再切回來。 */
-const SMS_CODE_TTL_MS = 5 * 60 * 1000;
+/**
+ * 驗證碼有效期。短到被側錄也來不及用，長到來得及切出去看簡訊再切回來。
+ *
+ * 單位是**秒**，因為到期時刻是交給資料庫算的（`createSmsCode` 的
+ * `DATE_ADD(NOW(), INTERVAL ? SECOND)`）—— 這一整張表只有一個時鐘。
+ */
+const SMS_CODE_TTL_SEC = 5 * 60;
 
 /**
  * 兩次索取之間的等待。
@@ -317,9 +344,48 @@ const SMS_CODE_DAILY_MAX_PER_PHONE = 10;
  * 每一支都在自己的額度之內，帳單卻是整份的。這一道是按來源算的那一半。
  *
  * 預設值刻意比單一號碼寬很多：合作公司的 iPad 是一整間診所共用一個對外位址，
- * 一天服務幾十位家長是正常使用。可用 `SMS_IP_DAILY_MAX` 依現場調整。
+ * 一天服務幾十位家長是正常使用。可用 `SMS_IP_DAILY_MAX` 依現場調整，
+ * 設成 0 即停止一切按位址計費的發送（`readIntEnv` 收 0，`|| 50` 會吃掉它）。
  */
-const SMS_CODE_DAILY_MAX_PER_IP = Number(process.env.SMS_IP_DAILY_MAX) || 50;
+const SMS_CODE_DAILY_MAX_PER_IP = readIntEnv('SMS_IP_DAILY_MAX', 50);
+
+/**
+ * 把來源位址收斂成一個「同一個接取點」的鍵。
+ *
+ * 直接拿 `req.ip` 當鍵，上面那道上限有兩個洞，而且兩個都不必花錢：
+ *
+ *   - **表示法**：同一個 IPv4 客戶端會以 `::ffff:203.0.113.9` 或 `203.0.113.9`
+ *     出現（取決於 socket 家族與前面幾層代理），兩種字串各算一個來源，
+ *     額度直接翻倍。新測試裡那句「不寫死 127.0.0.1」講的就是這件事。
+ *   - **IPv6 的位址量**：一般接取拿到的是一整段 /64，也就是 2^64 個位址 ——
+ *     換位址跟換字串一樣便宜。按單一位址算等於沒有算，所以截到 /64：
+ *     那才是 ISP 實際配給「一個接取點」的粒度。
+ *
+ * 收斂後的值同時是寫進 `request_ip` 的值，計數與紀錄因此永遠是同一個鍵。
+ */
+function normalizeRequestIp(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const ip = raw.trim().toLowerCase();
+  if (!ip) return null;
+
+  // IPv4-mapped IPv6 就是那個 IPv4 位址，不是另一個來源。
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(ip);
+  if (mapped) return mapped[1];
+  if (!ip.includes(':')) return ip;
+
+  // IPv6 → /64。`::` 可能吃掉了中間任意多段，先補回來再取前四段。
+  let groups: string[];
+  if (ip.includes('::')) {
+    const [head, tail] = ip.split('::');
+    const headParts = head ? head.split(':') : [];
+    const tailParts = tail ? tail.split(':') : [];
+    const missing = Math.max(8 - headParts.length - tailParts.length, 0);
+    groups = [...headParts, ...Array(missing).fill('0'), ...tailParts];
+  } else {
+    groups = ip.split(':');
+  }
+  return `${groups.slice(0, 4).map(g => g || '0').join(':')}::/64`;
+}
 
 /** 六位數字，取自 CSPRNG。`Math.random` 的輸出是可預測的。 */
 function generateSmsCode(): string {
@@ -1748,7 +1814,7 @@ app.post('/api/auth/sms/request', async (req, res) => {
     return;
   }
 
-  const requestIp = req.ip ?? null;
+  const requestIp = normalizeRequestIp(req.ip);
   let codeId: number | null = null;
   try {
     // ── 防刷（一）：冷卻期 ──
@@ -1757,7 +1823,11 @@ app.post('/api/auth/sms/request', async (req, res) => {
     // `created_at`：那一欄是資料庫寫的，拿它去減 `Date.now()` 需要資料庫與
     // Node 行程的時區剛好一樣，而沒有人保證過那件事（見 `findLatestSmsCode`）。
     const latest = await withTimeout(mysqlDb.findLatestSmsCode(phone), 2000);
-    const elapsedSec = Number(latest?.age_sec);
+    // `== null` 這一句是必要的，不能只靠底下的 `Number.isFinite`：
+    // `Number(null)` 是 **0**，而 0 是有限的。少了它，一個 NULL 的 age_sec
+    // 會被讀成「才剛過 0 秒」而不是「算不出來」，於是每一次索取都回 429 ——
+    // 那正是這段程式當初要消滅的那個全體登入關閉。
+    const elapsedSec = latest?.age_sec == null ? NaN : Number(latest.age_sec);
     if (latest && Number.isFinite(elapsedSec) && elapsedSec < SMS_CODE_COOLDOWN_SEC) {
       const wait = Math.max(1, Math.ceil(SMS_CODE_COOLDOWN_SEC - elapsedSec));
       res.status(429).json({ error: `请求过于频繁，请 ${wait} 秒后再试。`, retryAfterSec: wait });
@@ -1769,22 +1839,33 @@ app.post('/api/auth/sms/request', async (req, res) => {
       console.warn('[SMS] 冷却期无法计算（age_sec 缺失），本次不套用冷却。');
     }
 
-    // ── 防刷（二）：同一支手機號的當日上限 ──
-    if (await withTimeout(mysqlDb.countRecentSmsCodesByPhone(phone, 24), 2000) >= SMS_CODE_DAILY_MAX_PER_PHONE) {
-      res.status(429).json({ error: '今日验证码索取次数已达上限，请明天再试或联系客服。' });
+    // ── 防刷（二）(三)：兩道當日上限 ──
+    //
+    // 按號碼算的那一道擋不住換號碼：一台機器把號碼表跑過去，每一支都在自己的
+    // 額度之內，而帳單是整份的，收到簡訊的人也都是真的。按來源算的是另一半。
+    //
+    // 兩支查詢彼此不相干，所以一起發 —— 序列跑只是把登入路徑上的等待加倍
+    // （每一支各有兩秒的預算）。代價是號碼已經超標的那一次會多問一句位址，
+    // 那是罕見的那條路，換常見的那條快一倍划得來。
+    const [phoneCount, ipCount] = await Promise.all([
+      withTimeout(mysqlDb.countRecentSmsCodesByPhone(phone, 24), 2000),
+      requestIp
+        ? withTimeout(mysqlDb.countRecentSmsCodesByIp(requestIp, 24), 2000)
+        : Promise.resolve(0),
+    ]);
+
+    if (phoneCount >= SMS_CODE_DAILY_MAX_PER_PHONE) {
+      res.status(429).json({ error: '本手机号今日验证码索取次数已达上限，请明天再试或联系客服。' });
       return;
     }
-
-    // ── 防刷（三）：同一個來源的當日上限 ──
-    //
-    // 少了這一道，上面那一道擋不住真正花錢的那種濫用：換一支沒用過的號碼，
-    // 額度就重新開始。一台機器把號碼表跑過去，帳單是真的，收到簡訊的人也是。
-    // 上限放得比單一號碼寬很多 —— 合作公司的 iPad 是一整間診所共用一個對外
-    // 位址，一天服務幾十位家長是正常的，擋下去等於擋掉真正的客人。
-    if (requestIp
-      && await withTimeout(mysqlDb.countRecentSmsCodesByIp(requestIp, 24), 2000) >= SMS_CODE_DAILY_MAX_PER_IP) {
+    if (requestIp && ipCount >= SMS_CODE_DAILY_MAX_PER_IP) {
+      // 與上面那句**刻意不同字**。這一道擋下的家長自己一次都沒索取過 ——
+      // 他只是跟別人共用一條網路。兩種原因回同一句話的話，家長會照著去等
+      // 一個永遠不會到的明天，而客服從他的轉述裡分不出是哪一種。
       console.warn(`[SMS] 来源 ${requestIp} 今日索取次数已达上限，暂停发送。`);
-      res.status(429).json({ error: '今日验证码索取次数已达上限，请明天再试或联系客服。' });
+      res.status(429).json({
+        error: '当前网络今日验证码发送量已达上限。若您与他人共用同一网络（如机构 WiFi），请稍后再试或联系客服。',
+      });
       return;
     }
 
@@ -1793,8 +1874,9 @@ app.post('/api/auth/sms/request', async (req, res) => {
       phone,
       // 只存雜湊。這一列若是明碼，任何一份備份都等同一把能登入的鑰匙。
       codeHash: await hashSecret(code),
-      // 這一欄由應用程式寫，因此它是唯一一個可以跟 `Date.now()` 比的時間戳。
-      expiresAt: new Date(Date.now() + SMS_CODE_TTL_MS),
+      // 到期時刻由資料庫算（見 `createSmsCode`）——`created_at`、`expires_at`、
+      // `consumed_at` 因此同屬一個時鐘，沒有「哪一欄歸誰管」要記。
+      ttlSec: SMS_CODE_TTL_SEC,
       requestIp,
     }), 2000);
 
@@ -1818,7 +1900,7 @@ app.post('/api/auth/sms/request', async (req, res) => {
     // 回應裡**沒有驗證碼**。帶上去的話，這支 API 就是「誰打得到誰就能登入」。
     res.json({
       success: true,
-      expiresInSec: SMS_CODE_TTL_MS / 1000,
+      expiresInSec: SMS_CODE_TTL_SEC,
       cooldownSec: SMS_CODE_COOLDOWN_SEC,
     });
   } catch (err: any) {
@@ -1847,9 +1929,13 @@ app.post('/api/auth/sms/verify', async (req, res) => {
 
   try {
     const row = await withTimeout(mysqlDb.findLatestSmsCode(phone), 2000);
+    // 過期與否由**資料庫**判斷（`is_expired`），與 `age_sec` 同一個理由。
+    // 判斷不出來時當作已過期 —— **這個方向失敗是安全的**（家長重新索取一次
+    // 就好），反過來會讓一組早就該作廢的驗證碼繼續通得過。
+    const expired = Number(row?.is_expired ?? 1) !== 0;
     // 不存在、已用過、已過期，對外是同一句話：多說一個字都是在告訴猜的人
     // 他猜對了哪一半。
-    const stale = !row || row.consumed_at || new Date(row.expires_at).getTime() <= Date.now();
+    const stale = !row || row.consumed_at || expired;
     if (stale) {
       res.status(401).json({ error: '验证码错误或已失效，请重新获取。' });
       return;
@@ -1884,13 +1970,19 @@ app.post('/api/auth/sms/verify', async (req, res) => {
       return;
     }
 
+    // 讀完再作廢。`findUserByPhone` 跟上面那句歸屬查詢是同一件事的兩半 ——
+    // 都是**沒有副作用的讀**，都有兩秒的預算會逾時，而排在作廢之後的那一次
+    // 逾時會把家長手上那組正確的驗證碼一起帶走：他按「重新获取」撞上冷卻期，
+    // 被擋在門外一分鐘，手裡拿著一組再也驗不過的號碼。讀先做完不少任何保護。
+    const existing = await withTimeout(mysqlDb.findUserByPhone(scope.companyId, phone), 2000);
+
     // 先作廢再建帳號。反過來的話，同一組驗證碼在兩個同時進來的請求裡都會通過。
     if (!await withTimeout(mysqlDb.consumeSmsCode(row.id), 2000)) {
       res.status(401).json({ error: '验证码错误或已失效，请重新获取。' });
       return;
     }
 
-    let user = await withTimeout(mysqlDb.findUserByPhone(scope.companyId, phone), 2000);
+    let user = existing;
     if (!user) {
       // 歸屬只在這一行寫得進去，此後不再改變 —— 已有帳號的家長走的是上面那條路。
       const newUserId = await withTimeout(mysqlDb.createPhoneUser(phone, scope.companyId), 2000);

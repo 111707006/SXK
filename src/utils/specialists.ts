@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import { PRODUCT } from '../productConfig';
-import { authHeaders } from './api';
+import { authFetch } from './api';
 
 export interface ReportSpecialist {
   /** 專案 A 是 `spec-1` 這種常數；專案 B 是 specialists 資料表的 id 轉成字串。 */
@@ -63,7 +63,7 @@ export function useReportSpecialists(builtin: ReportSpecialist[]): SpecialistsSt
 
     (async () => {
       try {
-        const resp = await fetch('/api/specialists', { headers: authHeaders() });
+        const resp = await authFetch('/api/specialists');
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
         if (cancelled) return;

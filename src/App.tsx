@@ -33,7 +33,7 @@ import { generateSpecializedReportRecord } from './utils/reportUtils';
 import { formatAge, refreshChildAge } from './utils/dateUtils';
 import { ageBandDrift, latestAssessedAgeMonth } from './utils/ageBandDrift';
 import { useToday } from './utils/useToday';
-import { authHeaders } from './utils/api';
+import { authFetch, setUnauthorizedHandler } from './utils/api';
 import { getDimensionAccess, isPaywallActive } from './utils/access';
 import { DEFAULT_UNLOCK_PRICE_FEN, formatFen } from './utils/price';
 import { 
@@ -117,6 +117,14 @@ export default function App() {
   const [dbEnvId, setDbEnvId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  /**
+   * 給家長看的一句話，登入頁上方那條橫幅。
+   *
+   * 與 `syncError` 分開，因為兩者的可見度不是同一件事：`syncError` 畫成頁首
+   * 一個 9px 的「⚠️ 同步失败」，訊息本體藏在 `title` 裡 —— 共用 iPad 上沒有
+   * 滑鼠，那句話等於不存在。而「你被登出了」是家長必須讀到才知道要重新登入的。
+   */
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
 
@@ -161,9 +169,20 @@ export default function App() {
    */
   const handleSessionExpired = () => {
     clearLocalSession();
-    setSyncError('登录状态已失效，请重新登录。');
+    setSyncError(null);
+    setSessionNotice('登录状态已失效，请重新登录。您已完成的评估已保存在云端，重新登录后即可看到。');
     setCurrentView('dashboard');
   };
+
+  /**
+   * 401 只在 `authFetch` 裡認一次，所以每一支帶通行證的請求都算數 ——
+   * 不只是這個檔案裡的四支。掛載時登記一次就夠：`handleSessionExpired`
+   * 只呼叫 setState，而那些函式的身分在整個生命週期裡不變。
+   */
+  useEffect(() => {
+    setUnauthorizedHandler(handleSessionExpired);
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   // Helper to sync state to cloud
   const syncToCloud = async (
@@ -177,9 +196,8 @@ export default function App() {
       setSyncing(true);
       // 不送任何識別欄位 —— 家長是誰由 `authHeaders()` 帶的通行證決定。
       // 客戶端送上來的識別鍵不是身分，伺服器也不再看它。
-      const resp = await fetch('/api/db/save', {
+      const resp = await authFetch('/api/db/save', {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({
           deviceId,
           child: currentChild,
@@ -188,10 +206,9 @@ export default function App() {
           reportHistory: currentHistory
         })
       });
-      if (resp.status === 401) {
-        handleSessionExpired();
-        return;
-      }
+      // 401 的處置已經在 `authFetch` 裡發生（登出並回登入頁）。這裡只是不要
+      // 再把它畫成一次同步失敗 —— 家長看到的該是「請重新登入」那一句。
+      if (resp.status === 401) return;
       if (!resp.ok) {
         throw new Error(`Sync failed with status ${resp.status}`);
       }
@@ -276,13 +293,11 @@ export default function App() {
         // 孩子的檔案端到已登入的家長面前。
         const loadUrl = activeToken ? '/api/db/load' : `/api/db/load?deviceId=${deviceId}`;
 
-        const loadResp = await fetch(loadUrl, { headers: authHeaders() });
+        const loadResp = await authFetch(loadUrl);
         // 通行證不算數就地了結，不要繼續用一個伺服器不認得的身分跑下去 ——
-        // 底下那條「伺服器是空的就把本機這一份送上去」的路會一路撞到同一個 401。
-        if (loadResp.status === 401) {
-          handleSessionExpired();
-          return;
-        }
+        // 底下那條「伺服器是空的就把本機這一份送上去」的路會一路撞到同一個
+        // 401。登出本身已經由 `authFetch` 做掉了，這裡只負責停下來。
+        if (loadResp.status === 401) return;
         if (!loadResp.ok) return;
         const loadCt = loadResp.headers.get('content-type');
         if (!loadCt || !loadCt.includes('application/json')) return;
@@ -305,20 +320,11 @@ export default function App() {
             localStorage.setItem('senxinkang_orders', JSON.stringify(loadData.orders || []));
             localStorage.setItem('senxinkang_history', JSON.stringify(loadData.reportHistory || []));
           } else if (localChild || localScores.length > 0) {
-            // Server is empty but client has local data: sync local data up
-            setSyncing(true);
-            await fetch('/api/db/save', {
-              method: 'POST',
-              headers: authHeaders(),
-              body: JSON.stringify({
-                deviceId,
-                child: localChild,
-                completedScores: localScores,
-                orders: localOrders,
-                reportHistory: localHistory
-              })
-            });
-            setSyncing(false);
+            // Server is empty but client has local data: sync local data up.
+            // 走 `syncToCloud` 而不是自己再拼一次請求 —— 手拼的那一份沒有狀態碼
+            // 檢查、沒有 401 處置、失敗也不會留下任何痕跡，而它送的是家長目前
+            // 唯一的一份資料。
+            await syncToCloud(localChild, localScores, localOrders, localHistory);
           }
         }
       } catch (err) {
@@ -347,7 +353,7 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch('/api/unlocks', { headers: authHeaders() });
+        const resp = await authFetch('/api/unlocks');
         const ct = resp.headers.get('content-type');
         if (!resp.ok || !ct || !ct.includes('application/json')) return;
         const data = await resp.json();
@@ -406,6 +412,7 @@ export default function App() {
     cloudHistory: AssessmentRecord[]
   ) => {
     setUserIdentity(identity);
+    setSessionNotice(null);
     localStorage.setItem('senxinkang_user_email', identity);
     setAuthToken(token);
     if (token) {
@@ -440,25 +447,12 @@ export default function App() {
     localStorage.setItem('senxinkang_child', JSON.stringify(newChild));
     setCurrentView('dashboard'); // Go to dashboard to let user choose to enter T1
 
-    // Explicit save to trigger background sync
-    try {
-      const deviceId = getOrCreateDeviceId();
-      fetch('/api/db/save', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          deviceId,
-          child: newChild,
-          completedScores,
-          orders,
-          reportHistory
-        })
-      }).catch(err => {
-        console.warn('Silent background save failed:', err);
-      });
-    } catch (e) {
-      console.warn('Silent save failed:', e);
-    }
+    // Explicit save to trigger background sync.
+    //
+    // 走 `syncToCloud`。原本這裡是自己拼的一支 `fetch`，只掛了 `.catch` ——
+    // 而 401 是一個**成功兌現**的 Promise，`.catch` 不會被呼叫到：通行證過期的
+    // 家長會看到檔案存好了、繼續做完一整份篩查，而伺服器那邊一個字都沒收到。
+    syncToCloud(newChild, completedScores, orders, reportHistory);
   };
 
   const handleUpdateChild = (updatedChild: Child) => {
@@ -487,6 +481,8 @@ export default function App() {
     if (confirm('确认登出当前账户并返回登录首页吗？您的数据安全保存在云端。')) {
       clearLocalSession();
       setSyncError(null);
+      // 自己按的登出不需要那條橫幅 —— 他知道剛剛發生了什麼。
+      setSessionNotice(null);
       setCurrentView('dashboard');
       setIsCustomerDropdownOpen(false);
     }
@@ -885,7 +881,19 @@ export default function App() {
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
         {!userIdentity ? (
-          <AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} />
+          <div className="w-full flex flex-col items-center gap-5">
+            {/* 被登出這件事必須讀得到，不能只有頁首那個 9px 的徽章。 */}
+            {sessionNotice && (
+              <div
+                id="session-expired-notice"
+                role="alert"
+                className="w-full max-w-md rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-xs font-bold leading-relaxed text-amber-900 shadow-sm"
+              >
+                {sessionNotice}
+              </div>
+            )}
+            <AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} />
+          </div>
         ) : !child ? (
           /* Profile Registry form shown when child is unconfigured */
           <div className="py-12 animate-fade-in text-center w-full">

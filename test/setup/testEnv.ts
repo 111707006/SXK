@@ -33,3 +33,8 @@ process.env.RATE_API_MAX = '100000';
 process.env.RATE_AI_MAX = '100000';
 process.env.RATE_AUTH_MAX = '100000';
 process.env.RATE_BOOKING_MAX = '100000';
+
+// 這一個相反 —— 要釘在**預設值**上，因為有測試就是在驗那個邊界（第 50 筆擋、
+// 第 49 筆過）。`.env.example` 現在會教人去調它，而開發機的 `.env` 一旦漏進來，
+// 那組測試會安靜地驗到另一個數字。
+process.env.SMS_IP_DAILY_MAX = '50';

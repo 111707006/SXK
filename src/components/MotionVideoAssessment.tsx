@@ -6,7 +6,7 @@ import {
 } from '../cpmvData';
 import { collectCpmv, buildCpmvSummary, buildCpmvSuggest, CpmvCollectResult } from '../utils/cpmvReport';
 import { extractVideoFrames } from '../utils/videoFrames';
-import { authHeaders } from '../utils/api';
+import { authFetch } from '../utils/api';
 import {
   Video, Upload, Brain, Loader2, Check, ChevronRight, Database,
   Activity, AlertTriangle, FileText, Sparkles
@@ -69,9 +69,8 @@ export default function MotionVideoAssessment({
     setItemStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], analyzing: true, videoName: file.name } }));
     try {
       const frames = await extractVideoFrames(file, 8);
-      const resp = await fetch('/api/motion-eval', {
+      const resp = await authFetch('/api/motion-eval', {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({
           frames,
           child,
@@ -147,9 +146,8 @@ export default function MotionVideoAssessment({
       const lowItems = CPMV_ITEMS
         .filter(it => { const s = itemStates[it.id].score; return s === 0 || s === 1; })
         .map(it => it.id);
-      const resp = await fetch('/api/motion-report', {
+      const resp = await authFetch('/api/motion-report', {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({
           child,
           total: { sum: r.sum, max: r.max, pct: r.pct, tested: r.testedIds.length },

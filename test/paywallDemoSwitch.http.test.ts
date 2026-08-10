@@ -22,11 +22,8 @@ const UNOWNED_NAME = '认知';
 
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
-  findUserByEmail: async () => null,
   findUserById: async () => null,
   listUnlockedDimensions: async () => [OWNED_DIMENSION],
-  createUser: async () => 1,
-  updateUserPassword: async () => {},
   getUserDataByUserId: async () => null,
   getUserDataByDevice: async () => null,
   saveUserData: async () => {},

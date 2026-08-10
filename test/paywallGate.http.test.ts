@@ -26,10 +26,7 @@ vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
   findUserById: async (id: number) =>
     id === ATTACKER_ID ? { id, email: 'attacker@test.com', password: 'x' } : null,
-  findUserByEmail: async () => null,
   listUnlockedDimensions: async (userId: number) => (userId === ATTACKER_ID ? [OWNED_DIMENSION] : []),
-  createUser: async () => ATTACKER_ID,
-  updateUserPassword: async () => {},
   getUserDataByUserId: async () => null,
   getUserDataByDevice: async () => null,
   saveUserData: async () => {},

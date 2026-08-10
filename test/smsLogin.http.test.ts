@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vites
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 
 /**
- * 手機號驗證碼登入（#25）。
+ * 手機號驗證碼登入（#25）—— #27 之後家長端**唯一**的入口。
  *
  * 純驗證碼登入沒有獨立的「註冊」動作 —— **第一次驗證成功即建立帳號**，
  * 歸屬在那一刻寫入，此後不變。
@@ -12,9 +12,9 @@ import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
  * 1. **同一支手機號在兩家合作公司是兩位家長**（ADR-0002）。全域唯一會讓家長在
  *    B 公司做的篩查覆蓋掉 A 公司的檔案，而 A 公司在後台看得到 —— 公司隔離的
  *    `WHERE` 條件擋不住這個，因為那是身分模型本身的洞。
- * 2. **資料庫寫不進去就是失敗。** 電子郵件註冊那條路吞掉例外、退回記憶體、
- *    仍回報成功並發 token；家長看到登入成功，帳號卻沒進資料庫，重啟就消失。
- *    這條路不得沿用那個作法。
+ * 2. **資料庫寫不進去就是失敗。** 已下線的電子郵件註冊那條路會吞掉例外、退回
+ *    記憶體、仍回報成功並發 token；家長看到登入成功，帳號卻沒進資料庫，重啟就
+ *    消失。這條路不沿用那個作法 —— 而它現在是唯一的一條。
  * 3. **簡訊沒送出去就不可以說送出去了。** 金鑰未設定時通道未開放，
  *    而不是一個安靜的成功。
  */
@@ -51,10 +51,8 @@ let companyLookupFails = false;
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
   findUserById: async (id: number) => users.find(u => u.id === id) ?? null,
-  findUserByEmail: async () => null,
   findUserByPhone: async (companyId: number | null, phone: string) =>
     users.find(u => u.phone === phone && companyKey(u.company_id) === companyKey(companyId)) ?? null,
-  createUser: async () => 1,
   createPhoneUser: async (phone: string, companyId: number | null) => {
     if (dbWriteFails) throw new Error('ER_NO_SUCH_TABLE: users.phone 不存在');
     const row = { id: nextUserId++, phone, email: null, company_id: companyId };
@@ -103,7 +101,6 @@ vi.mock('../src/db/mysql', () => ({
   },
   findCompanyByUserId: async () => null,
   listActiveSpecialists: async () => [],
-  updateUserPassword: async () => {},
   getUserDataByUserId: async () => null,
   getUserDataByDevice: async () => null,
   saveUserData: async () => {},

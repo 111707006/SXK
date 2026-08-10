@@ -74,8 +74,6 @@ pnpm run lint       # tsc --noEmit
 | `/api/db/status` | GET | 数据库状态 | 无 |
 | `/api/auth/sms/request` | POST | 索取登录验证码 | `phone`, `companySlug`（选填） |
 | `/api/auth/sms/verify` | POST | 核对验证码并登录 | `phone`, `code`, `companySlug`（选填） |
-| `/api/auth/register` | POST | 用户注册（旧版邮箱，#27 将移除） | `email`, `password` |
-| `/api/auth/login` | POST | 用户登录（旧版邮箱，#27 将移除） | `email`, `password` |
 | `/api/db/load` | GET | 加载用户数据 | 已登录：`Authorization: Bearer <token>`；未登录：`deviceId` (query) |
 | `/api/db/save` | POST | 保存用户数据 | `deviceId`, `child`, `completedScores`, `orders`, `reportHistory`（身分取自 token） |
 
@@ -83,10 +81,17 @@ pnpm run lint       # tsc --noEmit
 > 里的 `email` / `userId` 一律不被采信 —— 客户端送上来的识别键不是身分。资料层
 > （`src/db/mysql.ts`）同样只认使用者 id，护栏见 `test/userIdKey.structure.test.ts`。
 
-> **手机号登入**没有独立的「注册」动作：第一次验证成功即建立帐号，归属在那一刻
+> **手机号是家长端唯一的登入入口**（#27）。电子邮件注册与登入、登录页的「一键
+> 填充」展示帐号、以及密码验证的明文退路都已经移除；既有邮箱家长的资料列一列
+> 都没删，但**不提供认领路径**（取舍见 `docs/adr/0002-...`）。护栏测试：
+> `test/emailLoginRemoved.http.test.ts`。
+>
+> 纯验证码登入没有独立的「注册」动作：第一次验证成功即建立帐号，归属在那一刻
 > 写入，此后不变。帐号是以**（归属，手机号）**这一组去找的，不是手机号本身 ——
 > 同一支手机号在两家合作公司是**两位家长**（见 `docs/adr/0002-...`）。这条路径
-> **没有记忆体模式**：资料库写不进去就明确失败，不发 token。
+> **没有记忆体模式**：资料库写不进去就明确失败，不发 token。因此**没有资料库的
+> 部署（`/api/db/status` 回 `engine: memory`）家长根本登不进来**，只剩未登入的
+> 装置模式 —— 那是 #25 就选定的取舍，不是这次的退步。
 >
 > 短信通道是可抽换的一层（`src/sms.ts`），预设阿里云。`ALI_SMS_*` 未设齐时
 > `/api/auth/sms/request` 回 503「短信通道尚未开放」，**不会假装送出成功**。

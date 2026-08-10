@@ -66,9 +66,9 @@ export function isConfigured(): boolean {
 /**
  * 依使用者 id 取帳號。**這是身分被驗證之後唯一該走的查法。**
  *
- * 其他 `findUserBy*` 是登入那一刻把外部憑據換成帳號用的，一次登入只走一次；
+ * `findUserByPhone` 是登入那一刻把外部憑據換成帳號用的，一次登入只走一次；
  * 通行證發出去之後帶的是使用者 id，所以此後的每一次查詢都從這裡進來 ——
- * 換掉登入方式（電子郵件 → 手機號）時，動的是那一族函式，這一個不動。
+ * 換掉登入方式（電子郵件 → 手機號，#27）時動的是那一族，這一個一個字都沒改。
  */
 export async function findUserById(id: number): Promise<any | null> {
   const p = getPool();
@@ -77,13 +77,12 @@ export async function findUserById(id: number): Promise<any | null> {
   return (rows as any[])[0] || null;
 }
 
-/** 登入用：把電子郵件換成帳號。手機號登入上線後，這裡會多一個同族的兄弟。 */
-export async function findUserByEmail(email: string): Promise<any | null> {
-  const p = getPool();
-  if (!p) return null;
-  const [rows] = await p.execute('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
-  return (rows as any[])[0] || null;
-}
+// 電子郵件那一族（`findUserByEmail` / `createUser` / `updateUserPassword`）已於
+// #27 移除 —— 電子郵件登入下線之後，沒有任何一條路會用電子郵件去換帳號。
+//
+// **欄位與既有資料列都留在原地**：`users.email` / `users.password` 照舊，那些家長
+// 的孩子檔案與篩查結果一列都沒動。少的只是走回去的那條路，見
+// `docs/adr/0002-parent-identity-is-company-plus-phone.md`。
 
 /**
  * 未歸屬併成的那一個值。與資料庫的 `users.company_key` 生成欄位
@@ -117,11 +116,14 @@ export async function findUserByPhone(companyId: number | null, phone: string): 
 }
 
 /**
- * 建立手機號家長帳號，並在此刻**一次性**寫入歸屬。
+ * 建立家長帳號，並在此刻**一次性**寫入歸屬。#27 之後這是唯一建帳號的地方。
  *
- * 與 `createUser` 同一條紀律：`companyId` 只在這裡寫得進去。電子郵件與密碼兩欄
- * 皆留空 —— 純驗證碼登入沒有密碼，補一個假的進去只會讓「這個帳號能不能用密碼
- * 登入」變成一個要靠讀程式碼才答得出來的問題。
+ * `companyId` 只在這裡寫得進去。歸屬「建立時綁定、此後不變」不是靠一條紀律
+ * 維持的，而是靠沒有第二個地方改得到它 —— 已有帳號的家長再從別家公司的連結
+ * 進站時，這個函式根本不會被呼叫，於是歸屬自然不動。
+ *
+ * 電子郵件與密碼兩欄留空 —— 純驗證碼登入沒有密碼，補一個假的進去只會讓
+ * 「這個帳號能不能用密碼登入」變成一個要靠讀程式碼才答得出來的問題。
  *
  * 唯一鍵 `uk_company_phone` 撞上時**丟例外**，呼叫端不得吞掉：兩個同時進來的
  * 請求裡，先寫進去的那一個是帳號，另一個必須重查而不是再建一個。
@@ -220,29 +222,6 @@ export async function consumeSmsCode(id: number): Promise<boolean> {
   return (result as mysql.ResultSetHeader).affectedRows === 1;
 }
 
-/**
- * 建立家長帳號，並在此刻**一次性**寫入歸屬。
- *
- * `companyId` 只在這裡寫得進去。歸屬「註冊時綁定、此後不變」不是靠一條紀律
- * 維持的，而是靠沒有第二個地方改得到它 —— 已註冊的家長再從別家公司的連結
- * 進站時，`createUser` 根本不會被呼叫，於是歸屬自然不動。
- */
-export async function createUser(
-  email: string,
-  password: string,
-  companyId: number | null = null
-): Promise<number> {
-  const p = getPool();
-  if (!p) throw new Error('MySQL not configured');
-  // 回傳新帳號的 id：呼叫端**當場**就要用它簽通行證，再回頭用電子郵件查一次
-  // 等於讓「剛註冊的人是誰」這件事有第二條可能答錯的路。
-  const [result] = await p.execute(
-    'INSERT INTO users (email, password, company_id) VALUES (?, ?, ?)',
-    [email, password, companyId]
-  );
-  return (result as mysql.ResultSetHeader).insertId;
-}
-
 // ---- Partner company (project B multi-company) ----
 
 export interface CompanyRow {
@@ -334,17 +313,11 @@ function safeJsonArray(raw: string): string[] {
   }
 }
 
-export async function updateUserPassword(userId: number, password: string): Promise<void> {
-  const p = getPool();
-  if (!p) throw new Error('MySQL not configured');
-  await p.execute('UPDATE users SET password = ? WHERE id = ?', [password, userId]);
-}
-
 // ---- User data operations ----
 //
 // 孩子檔案、篩查分數與報告歷史一律以**使用者 id** 為鍵。這一族函式收不到電子
-// 郵件，也就不會在電子郵件下線的那一天跟著壞掉 —— 那時要換的只有「外部憑據
-// 換成帳號」的那一步（見 findUserByEmail 一族），資料層一個字都不必動。
+// 郵件，所以電子郵件下線的那一天（#27）它們一個字都不必改 —— 換掉的只有
+// 「外部憑據換成帳號」的那一步。這是當初把鍵換成使用者 id 的整個理由。
 
 export async function getUserDataByUserId(userId: number): Promise<any | null> {
   const p = getPool();

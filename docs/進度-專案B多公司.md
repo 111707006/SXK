@@ -63,6 +63,9 @@
   `src/main.tsx` 在 render 前呼叫 `captureCompanySlug()`。
 - `AuthScreen.tsx` 註冊時附上 `companySlug`；`server.ts` 的 `/api/auth/register` 用
   `resolveCompanyIdForSignup()` 換成 company id，**查不到一律未歸屬，不退回任何預設公司**。
+  > 2026-08-10（#27）：電子郵件那條路已下線，這一段換成 `/api/auth/sms/verify` 的
+  > `resolveCompanyScope()` —— 規則不變（查不到一律未歸屬），但**查不動時明確失敗**
+  > 而不是留空，理由見該函式的說明。
 - `GET /api/specialists`（新）：依家長歸屬回專家，並帶一個明確的 `reason`
   （`ok` / `unassigned` / `none_configured` / `unavailable`）。
 - `src/utils/specialists.ts`（新）+ `AnalysisReport.tsx` 改用它；

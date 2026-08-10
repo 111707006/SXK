@@ -3,31 +3,31 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * 資料層的識別鍵護欄（#15）。
+ * 資料層的識別鍵護欄（#15，於 #27 收緊）。
  *
- * 這次改動的整個價值就是一句話：**電子郵件下線時，資料層不必跟著動。**
- * 那句話有沒有成立，型別檢查看不出來 —— 明天有人寫一個
- * `getReportHistoryByEmail`，所有測試照樣全綠，而電子郵件下線的那一天它會
- * 安靜地壞掉，症狀是家長做完一次篩查什麼都沒存到。
+ * #15 的整個價值是一句話：**電子郵件下線時，資料層不必跟著動。**#27 把電子郵件
+ * 登入真的下線了，那句話兌現了 —— 這個檔案唯一的改動就是把允許清單清空。
  *
- * 所以這裡把它變成一個看得見的動作：想讓資料層再收一次電子郵件，得先來改
- * 這個檔案的允許清單。寫法參照 `test/adminScope.structure.test.ts`。
+ * 這條護欄留著的理由不變，只是門檻更高了：明天有人寫一個
+ * `getReportHistoryByEmail`，型別檢查看不出來，所有測試照樣全綠，而那個函式
+ * 是走回一條已經不存在的路。想這麼做，得先來改這個檔案的允許清單，
+ * 而現在那份清單是空的。寫法參照 `test/adminScope.structure.test.ts`。
  */
 
 const ROOT = path.resolve(__dirname, '..');
 const DB_PATH = 'src/db/mysql.ts';
 
 /**
- * 唯一允許收電子郵件的函式，每一個都要寫明理由。
+ * 允許收電子郵件的函式 —— **#27 之後一個都沒有。**
  *
- * 共同點：它們都是**登入那一刻**把外部憑據換成帳號用的，一次登入只走一次。
- * 手機號登入上線時，要換的是這一族；其餘每一個函式都以使用者 id 為鍵，一個字
- * 都不必動。
+ * 這裡曾經有兩個（`findUserByEmail` / `createUser`），共同點是「登入那一刻把
+ * 外部憑據換成帳號」。電子郵件登入下線之後那一步由 `findUserByPhone` /
+ * `createPhoneUser` 承接，兩者收的都不是電子郵件。
+ *
+ * 要往回加，每一個都要在這裡寫明理由 —— 而理由得先解釋這個系統為什麼又收得到
+ * 一個沒有任何入口會產生的值。
  */
-const EMAIL_ALLOWLIST: Record<string, string> = {
-  findUserByEmail: '電子郵件登入的查帳號那一步。手機號登入上線後由同族的 findUserByPhone 取代。',
-  createUser: '建立帳號時電子郵件是被寫入的欄位之一，不是用來找資料的鍵。',
-};
+const EMAIL_ALLOWLIST: Record<string, string> = {};
 
 function read(rel: string): string {
   return fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -79,10 +79,16 @@ describe('資料層以使用者 id 為鍵（#15）', () => {
 
   it('沒有任何一支查詢拿電子郵件去撈家長資料', () => {
     const sql = stripComments(read(DB_PATH));
-    // users 表以外的查詢一律不該出現 email 條件；users 表自己的那一句
-    // （findUserByEmail）是登入的入口，在允許清單裡。
-    const emailConditions = sql.match(/WHERE[^;]*?\bemail\s*=/gi) ?? [];
-    expect(emailConditions).toHaveLength(1);
-    expect(sql).toContain('SELECT * FROM users WHERE email = ?');
+    // #27 之前這裡容許一句（`findUserByEmail`，登入的入口）。那個入口不在了，
+    // 於是這個數字是零 —— 資料層完全不認得電子郵件這個鍵。
+    expect(sql.match(/WHERE[^;]*?\bemail\s*=/gi) ?? []).toEqual([]);
+  });
+
+  it('也不再寫入電子郵件與密碼 —— 欄位留著，但沒有程式碼碰它們', () => {
+    // 欄位本身留在 `deploy/schema.sql` 裡（既有家長的資料不刪），
+    // 但建帳號那一句只寫得進手機號與歸屬。
+    const sql = stripComments(read(DB_PATH));
+    expect(sql).not.toMatch(/INSERT\s+INTO\s+users\s*\([^)]*\bemail\b/i);
+    expect(sql).not.toMatch(/UPDATE\s+users\s+SET\s+password/i);
   });
 });

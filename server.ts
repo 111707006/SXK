@@ -182,8 +182,7 @@ app.use('/api/expert-booking', bookingLimiter);
 app.use('/api/admin/login', authLimiter);
 app.use(['/api/report', '/api/specialized-report', '/api/motion-eval',
   '/api/motion-report', '/api/ali-language-eval', '/api/asr'], aiLimiter);
-app.use(['/api/auth/login', '/api/auth/register',
-  '/api/auth/sms/request', '/api/auth/sms/verify'], authLimiter);
+app.use(['/api/auth/sms/request', '/api/auth/sms/verify'], authLimiter);
 
 // ── Auth: password hashing (bcrypt) + stateless HMAC session tokens ──
 const BCRYPT_ROUNDS = 10;
@@ -203,10 +202,12 @@ function b64url(buf: Buffer | string): string {
 /**
  * 一位家長的識別鍵 —— **通行證裡裝的、資料層唯一認得的那個值**。
  *
- * 有資料庫時是 `users.id` 的十進位字串；記憶體模式是 `mem:N`。前綴刻意不同：
- * 註冊在資料庫寫入失敗時會退回記憶體，兩種帳號因此可能同時活在一個行程裡，
- * 而兩邊各自從 1 開始編號 —— 沒有前綴的話，記憶體的 1 號會讀到資料庫 1 號的
- * 孩子檔案。
+ * `users.id` 的十進位字串。#27 之後只有這一種來源 —— 登入只剩手機號，而那條
+ * 路徑寫不進資料庫就明確失敗，不會發出一張指向記憶體帳號的通行證。
+ *
+ * 電子郵件註冊那條路曾經發過 `mem:N` 形狀的識別鍵（資料庫寫入失敗時退回記憶
+ * 體），舊的通行證因此可能還在某些瀏覽器裡。`toDbUserId` 的非數字防線留著，
+ * 就是為了那些 token：拿 `mem:3` 去 `WHERE id = 3` 會讀到別人的孩子檔案。
  *
  * 對外不做任何承諾：它是不透明的字串，客戶端只負責原封不動送回來。
  */
@@ -268,23 +269,17 @@ async function findSessionUser(userId: UserId | null): Promise<any | null> {
   return mysqlDb.findUserById(id);
 }
 
-async function hashPassword(plain: string): Promise<string> {
+/**
+ * 雜湊一個一次性的秘密。#27 之後只剩**驗證碼**這一個呼叫端 —— 密碼登入已經
+ * 下線，這個系統不再收任何一組密碼，函式名字也就不再提到密碼。
+ *
+ * 一併消失的是舊的 `verifyPassword`：它對非 bcrypt 的儲存值會退回
+ * `明文 === 明文`，而那條退路在驗證碼上是一個洞（`sms_codes` 裡若因故存進明碼，
+ * 明碼會直接比對成功，唯一的症狀是「登入正常」）。核對驗證碼因此直接用
+ * `bcrypt.compare`，沒有任何一條非雜湊的旁路。
+ */
+async function hashSecret(plain: string): Promise<string> {
   return bcrypt.hash(plain, BCRYPT_ROUNDS);
-}
-
-function looksHashed(stored: string): boolean {
-  return typeof stored === 'string' && /^\$2[aby]\$/.test(stored);
-}
-
-// True if the password matches. Supports legacy plaintext rows so existing
-// accounts keep working; callers upgrade the stored value to a hash on success.
-//
-// ⚠️ 只給**密碼**用。驗證碼一律走 `bcrypt.compare` —— 這個函式對非 bcrypt 值會
-// 退回明文比對，那條退路對驗證碼是一個洞：`sms_codes` 裡若因故存進明碼，
-// 明碼會直接比對成功，而唯一的症狀是「登入正常」。
-async function verifyPassword(plain: string, stored: string): Promise<boolean> {
-  if (looksHashed(stored)) return bcrypt.compare(plain, stored);
-  return plain === stored;
 }
 
 // ── 手機號驗證碼登入（#25）──
@@ -1188,38 +1183,20 @@ tier2Only.post('/api/asr', async (req: express.Request, res: express.Response) =
 // MySQL (Alibaba Cloud RDS) integration
 // mysqlDb imported at top of file
 
-// Offline-mode fallback in-memory datastores (used when MySQL is not configured)
+// Offline-mode fallback in-memory datastore (used when MySQL is unavailable)
 //
-// 兩張表的鍵刻意不同，而那正是這次改動的形狀：
-//   offlineUsers    以**電子郵件**為鍵 —— 登入時把外部憑據換成帳號用的，
-//                   換成手機號登入時整張表跟著換鍵。
-//   offlineUserData 以**使用者 id** 為鍵 —— 孩子檔案與分數認的是帳號本身，
-//                   登入方式怎麼變都不關它的事。
-const offlineUsers = new Map<string, any>();
+// 以**使用者 id** 為鍵：孩子檔案與分數認的是帳號本身，登入方式怎麼變都不關
+// 它的事 —— 電子郵件下線的這一次，這張表一個字都不必動。
+//
+// #27 之後**沒有任何一條路會在記憶體裡建帳號**：登入只剩手機號，而那條路徑
+// 沒有記憶體模式（寫不進資料庫就明確失敗，見 `/api/auth/sms/verify`）。
+// 這張表因此只剩一個用途：已登入的家長遇上資料庫暫時寫不進去時的熱備份。
 const offlineUserData = new Map<UserId, any>();
 
-// 記憶體帳號的編號。`mem:` 前綴讓它永遠不會被誤認成資料庫的 users.id
-// （見 UserId 的說明）。
-let nextOfflineUserSeq = 1;
-
-function createOfflineUser(email: string, password: string): any {
-  const user = { id: `mem:${nextOfflineUserSeq++}` as UserId, email, password };
-  offlineUsers.set(email, user);
-  return user;
-}
 // Bookings taken while MySQL is unconfigured. Lost on restart — acceptable for
 // demos, NOT for production: a real booking that vanishes is a parent left
 // waiting for a call. The response tells the client which mode it landed in.
 const offlineBookings: any[] = [];
-
-// 展示用的固定測試帳號 —— 刻意保留，讓客戶與合作方免註冊即可試用。
-// 登入頁的「一鍵填充」按鈕（AuthScreen.tsx）對應的就是這一組。
-//
-// 已知且已接受的取捨：記憶體模式不只在本機，未設定 MYSQL_* 時線上站台
-// （目前的 sxk.onrender.com）也跑這個模式，而 verifyPassword 對非 bcrypt 值
-// 會退回明文比對 —— 也就是說這組帳密在公開站台上等同人人可登入。
-// 正式收費環境接上 MySQL 後，這個記憶體分支不會生效。
-createOfflineUser('test@test.com', '123456');
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 2500): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -1687,168 +1664,27 @@ app.post('/api/expert-booking', async (req, res) => {
   }
 });
 
-/**
- * 把進站識別碼換成合作公司 id —— 電子郵件註冊那條路的歸屬取得處。
- *
- * 三種情況都回 `null`，而 `null` 的意思是**未歸屬**，不是「用預設的那一家」：
- * 沒帶識別碼、識別碼查無此公司、該公司已停用。
- * 打錯一個字元就把一位家長的孩子的健康資料送給錯的機構，所以這裡沒有退路可退。
- *
- * **查詢失敗時也留空**：這裡處理的一定是一個全新的帳號（已註冊的走登入那條
- * 路），而未歸屬是一個正常狀態。手機號那條路不能這樣做 —— 它用同一個答案決定
- * 「該去哪一個範圍找既有帳號」，見 `resolveCompanyScope` 的說明。
- */
-async function resolveCompanyIdForSignup(raw: unknown): Promise<number | null> {
-  const scope = await resolveCompanyScope(raw);
-  if (scope.ok) return scope.companyId;
-  // 查不動就當作未歸屬。猜一家公司塞進去是不可逆的錯誤 —— 歸屬此後不再改變。
-  console.warn('[Company] 归属查询失败，该家长归属留空。');
-  return null;
-}
-
-// Endpoint to register user account
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { email, password, companySlug } = req.body;
-    if (!email || !password) {
-      res.status(400).json({ error: '请填写完整的邮箱和密码' });
-      return;
-    }
-
-    const hashed = await hashPassword(password);
-
-    if (mysqlDb.isConfigured()) {
-      try {
-        const existing = await withTimeout(mysqlDb.findUserByEmail(email), 2000);
-        if (existing) {
-          res.status(400).json({ error: '该邮箱已被注册，请直接登录' });
-          return;
-        }
-        // 歸屬只在建立帳號的這一刻寫入。已註冊的家長再從別家公司的連結進站時
-        // 走的是登入那條路，這裡根本不會執行，歸屬因此不會被改動。
-        const companyId = await resolveCompanyIdForSignup(companySlug);
-        const newUserId = await withTimeout(mysqlDb.createUser(email, hashed, companyId), 2000);
-        console.log(`[MySQL] Registered account: ${email} (company: ${companyId ?? '未归属'})`);
-        // 通行證帶的是剛寫進去的那一個 id。回頭用電子郵件查一次也拿得到，
-        // 但那是第二條可能答錯的路 —— 註冊當下就知道的事不必再問一次。
-        res.json({ success: true, email, token: signToken(String(newUserId)) });
-        return;
-      } catch (dbErr: any) {
-        console.warn('[MySQL] Registration failed, falling back to memory:', dbErr.message);
-      }
-    }
-
-    // In-memory fallback
-    if (offlineUsers.has(email)) {
-      res.status(400).json({ error: '该邮箱已被注册，请直接登录' });
-      return;
-    }
-    const offlineUser = createOfflineUser(email, hashed);
-    console.log(`[Memory] Registered local account fallback: ${email}`);
-    res.json({ success: true, email, token: signToken(offlineUser.id) });
-  } catch (err: any) {
-    console.error('[Auth Register Error]:', err.message);
-    res.status(500).json({ error: `注册失败: ${err.message}` });
-  }
-});
-
-// Endpoint to login user account
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      res.status(400).json({ error: '请填写邮箱和密码' });
-      return;
-    }
-
-    let authenticatedUser = null;
-
-    if (mysqlDb.isConfigured()) {
-      try {
-        const found = await withTimeout(mysqlDb.findUserByEmail(email), 2000);
-        if (found && await verifyPassword(password, found.password)) {
-          authenticatedUser = found;
-          // Transparently upgrade legacy plaintext rows to a bcrypt hash.
-          if (!looksHashed(found.password)) {
-            try {
-              await withTimeout(mysqlDb.updateUserPassword(found.id, await hashPassword(password)), 2000);
-              console.log(`[MySQL] Upgraded legacy password to bcrypt for ${email}`);
-            } catch (upErr: any) {
-              console.warn('[MySQL] Password upgrade failed (non-fatal):', upErr.message);
-            }
-          }
-        }
-      } catch (dbErr: any) {
-        console.warn('[MySQL] Login query failed, falling back to memory:', dbErr.message);
-      }
-    }
-
-    if (!authenticatedUser) {
-      const found = offlineUsers.get(email);
-      if (found && await verifyPassword(password, found.password)) {
-        authenticatedUser = found;
-        if (!looksHashed(found.password)) {
-          found.password = await hashPassword(password);
-        }
-      }
-    }
-
-    if (!authenticatedUser) {
-      res.status(401).json({ error: '邮箱或密码错误，请重新输入' });
-      return;
-    }
-
-    // 認證到此為止 —— 從這一行之後，這位家長就只剩下一個識別鍵。
-    // 電子郵件只再出現在回應裡（畫面上顯示的是它），不再參與任何一次讀寫。
-    const sessionUserId: UserId = String(authenticatedUser.id);
-    const dbUserId = toDbUserId(sessionUserId);
-
-    // Load associated child data
-    let child = null;
-    let completedScores: any[] = [];
-    let orders: any[] = [];
-    let reportHistory: any[] = [];
-
-    if (mysqlDb.isConfigured() && dbUserId !== null) {
-      try {
-        const row = await withTimeout(mysqlDb.getUserDataByUserId(dbUserId), 2000);
-        if (row) {
-          const parsed = mysqlDb.parseUserDataRow(row);
-          child = parsed.child;
-          completedScores = parsed.completedScores;
-          orders = parsed.orders;
-          reportHistory = parsed.reportHistory;
-        }
-      } catch (dbErr: any) {
-        console.warn('[MySQL] Load user data failed:', dbErr.message);
-      }
-    }
-
-    if (!child && !completedScores.length) {
-      const data = offlineUserData.get(sessionUserId);
-      if (data) {
-        child = data.child || null;
-        completedScores = data.completedScores || [];
-        orders = data.orders || [];
-        reportHistory = data.reportHistory || [];
-      }
-    }
-
-    res.json({ success: true, email: authenticatedUser.email, token: signToken(sessionUserId), child, completedScores, orders, reportHistory });
-  } catch (err: any) {
-    console.error('[Auth Login Error]:', err.message);
-    res.status(500).json({ error: `登录失败: ${err.message}` });
-  }
-});
+// ── 電子郵件註冊與登入已於 #27 移除 ──
+//
+// 手機號驗證碼是家長端唯一的入口（`/api/auth/sms/*`，見下方）。既有電子郵件
+// 家長的資料列留在資料庫裡一列都沒動，但**不提供認領路徑** —— 那個代價在
+// grilling 階段已明確提出並由產品端選定，見
+// `docs/adr/0002-parent-identity-is-company-plus-phone.md`。
+//
+// 一併消失的還有：展示用的明文種子帳號、記憶體模式的帳號表，以及那條在資料庫
+// 寫入失敗時吞掉例外、退回記憶體、仍回報成功並發 token 的路 —— 家長看到註冊
+// 成功、帳號卻在下次重啟時消失，那不是降級，是靜默的資料遺失。
 
 /**
  * 這次登入落在哪一個歸屬範圍。
  *
- * 與 `resolveCompanyIdForSignup` 是**兩件不同的事**，所以是兩個函式：
- * 那一個回答「這個新帳號屬於誰」，查不動就留空即可；這一個回答「該去哪一個
- * 範圍找這位家長的既有帳號」，查不動時**沒有安全的預設值** —— 退成未歸屬會讓
- * 一位歸屬甲公司的家長在那一刻查不到自己的帳號，於是在未歸屬範圍內被建出
- * 第二個，孩子的檔案與分數留在他再也走不回去的那一個帳號裡。
+ * 「查不到公司」與「查不動」是**兩個不同的答案**，所以回的是一個可辨別的
+ * union，而不是一個 `number | null`：
+ *
+ *   - 查不到（沒帶識別碼、識別碼無效）→ 未歸屬，是一個確定且正常的答案。
+ *   - 查不動（逾時、資料庫掛了）→ **沒有安全的預設值**。退成未歸屬會讓一位
+ *     歸屬甲公司的家長在那一刻查不到自己的帳號，於是在未歸屬範圍內被建出
+ *     第二個，孩子的檔案與分數留在他再也走不回去的那一個帳號裡。
  *
  * 因此查詢失敗時明確失敗，讓家長重試一次。
  */
@@ -1867,8 +1703,8 @@ async function resolveCompanyScope(raw: unknown): Promise<CompanyScope> {
     }
     return { ok: true, companyId: company.id };
   } catch (err: any) {
-    // 只报告「查不动」这件事。**怎么处置由呼叫端决定** —— 註冊那條路留空即可，
-    // 登入那條路必須拒絕，兩者在這裡各说各的会让日志与实际行为对不上。
+    // 只报告「查不动」这件事，不在这里替呼叫端决定怎么处置 ——
+    // 那个决定写在 `/api/auth/sms/verify` 里，而且只有一种：拒绝这次登入。
     console.warn('[Company] 归属查询失败:', err.message);
     return { ok: false, detail: err.message };
   }
@@ -1881,9 +1717,9 @@ async function resolveCompanyScope(raw: unknown): Promise<CompanyScope> {
  * 重試一次就好；反過來的話，一則已經送達的驗證碼會因為那一列沒進資料庫而
  * 永遠驗不了，而家長手上拿著它。
  *
- * 這條路徑**沒有記憶體模式**。電子郵件註冊那條路吞掉資料庫例外、退回記憶體、
- * 仍回報成功並發 token —— 家長看到成功，帳號卻在下次重啟時消失。那不是降級，
- * 是靜默的資料遺失，這裡不沿用。
+ * 這條路徑**沒有記憶體模式**。已經下線的電子郵件註冊那條路會吞掉資料庫例外、
+ * 退回記憶體、仍回報成功並發 token —— 家長看到成功，帳號卻在下次重啟時消失。
+ * 那不是降級，是靜默的資料遺失，這條路不沿用。
  */
 app.post('/api/auth/sms/request', async (req, res) => {
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
@@ -1918,7 +1754,7 @@ app.post('/api/auth/sms/request', async (req, res) => {
     codeId = await withTimeout(mysqlDb.createSmsCode({
       phone,
       // 只存雜湊。這一列若是明碼，任何一份備份都等同一把能登入的鑰匙。
-      codeHash: await hashPassword(code),
+      codeHash: await hashSecret(code),
       expiresAt: new Date(Date.now() + SMS_CODE_TTL_MS),
       requestIp: req.ip ?? null,
     }), 2000);
@@ -1984,8 +1820,9 @@ app.post('/api/auth/sms/verify', async (req, res) => {
       return;
     }
 
-    // 刻意用 bcrypt.compare 而不是 verifyPassword：後者對非 bcrypt 值會退回
-    // 明文比對，那條為舊密碼保留的退路對驗證碼是一個洞（見 verifyPassword）。
+    // 直接比對雜湊，沒有任何一條「儲存值不像雜湊就當明文比」的旁路 ——
+    // `sms_codes` 裡若因故存進明碼，那條旁路會讓明碼直接通過，
+    // 而唯一的症狀是「登入正常」。（那正是 #27 一併移除的舊 verifyPassword。）
     if (!(await bcrypt.compare(code, row.code_hash))) {
       await withTimeout(mysqlDb.incrementSmsCodeAttempts(row.id), 2000);
       const left = SMS_CODE_MAX_ATTEMPTS - (Number(row.attempts) + 1);

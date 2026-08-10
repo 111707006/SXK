@@ -230,10 +230,13 @@ describe('後台登入與角色（#3）', () => {
     expect(await wrong.json()).toEqual(await missing.json());
   });
 
-  it('家長端的登入完全不受影響', async () => {
-    const resp = await client.postJson('/api/auth/login', { email: 'test@test.com', password: '123456' });
-    expect(resp.status).toBe(200);
-    expect((await resp.json()).success).toBe(true);
+  it('家長端的登入完全不受影響 —— 後台那套驗證沒有蓋到它', async () => {
+    // 家長端走的是手機號（#27 之後唯一的入口）。這個部署沒有資料庫，所以它會
+    // 用**自己的**理由回答（手機號格式不對 → 400），而不是後台那套
+    // ADMIN_UNAUTHENTICATED 401 —— 後者才代表中介層掛錯了地方。
+    const resp = await client.postJson('/api/auth/sms/request', { phone: 'not-a-phone' });
+    expect(resp.status).toBe(400);
+    expect((await resp.json()).code).toBeUndefined();
   });
 
   it('後台不可用時（沒有資料庫）明確回 503，而不是假裝空資料', async () => {

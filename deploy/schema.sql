@@ -43,7 +43,9 @@ CREATE TABLE IF NOT EXISTS `users` (
   -- 筛查结果。唯一性建在下面的 uk_company_phone 上，理由见
   -- docs/adr/0002-parent-identity-is-company-plus-phone.md。
   `phone` VARCHAR(20) DEFAULT NULL,
-  -- email / password 为旧版邮箱登入保留；新用户两栏皆为 NULL
+  -- email / password：**旧版邮箱登入的遗迹，已无任何程式码读写这两栏**（#27）。
+  -- 刻意留着而不 DROP：那是既有邮箱家长的资料，删掉等于把他们的孩子档案
+  -- 与筛查结果一并抹掉。新帐号两栏皆为 NULL。
   `email` VARCHAR(255) DEFAULT NULL UNIQUE,
   `password` VARCHAR(255) DEFAULT NULL,
   `device_id` VARCHAR(255) DEFAULT NULL,
@@ -308,9 +310,14 @@ CREATE TABLE IF NOT EXISTS `intervention_materials` (
 -- 进到她在甲公司的既有帐号。
 
 -- ============================================================
--- 展示用测试帐号
+-- 展示用测试帐号：已于 #27 移除
 -- ============================================================
--- 刻意保留：让客户与合作方免注册即可试用，对应登录页的「一键填充」按钮。
--- 密码为明文 123456 —— server.ts 的 verifyPassword 对非 bcrypt 值会退回明文比对，
--- 因此这组帐密在任何对外站台上等同人人可登入。这是已知且已接受的取舍。
-INSERT IGNORE INTO `users` (`email`, `password`) VALUES ('test@test.com', '123456');
+-- 原本这里会种一列 test@test.com / 明文 123456，对应登录页的「一键填充」按钮。
+-- 电子邮件登入下线之后，那一列既进不来（没有路由收它）也不该留着 ——
+-- 一组印在登录页上的明文帐密，配上「储存值不像雜湊就当明文比」的旧退路，
+-- 等于任何对外站台都人人可登入。两者都在 #27 一起消失。
+--
+-- 已经跑过旧版 schema 的资料库里那一列还在，**本档不删它** ——
+-- 这份脚本不碰既有资料列。要清掉的话请自行确认后手动执行：
+--   DELETE FROM `users` WHERE `email` = 'test@test.com';
+-- 它现在是一列没有任何登入路径走得到的资料。

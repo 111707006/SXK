@@ -5,7 +5,9 @@
 #       付費功能在 Render 上永遠不可能成立。正式環境是阿里雲 + sxkscreen.com。
 #    2. 免費方案閒置後會休眠，喚醒約需 50 秒，第一次開會很慢。
 #    3. 未設定 MYSQL_* 時後端跑「記憶體模式」，重啟即失去所有資料
-#       （/api/db/status 會回 engine: memory）。展示時別演示「註冊後回來看報告」。
+#       （/api/db/status 會回 engine: memory）。#27 之後**家長在這個模式下登不進來**：
+#       登入只剩手機號驗證碼，而那條路徑沒有記憶體模式（驗證碼要寫得進資料庫才算數）。
+#       要演示登入後的流程，這個 service 就得接上 MYSQL_* 與 ALI_SMS_*。
 #
 # 部署方式：Render Dashboard → New → Blueprint → 指向這個 repo。
 # 標記 sync: false 的變數要在各 service 的 Environment 頁面手動填。

@@ -26,9 +26,6 @@ vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
   findUserById: async (id: number) =>
     id === PARENT_ID || id === OTHER_ID ? { id, email: `u${id}@x.com`, company_id: null } : null,
-  findUserByEmail: async () => null,
-  createUser: async () => 1,
-  updateUserPassword: async () => {},
   getUserDataByUserId: async (userId: number) => {
     loadedByUserId.push(userId);
     return userId === PARENT_ID ? { child: JSON.stringify({ name: '小明' }) } : null;

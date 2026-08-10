@@ -33,8 +33,16 @@ function booking(overrides: Partial<BookingNotification> = {}): BookingNotificat
     childGender: 'boy',
     preferredSlot: '周四上午',
     reportSummary: '语言沟通（临界 5/8）',
+    serviceType: 'online_consult',
     ...overrides,
   };
+}
+
+/** 送出一則通知並取回實際貼進企業微信群的那段文字。 */
+async function sentText(overrides: Partial<BookingNotification> = {}): Promise<string> {
+  process.env.WECOM_WEBHOOK_URL = GLOBAL_HOOK;
+  await notifyExpertBooking(booking(overrides));
+  return posts[0].body.text.content as string;
 }
 
 let warn: ReturnType<typeof vi.spyOn>;
@@ -91,5 +99,70 @@ describe('預約通知依家長的歸屬送出', () => {
     const results = await notifyExpertBooking(booking({ companyName: null, companyWebhookUrl: null }));
     expect(results.every(r => !r.ok)).toBe(true);
     expect(error.mock.calls.flat().join(' ')).toContain('未归属');
+  });
+});
+
+/**
+ * 四種諮詢（issue #21）。
+ *
+ * 驗收條件寫的是「客服在通知裡看得出是哪一種」。這一組把那句話釘成斷言 ——
+ * 四種共用同一張表、同一個通知，所以**這段文字是客服唯一分得出來的地方**。
+ * 分不出來的代價是具體的：客服照著線上的流程回電，而家長在機構門口等。
+ */
+describe('通知帶得出是哪一種服務', () => {
+  it.each([
+    ['online_consult', '线上咨询说明'],
+    ['online_training', '线上干预训练指导'],
+    ['offline_training', '线下干预训练'],
+    ['offline_consult', '线下咨询'],
+  ] as const)('%s 的訊息裡寫著「%s」', async (serviceType, label) => {
+    expect(await sentText({ serviceType })).toContain(label);
+  });
+
+  /**
+   * 類型要在**第一行**。
+   *
+   * 企業微信的群訊息在通知列與訊息清單裡只看得到開頭那一截，而客服一天要掃
+   * 過幾十則 —— 埋在第六行的服務類型等於要求他每一則都點開來看。
+   */
+  it('服務類型出現在第一行', async () => {
+    const firstLine = (await sentText({ serviceType: 'offline_training' })).split('\n')[0];
+    expect(firstLine).toContain('线下干预训练');
+  });
+
+  /**
+   * 線下要說出地點不在系統裡。
+   *
+   * 這是本 issue 的取捨：據點資訊常變，寫進系統只會多一張要維護的表，改由
+   * 客服接手安排。少了這一行，客服會在預約單上找一個從來不存在的地址欄位。
+   */
+  it.each(['offline_training', 'offline_consult'] as const)(
+    '%s 明說地點由客服與家長約定',
+    async serviceType => {
+      const text = await sentText({ serviceType });
+      expect(text).toContain('地点');
+      expect(text).toContain('客服');
+    }
+  );
+
+  // 線上的沒有地點可談，多一行只會變成每則都有的雜訊。
+  it.each(['online_consult', 'online_training'] as const)(
+    '%s 不加那一行地點說明',
+    async serviceType => {
+      expect(await sentText({ serviceType })).not.toContain('地点');
+    }
+  );
+
+  /**
+   * 既有的線上諮詢說明行為不變（本 issue 的驗收條件之一）。
+   *
+   * 這一條是把 issue #11 的那幾條再驗一次：加了服務類型之後，原本每一項
+   * 都還在。少了它，「加一行」與「換掉一段」在測試上分不出來。
+   */
+  it('原本就有的每一項都還在', async () => {
+    const text = await sentText({ serviceType: 'online_consult', companyName: '甲机构' });
+    for (const fragment of ['甲机构', '张妈妈', '13800138000', '王医师', '周四上午', '语言沟通（临界 5/8）']) {
+      expect(text, fragment).toContain(fragment);
+    }
   });
 });

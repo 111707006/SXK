@@ -10,9 +10,17 @@
  */
 
 import axios from 'axios';
+import { describeServiceType, serviceTypeLabel, type ServiceType } from './utils/serviceTypes';
 
 export interface BookingNotification {
   bookingId: number | null;
+  /**
+   * 四種服務中的哪一種（issue #21）。
+   *
+   * 四種共用同一張表、同一個通知，所以**這則訊息是客服唯一分得出來的地方**。
+   * 分不出來的代價很具體：客服照著線上的流程回電，而家長在機構門口等。
+   */
+  serviceType: ServiceType;
   specialistName: string;
   parentName: string;
   parentPhone: string;
@@ -38,8 +46,13 @@ export interface NotifyResult {
 
 /** Human-readable digest shared by both channels. */
 function formatBooking(n: BookingNotification): string {
+  const service = describeServiceType(n.serviceType);
+
   const lines = [
-    '【森心康】新的专家咨询预约',
+    // 服務類型放在**第一行**（issue #21）。企業微信的通知列與訊息清單只看得到
+    // 開頭那一截，而客服一天要掃過幾十則 —— 埋在第六行的類型等於要求他每一則
+    // 都點開來看。
+    `【森心康】新的预约：${serviceTypeLabel(n.serviceType)}`,
     // 全域退路可能同時收到多家公司的預約，所以抬頭要說得出這是誰的。
     ...(n.companyName ? [`合作公司：${n.companyName}`] : []),
     `预约编号：${n.bookingId ?? '（未入库，记忆体模式）'}`,
@@ -52,6 +65,14 @@ function formatBooking(n: BookingNotification): string {
     lines.push(`孩子：${n.childAgeMonth} 个月　${gender}`);
   }
   if (n.reportSummary) lines.push(`筛查摘要：${n.reportSummary}`);
+
+  // 線下的地點**不在系統裡**，這是本 issue 的取捨：據點資訊常變，寫進系統只會
+  // 多一張要維護的表。少了這一行，客服會在預約單上找一個從來不存在的地址欄位。
+  // 線上的沒有地點可談，多一行只會變成每則都有的雜訊。
+  if (service.venue === 'offline') {
+    lines.push('线下地点：不在系统内，请客服致电与家长约定后于后台改为 scheduled。');
+  }
+
   return lines.join('\n');
 }
 

@@ -191,6 +191,17 @@ CREATE TABLE IF NOT EXISTS `expert_bookings` (
   -- 提供给专家的 T1 报告摘要
   `report_summary` TEXT,
   `preferred_slot` VARCHAR(64) DEFAULT NULL,
+  -- 四种服务共用这一张表（issue #21）。字串与 src/utils/serviceTypes.ts 的
+  -- ServiceType 逐字对应。
+  --
+  -- DEFAULT 是 'online_consult' 而不是不给预设：这个栏位是后加的，既有的每一列
+  -- 都是线上咨询说明，而旧版程式码的 INSERT 不会带这一栏。
+  --
+  -- **线下的地点不在这张表里，也不在任何一张表里** —— 据点资讯常变，写进系统
+  -- 只会多一张要维护的表。下面那个 status 流转本来就是为「由客服接手安排」
+  -- 设计的：new → contacted（客服打过电话了）→ scheduled（时间地点谈定了）→ done。
+  `service_type` ENUM('online_consult','online_training','offline_training','offline_consult')
+    NOT NULL DEFAULT 'online_consult',
   `status` ENUM('new','contacted','scheduled','done','cancelled') NOT NULL DEFAULT 'new',
   -- 短信／企业微信通知送出的时间
   `notified_at` DATETIME DEFAULT NULL,
@@ -198,6 +209,8 @@ CREATE TABLE IF NOT EXISTS `expert_bookings` (
   INDEX `idx_status_created` (`status`, `created_at`),
   INDEX `idx_parent_phone` (`parent_phone`),
   INDEX `idx_device_id` (`device_id`),
+  -- 客服照服务类型分工（线上排连线、线下排时间地点），后台会照这个筛。
+  INDEX `idx_service_created` (`service_type`, `created_at`),
   CONSTRAINT `fk_bookings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

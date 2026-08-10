@@ -48,6 +48,15 @@ export interface ParentBooking {
   parentPhone: string;
   preferredSlot: string | null;
   reportSummary: string | null;
+  /**
+   * 四種服務中的哪一種（issue #21）。
+   *
+   * **型別是 `string` 而不是 `ServiceType`**：這個值來自資料庫，而遷移之前存下的
+   * 舊列讀出來可能是任何東西。宣告成聯集型別只會讓「編譯器說它一定是四種之一」
+   * 這件事在執行期不成立 —— 畫面該做的是把認不得的值顯示成「未记录服务类型」
+   * （見 `serviceTypeLabel`），不是假設它不會發生。
+   */
+  serviceType: string;
   status: string;
   createdAt: string | null;
 }
@@ -294,7 +303,7 @@ export async function getParentDetail(
   // 那會讓一次判斷產生兩種範圍。
   const [bookingRows] = await p.execute(
     `SELECT b.id, b.specialist_id, b.parent_name, b.parent_phone, b.preferred_slot,
-            b.report_summary, b.status, b.created_at,
+            b.report_summary, b.service_type, b.status, b.created_at,
             s.name AS specialist_name
        FROM expert_bookings b
        JOIN users u ON u.id = b.user_id
@@ -324,6 +333,9 @@ export async function getParentDetail(
       parentPhone: b.parent_phone,
       preferredSlot: b.preferred_slot ?? null,
       reportSummary: b.report_summary ?? null,
+      // 空字串而不是 null：遷移之前的舊列讀出來沒有這一欄，而 `serviceTypeLabel`
+      // 對認不得的值一律說「未记录服务类型」—— 那正是實情，不必再分兩種空。
+      serviceType: typeof b.service_type === 'string' ? b.service_type : '',
       status: b.status,
       createdAt: toIso(b.created_at),
     })),

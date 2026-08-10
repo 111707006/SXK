@@ -78,6 +78,13 @@ pnpm run lint       # tsc --noEmit
 | `/api/db/save` | POST | 保存用户数据 | `deviceId`, `child`, `completedScores`, `orders`, `reportHistory`（身分取自 token） |
 | `/api/report-link` | POST | 取得该份报告的扫码连结与二维码 | `reportId`；`Authorization: Bearer <token>` |
 | `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**） | 无 |
+| `/api/expert-booking` | POST | 送出专家预约（四种服务共用） | `specialistId`, `parentName`, `parentPhone`；`serviceType` 选填 |
+
+> 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／
+> `offline_training`／`offline_consult` 之一，定义在 `src/utils/serviceTypes.ts`。
+> **不带这一栏 = 线上咨询说明**（既有行为，旧版前端不送它）；**带了但认不得就回 400**，
+> 不悄悄落回预设 —— 那会让家长约的线下训练变成一笔线上咨询，而画面上看不出来。
+> 线下的地点不进系统，由客服接手安排（见 CONTEXT.md「服務類型」）。
 
 > 扫码带走的报告连结（#22）**永久有效且没有撤回手段** —— 二维码被拍到就等于那份
 > 报告永久公开。此取舍由产品端在规格阶段选定，不是遗漏；剩下的防线是 token 猜不到

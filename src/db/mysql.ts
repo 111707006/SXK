@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import type { ServiceType } from '../utils/serviceTypes';
 
 let pool: mysql.Pool | null = null;
 
@@ -550,6 +551,15 @@ export interface ExpertBookingInput {
   /** Flagged-dimension digest handed to the specialist before the call. */
   reportSummary: string | null;
   preferredSlot: string | null;
+  /**
+   * Which of the four services this is (issue #21). All four share this table,
+   * one notification and one admin tab — this column is the only difference.
+   *
+   * No default here on purpose: the column has one in the schema, but a caller
+   * that forgets to pass it should be a type error rather than a booking that
+   * quietly lands as "线上咨询说明" while the parent expects to be seen in person.
+   */
+  serviceType: ServiceType;
 }
 
 /** Inserts a booking and returns its id, or null when running without MySQL. */
@@ -559,8 +569,8 @@ export async function createExpertBooking(input: ExpertBookingInput): Promise<nu
   const [result] = await p.execute(
     `INSERT INTO expert_bookings
        (user_id, device_id, specialist_id, parent_name, parent_phone,
-        child_age_month, child_gender, report_summary, preferred_slot)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        child_age_month, child_gender, report_summary, preferred_slot, service_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.userId,
       input.deviceId,
@@ -571,6 +581,7 @@ export async function createExpertBooking(input: ExpertBookingInput): Promise<nu
       input.childGender,
       input.reportSummary,
       input.preferredSlot,
+      input.serviceType,
     ]
   );
   return (result as mysql.ResultSetHeader).insertId;

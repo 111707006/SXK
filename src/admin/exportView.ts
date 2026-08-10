@@ -18,6 +18,7 @@ import type { AssessmentRecord, DimensionScore } from '../types';
 // 那個模組是純函式，不碰 DOM，伺服器端載入它是安全的。
 import { formatDateTime as fmtDate, genderLabel, statusLabel } from './adminView';
 import { ageBandDrift } from '../utils/ageBandDrift';
+import { isOfflineService, serviceTypeLabel } from '../utils/serviceTypes';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -98,10 +99,18 @@ export function renderParentExportHtml(
   const bookingBlocks = parent.bookings
     .map(
       b => `<div class="card">
+        <div><strong>服务类型：</strong>${esc(serviceTypeLabel(b.serviceType))}</div>
         <div><strong>指定专家：</strong>${esc(b.specialistName || b.specialistId)}</div>
         <div><strong>联络人：</strong>${esc(b.parentName)}　${esc(b.parentPhone)}</div>
         <div><strong>希望时段：</strong>${esc(b.preferredSlot || '未指定')}</div>
         <div><strong>状态：</strong>${esc(b.status)}　<strong>送出时间：</strong>${esc(fmtDate(b.createdAt))}</div>
+        ${
+          // 線下的地點不在系統裡（issue #21 的取捨）。交給專家的那張紙上要說出來，
+          // 否則讀的人會以為是漏印了。
+          isOfflineService(b.serviceType)
+            ? '<div><strong>线下地点：</strong>不在系统内，由客服与家长电话约定</div>'
+            : ''
+        }
         ${b.reportSummary ? `<div><strong>筛查摘要：</strong>${esc(b.reportSummary)}</div>` : ''}
       </div>`
     )

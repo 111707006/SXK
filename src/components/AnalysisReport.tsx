@@ -13,6 +13,12 @@ import { DIMENSIONS_DATA } from '../data';
 import { PRODUCT } from '../productConfig';
 import { peekDeviceId } from '../utils/deviceId';
 import {
+  DEFAULT_SERVICE_TYPE,
+  describeServiceType,
+  serviceTypeDescriptors,
+  type ServiceType,
+} from '../utils/serviceTypes';
+import {
   emptySpecialistsMessage,
   useReportSpecialists,
   type ReportSpecialist,
@@ -276,6 +282,14 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   }, [historicalRecord]);
 
   const [showBookingModal, setShowBookingModal] = useState(false);
+  /**
+   * 家長要約哪一種服務（issue #21）。
+   *
+   * 預設是既有的線上諮詢說明 —— 那是絕大多數家長要的東西，也是這個功能之前
+   * 唯一存在的那一種。四種共用同一張表、同一個通知、同一個後台分頁。
+   */
+  const [serviceType, setServiceType] = useState<ServiceType>(DEFAULT_SERVICE_TYPE);
+  const currentService = describeServiceType(serviceType);
   // 專案 A 是內建的三位；專案 B 是這位家長所屬合作公司的專家。
   const { specialists, reason: specialistsReason } = useReportSpecialists(BUILTIN_SPECIALISTS);
   const [selectedSpecialist, setSelectedSpecialist] = useState<string>('');
@@ -377,6 +391,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           childGender: reportChild.gender,
           reportSummary: summary,
           preferredSlot: `${bookingDate} ${selectedSlot}`,
+          serviceType,
           deviceId: peekDeviceId(),
         }),
       });
@@ -1205,12 +1220,18 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
               <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
                 <div className="space-y-2">
+                  {/*
+                    入口不再只講線上（issue #21）。四種服務走同一顆按鈕、同一張
+                    表單，這裡若還寫死「线上」，要約線下訓練的家長根本不會點進去 ——
+                    而選類型的那一步就在點進去之後的第一格。
+                  */}
                   <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
-                    线上专家咨询
+                    专家咨询与干预训练
                   </span>
-                  <h3 className="text-lg font-bold">线上预约 1 对 1 专家解读这份报告</h3>
+                  <h3 className="text-lg font-bold">预约 1 对 1 专家，线上或到机构都可以</h3>
                   <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
-                    由儿童发展评估专家在线为您逐项说明这份报告，并给出接下来在家可以怎么做。
+                    四种可选：线上咨询说明、线上干预训练指导、线下干预训练、线下咨询。
+                    由儿童发展评估专家为您逐项说明这份报告，并给出接下来可以怎么做。
                   </p>
                 </div>
 
@@ -1230,12 +1251,15 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                       setBookingStatus('idle');
                       setBookingError('');
                       setSelectedSlot('');
+                      // 每次重開都回到預設的那一種。留著上一次的選擇，家長會在
+                      // 一個他沒有再選過的類型上按下送出。
+                      setServiceType(DEFAULT_SERVICE_TYPE);
                       setShowBookingModal(true);
                     }, 400);
                   }}
                   className="px-6 py-3 bg-brand-sage text-brand-forest font-bold text-xs rounded-xl hover:bg-white transition duration-200 shadow-lg shrink-0 w-full md:w-auto text-center active:scale-95 cursor-pointer"
                 >
-                  立即连线预约说明
+                  立即预约专家
                 </button>
               </div>
             </div>
@@ -1251,10 +1275,14 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             {/* Header */}
             <div className="bg-brand-forest text-white p-5 flex justify-between items-center">
               <div>
+                {/*
+                  抬頭跟著家長選的服務走（issue #21）。寫死「线上…」的話，
+                  選了線下訓練的家長會在一個寫著「线上」的表單上填完全部欄位。
+                */}
                 <h3 className="text-sm font-bold flex items-center gap-1.5">
-                  <Calendar size={16} /> 线上专家 1对1 发展说明指导预约
+                  <Calendar size={16} /> 预约{currentService.label}
                 </h3>
-                <p className="text-[10px] text-brand-cream/80 mt-0.5">连线三甲儿童发展专家，多维解读评估指标</p>
+                <p className="text-[10px] text-brand-cream/80 mt-0.5">{currentService.description}</p>
               </div>
               <button 
                 onClick={() => setShowBookingModal(false)}
@@ -1266,10 +1294,66 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
             {bookingStatus === 'idle' ? (
               <div className="p-6 overflow-y-auto space-y-6 flex-1">
-                {/* Step 1: Select Specialist */}
+                {/*
+                  第一步是選服務類型（issue #21）。放在最前面而不是塞在最後：
+                  它決定的是「這位家長是要連線還是要來機構」，後面每一個欄位
+                  （選誰、哪一天、哪個班次）都是在那個前提之下填的。
+
+                  四種排成兩排：線上一排、線下一排，順序由 `serviceTypes.ts`
+                  給定，不在這裡重排 —— 那個順序是資料，不是版面。
+                */}
                 <div className="space-y-2.5">
                   <span className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
-                    第一步: 选择特邀专家成员
+                    第一步: 选择服务类型
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {serviceTypeDescriptors().map(d => {
+                      const isSelected = serviceType === d.type;
+                      return (
+                        <button
+                          key={d.type}
+                          type="button"
+                          id={`service-type-${d.type}`}
+                          aria-pressed={isSelected}
+                          onClick={() => setServiceType(d.type)}
+                          className={`rounded-2xl border p-3 text-left transition ${
+                            isSelected
+                              ? 'border-brand-moss bg-brand-sage/15 ring-1 ring-brand-moss/30 shadow-sm'
+                              : 'border-brand-stone hover:bg-brand-cream/25'
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-brand-forest">
+                            <span
+                              className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
+                                d.venue === 'online' ? 'bg-brand-moss' : 'bg-brand-clay'
+                              }`}
+                            />
+                            {d.label}
+                          </span>
+                          <span className="mt-1 block text-[10px] leading-relaxed text-brand-charcoal/60">
+                            {d.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/*
+                    線下的地點**不進系統**（本 issue 的取捨：據點資訊常變）。
+                    在家長按下送出之前就說清楚，他才不會在表單上找一個不存在的
+                    地址欄位、或以為選完就知道要去哪裡。
+                  */}
+                  {currentService.venue === 'offline' && (
+                    <p className="rounded-xl border border-brand-clay/30 bg-brand-sand/40 px-3 py-2 text-[10px] leading-relaxed text-brand-charcoal/80">
+                      线下服务的<strong className="font-bold">具体地点由客服致电与您确认</strong>，
+                      下方选的时段是您方便的时间，客服会照它安排。
+                    </p>
+                  )}
+                </div>
+
+                {/* Step 2: Select Specialist */}
+                <div className="space-y-2.5">
+                  <span className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
+                    第二步: 选择特邀专家成员
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {specialists.map((spec) => {
@@ -1322,7 +1406,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
-                      第二步: 选择预约说明日期
+                      第三步: 选择希望的日期
                     </label>
                     <input 
                       type="date" 
@@ -1336,7 +1420,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
-                      第三步: 选择专家的出诊班次
+                      第四步: 选择专家的出诊班次
                     </label>
                     <div className="flex gap-1.5 flex-wrap">
                       {currentSpecialist && currentSpecialist.slots.length === 0 && (
@@ -1368,7 +1452,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 {/* Step 3: Contact details */}
                 <div className="space-y-3 pt-3 border-t border-brand-cream">
                   <span className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
-                    第四步: 完善家长联系资料
+                    第五步: 完善家长联系资料
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
@@ -1422,7 +1506,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   ) : (
                     <>
                       <Check size={14} />
-                      确认并预约专家说明
+                      {/* 送出前最後一次說出約的是哪一種 —— 這一顆按鈕是最後的確認。 */}
+                      确认预约{currentService.label}
                     </>
                   )}
                 </button>
@@ -1435,7 +1520,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 </div>
 
                 <div className="space-y-1">
-                  <h4 className="text-base font-extrabold text-brand-forest">专家预约成功确认书</h4>
+                  <h4 className="text-base font-extrabold text-brand-forest">{currentService.label} 预约成功确认书</h4>
                   <p className="text-[11px] text-brand-charcoal/50">预约成功编号: RSV-SXK-{Date.now().toString().slice(-6)}</p>
                 </div>
 
@@ -1462,7 +1547,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                   <div className="grid grid-cols-2 gap-y-2 gap-x-4 pt-1">
                     <div>
-                      <span className="text-[9px] text-brand-charcoal/50 block">预约说明时段:</span>
+                      <span className="text-[9px] text-brand-charcoal/50 block">希望时段:</span>
                       <span className="font-extrabold text-brand-clay font-mono">{bookingDate} {selectedSlot}</span>
                     </div>
                     <div>
@@ -1481,8 +1566,22 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 </div>
 
                 {/* Guidance Text */}
+                {/*
+                  預約後的指引要跟著服務走（issue #21）。線上的是「同步視訊會議室
+                  入口」，線下的是「約定地點」—— 對線下的家長說「視訊入口」，他會
+                  一直等一個永遠不會來的連結。**地點由客服在電話裡談，不進系統。**
+                */}
                 <p className="text-xs text-brand-charcoal/80 max-w-md leading-relaxed bg-brand-sage/10 p-3.5 rounded-2xl border border-brand-moss/20">
-                  <strong>💡 预约后指引:</strong> 咨询通道已自动预留。专家专属评估顾问将在 <strong>10 分钟内</strong> 进行电话回访，向您同步视频咨询室入口，并为您预备本次测评的纸质脑图解析手册。请保持电话畅通。
+                  <strong>💡 预约后指引:</strong>{' '}
+                  {currentService.venue === 'online' ? (
+                    <>
+                      咨询通道已自动预留。专家专属评估顾问将在 <strong>10 分钟内</strong> 进行电话回访，向您同步视频咨询室入口，并为您预备本次测评的纸质脑图解析手册。请保持电话畅通。
+                    </>
+                  ) : (
+                    <>
+                      预约已送出。专家专属评估顾问将在 <strong>10 分钟内</strong> 进行电话回访，<strong>与您确认具体地点与到场时间</strong>，并为您预备本次测评的纸质脑图解析手册。请保持电话畅通。
+                    </>
+                  )}
                 </p>
 
                 {/* 轉接微信客服：電話回訪之外的第二條路。家長多半更習慣微信，

@@ -17,6 +17,7 @@ import {
   resolveReportLinkBase,
 } from './src/utils/reportLink';
 import { renderParentExportHtml } from './src/admin/exportView';
+import { readServiceType } from './src/utils/serviceTypes';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
@@ -1674,7 +1675,7 @@ app.post('/api/expert-booking', async (req, res) => {
   try {
     const {
       specialistId, specialistName, parentName, parentPhone,
-      childAgeMonth, childGender, reportSummary, preferredSlot, deviceId,
+      childAgeMonth, childGender, reportSummary, preferredSlot, deviceId, serviceType,
     } = req.body || {};
 
     const name = typeof parentName === 'string' ? parentName.trim() : '';
@@ -1682,6 +1683,21 @@ app.post('/api/expert-booking', async (req, res) => {
 
     if (!specialistId || typeof specialistId !== 'string') {
       res.status(400).json({ error: '缺少指定专家。' });
+      return;
+    }
+    /**
+     * 四種服務中的哪一種（issue #21）。
+     *
+     * 沒帶就是既有的線上諮詢說明 —— 還沒更新的家長端建置不送這個欄位，
+     * 拒絕它會讓專案 B 唯一的轉換點在部署當下停擺。
+     *
+     * 但**認不得就 400，不猜**。悄悄落回預設值的話，一筆該是線下訓練的預約
+     * 會存成線上諮詢，客服照著線上的流程回電，家長在機構門口等，
+     * 而從頭到尾沒有任何一個畫面看得出這個落差。
+     */
+    const service = readServiceType(serviceType);
+    if (service === null) {
+      res.status(400).json({ error: '无法辨识的服务类型。' });
       return;
     }
     if (!name || name.length > 64) {
@@ -1728,13 +1744,14 @@ app.post('/api/expert-booking', async (req, res) => {
         childGender: typeof childGender === 'string' ? childGender : null,
         reportSummary: summary,
         preferredSlot: slot,
+        serviceType: service,
       });
       persisted = true;
     } else {
       offlineBookings.push({
         id: offlineBookings.length + 1, userId, specialistId, parentName: name,
         parentPhone: phone, childAgeMonth: ageMonth, childGender, reportSummary: summary,
-        preferredSlot: slot, createdAt: new Date().toISOString(),
+        preferredSlot: slot, serviceType: service, createdAt: new Date().toISOString(),
       });
       bookingId = offlineBookings.length;
       console.warn('[Booking] MySQL not configured — booking held in memory only and will be lost on restart.');
@@ -1747,6 +1764,7 @@ app.post('/api/expert-booking', async (req, res) => {
 
     notifyExpertBooking({
       bookingId,
+      serviceType: service,
       specialistName: typeof specialistName === 'string' ? specialistName : specialistId,
       parentName: name,
       parentPhone: phone,

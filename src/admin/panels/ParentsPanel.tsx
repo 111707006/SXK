@@ -15,6 +15,7 @@ import {
 } from '../adminApi';
 import { formatDateTime, genderLabel, statusLabel, type AdminErrorView } from '../adminView';
 import { ageBandDrift } from '../../utils/ageBandDrift';
+import { isOfflineService, serviceTypeLabel } from '../../utils/serviceTypes';
 import {
   Button,
   EmptyState,
@@ -366,12 +367,31 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
           <div className="space-y-2">
             {parent.bookings.map(b => (
               <div key={b.id} className="rounded-2xl border border-brand-stone bg-brand-cream/40 px-4 py-3">
+                {/*
+                  服務類型放在最前面（issue #21）。四種預約共用這一個區塊，
+                  而客服要照類型分工 —— 線上的排連線、線下的排時間與地點。
+                  說法與通知、家長端共用同一份（`serviceTypeLabel`），三處各寫
+                  一份的話，同一筆預約在後台與在通知裡會有兩種名字。
+                */}
+                <p className="mb-2 inline-flex items-center rounded-full border border-brand-moss/30 bg-brand-sage/20 px-2.5 py-0.5 text-[10px] font-bold text-brand-forest">
+                  {serviceTypeLabel(b.serviceType)}
+                </p>
                 <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
                   <Row label="指定专家" value={b.specialistName || `#${b.specialistId}`} />
                   <Row label="希望时段" value={b.preferredSlot || '未指定'} />
                   <Row label="状态" value={b.status} />
                   <Row label="送出时间" value={formatDateTime(b.createdAt)} />
                 </dl>
+                {/*
+                  線下的地點**不在系統裡**（本 issue 的取捨：據點資訊常變）。
+                  在這裡說出來，後台成員才不會去找一個從來不存在的地址欄位，
+                  而既有的狀態流轉就是承接它的地方。
+                */}
+                {isOfflineService(b.serviceType) && (
+                  <p className="mt-2 text-[10px] leading-relaxed text-brand-clay">
+                    线下地点不在系统内 —— 请致电与家长约定后，把状态改为 scheduled。
+                  </p>
+                )}
                 {b.reportSummary && (
                   <p className="mt-2 border-t border-brand-stone pt-2 text-[11px] leading-relaxed text-brand-charcoal/60">
                     {b.reportSummary}

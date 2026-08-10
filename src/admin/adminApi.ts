@@ -61,6 +61,14 @@ export interface AdminParentDetail extends AdminParentListItem {
     id: number; specialistId: string; specialistName: string | null;
     parentName: string; parentPhone: string; preferredSlot: string | null;
     reportSummary: string | null; status: string; createdAt: string | null;
+    /**
+     * 四種服務中的哪一種（issue #21）。
+     *
+     * 型別是 `string` 而不是 `ServiceType`：這個值一路來自資料庫，而遷移之前
+     * 存下的舊列讀出來可能是任何東西。畫面該做的是把認不得的值顯示成
+     * 「未记录服务类型」（見 `serviceTypeLabel`），不是假設它不會發生。
+     */
+    serviceType: string;
   }>;
 }
 

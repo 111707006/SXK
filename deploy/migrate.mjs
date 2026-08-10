@@ -15,6 +15,23 @@
  * 【為什麼預設是「只檢查」】
  * 這支腳本會改動正式資料庫的結構。預設就執行的工具遲早會有人在錯的資料庫上
  * 按到 Enter，而資料庫沒有 Ctrl+Z。要動手就必須多打一個 --confirm。
+ *
+ * 【它跑哪幾份】
+ * `deploy/migrations/` 底下**全部**，依檔名（日期開頭）排序。這支腳本曾經只跑
+ * 一份寫死的 2026-08-06 —— 而說明寫的是「跑 deploy/migrations/ 底下的遷移」。
+ * 那個落差不會有人發現，直到 #20 與 #25 的兩份遷移沒跑就部署：`sms_codes`
+ * 不存在，`/api/auth/sms/request` 回 500，而電子郵件登入已經在 #27 下線 ——
+ * 沒有人登得進來。
+ *
+ * 【它怎麼知道跑完了沒有】
+ * 不自己另外寫一套檢查，而是跑**每一份遷移自己結尾的那幾句驗證 SELECT**。
+ * 約定寫在欄位別名上（遷移作者本來就是這樣命名的）：
+ *
+ *   - `..._ok`   → 必須回 1
+ *   - `..._gone` → 必須回 0
+ *   - 其餘       → 印出來給人看，不當作閘門
+ *
+ * 新增一份遷移時照這個命名寫驗證句，這支腳本就會自動把它算進去。
  */
 import fs from 'fs';
 import path from 'path';
@@ -25,7 +42,15 @@ import mysql from 'mysql2/promise';
 dotenv.config();
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
-const MIGRATION = path.join(HERE, 'migrations', '2026-08-06-project-b-multi-company.sql');
+const MIGRATIONS_DIR = path.join(HERE, 'migrations');
+
+/** 全部的遷移，依檔名排序 —— 檔名以日期開頭，所以那就是時間順序。 */
+function migrationFiles() {
+  return fs.readdirSync(MIGRATIONS_DIR)
+    .filter(name => name.endsWith('.sql'))
+    .sort()
+    .map(name => ({ name, full: path.join(MIGRATIONS_DIR, name) }));
+}
 
 const confirm = process.argv.includes('--confirm');
 const listOnly = process.argv.includes('--list');
@@ -92,7 +117,94 @@ const ALREADY_DONE = new Set([
   'ER_DUP_KEYNAME',    // 索引或外鍵名稱已存在
   'ER_FK_DUP_NAME',    // 外鍵名稱已存在
   'ER_TABLE_EXISTS_ERROR',
+  // 要拿掉的索引不在。**全新的資料庫一定會撞到這一個** ——
+  // 2026-08-10 那份要 `DROP INDEX phone`（早期 schema 把它建成全域唯一），
+  // 而新庫從來沒有過那個索引。少了這一行，乾淨的資料庫每一次都會在那句停下來，
+  // 而訊息是「遷移中止，資料庫可能停在做了一半的狀態」—— 那份遷移的註解
+  // 早就寫了「這一句會報 1091，那是正常的，繼續往下跑」。
+  'ER_CANT_DROP_FIELD_OR_KEY',
 ]);
+
+/**
+ * 把一份遷移拆成「要執行的」與「驗證用的」。
+ *
+ * 驗證句一律是唯讀的 `SELECT`，兩種模式都跑得；只檢查模式跑的就只有它們。
+ */
+function splitMigration(sqlText) {
+  const all = statementsFrom(sqlText);
+  return {
+    ddl: all.filter(s => !/^SELECT/i.test(s)),
+    checks: all.filter(s => /^SELECT/i.test(s)),
+  };
+}
+
+/**
+ * 需要「剛好等於某個數字」的驗證句。
+ *
+ * 預設 `_ok` 只要求「大於 0」，因為多數是在數一個欄位或一張表在不在（答案是
+ * 1）。但 2026-08-06 的 `new_tables_ok` 數的是**四張**表 —— 用「大於 0」去驗它，
+ * 只建好一張表的半套遷移會被判成通過，而這道閘門存在的唯一理由就是攔住那個。
+ *
+ * 數的東西不只一個時，就在這裡寫明幾個。
+ */
+const EXACT_EXPECTED = {
+  new_tables_ok: 4,
+};
+
+/**
+ * 跑一份遷移的驗證句，回報過了沒有。
+ *
+ * 判準取自欄位別名（見檔頭）：`_gone` 要 0、`_ok` 要大於 0（需要精確值的
+ * 列在 `EXACT_EXPECTED`），其餘只印不擋。這樣新的遷移不必回來改這支腳本，
+ * 只要驗證句照著命名寫。
+ */
+async function runChecks(conn, checks, indent = '    ') {
+  let failed = 0;
+  let gated = 0;
+
+  for (const sql of checks) {
+    let rows;
+    try {
+      [rows] = await conn.query(sql);
+    } catch (err) {
+      console.log(`${indent}✗ 驗證查詢本身失敗：${err.code}: ${err.message}`);
+      gated++;
+      failed++;
+      continue;
+    }
+
+    const [first] = rows;
+    if (!first) {
+      console.log(`${indent}· ${short(sql)} → （沒有任何一列）`);
+      continue;
+    }
+
+    let gatedHere = false;
+    for (const [column, value] of Object.entries(first)) {
+      const isGone = column.endsWith('_gone');
+      const isOk = column.endsWith('_ok');
+      if (!isGone && !isOk) continue;
+
+      gated++;
+      gatedHere = true;
+      const exact = isGone ? 0 : EXACT_EXPECTED[column] ?? null;
+      const passed = exact === null ? Number(value) > 0 : Number(value) === exact;
+      if (!passed) failed++;
+      const want = exact === null ? '應大於 0' : `應為 ${exact}`;
+      console.log(`${indent}${passed ? '✓' : '✗'} ${column} = ${value}（${want}）`);
+    }
+
+    // 沒有走命名約定的那幾句 —— 印出來給人看，不當作閘門。
+    if (!gatedHere) {
+      console.log(`${indent}· ${short(sql)}`);
+      for (const row of rows) console.log(`${indent}    ${JSON.stringify(row)}`);
+    }
+  }
+
+  // 一句都沒驗到**不算通過**。那代表這份遷移的驗證句沒照命名約定寫，
+  // 而「沒有人在看」與「看過了沒問題」必須是兩個不同的答案。
+  return { gated, failed, passed: gated > 0 && failed === 0 };
+}
 
 function short(sql) {
   return sql.replace(/\s+/g, ' ').slice(0, 72);
@@ -111,79 +223,86 @@ async function main() {
   console.log(`    使用者　 ${cfg.user}`);
   console.log('');
 
+  const files = migrationFiles();
+  console.log(`  找到 ${files.length} 份遷移（依日期順序）`);
+  for (const { name } of files) console.log(`    ${name}`);
+  console.log('');
+
   const conn = await mysql.createConnection(cfg);
+  const loaded = files.map(f => ({ ...f, ...splitMigration(fs.readFileSync(f.full, 'utf8')) }));
 
   // ── 先報告現況 ──
-  const [[col]] = await conn.query(
-    `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'company_id'`,
-    [cfg.database]
-  );
-  const [tables] = await conn.query(
-    `SELECT TABLE_NAME FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = ?
-        AND TABLE_NAME IN ('companies','admin_users','admin_company_switches','specialists')`,
-    [cfg.database]
-  );
-  const present = tables.map(r => r.TABLE_NAME ?? r.table_name);
-
+  //
+  // 用的是每一份遷移自己的驗證句 —— 那些查詢本來就是為了回答「這一份跑完了
+  // 沒有」而寫的，再自己另外寫一套只會多一個會走樣的地方。
   console.log('  現況');
-  console.log(`    users.company_id　 ${col.n === 1 ? '已存在' : '不存在'}`);
-  console.log(`    四張新表　　　　　 ${present.length}/4 ${present.length ? `(${present.join(', ')})` : ''}`);
+  const before = [];
+  for (const m of loaded) {
+    console.log(`    ${m.name}`);
+    before.push(await runChecks(conn, m.checks, '      '));
+  }
   console.log('');
 
   if (!confirm) {
-    const done = col.n === 1 && present.length === 4;
-    console.log(done
-      ? '  ✓ 這個資料庫已經遷移過了，不需要再做任何事。'
-      : '  這是檢查模式，沒有改動任何東西。\n  確認上面的主機與資料庫是對的之後，加上 --confirm 再跑一次：\n\n      node deploy/migrate.mjs --confirm\n');
+    const pending = loaded.filter((_, i) => !before[i].passed);
+    if (pending.length === 0) {
+      console.log('  ✓ 這個資料庫已經全部遷移過了，不需要再做任何事。');
+    } else {
+      console.log(`  還沒跑完的：${pending.map(m => m.name).join('、')}`);
+      console.log('');
+      console.log('  這是檢查模式，沒有改動任何東西。');
+      console.log('  **先備份資料庫。**確認上面的主機與資料庫是對的之後，加上 --confirm 再跑一次：');
+      console.log('');
+      console.log('      node deploy/migrate.mjs --confirm');
+      console.log('');
+    }
     await conn.end();
     return;
   }
 
   // ── 執行 ──
-  console.log('  開始執行……');
-  const statements = statementsFrom(fs.readFileSync(MIGRATION, 'utf8'));
-  for (const sql of statements) {
-    if (/^SELECT/i.test(sql)) continue; // 結尾的驗證查詢，下面統一做
-    try {
-      await conn.query(sql);
-      console.log(`    ✓ ${short(sql)}`);
-    } catch (err) {
-      if (ALREADY_DONE.has(err.code)) {
-        console.log(`    · 已存在，略過：${short(sql)}`);
-        continue;
+  //
+  // 一份一份照順序跑，中間有一句真的失敗就整個停下來 —— 後面那幾份可能依賴
+  // 這一份的結果，硬跑下去只會把「壞在哪裡」變得更難查。
+  for (const m of loaded) {
+    console.log(`  ${m.name}`);
+    for (const sql of m.ddl) {
+      try {
+        await conn.query(sql);
+        console.log(`    ✓ ${short(sql)}`);
+      } catch (err) {
+        if (ALREADY_DONE.has(err.code)) {
+          console.log(`    · 已存在，略過：${short(sql)}`);
+          continue;
+        }
+        console.error(`\n  ✗ 這一句失敗了（${m.name}）：\n    ${short(sql)}\n    ${err.code}: ${err.message}\n`);
+        console.error('  遷移中止。資料庫可能停在做了一半的狀態，請看上面成功了哪幾句。');
+        await conn.end();
+        process.exit(1);
       }
-      console.error(`\n  ✗ 這一句失敗了：\n    ${short(sql)}\n    ${err.code}: ${err.message}\n`);
-      console.error('  遷移中止。資料庫可能停在做了一半的狀態，請看上面成功了哪幾句。');
-      await conn.end();
-      process.exit(1);
     }
   }
+  console.log('');
 
   // ── 驗證 ──
-  const [[col2]] = await conn.query(
-    `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'company_id'`,
-    [cfg.database]
-  );
-  const [tables2] = await conn.query(
-    `SELECT COUNT(*) AS n FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = ?
-        AND TABLE_NAME IN ('companies','admin_users','admin_company_switches','specialists')`,
-    [cfg.database]
-  );
+  console.log('  驗證');
+  let ok = true;
+  let gatedTotal = 0;
+  for (const m of loaded) {
+    console.log(`    ${m.name}`);
+    const result = await runChecks(conn, m.checks, '      ');
+    if (!result.passed) ok = false;
+    gatedTotal += result.gated;
+    if (result.gated === 0) {
+      console.log(`      ✗ 這一份沒有任何一句符合 \`_ok\` / \`_gone\` 的驗證 —— 等於沒有驗證。`);
+    }
+  }
   await conn.end();
 
-  const ok = col2.n === 1 && tables2[0].n === 4;
-  console.log('');
-  console.log('  驗證');
-  console.log(`    users.company_id　 ${col2.n === 1 ? '✓' : '✗'}`);
-  console.log(`    四張新表　　　　　 ${tables2[0].n}/4 ${tables2[0].n === 4 ? '✓' : '✗'}`);
   console.log('');
   console.log(ok
-    ? '  ✓ 遷移完成，可以部署新版程式碼了。'
-    : '  ✗ 沒有全部通過。**先不要部署** —— 家長的註冊會靜默寫不進資料庫。');
+    ? `  ✓ ${gatedTotal} 項驗證全數通過，可以部署新版程式碼了。`
+    : '  ✗ 沒有全部通過。**先不要部署** —— 沒有 sms_codes 的話家長一個都登不進來。');
   process.exit(ok ? 0 : 1);
 }
 

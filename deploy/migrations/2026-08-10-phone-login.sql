@@ -66,9 +66,27 @@ ALTER TABLE `users` MODIFY COLUMN `password` VARCHAR(255) DEFAULT NULL;
 -- 外键仍挂在原本的 `company_id` 上（fk_users_company，2026-08-06 那份建的），
 -- 生成栏位不影响它 —— 删掉一家公司时 company_id 被设为 NULL，company_key
 -- 自动跟着变成 0，那位家长落回未归属。
+--
+-- ⚠️ **必须是 VIRTUAL，不能是 STORED。**
+--
+-- 这一句原本写的是 STORED，而它在任何一个已经有 fk_users_company 的库上都会
+-- 失败：`ERROR 1215 (HY000): Cannot add foreign key constraint`。MySQL 手册
+-- （CREATE TABLE and Generated Columns）写得很明白：
+--
+--   「A foreign key constraint on the base column of a stored generated column
+--     cannot use CASCADE, SET NULL, or SET DEFAULT as ON UPDATE or ON DELETE
+--     referential actions.」
+--
+-- company_id 正是 company_key 的来源栏位，而 fk_users_company 是
+-- ON DELETE SET NULL —— 两个条件同时成立，MySQL 直接拒绝。1215 这个错误码
+-- 会把人送去查型别、字符集与索引，而问题跟那些一个都无关。
+--
+-- VIRTUAL 不受这条限制（它是读的时候才算，SET NULL 不必去改一个存下来的值）。
+-- 唯一索引照样建得起来、照样生效，删公司时 company_key 照样跟着变 0 ——
+-- 以 MySQL 8.0.45 实测过上面「验证（二）」的全部四项，行为与 STORED 无异。
 ALTER TABLE `users`
   ADD COLUMN `company_key` INT UNSIGNED
-  AS (COALESCE(`company_id`, 0)) STORED AFTER `company_id`;
+  AS (COALESCE(`company_id`, 0)) VIRTUAL AFTER `company_id`;
 
 -- phone 为 NULL 的列不受此索引约束（唯一索引允许重复 NULL），
 -- 所以既有的电子邮件家长全部不受影响，不必先补手机号。

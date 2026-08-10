@@ -68,7 +68,13 @@ CREATE TABLE IF NOT EXISTS `users` (
   -- 生成栏位而非应用层的「先查再写」：后者在两个请求同时进来时就会漏，
   -- 而漏掉的后果是同一支手机号建出两个帐号，¥19.9 买的解锁权益留在
   -- 家长再也走不回去的那一个上面。
-  `company_key` INT UNSIGNED AS (COALESCE(`company_id`, 0)) STORED,
+  --
+  -- ⚠️ **必须是 VIRTUAL，不能是 STORED**，否则这张 CREATE TABLE 会以
+  -- `ERROR 1215 Cannot add foreign key constraint` 失败 —— 底下的
+  -- fk_users_company 是 ON DELETE SET NULL，而 company_id 是这个生成栏位的
+  -- 来源栏位，MySQL 不允许这个组合（见 2026-08-10 那份迁移里的完整说明）。
+  -- 建 sxk_t1_db 时会撞到同一面墙。
+  `company_key` INT UNSIGNED AS (COALESCE(`company_id`, 0)) VIRTUAL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- email 的 UNIQUE 本身已建索引，不另加 INDEX（避免重复索引）
   INDEX `idx_device_id` (`device_id`),

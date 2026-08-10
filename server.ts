@@ -293,8 +293,13 @@ const PHONE_PATTERN = /^1[3-9]\d{9}$/;
 /** 驗證碼有效期。短到被側錄也來不及用，長到來得及切出去看簡訊再切回來。 */
 const SMS_CODE_TTL_MS = 5 * 60 * 1000;
 
-/** 兩次索取之間的等待。 */
-const SMS_CODE_COOLDOWN_MS = 60 * 1000;
+/**
+ * 兩次索取之間的等待。
+ *
+ * 單位是**秒**而不是毫秒，因為比較的對象是資料庫算出來的 `age_sec` ——
+ * 兩個單位在同一段程式裡並存，遲早會有人拿其中一個去減另一個。
+ */
+const SMS_CODE_COOLDOWN_SEC = 60;
 
 /**
  * 同一筆驗證碼容許猜錯幾次。達到上限即鎖定該筆 —— 六位數字只有一百萬種，
@@ -304,6 +309,17 @@ const SMS_CODE_MAX_ATTEMPTS = 5;
 
 /** 同一支手機號一天最多索取幾次。簡訊要錢，而收到的是一個真實的人。 */
 const SMS_CODE_DAILY_MAX_PER_PHONE = 10;
+
+/**
+ * 同一個來源位址一天最多索取幾次。
+ *
+ * 上面那個上限是按號碼算的，所以擋不住換號碼：一台機器帶著一份號碼表跑過去，
+ * 每一支都在自己的額度之內，帳單卻是整份的。這一道是按來源算的那一半。
+ *
+ * 預設值刻意比單一號碼寬很多：合作公司的 iPad 是一整間診所共用一個對外位址，
+ * 一天服務幾十位家長是正常使用。可用 `SMS_IP_DAILY_MAX` 依現場調整。
+ */
+const SMS_CODE_DAILY_MAX_PER_IP = Number(process.env.SMS_IP_DAILY_MAX) || 50;
 
 /** 六位數字，取自 CSPRNG。`Math.random` 的輸出是可預測的。 */
 function generateSmsCode(): string {
@@ -1732,20 +1748,42 @@ app.post('/api/auth/sms/request', async (req, res) => {
     return;
   }
 
+  const requestIp = req.ip ?? null;
   let codeId: number | null = null;
   try {
-    // ── 防刷：冷卻期與當日上限，兩者都以最近那一筆為準 ──
+    // ── 防刷（一）：冷卻期 ──
+    //
+    // 「上一次是多久以前」由**資料庫**算好放在 `age_sec` 裡送回來。這裡不碰
+    // `created_at`：那一欄是資料庫寫的，拿它去減 `Date.now()` 需要資料庫與
+    // Node 行程的時區剛好一樣，而沒有人保證過那件事（見 `findLatestSmsCode`）。
     const latest = await withTimeout(mysqlDb.findLatestSmsCode(phone), 2000);
-    if (latest) {
-      const elapsed = Date.now() - new Date(latest.created_at).getTime();
-      if (elapsed < SMS_CODE_COOLDOWN_MS) {
-        const wait = Math.ceil((SMS_CODE_COOLDOWN_MS - elapsed) / 1000);
-        res.status(429).json({ error: `请求过于频繁，请 ${wait} 秒后再试。`, retryAfterSec: wait });
-        return;
-      }
+    const elapsedSec = Number(latest?.age_sec);
+    if (latest && Number.isFinite(elapsedSec) && elapsedSec < SMS_CODE_COOLDOWN_SEC) {
+      const wait = Math.max(1, Math.ceil(SMS_CODE_COOLDOWN_SEC - elapsedSec));
+      res.status(429).json({ error: `请求过于频繁，请 ${wait} 秒后再试。`, retryAfterSec: wait });
+      return;
     }
-    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    if (await withTimeout(mysqlDb.countSmsCodesSince(phone, dayAgo), 2000) >= SMS_CODE_DAILY_MAX_PER_PHONE) {
+    if (latest && !Number.isFinite(elapsedSec)) {
+      // 算不出來就不擋 —— 下面兩道當日上限仍然是硬邊界，而擋下去的代價是
+      // 家長完全登不進來（登入只剩這一條路）。
+      console.warn('[SMS] 冷却期无法计算（age_sec 缺失），本次不套用冷却。');
+    }
+
+    // ── 防刷（二）：同一支手機號的當日上限 ──
+    if (await withTimeout(mysqlDb.countRecentSmsCodesByPhone(phone, 24), 2000) >= SMS_CODE_DAILY_MAX_PER_PHONE) {
+      res.status(429).json({ error: '今日验证码索取次数已达上限，请明天再试或联系客服。' });
+      return;
+    }
+
+    // ── 防刷（三）：同一個來源的當日上限 ──
+    //
+    // 少了這一道，上面那一道擋不住真正花錢的那種濫用：換一支沒用過的號碼，
+    // 額度就重新開始。一台機器把號碼表跑過去，帳單是真的，收到簡訊的人也是。
+    // 上限放得比單一號碼寬很多 —— 合作公司的 iPad 是一整間診所共用一個對外
+    // 位址，一天服務幾十位家長是正常的，擋下去等於擋掉真正的客人。
+    if (requestIp
+      && await withTimeout(mysqlDb.countRecentSmsCodesByIp(requestIp, 24), 2000) >= SMS_CODE_DAILY_MAX_PER_IP) {
+      console.warn(`[SMS] 来源 ${requestIp} 今日索取次数已达上限，暂停发送。`);
       res.status(429).json({ error: '今日验证码索取次数已达上限，请明天再试或联系客服。' });
       return;
     }
@@ -1755,8 +1793,9 @@ app.post('/api/auth/sms/request', async (req, res) => {
       phone,
       // 只存雜湊。這一列若是明碼，任何一份備份都等同一把能登入的鑰匙。
       codeHash: await hashSecret(code),
+      // 這一欄由應用程式寫，因此它是唯一一個可以跟 `Date.now()` 比的時間戳。
       expiresAt: new Date(Date.now() + SMS_CODE_TTL_MS),
-      requestIp: req.ip ?? null,
+      requestIp,
     }), 2000);
 
     const delivery = await sendVerificationCode(phone, code);
@@ -1780,7 +1819,7 @@ app.post('/api/auth/sms/request', async (req, res) => {
     res.json({
       success: true,
       expiresInSec: SMS_CODE_TTL_MS / 1000,
-      cooldownSec: SMS_CODE_COOLDOWN_MS / 1000,
+      cooldownSec: SMS_CODE_COOLDOWN_SEC,
     });
   } catch (err: any) {
     console.error('[SMS Request Error]:', err.message);
@@ -1832,16 +1871,22 @@ app.post('/api/auth/sms/verify', async (req, res) => {
       return;
     }
 
-    // 先作廢再建帳號。反過來的話，同一組驗證碼在兩個同時進來的請求裡都會通過。
-    if (!await withTimeout(mysqlDb.consumeSmsCode(row.id), 2000)) {
-      res.status(401).json({ error: '验证码错误或已失效，请重新获取。' });
-      return;
-    }
-
+    // 歸屬先問清楚，**再**作廢驗證碼。
+    //
+    // 順序反過來的代價全落在家長身上：資料庫慢個兩秒，這一句就查不動，
+    // 而他手上那組正確的驗證碼已經被作廢了 —— 他按「重新获取」會撞上冷卻期，
+    // 於是被擋在門外一分鐘，手裡拿著一組再也驗不過的號碼。
+    // 這一句查的是公司名冊，跟驗證碼有沒有被用過完全無關，先問不會少任何保護。
     const scope = await resolveCompanyScope(req.body?.companySlug);
     if (!scope.ok) {
       console.error('[SMS Verify] 归属查询失败，无法判断这次登入属于哪一个范围，拒绝继续。');
       res.status(503).json({ error: '登录暂时不可用，请稍后再试。' });
+      return;
+    }
+
+    // 先作廢再建帳號。反過來的話，同一組驗證碼在兩個同時進來的請求裡都會通過。
+    if (!await withTimeout(mysqlDb.consumeSmsCode(row.id), 2000)) {
+      res.status(401).json({ error: '验证码错误或已失效，请重新获取。' });
       return;
     }
 

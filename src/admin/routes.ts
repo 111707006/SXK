@@ -566,8 +566,10 @@ export function createAdminRouter(): express.Router {
       return;
     }
     try {
-      const affected = await store.updateMaterial(id, parsed.input);
-      if (affected === 0) {
+      // 「找不到」問的是這個 id 在不在，不是這次儲存有沒有改到東西 ——
+      // 一次原封不動的儲存（沒改欄位、或儲存鍵被按兩下）改不到任何一列，
+      // 但那筆素材就在眼前。見 `store.updateMaterial` 的說明。
+      if (!(await store.updateMaterial(id, parsed.input))) {
         res.status(404).json({ error: '找不到该素材。' });
         return;
       }

@@ -173,24 +173,64 @@ export async function deleteSmsCode(id: number): Promise<void> {
   await p.execute('DELETE FROM sms_codes WHERE id = ?', [id]);
 }
 
-/** 這支手機號最近索取的那一筆。冷卻期與核對都認這一筆，舊的一律作廢。 */
+/**
+ * 這支手機號最近索取的那一筆，附上 `age_sec` —— **由資料庫算出的**已經過了幾秒。
+ * 冷卻期與核對都認這一筆，舊的一律作廢。
+ *
+ * ⚠️ 兩欄時間戳歸兩個不同的時鐘管，而那不是巧合：
+ *
+ *   - `created_at` 由**資料庫**寫（`DEFAULT CURRENT_TIMESTAMP`），所以只能跟
+ *     資料庫的 `NOW()` 相減，那個減法因此做在 SQL 裡。把它交給應用程式去減
+ *     `Date.now()` 需要一個沒有人保證過的前提：資料庫的時區與 Node 行程的
+ *     時區剛好一樣。連線沒有釘 `timezone`，兩邊各自取自各自的環境 ——
+ *     RDS 在 +08:00 而容器在 UTC 是預設值撞出來的常見組合，差的那八小時會讓
+ *     冷卻期不是整個失效（永遠是「很久以前」）就是變成八小時（永遠 429），
+ *     而後者等於所有家長都登不進來，因為登入只剩這一條路。
+ *   - `expires_at` 由**應用程式**寫（`createSmsCode` 傳進來的 `Date`，以 Node
+ *     的時區序列化），所以反過來：它只能跟 Node 的時鐘比，不可以拿去跟
+ *     `NOW()` 比。同一個道理，只是寫的人不同。
+ */
 export async function findLatestSmsCode(phone: string): Promise<any | null> {
   const p = getPool();
   if (!p) return null;
   const [rows] = await p.execute(
-    'SELECT * FROM sms_codes WHERE phone = ? ORDER BY id DESC LIMIT 1',
+    `SELECT *, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age_sec
+       FROM sms_codes WHERE phone = ? ORDER BY id DESC LIMIT 1`,
     [phone]
   );
   return (rows as any[])[0] || null;
 }
 
-/** 防刷：這支手機號在某個時間點之後索取了幾次。 */
-export async function countSmsCodesSince(phone: string, since: Date): Promise<number> {
+/**
+ * 防刷：這支手機號在最近幾小時內索取了幾次。
+ *
+ * 時間窗切在資料庫這一邊（`DATE_SUB(NOW(), ...)`），理由與 `findLatestSmsCode`
+ * 的 `age_sec` 相同 —— 傳一個 Node 算出來的時間點進來比對 `created_at`，
+ * 會讓 24 小時的窗在時區不一致時變成 16 或 32 小時。
+ */
+export async function countRecentSmsCodesByPhone(phone: string, withinHours: number): Promise<number> {
   const p = getPool();
   if (!p) return 0;
   const [rows] = await p.execute(
-    'SELECT COUNT(*) AS n FROM sms_codes WHERE phone = ? AND created_at >= ?',
-    [phone, since]
+    'SELECT COUNT(*) AS n FROM sms_codes WHERE phone = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)',
+    [phone, withinHours]
+  );
+  return Number((rows as any[])[0]?.n ?? 0);
+}
+
+/**
+ * 防刷：這個來源在最近幾小時內索取了幾次。
+ *
+ * 每支手機號各自的上限擋不住這一種：換一支沒用過的號碼，額度就重新開始。
+ * 簡訊是要付錢的，而收到的是一個真實的人 —— 一台機器把號碼表跑過去，
+ * 帳單與騷擾都是真的。`idx_ip_created` 就是為這一句建的。
+ */
+export async function countRecentSmsCodesByIp(ip: string, withinHours: number): Promise<number> {
+  const p = getPool();
+  if (!p) return 0;
+  const [rows] = await p.execute(
+    'SELECT COUNT(*) AS n FROM sms_codes WHERE request_ip = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)',
+    [ip, withinHours]
   );
   return Number((rows as any[])[0]?.n ?? 0);
 }

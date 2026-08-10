@@ -651,11 +651,20 @@ export async function createMaterial(input: MaterialInput): Promise<MaterialReco
  * 刪掉重建 —— 這張表沒有刪除。改到一個已經有素材的格子會撞上唯一鍵，
  * 與新增走同一條路。
  *
- * 回傳受影響的列數；0 代表這個 id 不存在，路由層當作找不到。
+ * 回傳「這個 id 存在嗎」，**不是**受影響的列數。MySQL 的 affectedRows 算的是
+ * 真的**變動過**的列：存下一份與現況一模一樣的內容（沒改任何欄位就按儲存、
+ * 或儲存鍵被按了兩下）會拿到 0，而那與「這筆不存在」是同一個數字 ——
+ * 維護的人會被告知他正看著的素材找不到。
+ *
+ * 所以先確認它在不在。**不改用連線層的 `CLIENT_FOUND_ROWS`**：
+ * `markPaymentSuccess` 與 `consumeSmsCode` 靠的正是 affectedRows 的現有語意
+ * （「只有真的完成那次轉換的呼叫回 1」），全域打開那個旗標會讓那兩道閘門
+ * 對每一個併發的呼叫都回真。
  */
-export async function updateMaterial(id: number, input: MaterialInput): Promise<number> {
+export async function updateMaterial(id: number, input: MaterialInput): Promise<boolean> {
   const p = requirePool();
-  const [result] = await p.execute(
+  if (!(await findMaterialById(id))) return false;
+  await p.execute(
     `UPDATE intervention_materials
         SET dimension_id = ?, age_band_id = ?, severity = ?, title = ?,
             steps = ?, video_url = ?, active = ?
@@ -671,7 +680,7 @@ export async function updateMaterial(id: number, input: MaterialInput): Promise<
       id,
     ]
   );
-  return (result as ResultSetHeader).affectedRows;
+  return true;
 }
 
 /** 每一次公司切換都留下紀錄 —— 越界行為要有痕跡。 */

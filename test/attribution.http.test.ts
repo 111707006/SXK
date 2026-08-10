@@ -57,7 +57,8 @@ vi.mock('../src/db/mysql', () => ({
   deleteSmsCode: async (id: number) => { smsCodes = smsCodes.filter(c => c.id !== id); },
   findLatestSmsCode: async (phone: string) =>
     [...smsCodes].reverse().find(c => c.phone === phone) ?? null,
-  countSmsCodesSince: async () => 0,
+  countRecentSmsCodesByPhone: async () => 0,
+  countRecentSmsCodesByIp: async () => 0,
   incrementSmsCodeAttempts: async () => {},
   consumeSmsCode: async (id: number) => {
     const row = smsCodes.find(c => c.id === id);

@@ -88,12 +88,14 @@ vi.mock('../src/admin/adminStore', async () => {
       db.materials.push(row);
       return row;
     },
+    // 回傳的是「這個 id 存在嗎」，不是受影響的列數 ——
+    // 見 `adminStore.updateMaterial` 與 `test/materialUpdate.store.test.ts`。
     async updateMaterial(id: number, input: Input) {
       const existing = db.materials.find(m => m.id === id);
-      if (!existing) return 0;
+      if (!existing) return false;
       if (db.materials.some(m => m.id !== id && cellOf(m) === cellOf(input))) throw dup();
       Object.assign(existing, input);
-      return 1;
+      return true;
     },
   };
 });

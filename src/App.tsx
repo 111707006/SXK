@@ -123,6 +123,48 @@ export default function App() {
   // authHeaders 已移到 src/utils/api.ts —— 深度評估端點現在也要帶 token，
   // 而呼叫它們的元件在別的檔案裡，各拼各的標頭遲早會漏掉一個。
 
+  /**
+   * 把這台裝置上的登入痕跡與本機快取一併清掉。
+   *
+   * 登出與「通行證已經不算數了」共用同一段 —— 兩者留下的狀態必須一模一樣，
+   * 否則其中一條路會留下半個登入。
+   *
+   * 連本機的孩子檔案一起清，是因為它已經沒有主人了：留著的話，下一個在這台
+   * iPad 上登入的人會把前一個孩子的檔案同步到自己的帳號下（伺服器那一份是空的
+   * 時候，這支程式會把本機這一份送上去）。合作公司的 iPad 是共用的。
+   */
+  const clearLocalSession = () => {
+    setChildProfile(null);
+    setCompletedScores([]);
+    setOrders([]);
+    setReportHistory([]);
+    setUserIdentity(null);
+    setAuthToken(null);
+
+    localStorage.removeItem('senxinkang_child');
+    localStorage.removeItem('senxinkang_scores');
+    localStorage.removeItem('senxinkang_orders');
+    localStorage.removeItem('senxinkang_history');
+    localStorage.removeItem('senxinkang_user_email');
+    localStorage.removeItem('senxinkang_token');
+    localStorage.removeItem('senxinkang_device_id');
+  };
+
+  /**
+   * 伺服器說這張通行證不算數（401）。**這件事必須看得見。**
+   *
+   * 畫面上「已登入」是 localStorage 裡的一個字串撐著的，而同步認的是通行證。
+   * 兩者分家時（token 過期、或那是一張舊格式的通行證），家長會對著自己的孩子
+   * 檔案做完一整份篩查，而每一次保存都被退回 —— 靜靜地退回，因為讀取那條路
+   * 原本連狀態碼都沒看。#27 之後更沒有退路：電子郵件登入不在了，而他不會自己
+   * 想到要按登出。
+   */
+  const handleSessionExpired = () => {
+    clearLocalSession();
+    setSyncError('登录状态已失效，请重新登录。');
+    setCurrentView('dashboard');
+  };
+
   // Helper to sync state to cloud
   const syncToCloud = async (
     currentChild: Child | null,
@@ -146,6 +188,10 @@ export default function App() {
           reportHistory: currentHistory
         })
       });
+      if (resp.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       if (!resp.ok) {
         throw new Error(`Sync failed with status ${resp.status}`);
       }
@@ -231,6 +277,12 @@ export default function App() {
         const loadUrl = activeToken ? '/api/db/load' : `/api/db/load?deviceId=${deviceId}`;
 
         const loadResp = await fetch(loadUrl, { headers: authHeaders() });
+        // 通行證不算數就地了結，不要繼續用一個伺服器不認得的身分跑下去 ——
+        // 底下那條「伺服器是空的就把本機這一份送上去」的路會一路撞到同一個 401。
+        if (loadResp.status === 401) {
+          handleSessionExpired();
+          return;
+        }
         if (!loadResp.ok) return;
         const loadCt = loadResp.headers.get('content-type');
         if (!loadCt || !loadCt.includes('application/json')) return;
@@ -433,21 +485,8 @@ export default function App() {
 
   const handleLogout = () => {
     if (confirm('确认登出当前账户并返回登录首页吗？您的数据安全保存在云端。')) {
-      setChildProfile(null);
-      setCompletedScores([]);
-      setOrders([]);
-      setReportHistory([]);
-      setUserIdentity(null);
-      setAuthToken(null);
-
-      localStorage.removeItem('senxinkang_child');
-      localStorage.removeItem('senxinkang_scores');
-      localStorage.removeItem('senxinkang_orders');
-      localStorage.removeItem('senxinkang_history');
-      localStorage.removeItem('senxinkang_user_email');
-      localStorage.removeItem('senxinkang_token');
-      localStorage.removeItem('senxinkang_device_id');
-      
+      clearLocalSession();
+      setSyncError(null);
       setCurrentView('dashboard');
       setIsCustomerDropdownOpen(false);
     }

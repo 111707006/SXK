@@ -37,7 +37,15 @@ interface SmsCodeRow {
   consumed_at: Date | null;
   request_ip: string | null;
   created_at: Date;
+  /**
+   * 「資料庫算出來的已經過了幾秒」。真實的那一支查詢用 `TIMESTAMPDIFF` 算好
+   * 帶回來，所以替身預設也從 `created_at` 推算 —— 冷卻期那一組測試則直接指定
+   * 它並且**不給** `created_at`，藉此證明伺服器不會偷偷回去減兩個時鐘。
+   */
+  age_sec?: number;
 }
+
+const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000);
 
 let smsCodes: SmsCodeRow[] = [];
 let users: Array<{ id: number; phone: string; email: string | null; company_id: number | null }> = [];
@@ -77,10 +85,21 @@ vi.mock('../src/db/mysql', () => ({
   deleteSmsCode: async (id: number) => {
     smsCodes = smsCodes.filter(c => c.id !== id);
   },
-  findLatestSmsCode: async (phone: string) =>
-    [...smsCodes].reverse().find(c => c.phone === phone) ?? null,
-  countSmsCodesSince: async (phone: string, since: Date) =>
-    smsCodes.filter(c => c.phone === phone && c.created_at >= since).length,
+  // `age_sec` 由資料庫算好送回來 —— 替身也照做，否則測試驗的是一個真實環境
+  // 裡不存在的介面。伺服器**不會**再去碰 `created_at`（見 findLatestSmsCode
+  // 的說明：那一欄歸資料庫的時鐘管）。
+  findLatestSmsCode: async (phone: string) => {
+    const row = [...smsCodes].reverse().find(c => c.phone === phone);
+    if (!row) return null;
+    return {
+      ...row,
+      age_sec: row.age_sec ?? Math.floor((Date.now() - row.created_at.getTime()) / 1000),
+    };
+  },
+  countRecentSmsCodesByPhone: async (phone: string, withinHours: number) =>
+    smsCodes.filter(c => c.phone === phone && c.created_at >= hoursAgo(withinHours)).length,
+  countRecentSmsCodesByIp: async (ip: string, withinHours: number) =>
+    smsCodes.filter(c => c.request_ip === ip && c.created_at >= hoursAgo(withinHours)).length,
   incrementSmsCodeAttempts: async (id: number) => {
     const row = smsCodes.find(c => c.id === id);
     if (row) row.attempts += 1;
@@ -214,6 +233,87 @@ describe('索取驗證碼', () => {
 
     expect(resp.status).toBe(200);
     expect(sent).toHaveLength(2);
+  });
+
+  // ── 冷卻期認的是資料庫算出來的秒數，不是兩個時鐘相減 ──
+  //
+  // 這一條釘住的是介面本身：`created_at` 由資料庫寫，Node 那一邊沒有釘住連線
+  // 時區，兩者相減的前提（兩個時區剛好一樣）沒有人保證過。RDS 在 +08:00 而
+  // 容器在 UTC 是預設值撞出來的常見組合，而差的那八小時往一邊是冷卻期整個
+  // 失效，往另一邊是**所有家長都登不進來**（永遠 429，等待時間以小時計）。
+  describe('冷卻期只認資料庫算出來的秒數', () => {
+    /** 只回 age_sec、完全不給 created_at 的一筆 —— 伺服器不該需要它。 */
+    function latestWithAge(ageSec: number) {
+      return { id: 999, phone: PHONE, code_hash: 'x', expires_at: new Date(Date.now() + 60_000), attempts: 0, consumed_at: null, request_ip: '127.0.0.1', age_sec: ageSec };
+    }
+
+    it('資料庫說才過了 10 秒就擋，回的等待秒數照那個數字算', async () => {
+      smsCodes.push(latestWithAge(10) as any);
+      const resp = await client.postJson('/api/auth/sms/request', { phone: PHONE });
+      expect(resp.status).toBe(429);
+      expect((await resp.json()).retryAfterSec).toBe(50);
+      expect(sent).toEqual([]);
+    });
+
+    it('資料庫說過了 61 秒就放行 —— 即使那一筆根本沒有 created_at 可減', async () => {
+      smsCodes.push(latestWithAge(61) as any);
+      const resp = await client.postJson('/api/auth/sms/request', { phone: PHONE });
+      expect(resp.status).toBe(200);
+      expect(sent).toHaveLength(1);
+    });
+  });
+
+  // ── 同一個來源的當日上限 ──
+  //
+  // 按號碼算的上限擋不住換號碼：一台機器帶著一份號碼表跑過去，每一支都在自己
+  // 的額度之內，而簡訊帳單是整份的，收到簡訊的也都是真實的人。
+  describe('同一個來源的當日上限', () => {
+    /**
+     * 送一次真的請求，看伺服器實際記下來的來源位址長什麼樣。
+     *
+     * 不寫死 `127.0.0.1`：回送位址在不同環境下可能是 `::1` 或 `::ffff:127.0.0.1`，
+     * 猜錯的話這一組會全部變成綠燈卻什麼都沒擋。
+     */
+    async function probeRequestIp(): Promise<string> {
+      await client.postJson('/api/auth/sms/request', { phone: '13700000000' });
+      return smsCodes[smsCodes.length - 1].request_ip!;
+    }
+
+    /** 塞一批「今天已經從這個來源送出去」的紀錄，號碼全部不同。 */
+    function fillFromSameIp(count: number, ip: string) {
+      for (let i = 0; i < count; i++) {
+        smsCodes.push({
+          id: nextCodeId++, phone: `1390000${String(i).padStart(4, '0')}`, code_hash: 'x',
+          expires_at: new Date(), attempts: 0, consumed_at: null,
+          request_ip: ip, created_at: new Date(),
+        });
+      }
+    }
+
+    it('達到上限後，換一支全新的號碼也送不出去', async () => {
+      fillFromSameIp(49, await probeRequestIp()); // 連探測那一筆共 50 筆
+      sent.length = 0;
+      const resp = await client.postJson('/api/auth/sms/request', { phone: '13911112222' });
+
+      expect(resp.status).toBe(429);
+      expect(sent).toEqual([]);
+    });
+
+    it('沒達到上限就照常送 —— 一整間診所共用一個位址是正常使用', async () => {
+      fillFromSameIp(48, await probeRequestIp()); // 共 49 筆
+      sent.length = 0;
+      const resp = await client.postJson('/api/auth/sms/request', { phone: '13911112222' });
+
+      expect(resp.status).toBe(200);
+      expect(sent).toHaveLength(1);
+    });
+
+    it('別的來源送過幾次不算在這個來源頭上', async () => {
+      fillFromSameIp(80, '203.0.113.9');
+      const resp = await client.postJson('/api/auth/sms/request', { phone: '13911112222' });
+
+      expect(resp.status).toBe(200);
+    });
   });
 });
 
@@ -425,6 +525,31 @@ describe('同一支手機號在兩家公司是兩位家長（ADR-0002）', () =>
     expect(resp.status).toBe(503);
     expect((await resp.json()).token).toBeUndefined();
     expect(users).toHaveLength(1);
+  });
+
+  /**
+   * 那次失敗**不可以順手把驗證碼燒掉**。
+   *
+   * 燒掉的代價全落在家長身上：他手上那組正確的驗證碼再也驗不過，而按「重新
+   * 获取」會撞上冷卻期 —— 於是被擋在門外一分鐘，拿著一組沒有用的號碼。
+   * 歸屬查的是公司名冊，跟驗證碼有沒有被用過完全無關，先問不會少任何保護。
+   */
+  it('歸屬查不動時驗證碼不被作廢 —— 資料庫回來之後同一組還能用', async () => {
+    const code = await requestCode(PHONE, VALID_SLUG);
+
+    companyLookupFails = true;
+    const failed = await client.postJson('/api/auth/sms/verify', {
+      phone: PHONE, code, companySlug: VALID_SLUG,
+    });
+    expect(failed.status).toBe(503);
+    expect(smsCodes[0].consumed_at).toBeNull();
+
+    companyLookupFails = false;
+    const retry = await client.postJson('/api/auth/sms/verify', {
+      phone: PHONE, code, companySlug: VALID_SLUG,
+    });
+    expect(retry.status).toBe(200);
+    expect((await retry.json()).token).toBeTruthy();
   });
 
   it('歸屬甲公司的家長不會被乙公司的登入撿走', async () => {

@@ -44,9 +44,9 @@ sudo mkdir -p /var/www/sxk-b /var/log/sxk
 git clone https://github.com/111707006/SXK.git /var/www/sxk-b
 ```
 
-## 四、配置环境变量（密钥写入 .env，不要写进 ecosystem.config.js）
+## 四、配置环境变量（密钥写入 .env，不要写进 ecosystem.config.cjs）
 
-`ecosystem.config.js` 会被 Git 跟踪，密钥写在那里会泄露。改为在项目根目录创建 `.env`（已被 `.gitignore` 排除），`server.ts` 启动时用 dotenv 自动读取：
+`ecosystem.config.cjs` 会被 Git 跟踪，密钥写在那里会泄露。改为在项目根目录创建 `.env`（已被 `.gitignore` 排除），`server.ts` 启动时用 dotenv 自动读取：
 
 ```bash
 nano /var/www/sxk/.env
@@ -186,4 +186,4 @@ sudo tail -f /var/log/nginx/error.log
 1. 访问 https://dashscope.console.aliyun.com/
 2. 开通 DashScope 服务
 3. 在「API-KEY 管理」中创建 Key
-4. 复制到 ecosystem.config.js 的 DASHSCOPE_API_KEY
+4. 复制到 ecosystem.config.cjs 的 DASHSCOPE_API_KEY

@@ -1,7 +1,13 @@
 // PM2 进程配置：两个产品，两个进程。
 //
-// 用法: pm2 start ecosystem.config.js          （两个都起）
-//       pm2 start ecosystem.config.js --only sxk-a
+// 用法: pm2 start deploy/ecosystem.config.cjs               （两个都起）
+//       pm2 start deploy/ecosystem.config.cjs --only sxk-b
+//
+// 【副档名必须是 .cjs，不要改回 .js】
+// package.json 里有 "type": "module"，所以 .js 会被当成 ES module，而这个文件用
+// 的是 CommonJS 的 module.exports —— PM2 载入时会直接报
+// `ReferenceError: module is not defined in ES module scope`，而且报错发生在
+// 部署脚本的最后一步，前面三步全部成功，看起来像是快好了。
 //
 // 【为什么是两个进程而不是一个】
 // `VITE_APP_MODE` 在**构建期**决定前端 bundle 渲染什么，`APP_MODE` 在**运行期**

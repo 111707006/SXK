@@ -73,7 +73,7 @@ echo "===== [3/4] 停止旧进程 ====="
 pm2 delete "$PM2_NAME" 2>/dev/null || true
 
 echo "===== [4/4] 启动 $PM2_NAME ====="
-pm2 start deploy/ecosystem.config.js --only "$PM2_NAME"
+pm2 start deploy/ecosystem.config.cjs --only "$PM2_NAME"
 pm2 save
 
 echo ""

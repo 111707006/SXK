@@ -27,19 +27,22 @@ sudo bash setup-server.sh
 两个产品共用同一份源码，但 `VITE_APP_MODE` 是**构建期**常数（见 `src/productConfig.ts`），
 所以 A 和 B 是两份不同的 `dist/` —— 同一个目录跑两个进程办不到。
 
+| 目录 | 产品 | PM2 名称 | `APP_MODE` | 数据库 | 端口 | 域名 |
+|---|---|---|---|---|---|---|
+| `/var/www/sxk` | 专案 A | `sxk-app` | `full` | `sxk_db` | 5000 | `sxkscreen.com` |
+| `/var/www/sxk-b` | 专案 B | `sxk-b` | `t1only` | `sxk_t1_db` | 5001 | `t1.sxkscreen.com` |
+
+**A 已经在服务了**（2026-08-11 实测：`https://sxkscreen.com` 回 200）。它的目录与
+进程名不对称，是因为它在双产品拆分之前就上线了。这里照实记录，不改成好看的
+`sxk-a` —— 一份与现场不符的文档，会在某个人照着它 `pm2 delete sxk-a` 却什么都
+没停掉、然后以为自己停了的时候出事。
+
+只需要新建 B：
+
 ```bash
-sudo mkdir -p /var/www/sxk-a /var/www/sxk-b /var/log/sxk
-sudo chown $USER:$USER /var/www/sxk-a /var/www/sxk-b /var/log/sxk
-git clone https://github.com/111707006/SXK.git /var/www/sxk-a
+sudo mkdir -p /var/www/sxk-b /var/log/sxk
 git clone https://github.com/111707006/SXK.git /var/www/sxk-b
 ```
-
-| 目录 | 产品 | `APP_MODE` | 数据库 | 端口 | 域名 |
-|---|---|---|---|---|---|
-| `/var/www/sxk-a` | 专案 A | `full` | `sxk_db` | 5000 | `sxkscreen.com` |
-| `/var/www/sxk-b` | 专案 B | `t1only` | `sxk_t1_db` | 5001 | `t1.sxkscreen.com` |
-
-> 只上其中一个产品的话，另一个目录不建即可 —— `deploy-app.sh` 一次只部署一个。
 
 ## 四、配置环境变量（密钥写入 .env，不要写进 ecosystem.config.js）
 

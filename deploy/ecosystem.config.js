@@ -10,8 +10,14 @@
 //
 // 因此两个产品各自有独立的目录、独立的 .env、独立的数据库、独立的端口：
 //
-//   /var/www/sxk-a   APP_MODE=full     MYSQL_DATABASE=sxk_db      :5000
-//   /var/www/sxk-b   APP_MODE=t1only   MYSQL_DATABASE=sxk_t1_db   :5001
+//   /var/www/sxk     APP_MODE=full     MYSQL_DATABASE=sxk_db      :5000  (sxk-app)
+//   /var/www/sxk-b   APP_MODE=t1only   MYSQL_DATABASE=sxk_t1_db   :5001  (sxk-b)
+//
+// 【为什么 A 的目录与进程名不对称】
+// A 在双产品拆分之前就上线了，现在 sxkscreen.com 上跑的就是它：目录
+// /var/www/sxk、PM2 名称 sxk-app、cluster 模式。这里照实写，**不改成好看的
+// sxk-a** —— 一份与现场不符的配置文件，会在某个人照着它执行 `pm2 delete sxk-a`
+// 却什么都没停掉、然后以为自己停了的时候出事。要搬家是另一件事，搬完再改这里。
 //
 // 【密钥不要写在这里】
 // 本文件会被 git 跟踪，写进来就等于提交到版本库。每个产品目录各自建一份 .env
@@ -51,8 +57,10 @@ module.exports = {
     {
       ...base,
       // 专案 A：深度评估 + 付费解锁 + 商城端点全部注册。
-      name: 'sxk-a',
-      cwd: '/var/www/sxk-a',
+      // 名称与目录照现场（见文件头），不是笔误。
+      name: 'sxk-app',
+      cwd: '/var/www/sxk',
+      exec_mode: 'cluster',
       env: {
         NODE_ENV: 'production',
         DEPLOY_RUN_PORT: 5000,

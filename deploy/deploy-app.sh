@@ -26,8 +26,9 @@ PRODUCT="${1:-}"
 BUILD_HERE="${2:-}"
 
 case "$PRODUCT" in
-  a) APP_DIR="/var/www/sxk-a"; PM2_NAME="sxk-a"; VITE_MODE="full"   ;;
-  b) APP_DIR="/var/www/sxk-b"; PM2_NAME="sxk-b"; VITE_MODE="t1only" ;;
+  # A 的目录与进程名照现场（它在双产品拆分之前就上线了），不是笔误。
+  a) APP_DIR="/var/www/sxk";   PM2_NAME="sxk-app"; VITE_MODE="full"   ;;
+  b) APP_DIR="/var/www/sxk-b"; PM2_NAME="sxk-b";   VITE_MODE="t1only" ;;
   *)
     echo "用法: bash deploy-app.sh <a|b> [--build]"
     echo "  a = 专案 A（APP_MODE=full,   :5000）"

@@ -88,13 +88,16 @@ SESSION_SECRET=在此粘贴一段随机字符串
 
 ```bash
 # 本机：专案 A
-VITE_ICP_BEIAN="浙ICP备xxxxxxxx号-1" VITE_APP_MODE=full pnpm run build \
+VITE_ICP_BEIAN="沪ICP备2026009790号-3" VITE_APP_MODE=full pnpm run build \
   && scp -r dist root@你的IP:/var/www/sxk-a/
 
 # 本机：专案 B
-VITE_ICP_BEIAN="浙ICP备xxxxxxxx号-1" VITE_APP_MODE=t1only pnpm run build \
+VITE_ICP_BEIAN="沪ICP备2026009790号-3" VITE_APP_MODE=t1only pnpm run build \
   && scp -r dist root@你的IP:/var/www/sxk-b/
 ```
+
+> 备案号末尾的 `-3` 是网站序号（同一主体下的第三个网站），**必须照抄** ——
+> 漏掉就与工信部的记录对不上，抽查时等同没挂。
 
 > ⚠️ `VITE_ICP_BEIAN` 是**构建期**常数，设在服务器的 `.env` 里不会有任何效果。
 > 备案通过却没在页面底部挂号码，阿里云的处理是要求整改乃至关停接入 ——

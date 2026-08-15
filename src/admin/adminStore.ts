@@ -14,12 +14,12 @@
  * 會擋住。它只能透過本模組取資料。
  */
 import type { Pool, ResultSetHeader } from 'mysql2/promise';
-import { getPool, isConfigured } from '../db/mysql';
+import { getPool, isConfigured, materialFromRow } from '../db/mysql';
 import { companyWhereSql, type CompanyCondition } from './companyScope';
 import type { AssessmentRecord, DimensionScore } from '../types';
 import { calculateAgeMonth } from '../utils/dateUtils';
 import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
-import type { MaterialInput, MaterialRecord, MaterialStep } from '../utils/materialCells';
+import type { MaterialInput, MaterialRecord } from '../utils/materialCells';
 
 // ── 對外型別 ──
 
@@ -591,21 +591,14 @@ export async function setAdminUserActive(id: number, active: boolean): Promise<n
 // 它們仍然住在這裡而不是路由層：單一入口的規則對全域的表一樣適用，
 // 否則「路由裡沒有 SQL」這條護欄就會有第一個例外，而例外會長出第二個。
 
-function rowToMaterial(row: any): MaterialRecord {
-  return {
-    id: Number(row.id),
-    dimensionId: row.dimension_id,
-    ageBandId: row.age_band_id,
-    severity: row.severity,
-    title: row.title,
-    // 壞掉的 JSON 退回空陣列而不是拋例外：一格素材存壞不該讓整個素材庫讀不出來。
-    // 空步驟在畫面上看得見（「0 步」），而整頁失敗只會顯示一句讀取失敗。
-    steps: parseJson<MaterialStep[]>(row.steps, []),
-    videoUrl: row.video_url ?? null,
-    active: Number(row.active) === 1,
-    updatedAt: toIso(row.updated_at),
-  };
-}
+// 列 → 素材的轉換與家長端共用一份：`src/db/mysql.ts` 的 `materialFromRow`。
+// 各寫一份的話，兩邊對「這一列的 JSON 壞掉了」會有兩種處置，於是維護的人看著
+// 一格「0 步」的素材、家長那邊卻是一句讀取失敗 —— 同一列資料，兩個畫面沒有
+// 一句話對得起來。壞掉的步驟退回空陣列（不拋例外）的理由見那邊的說明。
+//
+// 刻意**不**在模組層級取一個別名（`const rowToMaterial = materialFromRow`）：
+// 那會在 import 當下就讀取這個匯出，於是每一支替換掉 `src/db/mysql` 的測試
+// 都必須補上它，連完全碰不到素材的那些也不例外。
 
 /**
  * 整份素材庫，含已停用的。
@@ -621,14 +614,14 @@ export async function listMaterials(): Promise<MaterialRecord[]> {
       ORDER BY dimension_id ASC, age_band_id ASC, severity ASC`,
     []
   );
-  return (rows as any[]).map(rowToMaterial);
+  return (rows as any[]).map(row => materialFromRow(row));
 }
 
 export async function findMaterialById(id: number): Promise<MaterialRecord | null> {
   const p = requirePool();
   const [rows] = await p.execute('SELECT * FROM intervention_materials WHERE id = ? LIMIT 1', [id]);
   const row = (rows as any[])[0];
-  return row ? rowToMaterial(row) : null;
+  return row ? materialFromRow(row) : null;
 }
 
 /**

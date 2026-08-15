@@ -8,14 +8,46 @@ import {
   MessageSquare, Mic, Users
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
+import InterventionPack from './InterventionPack';
+import { severityForIntervention } from '../utils/interventionMatch';
 
 interface SpecializedReportViewProps {
   record: AssessmentRecord;
   onBack: () => void;
   onGoToMall?: () => void;
+  /**
+   * 孩子**今天**的實足月齡，用來取干預包（issue #26）。
+   *
+   * 與報告本身用的年齡是兩個值，而且刻意如此：報告照測評月齡讀（見下方
+   * `child`），干預包照今天的月齡取 —— 那是家長現在要在家做的事，難度得配得上
+   * 孩子今天做得到什麼。孩子跨段後兩者會分岔，所以干預包那一塊會把年齡段寫出來。
+   *
+   * `null` 代表孩子檔案上沒有可用的月齡，此時干預包那一塊會說清楚而不是猜一段。
+   */
+  currentAgeMonth?: number | null;
+  /**
+   * 這個孩子**目前**的成績，用來決定干預包該取哪一級嚴重度（issue #26）。
+   *
+   * 與 `record.scores` 是兩回事：後者是這份報告產出當下的快照，永不改變。
+   * 干預包必須兩隻腳都站在現在 —— 年齡取今天的，判定也要取今天的。只把年齡
+   * 換成今天而判定沿用快照，孩子重測後改善了，翻開舊報告仍會拿到當初那一級
+   * 的訓練強度，而畫面上沒有任何一處說得出這份步驟是照哪一次的結果挑的。
+   *
+   * 沒有傳的話才退回讀快照 —— 那是給「手上根本沒有即時成績」的呼叫端用的。
+   */
+  currentScores?: DimensionScore[];
+  /** 導向報告頁的專家預約區塊。素材還沒到位的格子靠它給家長一條真的出路。 */
+  onContactExpert?: () => void;
 }
 
-export default function SpecializedReportView({ record, onBack, onGoToMall }: SpecializedReportViewProps) {
+export default function SpecializedReportView({
+  record,
+  onBack,
+  onGoToMall,
+  currentAgeMonth = null,
+  currentScores,
+  onContactExpert,
+}: SpecializedReportViewProps) {
   /**
    * 孩子取自紀錄本身，不從外面傳進來。
    *
@@ -661,6 +693,22 @@ export default function SpecializedReportView({ record, onBack, onGoToMall }: Sp
           </div>
         </div>
       </div>
+
+      {/* 6. 干預包（issue #26）—— 依（維度，年齡段，嚴重度）從素材庫取出的圖文步驟。
+          與上一段的差別是來源：上面是報告產生器寫出來的建議，這裡是森心康維護的
+          素材庫裡**這個孩子那一格**的內容。嚴重度取最深的那一層成績（純函式，
+          見 `severityForIntervention`）—— T3 做完之後還拿 T1 的判定去配，等於把
+          家長付費買到的結論丟掉。
+
+          這一整塊是**報告裡唯一朝向「現在」的區塊**：年齡與判定都取當下的值，
+          而它上下的每一段都是這份報告產出當下的快照。刻意如此 —— 訓練是家長
+          今天要做的事；但也因此年齡段標在那一塊的標題旁，兩種時態不會被讀混。 */}
+      <InterventionPack
+        dimensionId={dimId}
+        currentAgeMonth={currentAgeMonth}
+        severity={severityForIntervention(currentScores ?? record.scores, dimId)}
+        onContactExpert={onContactExpert}
+      />
 
       {/* 7. FLATTENED LAYOUT: SECTION IV - 7日居家特调方案 (7-Day OT/PT Schedule) */}
       <div className="space-y-6 text-left pt-2">

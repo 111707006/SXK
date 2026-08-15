@@ -19,6 +19,7 @@ import {
 import { renderParentExportHtml } from './src/admin/exportView';
 import { readServiceType } from './src/utils/serviceTypes';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
+import { matchIntervention, resolveInterventionCell } from './src/utils/interventionMatch';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
@@ -1659,6 +1660,92 @@ app.get('/api/specialists', async (req, res) => {
   } catch (err: any) {
     console.error('[Specialists] Lookup failed:', err.message);
     res.status(500).json({ error: '读取专家名单失败。' });
+  }
+});
+
+/**
+ * 干預包（issue #26）—— 依（維度，年齡段，嚴重度）取出這個孩子那一格的素材。
+ *
+ * **只在專案 A 掛載**：B 沒有深度評估，也就沒有干預包。掛在 `tier2Only` 上，
+ * 於是在 B 的部署裡這條路徑根本不存在，請求落到 404 —— 比註冊一個處理函式
+ * 再從裡面拒絕更強，沒有處理函式可以被繞過。
+ *
+ * 閘門與其他深度評估端點同一道（`rejectIfLocked`）：干預包是那個維度的深度
+ * 評估內容，家長買的就是它。
+ *
+ * 年齡段**不收**呼叫端指定，一律由 `ageMonth` 推導（見 `resolveInterventionCell`）。
+ * `ageMonth` 與 `severity` 來自前端是刻意的取捨：孩子的出生日期本來就由家長自己
+ * 維護，改一個月份就換一段，伺服器再驗一次也擋不住同一個人；而付費邊界在
+ * `dimensionId`，那一個是驗過的。
+ *
+ * 回應永遠帶一個明確的 `status`，**不回空陣列讓前端自己猜**（同 `/api/specialists`）：
+ *   - `ok`：這一格有啟用中的素材
+ *   - `preparing`：這一格還沒有可用素材（沒建立，或建了又停用）——
+ *     對家長是同一件事，畫面說「準備中」並導向專家諮詢
+ *   - `not_flagged`：這個維度沒被標記，本來就不需要干預
+ *   - `out_of_scope`：維度、月齡或嚴重度認不得
+ *   - `unavailable`：這個部署沒有資料庫（展示站），或素材讀取失敗
+ *
+ * **不退回鄰近年齡段、不退回通用方案。** 查詢只認完全相等的三個值，回來的那一筆
+ * 還要再過一次 `matchIntervention` —— 兩道關卡是刻意的：把學齡前的訓練發給
+ * 一歲半的孩子，他做不到，而家長會以為孩子又失敗了一次，畫面上卻完全正常。
+ */
+tier2Only.get('/api/intervention-pack', async (req, res) => {
+  try {
+    const dimensionId = typeof req.query.dimensionId === 'string' ? req.query.dimensionId : '';
+    if (await rejectIfLocked(req, res, dimensionId)) return;
+
+    // 月齡走查詢字串，一定是字串。空字串在 Number() 底下是 0（一個合法月齡），
+    // 所以先擋掉再轉 —— 沒帶月齡不該被當成「剛出生」。
+    const rawAge = typeof req.query.ageMonth === 'string' ? req.query.ageMonth.trim() : '';
+    const resolved = resolveInterventionCell({
+      dimensionId,
+      ageMonth: rawAge === '' ? null : Number(rawAge),
+      severity: req.query.severity,
+    });
+    if (resolved.status !== 'ok') {
+      res.json({ status: resolved.status });
+      return;
+    }
+    const cell = resolved.cell;
+
+    // 展示站沒有資料庫，談不上素材庫。與「這一格還沒建」分開講：混成同一句，
+    // 沒跑遷移的正式站會對每一位家長說「準備中」，而沒有人會收到訊息。
+    if (!mysqlDb.isConfigured()) {
+      res.json({ status: 'unavailable', cell });
+      return;
+    }
+
+    const row = await withTimeout(
+      mysqlDb.findActiveMaterialByCell(cell.dimensionId, cell.ageBandId, cell.severity),
+      2000
+    );
+    const outcome = matchIntervention(
+      { dimensionId, ageMonth: Number(rawAge), severity: cell.severity },
+      row ? [row] : []
+    );
+
+    if (outcome.status === 'ok') {
+      res.json({ status: 'ok', cell: outcome.cell, pack: outcome.pack });
+      return;
+    }
+    // 這一格有素材、但內容讀不成步驟。對家長與讀取失敗是同一件事（都拿不到，
+    // 而且不是內容還沒做），所以回同一個 `unavailable` —— 但**在伺服器這一側
+    // 必須留下一行說得出是哪一格的紀錄**，否則一列壞掉的素材會安靜地混進
+    // 另外八十幾格還沒建的裡面。
+    if (outcome.status === 'unusable') {
+      console.error(
+        `[Intervention] 素材内容读不成步骤，该格暂不可用：${cell.dimensionId}/${cell.ageBandId}/${cell.severity}`
+      );
+      res.json({ status: 'unavailable', cell });
+      return;
+    }
+    res.json({ status: outcome.status, cell });
+  } catch (err: any) {
+    // 讀不到就說讀不到。**不可**退回別的格子或一份通用內容 —— 在最沒有訊號的
+    // 情況下端出年齡不對的訓練，正是這個功能唯一真正危險的失敗方式。
+    console.error('[Intervention] Lookup failed:', err.message);
+    res.json({ status: 'unavailable' });
   }
 });
 

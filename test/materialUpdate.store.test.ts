@@ -22,18 +22,25 @@ let storedRow: any = null;
 /** UPDATE 回報改到了幾列。預設 0 —— 那正是 bug 的形狀。 */
 let updateAffectedRows = 0;
 
-vi.mock('../src/db/mysql', () => ({
-  isConfigured: () => true,
-  getPool: () => ({
-    execute: async (sql: string) => {
-      executed.push(sql.trim().split(/\s+/)[0].toUpperCase());
-      if (/^\s*SELECT/i.test(sql)) return [storedRow ? [storedRow] : []];
-      // ── bug 的形狀就在這一行 ──
-      // 內容一模一樣時，真正的 MySQL 回的就是 affectedRows: 0。
-      return [{ affectedRows: updateAffectedRows }];
-    },
-  }),
-}));
+vi.mock('../src/db/mysql', async () => {
+  // 列 → 素材的轉換用**真的那一支**（`adminStore` 與家長端共用它）。自己在這裡
+  // 兜一個假的，這支測試就會在真正的映射改壞掉時照樣全綠 —— 而它讀回來的那一筆
+  // 素材正是 `updateMaterial` 用來判斷「這個 id 存不存在」的依據。
+  const actual = await vi.importActual<typeof import('../src/db/mysql')>('../src/db/mysql');
+  return {
+    materialFromRow: actual.materialFromRow,
+    isConfigured: () => true,
+    getPool: () => ({
+      execute: async (sql: string) => {
+        executed.push(sql.trim().split(/\s+/)[0].toUpperCase());
+        if (/^\s*SELECT/i.test(sql)) return [storedRow ? [storedRow] : []];
+        // ── bug 的形狀就在這一行 ──
+        // 內容一模一樣時，真正的 MySQL 回的就是 affectedRows: 0。
+        return [{ affectedRows: updateAffectedRows }];
+      },
+    }),
+  };
+});
 
 const VALID_INPUT = {
   dimensionId: 'cognitive',

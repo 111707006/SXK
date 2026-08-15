@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import type { ServiceType } from '../utils/serviceTypes';
+import type { MaterialRecord, MaterialStep } from '../utils/materialCells';
 
 let pool: mysql.Pool | null = null;
 
@@ -655,6 +656,104 @@ export async function findReportLinkByToken(token: string): Promise<ReportLinkRo
   );
   const row = (rows as any[])[0];
   return row ? { userId: Number(row.user_id), reportId: String(row.report_id) } : null;
+}
+
+// ---- 干預素材（issue #20 建庫、#26 端到家長面前）----
+
+/**
+ * 一列 `intervention_materials` 讀成一筆素材。
+ *
+ * **後台與家長端共用這一支**（`src/admin/adminStore.ts` 匯入它）。各寫一份的話，
+ * 兩邊對「這一列壞掉了」會有兩種處置：後台把壞掉的 JSON 讀成空步驟、家長端拋
+ * 例外變成一次讀取失敗，於是維護的人看著一格「0 步」的素材，而家長那邊是
+ * 「暫時讀不到」—— 兩個畫面在講同一列資料，卻沒有一句話對得起來。
+ */
+export function materialFromRow(row: any): MaterialRecord {
+  return {
+    id: Number(row.id),
+    dimensionId: row.dimension_id,
+    ageBandId: row.age_band_id,
+    severity: row.severity,
+    title: row.title,
+    // 壞掉的 JSON 退回空陣列而不是拋例外：一格素材存壞不該讓整個素材庫讀不出來。
+    steps: parseMaterialSteps(row.steps),
+    videoUrl: row.video_url ?? null,
+    active: Number(row.active) === 1,
+    updatedAt: toIsoOrNull(row.updated_at),
+  };
+}
+
+/**
+ * `steps` 欄位讀成步驟陣列。**全有或全無**。
+ *
+ * 壞掉的 JSON 退回空陣列而不是拋例外：一格素材存壞不該讓整個素材庫讀不出來。
+ *
+ * 但「壞掉」也包含**陣列裡混進一則讀不成步驟的東西**（手動下 SQL 補內容、
+ * 或早期沒有經過 `readMaterialInput` 的列）。此時整份退成空陣列，而不是把好的
+ * 那幾則留下來 —— 留下來的話，家長會拿到一份少了中間某一步的訓練並照著做完，
+ * 而他無從知道自己手上的是殘缺的版本。後台則會看到「0 步」，那在畫面上明顯
+ * 不對，有人會去修它。
+ */
+function parseMaterialSteps(raw: unknown): MaterialStep[] {
+  const parsed = toArray(raw);
+  return parsed.every(isStepShaped) ? (parsed as MaterialStep[]) : [];
+}
+
+function toArray(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string') return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function isStepShaped(step: unknown): boolean {
+  if (!step || typeof step !== 'object') return false;
+  const { imageUrl, instruction } = step as Record<string, unknown>;
+  return typeof imageUrl === 'string' && imageUrl !== ''
+    && typeof instruction === 'string' && instruction !== '';
+}
+
+function toIsoOrNull(value: unknown): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * 家長端要的那一格素材 —— **完全相等的三個值，而且只回啟用中的**。
+ *
+ * 三個參數都是必要的，沒有一個有預設值：任何一個「沒帶就回全部」的寬鬆行為，
+ * 都會在上層變成「找不到就給一個最接近的」。年齡段不對的訓練孩子做不到，
+ * 而畫面上看起來完全正常（見 `src/utils/interventionMatch.ts`）。
+ *
+ * 後台走的是另一條路（`adminStore.listMaterials`，含已停用的）—— 那邊要的是
+ * 90 格的全貌，「未建立」與「已停用」必須分得開；家長端兩者是同一個結果。
+ *
+ * 拿不到連線池時**拋例外，不回 `null`**。這一支的 `null` 有一個確切的意思：
+ * 「這一格沒有啟用中的素材」，也就是家長端的「準備中」。連線池建不起來
+ * （`MYSQL_PORT` 打錯之類）跟著回 `null`，就會對每一位家長說內容還在準備 ——
+ * 那聽起來像待辦事項，不像故障，於是沒有人會去看它。路由層的 catch 會把例外
+ * 翻成 `unavailable`（「暫時讀取不到」），那才是真的發生的事。
+ */
+export async function findActiveMaterialByCell(
+  dimensionId: string,
+  ageBandId: string,
+  severity: string
+): Promise<MaterialRecord | null> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL pool unavailable while reading intervention materials');
+  const [rows] = await p.execute(
+    `SELECT * FROM intervention_materials
+      WHERE dimension_id = ? AND age_band_id = ? AND severity = ? AND active = 1
+      LIMIT 1`,
+    [dimensionId, ageBandId, severity]
+  );
+  const row = (rows as any[])[0];
+  return row ? materialFromRow(row) : null;
 }
 
 // Parse JSON fields from MySQL row

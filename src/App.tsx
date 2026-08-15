@@ -30,7 +30,7 @@ const Paywall = lazy(() => import('./components/Paywall'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
-import { formatAge, refreshChildAge } from './utils/dateUtils';
+import { calculateAgeMonth, formatAge, refreshChildAge } from './utils/dateUtils';
 import { ageBandDrift, latestAssessedAgeMonth } from './utils/ageBandDrift';
 import { useToday } from './utils/useToday';
 import { authFetch, setUnauthorizedHandler } from './utils/api';
@@ -61,6 +61,23 @@ export default function App() {
    * 是那一次篩查的事實記錄，永不重算。
    */
   const child = useMemo(() => refreshChildAge(childProfile, today), [childProfile, today]);
+
+  /**
+   * 今天真的算得出來的實足月齡；算不出來就是 `null`。
+   *
+   * 與 `child.ageMonth` 的差別是**誠實**，而不是數值：沒有出生日期時
+   * `refreshChildAge` 會把孩子原樣回傳（它沒有東西可以算），於是 `child.ageMonth`
+   * 是當初寫進檔案的那個數字，**放著就會過期而且看不出來**。用它來取干預包，
+   * 一個檔案裡寫著 23 個月、實際四歲的孩子會拿到 A 段的訓練 —— 而畫面上那個
+   * 年齡段標籤是照同一個數字算的，所以前後完全自洽，沒有一處看起來不對。
+   *
+   * 篩查那一側可以接受這個舊值（那是既有行為，且畫面上另有跨段提示）；
+   * 干預包不行 —— 它的全部價值就是「這組訓練配得上孩子今天的能力」。
+   */
+  const liveAgeMonth = useMemo(
+    () => (childProfile?.birthDate ? calculateAgeMonth(childProfile.birthDate, today) : null),
+    [childProfile, today]
+  );
 
   // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'
   const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'>('dashboard');
@@ -546,6 +563,34 @@ export default function App() {
     syncToCloud(child, completedScores, orders, updatedHistory);
   };
 
+  /**
+   * 把家長送到報告頁的專家預約區塊。
+   *
+   * **優先走已歸檔的那一份報告**，而不是即時報告。預約區塊在 `{aiReport && …}`
+   * 裡面，即時報告的 `aiReport` 一開始是 null —— 家長按下「联系专家」會落在一頁
+   * 看不到專家區塊的報告上，還得自己先按一次「生成 AI 发展报告」才看得到。
+   * 已歸檔的那一份帶著 `aiReport` 進去，區塊當場就在，捲動也才捲得到東西。
+   *
+   * 一份都沒有時退回即時報告 —— 那時本來就沒有報告可看，這是誠實的去向。
+   */
+  const goToExpertBooking = () => {
+    // 時間讀不出來的當成空字串再比 —— 任何正常的時間都比空字串大，所以一筆
+    // `createdAt` 壞掉的紀錄不會只因為排在前面就贏過所有正常的紀錄（同
+    // `ageBandDrift.ts` 的 `latestBy`；雲端同步回來的歷史紀錄真的會缺這個欄位）。
+    const timeOf = (r: AssessmentRecord) => (typeof r.createdAt === 'string' ? r.createdAt : '');
+    const archived = reportHistory
+      .filter(r => r.type === 'T1_SCREENING' && r.aiReport)
+      .reduce<AssessmentRecord | null>(
+        (latest, r) => (!latest || timeOf(r) >= timeOf(latest) ? r : latest),
+        null
+      );
+    setActiveSpecializedRecordId(null);
+    setViewingLiveT1(!archived);
+    setActiveT1Record(archived);
+    setFocusBooking(true);
+    setCurrentView('report');
+  };
+
   // Find active dimension config
   const activeDimension = DIMENSIONS_DATA.find(d => d.id === selectedDimensionId);
   const paywallDimension = DIMENSIONS_DATA.find(d => d.id === paywallDimensionId);
@@ -640,6 +685,10 @@ export default function App() {
                     setViewingLiveT1(false);
                     setActiveT1Record(null);
                     setActiveSpecializedRecordId(null);
+                    // 從導覽列進來是「我要看報告」，不是「帶我去預約」。這一行少了
+                    // 的話，按過一次干預包的「联系专家」之後，此後每一份報告都會
+                    // 自己捲到最底下的預約區塊 —— 而家長沒有要求過那件事。
+                    setFocusBooking(false);
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
                     completedScores.length === 0 ? 'opacity-40 cursor-not-allowed' : ''
@@ -1029,10 +1078,18 @@ export default function App() {
                   <AnalysisReport
                     child={child}
                     completedScores={activeT1Record.scores}
-                    onBack={() => setActiveT1Record(null)}
+                    onBack={() => {
+                      setActiveT1Record(null);
+                      setFocusBooking(false);
+                    }}
                     onSaveReportToHistory={handleSaveReportToHistory}
                     onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     historicalRecord={activeT1Record}
+                    // 從干預包的「联系专家」進來時要捲到預約區塊 —— 這一支是
+                    // `goToExpertBooking` 優先走的那一條路（已歸檔的報告帶著
+                    // aiReport，區塊當場就在）。少了這個 prop，捲動只在即時報告
+                    // 那一支生效，而那一支正好是區塊還沒出現的那一支。
+                    focusBooking={focusBooking}
                   />
                 </div>
               ) : (
@@ -1108,7 +1165,13 @@ export default function App() {
                                 return (
                                   <div
                                     key={rec.id}
-                                    onClick={() => setActiveT1Record(rec)}
+                                    onClick={() => {
+                                      setActiveT1Record(rec);
+                                      // 從歸檔清單點進來的報告要從頭看起。
+                                      // `focusBooking` 是上一次「联系专家」留下的
+                                      // 旗標，不清掉就會把這一份也捲到預約區塊。
+                                      setFocusBooking(false);
+                                    }}
                                     className="border border-brand-stone/60 hover:border-brand-forest/60 hover:bg-brand-sage/5 rounded-2xl p-3.5 text-left cursor-pointer transition group"
                                   >
                                     <div className="flex justify-between items-center">
@@ -1242,6 +1305,16 @@ export default function App() {
                         setCurrentView('mall');
                         setActiveSpecializedRecordId(null);
                       } : undefined}
+                      /* 干預包照**今天**的實足月齡與**今天**的判定取，兩者都不是
+                         這份報告當時的快照：那是家長現在要在家做的訓練，難度要配
+                         得上孩子今天做得到什麼、強度要配得上他今天的結果。
+                         用 `liveAgeMonth` 而不是 `child.ageMonth` —— 後者在沒有
+                         出生日期時是一個過期而且看不出來的舊數字（見其定義）。 */
+                      currentAgeMonth={liveAgeMonth}
+                      currentScores={completedScores}
+                      // 素材還沒到位的格子要有一條**真的**出路，不是一顆把家長
+                      // 丟到報告頁自己找的按鈕。見 `goToExpertBooking`。
+                      onContactExpert={goToExpertBooking}
                     />
                   </LazyBoundary>
                 ) : (

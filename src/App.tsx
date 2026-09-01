@@ -957,8 +957,26 @@ export default function App() {
             <ChildProfileForm currentChild={child} onSave={handleSaveChild} />
           </div>
         ) : (
-          /* Dashboard of 9 portals & corresponding tools views */
-          <div className="space-y-6">
+          /*
+            Dashboard of 9 portals & corresponding tools views
+
+            `min-w-0` 不是排版微調，拿掉會在手機上把整頁往左推出畫面。
+
+            外層 `<main>` 是 `flex ... justify-center`，這個 div 是它唯一的
+            flex item，而 flex item 預設 `min-width: auto` —— 縮不到自己內容的
+            最小寬度以下。iPhone（375px）上報告頁的內容最小寬約 491px，大於
+            可用的 343px，於是 item 撐到 491 溢出容器，`justify-center` 再把
+            多出來的 148px 平均分到左右兩邊，item 的左緣落在 x = -58。
+
+            右邊那 58px 捲得到（scrollWidth 只計右側溢出），左邊那 58px
+            **永遠捲不回來**：報告標題、維度卡片的左緣就是這樣被切掉的。
+
+            `min-w-0` 解除下限，item 縮回 343px 正常換行。刻意不用 `w-full`：
+            那會讓桌機上原本依內容寬置中的版面（實測 723px）變成滿版 1216px，
+            修手機的同時改掉了桌機。上面兩個分支用 `w-full` 是因為它們本來就
+            該滿版，不是同一件事。
+          */
+          <div className="min-w-0 space-y-6">
             
             {currentView === 'dashboard' ? (
               <div className="space-y-8 animate-fade-in">

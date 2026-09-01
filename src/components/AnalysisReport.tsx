@@ -918,9 +918,28 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   </p>
                 </div>
 
-                {/* 雷达图 */}
+                {/*
+                  雷达图
+
+                  `w-full max-w-[320px]` 而不是原本的固定 `width="320"`：320 是圖形
+                  本身的大小，維度標籤畫在 viewBox **之外**（`labelR = maxR + 25`
+                  = 145，最左/最右那兩根軸的錨點在 x ≈ 17 與 x ≈ 303，配上最長的
+                  維度名「生活自理与适应」7 字約 70px，會伸到 x = -53 與 373），
+                  靠 `overflow-visible` 露出來。
+
+                  桌機上外層卡片寬鬆，露出去也還在卡片裡；手機上卡片只剩 253px，
+                  露出去的標籤就撞上報告外框的 `overflow-hidden`，左邊那個維度名
+                  被削掉一角。改成隨容器縮放後，縮放比 253/320 ≈ 0.79 讓標籤範圍
+                  收在外框內（實測餘裕約 3px），標籤字則從 10px 變成約 7.9px。
+
+                  `max-w-[320px]` 保住桌機：容器一旦寬於 320 就維持 1:1，尺寸與
+                  字級和原本完全相同。
+
+                  ⚠️ 餘裕不大 —— 若日後維度名超過 7 個字，最左那一個會再度被削。
+                  真要加長名稱，得連 `labelR` 與 viewBox 一起重算。
+                */}
                 <div className="flex justify-center">
-                  <svg width="320" height="320" viewBox="0 0 320 320" className="overflow-visible">
+                  <svg width="320" height="320" viewBox="0 0 320 320" className="w-full max-w-[320px] h-auto overflow-visible">
                     {/* 网格背景 */}
                     {gridPaths.map((path, i) => (
                       <path

@@ -92,7 +92,7 @@ SESSION_SECRET=在此粘贴一段随机字符串
 ```bash
 # 本机：专案 A
 VITE_ICP_BEIAN="沪ICP备2026009790号-3" VITE_APP_MODE=full pnpm run build \
-  && scp -r dist root@你的IP:/var/www/sxk-a/
+  && scp -r dist root@你的IP:/var/www/sxk/
 
 # 本机：专案 B
 VITE_ICP_BEIAN="沪ICP备2026009790号-3" VITE_APP_MODE=t1only pnpm run build \
@@ -105,11 +105,28 @@ VITE_ICP_BEIAN="沪ICP备2026009790号-3" VITE_APP_MODE=t1only pnpm run build \
 > ⚠️ `VITE_ICP_BEIAN` 是**构建期**常数，设在服务器的 `.env` 里不会有任何效果。
 > 备案通过却没在页面底部挂号码，阿里云的处理是要求整改乃至关停接入 ——
 > 也就是说漏了这一项，域名会打不开。未设定时整段不渲染（见 `src/components/BeianFooter.tsx`）。
+>
+> **2026-09-01 实测：子域 `t1.sxkscreen.com` 的页脚没有备案号，主站有。**
+> 两边跑的是同一份代码、同一个 `BeianFooter`，所以原因只有一个 —— 专案 B 那次
+> 构建漏了 `VITE_ICP_BEIAN=`。照上面的指令重构一次 B 并重新部署即可，无需改代码。
+> 这正是「未设定就整段不渲染」的代价：漏了不会报错，只是页脚少一行。
+
+> ⚠️ 服务器的 `.env` 另外还要设一个 **`ICP_BEIAN`**（没有 `VITE_` 前缀）：
+>
+> ```
+> ICP_BEIAN="沪ICP备2026009790号-3"
+> ```
+>
+> 它给**服务器自己吐出的那几页 HTML** 用 —— 家长扫码带走的报告页（`/r/:token`）
+> 与链接失效页。那些页面不是 React 产生的，读不到构建期常数。
+> 两个变量值一样，但一个设在本机构建时、一个设在服务器 `.env`，
+> 因为本专案是在本机构建再 scp 上去的，产物离开本机之后就改不动了。
+> 漏掉 `ICP_BEIAN` 的症状：家长端页脚有备案号，扫码打开的报告页没有。
 
 主机上各跑一次（脚本会检查 `.env` 与 `dist/` 在不在，缺了就地停下）：
 
 ```bash
-cd /var/www/sxk-a && bash deploy/deploy-app.sh a
+cd /var/www/sxk && bash deploy/deploy-app.sh a
 cd /var/www/sxk-b && bash deploy/deploy-app.sh b
 
 # 第一次部署跑一次开机自启，照它印出来的那行 sudo 命令执行

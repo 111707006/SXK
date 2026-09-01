@@ -13,7 +13,7 @@
 #
 # 本机构建（注意 VITE_APP_MODE 是**构建期**决定前端渲染什么，必须显式指定）：
 #
-#   VITE_APP_MODE=full   pnpm run build && scp -r dist/ root@主机:/var/www/sxk-a/
+#   VITE_APP_MODE=full   pnpm run build && scp -r dist/ root@主机:/var/www/sxk/
 #   VITE_APP_MODE=t1only pnpm run build && scp -r dist/ root@主机:/var/www/sxk-b/
 #
 # 认不得的值会让构建直接失败（productConfig.ts 的 resolveMode 是 fail-closed）——

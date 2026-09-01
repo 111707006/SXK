@@ -85,3 +85,52 @@ describe('匯出頁上的測評月齡與年齡段', () => {
     expect(html).toContain('&lt;script&gt;');
   });
 });
+
+/**
+ * 備案號 —— 同一個函式，兩個呼叫端要不同的結果。
+ *
+ * `renderParentExportHtml` 有兩個呼叫端，性質完全不同：
+ *
+ *   - `server.ts` 的 `/r/:token`：家長掃碼帶走、收藏在手機裡反覆打開的**網頁**。
+ *     它是這個網域對外的一頁，備案號必須在，否則抽查等同沒掛（處理是要求整改
+ *     乃至關停接入）。
+ *   - `src/admin/routes.ts` 的後台匯出：要列印給專家的**文件**，不是網頁。
+ *     一張紙上印備案號沒有意義。
+ *
+ * 所以號碼由呼叫端傳進來，這個檔案不讀 `process.env` —— 差別寫在呼叫端才看得見。
+ * 這兩條測試釘住的就是「哪一邊該有、哪一邊該沒有」。
+ */
+describe('匯出頁上的備案號', () => {
+  const BEIAN = '沪ICP备0000000000号-9';
+
+  it('傳了就掛在頁面底部，連回工信部', () => {
+    const html = renderParentExportHtml(detail(), { icpBeian: BEIAN });
+    expect(html).toContain(BEIAN);
+    expect(html).toContain('https://beian.miit.gov.cn/');
+  });
+
+  // 後台匯出走的就是這條路徑（不傳這個選項）。
+  it('沒傳就整段不出現 —— 寧可沒有，不掛一個不屬於自己的號碼', () => {
+    const html = renderParentExportHtml(detail());
+    expect(html).not.toContain('beian.miit.gov.cn');
+    expect(html).not.toContain('class="beian"');
+  });
+
+  // 空字串與只有空白等同沒設定。`.env` 裡留一行 `ICP_BEIAN=` 是常見狀態，
+  // 那時掛出來的會是一個空連結 —— 看起來沒東西，實際上有個可點的空洞。
+  it('空字串或只有空白等同沒設定', () => {
+    expect(renderParentExportHtml(detail(), { icpBeian: '' })).not.toContain('class="beian"');
+    expect(renderParentExportHtml(detail(), { icpBeian: '   ' })).not.toContain('class="beian"');
+  });
+
+  it('號碼照樣走 HTML 逃脫，不從設定開一個注入口', () => {
+    const html = renderParentExportHtml(detail(), { icpBeian: '<script>x</script>' });
+    expect(html).not.toContain('<script>x</script>');
+  });
+
+  // 家長會用「列印 → 另存為 PDF」把這一頁交給專家。那份紙不是網頁。
+  it('列印時藏起來', () => {
+    const html = renderParentExportHtml(detail(), { icpBeian: BEIAN });
+    expect(html).toMatch(/@media print[^}]*\.beian[^}]*display:\s*none/);
+  });
+});

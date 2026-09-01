@@ -69,6 +69,15 @@ export interface ReportRenderOptions {
   includeBookings?: boolean;
   /** 頁尾那一行提示。兩個呼叫端的讀者不同，說的話也不同。 */
   hint?: string;
+  /**
+   * ICP 備案號。給了才渲染，沒給就整段不出現（與 `BeianFooter` 同一個約定：
+   * 寫死一個佔位號碼比沒有更糟）。
+   *
+   * **由呼叫端傳入，這個檔案不讀 `process.env`** —— 兩個呼叫端的性質不同：
+   * 家長掃碼打開的那一頁是網站的一頁，備案號必須在；後台匯出的那一份是要
+   * 列印給專家的文件，不是網頁，掛備案號沒有意義。差別寫在呼叫端才看得見。
+   */
+  icpBeian?: string;
 }
 
 export function renderParentExportHtml(
@@ -77,6 +86,7 @@ export function renderParentExportHtml(
 ): string {
   const includeBookings = options.includeBookings !== false;
   const hint = options.hint ?? '这一页可直接用浏览器「列印 → 另存为 PDF」交给专家。';
+  const icp = options.icpBeian?.trim();
 
   const withAi = parent.reportHistory.filter(r => r.aiReport);
   const latestReport =
@@ -152,7 +162,10 @@ export function renderParentExportHtml(
   .card { border: 1px solid #d9e2ec; border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; font-size: 14px; }
   ul { margin: 4px 0 0 18px; padding: 0; }
   .hint { font-size: 12px; color: #829ab1; margin-top: 32px; }
-  @media print { .hint { display: none; } body { margin: 0; } }
+  /* 備案號：與家長端頁尾同一個位置與形式 —— 頁面最底、置中、小字、连回工信部。 */
+  .beian { font-size: 12px; color: #829ab1; margin-top: 20px; text-align: center; }
+  .beian a { color: inherit; text-decoration: none; }
+  @media print { .hint, .beian { display: none; } body { margin: 0; } }
   /*
     手機。九維那張表有四欄，在 375px 寬的螢幕上一定要能橫向捲動 ——
     否則不是被裁掉（讀不到判定那一欄），就是把整個 body 撐寬。
@@ -211,6 +224,11 @@ export function renderParentExportHtml(
   }
 
   <p class="hint">${esc(hint)}</p>
+  ${
+    icp
+      ? `<p class="beian"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">${esc(icp)}</a></p>`
+      : ''
+  }
 </body>
 </html>`;
 }

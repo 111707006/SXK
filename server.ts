@@ -55,6 +55,24 @@ function resolveAppMode(raw: string | undefined): AppMode {
 
 const APP_MODE = resolveAppMode(process.env.APP_MODE);
 
+/**
+ * ICP 備案號 —— 給**伺服器自己吐出的那幾頁 HTML** 用的（家長掃碼帶走的報告頁、
+ * 連結失效頁）。前端頁面走的是另一條路（`VITE_ICP_BEIAN`，建置期常數，
+ * 見 `src/components/BeianFooter.tsx`）。
+ *
+ * 【為什麼是兩個變數，不是一個】
+ * 這個專案**在本機建置、把產物 scp 上伺服器**（見 `deploy/README.md` 第五節）。
+ * `VITE_ICP_BEIAN` 在本機 `pnpm run build` 那一刻就被寫死進前端產物，而這裡
+ * 讀的是伺服器 `.env` 在**執行期**的值 —— 兩者物理上在不同機器上，共用不了。
+ *
+ * 所以上線時兩處都要設，值一樣：
+ *   本機建置：VITE_ICP_BEIAN="沪ICP备2026009790号-3" pnpm run build
+ *   伺服器 .env：ICP_BEIAN="沪ICP备2026009790号-3"
+ *
+ * 未設定時那幾頁不渲染備案號（與 BeianFooter 同一個約定：寧可沒有，不掛假的）。
+ */
+const ICP_BEIAN = process.env.ICP_BEIAN?.trim() || undefined;
+
 // ── Demo switch: paywall on screen, no gate behind it ──
 //
 // For live demos of project A. The parent-facing paywall still renders (it is
@@ -2416,6 +2434,9 @@ app.get('/r/:token', async (req, res) => {
           reportId: link.reportId,
           includeBookings: false,
           hint: '这一页是您扫码带走的报告，网址可以收藏起来，之后随时打开。',
+          // 家長會把這個網址收藏起來反覆打開 —— 它是這個網域對外的一頁，
+          // 備案號要在。後台匯出那條路徑不傳，那一份是列印文件不是網頁。
+          icpBeian: ICP_BEIAN,
         }
       )
     );
@@ -2446,11 +2467,20 @@ function reportLinkNotFoundHtml(message = '这个报告连结无效，或对应�
          text-align: center; line-height: 1.8; }
   p { margin: 0; font-size: 15px; }
   .sub { margin-top: 10px; font-size: 13px; color: #829ab1; }
+  .beian { margin-top: 18px; font-size: 12px; color: #9fb3c8; }
+  .beian a { color: inherit; text-decoration: none; }
 </style>
 </head>
 <body><div class="box">
   <p>${message.replace(/</g, '&lt;')}</p>
   <p class="sub">请回到评估现场的画面，重新扫一次二维码。</p>
+  ${
+    // 這一頁也是這個網域回給訪客的一頁 —— 掃到失效連結的家長停在這裡，
+    // 它跟報告頁一樣看得到、一樣會被抽查到。
+    ICP_BEIAN
+      ? `<p class="beian"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">${ICP_BEIAN.replace(/</g, '&lt;')}</a></p>`
+      : ''
+  }
 </div></body>
 </html>`;
 }

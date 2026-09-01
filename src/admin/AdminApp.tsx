@@ -31,6 +31,7 @@ import {
   type AdminTabId,
 } from './adminView';
 import { PRODUCT } from '../productConfig';
+import { BeianFooter } from '../components/BeianFooter';
 import { Button, ErrorNote, Field, Spinner, TextInput, toErrorView } from './ui';
 import ParentsPanel from './panels/ParentsPanel';
 import SpecialistsPanel from './panels/SpecialistsPanel';
@@ -313,6 +314,19 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-brand-cream px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto max-w-6xl">{children}</div>
+      {/*
+        備案號。後台走 `/admin`，是 `main.tsx` 分出去的另一棵樹，家長端 `App.tsx`
+        的頁尾覆蓋不到它 —— 在此之前 `/admin` 底下每一頁都沒有備案號。
+
+        規定認的是**網域**，不是「哪些頁面算對外」：`/admin` 與家長端同一個
+        網域、同一份備案，抽查時它就是這個站的一頁。
+
+        放在 Shell 而不是各個畫面裡：Shell 包住了 AdminApp 全部四個分支
+        （載入中、錯誤、登入、主畫面），加在這裡才是「後台每一頁都有」。
+      */}
+      <div className="mx-auto max-w-6xl pt-8 text-center text-xs text-brand-charcoal/60">
+        <BeianFooter />
+      </div>
     </div>
   );
 }

@@ -46,3 +46,9 @@ process.env.RATE_BOOKING_MAX = '100000';
 // 第 49 筆過）。`.env.example` 現在會教人去調它，而開發機的 `.env` 一旦漏進來，
 // 那組測試會安靜地驗到另一個數字。
 process.env.SMS_IP_DAILY_MAX = '50';
+
+// 備案號釘成未設定。它是伺服器**執行期**才讀的（`server.ts` 的 `ICP_BEIAN`，
+// 給掃碼報告頁與連結失效頁用），所以開發機的 `.env` 一旦漏進來，「沒設定就
+// 不渲染」那一條會安靜地變成綠燈卻什麼都沒驗到。
+// 需要「有備案號」的測試自己在檔案最上方設定它（見 reportLink.http.test.ts）。
+process.env.ICP_BEIAN = '';

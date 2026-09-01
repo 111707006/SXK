@@ -14,6 +14,17 @@ import { bearer } from './helpers/session';
  * 回 200，只是內容是另一個孩子的。
  */
 
+/**
+ * ⚠️ **必須在載入 `server.ts` 之前設定。** `ICP_BEIAN` 在 `server.ts` 的模組層級
+ * 就讀掉了（`test/setup/testEnv.ts` 把它釘成空字串，擋開發機的 `.env`）。
+ * 寫在 `beforeAll` 裡設就來不及 —— 值已經被讀走，備案號那幾條會全部失敗。
+ *
+ * 用一個假號碼而不是正式的那一組：測試驗的是「有設就渲染」這條線路，
+ * 不是號碼本身。真號碼寫進測試，只會讓人以為改號碼要來改這裡。
+ */
+const TEST_BEIAN = '沪ICP备0000000000号-9';
+process.env.ICP_BEIAN = TEST_BEIAN;
+
 const OWNER_ID = 7;
 const OTHER_ID = 8;
 
@@ -220,5 +231,45 @@ describe('掃碼打開的那一頁', () => {
     const { url } = await issue(OWNER_ID, OWNER_REPORT_ID);
     const html = await (await client.get(pathOf(url))).text();
     expect(html).not.toContain('专家预约');
+  });
+});
+
+/**
+ * 備案號。
+ *
+ * 這不是裝飾：中國大陸已備案的網站必須在頁面底部掛 ICP 備案號並連回工信部，
+ * 抽查沒掛的處理是要求整改乃至關停接入 —— 也就是說少了它，網域會打不開。
+ *
+ * 這兩頁是**伺服器直接吐的 HTML**，不是 React 畫的，所以前端那個建置期常數
+ * （`VITE_ICP_BEIAN`，見 `src/components/BeianFooter.tsx`）覆蓋不到它們。
+ * 它們讀的是伺服器 `.env` 的 `ICP_BEIAN`，兩個變數要分別設在兩台機器上。
+ *
+ * 壞掉的樣子跟這個 repo 已經踩過的一樣安靜：頁面照常回 200、內容全對，
+ * 只是頁尾少一行，沒有任何錯誤訊息。2026-09-01 實測 `t1.sxkscreen.com`
+ * 的家長端就是這樣漏掉的。所以這裡驗的是**線路有沒有接上**。
+ */
+describe('伺服器吐的那兩頁掛得上備案號', () => {
+  it('掃碼帶走的報告頁底部有備案號，連回工信部', async () => {
+    const { url } = await issue(OWNER_ID, OWNER_REPORT_ID);
+    const html = await (await client.get(pathOf(url))).text();
+    expect(html).toContain(TEST_BEIAN);
+    expect(html).toContain('https://beian.miit.gov.cn/');
+  });
+
+  // 家長會用瀏覽器「列印 → 另存為 PDF」把這一頁交給專家。那份紙不是網頁，
+  // 備案號印在上面只是雜訊 —— 與同一頁的提示文字同一個處理。
+  it('列印時把備案號藏起來', async () => {
+    const { url } = await issue(OWNER_ID, OWNER_REPORT_ID);
+    const html = await (await client.get(pathOf(url))).text();
+    expect(html).toMatch(/@media print[^}]*\.beian[^}]*display:\s*none/);
+  });
+
+  // 掃到失效連結的家長會停在這一頁。它一樣是這個網域回給訪客的一頁。
+  it('連結失效那一頁也有 —— 它同樣是這個網域對外的一頁', async () => {
+    const resp = await client.get(`/r/${'A'.repeat(43)}`);
+    expect(resp.status).toBe(404);
+    const html = await resp.text();
+    expect(html).toContain(TEST_BEIAN);
+    expect(html).toContain('https://beian.miit.gov.cn/');
   });
 });

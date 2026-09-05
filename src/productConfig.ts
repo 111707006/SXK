@@ -49,6 +49,22 @@ export interface ProductProfile {
     systemName: string;
     /** 條款與頁尾裡的責任主體稱呼 */
     legalEntity: string;
+    /**
+     * 隱私條款第一條「總則」裡，接在「（以下简称"本系统"）」後面的那一段。
+     *
+     * 客戶 2026-09-04 修訂版的原文是「由森心康品牌运营（以下简称"运营方"），」——
+     * 那句話帶著品牌名，B 不能照抄，所以整個子句由這裡決定。
+     * B 改成不指名的講法而不是留空：後面整份條款都在說「运营方」，那個詞得先被定義。
+     */
+    operatorClause: string;
+    /**
+     * 服務條款第五條「知识产权」裡，解釋權歸屬的主體。
+     *
+     * 原文寫的是公司全名「森跃诺动健康科技有限公司」。這是**公司**，與 `legalEntity`
+     * （畫面上的責任主體稱呼，A 是「森心康（SenXinKang）技术实验室」）不是同一個字串，
+     * 所以另立一個欄位而不是共用 —— 硬套過去會讓頁尾的版權列也跟著改掉。
+     */
+    ipHolder: string;
     /** 頁尾版權列 */
     copyright: string;
     /**
@@ -204,6 +220,9 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       reportTitle: '森心康 AI 神经网络分层评估报告生成器',
       systemName: '森心康（SenXinKang）儿童数字测听与康复分层评估系统',
       legalEntity: '森心康（SenXinKang）技术实验室',
+      // 兩句都照抄客戶 2026-09-04 修訂版的原文。
+      operatorClause: '由森心康品牌运营（以下简称“运营方”），',
+      ipHolder: '森跃诺动健康科技有限公司',
       copyright: '© 2026 森心康（SenXinKang）神经网络科学技术实验室',
       logoMark: '森',
       bioClause: '森心康儿童康复品牌康复质量管理部负责人，',
@@ -263,6 +282,10 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       reportTitle: 'AI 神经网络分层评估报告生成器',
       systemName: '本儿童数字测听与康复分层评估系统',
       legalEntity: '本系统运营方',
+      // 原文的「由森心康品牌运营」與「森跃诺动健康科技有限公司」都不能出現在 B 的
+      // 畫面上。改成不指名的講法 —— 條款後面整份都在說「运营方」，得先把它定義出來。
+      operatorClause: '及其运营方（以下简称“运营方”）',
+      ipHolder: '本系统运营方',
       copyright: '© 2026 儿童神经网络分层评估系统',
       logoMark: '评',
       bioClause: null,

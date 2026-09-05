@@ -1,7 +1,10 @@
 import { PRODUCT } from '../productConfig';
 import { peekCompanySlug } from '../utils/attribution';
+// 條款內文的唯一來源。頁尾那兩個彈窗（App.tsx）渲染的是同一份 —— 見該檔說明。
+// 這裡刻意用完整的兩份，不是以前那個刪節版：使用者在這一頁勾的是「已審閱並同意」。
+import { CombinedLegalBody } from './LegalTerms';
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, FileText, Smartphone, KeyRound } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, Smartphone, KeyRound } from 'lucide-react';
 
 interface AuthScreenProps {
   /** `identity` 只是畫面上顯示的標籤（家長的手機號），不是識別鍵。 */
@@ -314,98 +317,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
 
               {/* 内容区 */}
               <div className="overflow-y-auto px-6 py-5 space-y-6 text-xs text-brand-charcoal/80 leading-relaxed">
-                {/* 服务及免责条款 */}
-                <section>
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-brand-stone/30">
-                    <FileText size={14} className="text-brand-moss" />
-                    <h3 className="font-black text-brand-forest text-sm">服务及免责条款</h3>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">一、服务说明</h4>
-                      <p>{PRODUCT.brand.systemName}为监护人提供儿童发育评估、AI评估报告生成、康复建议参考及智能穿戴设备商城等服务。本系统基于"9维3层分层神经系统检测"理念，结合人工智能技术，为儿童发育状况提供数字化参考信息。</p>
-                    </div>
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
-                      <p className="font-black text-red-700 text-xs">⚠️ 免责声明（重要）：</p>
-                      <ul className="list-disc pl-5 space-y-1 text-red-800/90">
-                        <li><strong>本系统所有评估内容、报告及建议仅供参考，不构成任何医疗诊断、治疗建议或医疗行为。</strong></li>
-                        <li><strong>本系统非医疗器械，不具备医疗资质，不能替代专业医疗机构的诊断与治疗。</strong></li>
-                        <li>AI生成的评估报告基于算法模型运算，可能存在偏差，不应作为唯一决策依据。</li>
-                        <li>儿童发育评估涉及专业医学判断，请务必以正规医院儿科、儿童保健科或发育行为科医生的诊断为准。</li>
-                        <li>如儿童存在发育迟缓、行为异常或其他健康问题，请及时就医，切勿依赖本系统结果延误治疗。</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">二、服务限制</h4>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>本系统提供的评估工具为初步参考，不能替代标准化临床评估量表的专业施测与解读</li>
-                        <li>AI评估报告的准确性受输入数据质量、模型训练数据范围等因素影响</li>
-                        <li>商城所售穿戴设备为辅助训练工具，非医疗器械，不具有治疗功效</li>
-                        <li>本系统不对因使用评估结果而做出的任何决策承担责任</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">三、用户责任</h4>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>用户（监护人）应确保提供的儿童档案信息真实、准确</li>
-                        <li>用户应理解并同意本系统的评估结果仅供参考，不得将其用于医疗诊断、法律证据或其他专业用途</li>
-                        <li>用户不得将本系统用于商业目的或未经授权的二次分发</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">四、责任限制</h4>
-                      <p>在法律允许的最大范围内，{PRODUCT.brand.legalEntity}及其关联公司对因使用或无法使用本系统而造成的任何直接、间接、附带、特殊或后果性损害不承担赔偿责任。</p>
-                    </div>
-                  </div>
-                </section>
-
-                {/* 隐私保护条款 */}
-                <section>
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-brand-stone/30">
-                    <ShieldCheck size={14} className="text-brand-moss" />
-                    <h3 className="font-black text-brand-forest text-sm">隐私保护条款</h3>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">一、数据收集范围</h4>
-                      <p>本系统仅收集为完成发育评估与康复建议所必需的最少数据，包括：儿童基本档案信息、发育评估量表作答数据、AI评估报告生成记录、用户注册账号信息。本系统<strong className="text-brand-forest">不会</strong>收集儿童面部图像、地理位置、通讯录等与评估无关的个人信息。</p>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">二、数据存储与安全</h4>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>所有数据均存储于加密数据库中，传输过程采用 HTTPS/TLS 加密协议</li>
-                        <li>密码经 bcrypt 哈希加密存储，不可逆向还原</li>
-                        <li>AI 模型调用过程中，儿童数据经脱敏处理后发送</li>
-                        <li>定期执行安全审计与漏洞扫描</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">三、数据使用目的</h4>
-                      <p>收集的数据仅用于：生成儿童发育评估报告与康复建议、提供穿戴设备商城购买服务、改善系统功能与用户体验（匿名化统计分析）。<strong className="text-brand-forest">不会</strong>将数据用于商业广告推送、第三方营销或任何未经监护人明确授权的目的。</p>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">四、数据共享与披露</h4>
-                      <p>除以下情形外，本系统不会向任何第三方共享或披露用户数据：经监护人明确书面同意、法律法规要求或司法机关依法调取、为保护本系统或公众安全所必需。</p>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">五、用户权利</h4>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>查阅权</strong>：随时查看儿童的评估数据与报告</li>
-                        <li><strong>更正权</strong>：修改不准确的个人信息</li>
-                        <li><strong>删除权</strong>：申请删除儿童档案及全部关联数据</li>
-                        <li><strong>撤回同意权</strong>：随时撤回对数据处理的授权</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-charcoal text-[11px] mb-1">六、儿童数据特别保护</h4>
-                      <p>本系统严格遵守《中华人民共和国个人信息保护法》《儿童个人信息网络保护规定》等法律法规，对儿童个人信息实行专门保护：收集前须取得监护人明示同意、设置专门访问控制策略、定期对员工进行安全培训。</p>
-                    </div>
-                  </div>
-                </section>
-
-                <div className="pt-3 border-t border-brand-stone/30 text-[10px] text-brand-charcoal/50 text-center">
-                  最后更新日期：2026年7月 · {PRODUCT.brand.legalEntity}
-                </div>
+                <CombinedLegalBody />
               </div>
             </div>
           </div>

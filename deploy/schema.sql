@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS `companies` (
   `slug` VARCHAR(64) NOT NULL UNIQUE,
   -- 该公司自己的企业微信群机器人 webhook。未设定时退回全域 WECOM_WEBHOOK_URL。
   `wecom_webhook_url` VARCHAR(512) DEFAULT NULL,
+  -- 家长端页首与登入卡上的 LOGO 网址。**这是唯一会显示在家长端的公司资料** ——
+  -- `name` 仍然只给后台看。留空则用建置内建的字标（src/productConfig.ts 的 logoMark）。
+  -- 只收 https:// 或站内的 /… 路径，理由见 src/utils/assetUrl.ts。
+  `logo_url` VARCHAR(512) DEFAULT NULL,
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

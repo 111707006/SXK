@@ -68,8 +68,8 @@ const globalOnUnassigned: AdminIdentityView = {
 };
 
 const companies: AdminCompany[] = [
-  { id: 7, name: '康行儿童', slug: 'kangxing', wecomWebhookUrl: null, active: true },
-  { id: 9, name: '明德早疗', slug: 'mingde', wecomWebhookUrl: 'https://x', active: true },
+  { id: 7, name: '康行儿童', slug: 'kangxing', wecomWebhookUrl: null, logoUrl: null, active: true },
+  { id: 9, name: '明德早疗', slug: 'mingde', wecomWebhookUrl: 'https://x', logoUrl: null, active: true },
 ];
 
 describe('畫面分流', () => {

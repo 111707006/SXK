@@ -21,11 +21,12 @@ import {
 import { buildIdentity, signAdminToken, verifyAdminToken } from './adminAuth';
 import { renderParentExportHtml } from './exportView';
 import { readMaterialInput } from '../utils/materialCells';
+import { SLUG_PATTERN } from '../utils/companySlug';
+import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 
 const BCRYPT_ROUNDS = 10;
 
-/** 進站連結的識別碼：只收小寫英數與連字號，長度 2–64。 */
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
+// 進站識別碼的格式規則收在 `src/utils/companySlug.ts`，與前端共用同一份。
 
 type AuthedRequest = express.Request & { admin?: AdminIdentity };
 
@@ -393,21 +394,65 @@ export function createAdminRouter(shape: AdminCenterShape): express.Router {
   multiCompanyOnly.put('/company', async (req: AuthedRequest, res) => {
     const condition = withScope(req, res);
     if (!condition) return;
-    const raw = req.body?.wecomWebhookUrl;
-    const url = typeof raw === 'string' && raw.trim() ? raw.trim() : null;
-    if (url && !/^https:\/\//.test(url)) {
-      res.status(400).json({ error: '企业微信 webhook 必须是 https:// 开头的网址。' });
+    // `companies.wecom_webhook_url` 與 `logo_url` 都是 VARCHAR(512)。
+    const MAX_URL = 512;
+
+    /** 讀一個「可以留空」的網址欄位。回 `undefined` 代表這次請求沒帶它。 */
+    function readOptionalUrl(key: string): string | null | undefined {
+      if (!(key in (req.body ?? {}))) return undefined;
+      const raw = req.body[key];
+      if (raw === null) return null;
+      if (typeof raw !== 'string') return undefined;
+      const trimmed = raw.trim();
+      return trimmed ? trimmed : null;
+    }
+
+    const patch: store.CompanySettingsPatch = {};
+
+    const webhook = readOptionalUrl('wecomWebhookUrl');
+    if (webhook !== undefined) {
+      // webhook 是**呼叫**出去的網址，不是貼在頁面上的資源 —— 站內路徑對它沒有意義。
+      if (webhook && !/^https:\/\//.test(webhook)) {
+        res.status(400).json({ error: '企业微信 webhook 必须是 https:// 开头的网址。' });
+        return;
+      }
+      if (webhook && webhook.length > MAX_URL) {
+        res.status(400).json({ error: `企业微信 webhook 太长了（上限 ${MAX_URL} 个字元）。` });
+        return;
+      }
+      patch.wecomWebhookUrl = webhook;
+    }
+
+    const logo = readOptionalUrl('logoUrl');
+    if (logo !== undefined) {
+      // LOGO 是貼到家長頁面上的圖，走與干預素材同一份規則（站內路徑要放行，
+      // 因為這個 repo 沒有檔案上傳能力）。
+      if (logo && !isAllowedAssetUrl(logo)) {
+        res.status(400).json({ error: assetUrlError('LOGO 网址') });
+        return;
+      }
+      if (logo && logo.length > MAX_URL) {
+        res.status(400).json({ error: `LOGO 网址太长了（上限 ${MAX_URL} 个字元）。` });
+        return;
+      }
+      patch.logoUrl = logo;
+    }
+
+    // 一個欄位都沒帶。這不是「未歸屬」，錯誤訊息不能講成那樣。
+    if (Object.keys(patch).length === 0) {
+      res.status(400).json({ error: '没有要更新的设定。' });
       return;
     }
+
     try {
-      const affected = await store.updateScopedCompanyWebhook(condition, url);
+      const affected = await store.updateScopedCompanySettings(condition, patch);
       if (affected === 0) {
-        res.status(400).json({ error: '「未归属」不是一家公司，没有通知位置可以设定。' });
+        res.status(400).json({ error: '「未归属」不是一家公司，没有设定可以更改。' });
         return;
       }
       res.json({ ok: true });
     } catch (err: any) {
-      console.error('[Admin] updateCompanyWebhook failed:', err.message);
+      console.error('[Admin] updateCompanySettings failed:', err.message);
       res.status(500).json({ error: '更新公司设定失败。' });
     }
   });

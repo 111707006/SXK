@@ -22,6 +22,8 @@ export interface AdminCompany {
   name: string;
   slug: string;
   wecomWebhookUrl: string | null;
+  /** 家長端頁首與登入卡上的 LOGO 網址。`null` 代表用建置內建的字標。 */
+  logoUrl: string | null;
   active: boolean;
 }
 
@@ -230,8 +232,12 @@ export const adminApi = {
 
   company: () => request<{ company: AdminCompany | null }>('/company'),
 
-  updateCompanyWebhook: (wecomWebhookUrl: string | null) =>
-    request<{ ok: true }>('/company', { method: 'PUT', body: JSON.stringify({ wecomWebhookUrl }) }),
+  /**
+   * 更新本機構設定。**只送要改的鍵** —— 後端只寫進請求裡真的帶了的欄位，
+   * 所以「只換 LOGO」不會順手把通知位置覆蓋掉（見 `adminStore` 的說明）。
+   */
+  updateCompanySettings: (patch: { wecomWebhookUrl?: string | null; logoUrl?: string | null }) =>
+    request<{ ok: true }>('/company', { method: 'PUT', body: JSON.stringify(patch) }),
 
   companies: () => request<{ companies: AdminCompany[] }>('/companies'),
 

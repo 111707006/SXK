@@ -13,13 +13,15 @@
  * 判為未歸屬。前端猜一家公司填上去，錯的方向是不可逆的。
  */
 
+import { SLUG_PATTERN } from './companySlug';
+
 const COMPANY_SLUG_KEY = 'senxinkang_company_slug';
 
 /** 進站連結上帶識別碼的參數名。短到可以印在傳單上。 */
 const QUERY_PARAM = 'c';
 
-/** 與後端 `SLUG_PATTERN` 相同：小寫英數與連字號，長度 2–64。 */
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
+// 格式規則收在 `companySlug.ts`，前後端共用同一份 —— 以前是兩份靠一句
+// 「與後端相同」的註解維持同步，分岔的後果特別安靜（見該檔說明）。
 
 /**
  * 從網址取出識別碼並記在瀏覽器裡。應用程式啟動時呼叫一次。

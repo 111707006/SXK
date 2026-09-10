@@ -37,6 +37,7 @@ import { authFetch, setUnauthorizedHandler } from './utils/api';
 import { getDimensionAccess, isPaywallActive } from './utils/access';
 import { DEFAULT_UNLOCK_PRICE_FEN, formatFen } from './utils/price';
 import { BeianFooter } from './components/BeianFooter';
+import { BrandMark } from './components/BrandMark';
 // 條款內文的唯一來源。登入頁（AuthScreen）渲染的是同一份 —— 見該檔說明。
 import { ServiceTerms, PrivacyTerms, LegalFooterLine } from './components/LegalTerms';
 import {
@@ -638,7 +639,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 bg-brand-moss rounded-xl flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-moss/10 scale-105">
-              <span>{PRODUCT.brand.logoMark}</span>
+              <BrandMark />
             </div>
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">

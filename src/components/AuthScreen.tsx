@@ -3,6 +3,7 @@ import { peekCompanySlug } from '../utils/attribution';
 // 條款內文的唯一來源。頁尾那兩個彈窗（App.tsx）渲染的是同一份 —— 見該檔說明。
 // 這裡刻意用完整的兩份，不是以前那個刪節版：使用者在這一頁勾的是「已審閱並同意」。
 import { CombinedLegalBody } from './LegalTerms';
+import { BrandMark } from './BrandMark';
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, Smartphone, KeyRound } from 'lucide-react';
 
@@ -148,7 +149,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         {/* Header Title */}
         <div className="text-center space-y-2">
           <div className="inline-flex w-12 h-12 bg-brand-forest text-white rounded-2xl items-center justify-center font-extrabold shadow-lg shadow-brand-forest/15 text-lg mb-1">
-            <span>{PRODUCT.brand.logoMark}</span>
+            <BrandMark />
           </div>
           <h2 className="text-xl font-black text-brand-forest tracking-tight">
             {PRODUCT.brand.headerTitle}

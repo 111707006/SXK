@@ -1,9 +1,16 @@
 /**
- * 本機構設定 —— 目前只有企業微信通知位置（issue #11）。
+ * 本機構設定 —— 企業微信通知位置（issue #11）與家長端 LOGO。
  *
- * 家長送出預約後，通知會送到他所屬公司的這個位置。沒設定時退回全域設定，
+ * 通知：家長送出預約後，通知會送到他所屬公司的這個位置。沒設定時退回全域設定，
  * 並在伺服器日誌記一行；兩者都沒有時通知會失敗，而那個失敗會在日誌大聲喊。
- * 這一頁存在的意義就是讓合作公司自己把這件事補上。
+ *
+ * LOGO：家長端頁首與登入卡上那顆方塊。**這是唯一會顯示在家長端的公司資料**
+ * —— 機構名稱仍然只給後台看。留空時家長看到的是建置內建的字標。
+ *
+ * 【兩個欄位分開送】
+ * 只送使用者真的改過的那一個。兩欄一起送的話，一個只想換 LOGO 的動作會把
+ * webhook 一併覆蓋成當時輸入框裡的值 —— 而那個失敗要等到下一位家長送出預約、
+ * 通知沒送到，才會有人發現。
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
@@ -16,6 +23,7 @@ export default function CompanySettingsPanel({ onError }: { onError: (view: Admi
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
 
   const [url, setUrl] = useState('');
+  const [logo, setLogo] = useState('');
   const [busy, setBusy] = useState(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -28,14 +36,33 @@ export default function CompanySettingsPanel({ onError }: { onError: (view: Admi
   // 的是「按了之後閃一下就沒了」，只好再按一次。訊息改由使用者編輯輸入框時清除。
   useEffect(() => {
     setUrl(company?.wecomWebhookUrl ?? '');
+    setLogo(company?.logoUrl ?? '');
   }, [company]);
 
+  /** 把輸入框的值正規化成後端要的形狀：空字串等同「不設定」。 */
+  const asValue = (raw: string) => (raw.trim() ? raw.trim() : null);
+
+  /** 只把真的改過的欄位放進 patch。沒改的鍵不送，後端就不會寫它。 */
+  function pendingPatch(): { wecomWebhookUrl?: string | null; logoUrl?: string | null } {
+    const patch: { wecomWebhookUrl?: string | null; logoUrl?: string | null } = {};
+    if (asValue(url) !== (company?.wecomWebhookUrl ?? null)) patch.wecomWebhookUrl = asValue(url);
+    if (asValue(logo) !== (company?.logoUrl ?? null)) patch.logoUrl = asValue(logo);
+    return patch;
+  }
+
   async function save() {
+    const patch = pendingPatch();
+    // 什麼都沒改就不要發請求 —— 後端會回「没有要更新的设定」，那對按了保存的
+    // 人來說像是一個錯誤，但他其實什麼也沒做錯。
+    if (Object.keys(patch).length === 0) {
+      setSaved(true);
+      return;
+    }
     setBusy(true);
     setSaveFailure(null);
     setSaved(false);
     try {
-      await adminApi.updateCompanyWebhook(url.trim() ? url.trim() : null);
+      await adminApi.updateCompanySettings(patch);
       setSaved(true);
       reload();
     } catch (err) {
@@ -90,6 +117,53 @@ export default function CompanySettingsPanel({ onError }: { onError: (view: Admi
               placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…"
             />
           </Field>
+
+          <Field
+            label="家长端 LOGO"
+            hint="家长端页首与登入卡上那颗方块。必须是 https:// 开头的图片网址，或站内的 / 路径（例如 /logo-abc.png）。留空则显示系统内建的字标。"
+          >
+            <TextInput
+              value={logo}
+              onChange={e => {
+                setLogo(e.target.value);
+                setSaved(false);
+              }}
+              placeholder="https://example.com/logo.png"
+            />
+          </Field>
+
+          {/*
+            即時預覽。存進去之前先讓人看到那張圖到底能不能載入 ——
+            網址打錯的症狀是家長端一塊空白，而後台看起來一切正常。
+          */}
+          {logo.trim() && (
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-brand-forest">
+                <img
+                  src={logo.trim()}
+                  alt=""
+                  className="h-full w-full object-contain"
+                  onError={e => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    const note = e.currentTarget.nextElementSibling as HTMLElement | null;
+                    if (note) note.hidden = false;
+                  }}
+                  onLoad={e => {
+                    (e.currentTarget as HTMLImageElement).style.display = '';
+                    const note = e.currentTarget.nextElementSibling as HTMLElement | null;
+                    if (note) note.hidden = true;
+                  }}
+                />
+                <span hidden className="text-[9px] font-bold text-white/70">
+                  载入失败
+                </span>
+              </div>
+              <p className="text-[10px] leading-relaxed text-brand-charcoal/45">
+                预览。这颗方块在家长端是 40×40（页首）与 48×48（登入卡），
+                建议用正方形、去背的图。
+              </p>
+            </div>
+          )}
 
           {saveFailure && <ErrorNote message={saveFailure} />}
           {saved && <p className="text-[11px] font-bold text-brand-moss">已保存。</p>}

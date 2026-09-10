@@ -360,6 +360,28 @@ export async function listActiveSpecialists(companyId: number): Promise<Speciali
   }));
 }
 
+/**
+ * 這家合作公司的 LOGO 網址 —— 家長端頁首與登入卡用。
+ *
+ * 【只取 `logo_url` 一欄，不是 `SELECT *`】
+ * 呼叫它的是一條**公開**路徑（`/api/company-brand`，家長還沒登入就要畫 LOGO）。
+ * 進站識別碼印在傳單上、貼在連結裡，任何人都拿得到，所以這條查詢的結果等於
+ * 對外公開。`SELECT *` 會把公司名稱、企業微信 webhook 一起撈出來放在手邊，
+ * 而下一個改這段的人很可能就順手多回一個欄位出去。這裡從查詢就切掉。
+ *
+ * `active = 1`：停用的公司連 LOGO 都不該再出現在任何家長的畫面上。
+ */
+export async function findCompanyLogoBySlug(slug: string): Promise<string | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    'SELECT logo_url FROM companies WHERE slug = ? AND active = 1 LIMIT 1',
+    [slug]
+  );
+  const row = (rows as any[])[0];
+  return row?.logo_url ?? null;
+}
+
 function safeJsonArray(raw: string): string[] {
   try {
     const parsed = JSON.parse(raw);

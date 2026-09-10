@@ -103,6 +103,14 @@ export interface CompanyRecord {
   name: string;
   slug: string;
   wecomWebhookUrl: string | null;
+  /**
+   * 家長端頁首與登入卡上的 LOGO 網址。`null` 代表用建置內建的字標
+   * （`PRODUCT.brand.logoMark`）。
+   *
+   * ⚠️ **這是唯一會顯示在家長端的公司資料。** `name` 仍然只給後台看
+   * —— 見 `deploy/schema.sql` 的欄位註解。
+   */
+  logoUrl: string | null;
   active: boolean;
   createdAt: string | null;
 }
@@ -222,6 +230,7 @@ function rowToCompany(row: any): CompanyRecord {
     name: row.name,
     slug: row.slug,
     wecomWebhookUrl: row.wecom_webhook_url ?? null,
+    logoUrl: row.logo_url ?? null,
     active: Number(row.active) === 1,
     createdAt: toIso(row.created_at),
   };
@@ -433,16 +442,46 @@ export async function getScopedCompany(
   return row ? rowToCompany(row) : null;
 }
 
-export async function updateScopedCompanyWebhook(
+/** 「本機構設定」那一頁改得動的欄位。沒帶到的鍵不會被寫入。 */
+export interface CompanySettingsPatch {
+  wecomWebhookUrl?: string | null;
+  logoUrl?: string | null;
+}
+
+/**
+ * 更新本機構設定。
+ *
+ * **只寫進 `patch` 裡真的帶了的鍵** —— 兩個欄位在同一頁上，但不見得同時被改。
+ * 若改成「兩欄一起寫」，一個只想換 LOGO 的請求會把 webhook 一併覆蓋成
+ * 當時輸入框裡的值；輸入框若還沒載入完就是空字串，通知位置就這樣被清掉了，
+ * 而畫面上沒有任何跡象 —— 下一次有家長送出預約時才會發現通知沒送到。
+ */
+export async function updateScopedCompanySettings(
   condition: CompanyCondition,
-  webhookUrl: string | null
+  patch: CompanySettingsPatch
 ): Promise<number> {
   if (condition.kind !== 'company') return 0;
+
+  const sets: string[] = [];
+  // 型別跟著 mysql2 的 execute 走 —— `unknown[]` 過不了它的多載。
+  const values: (string | null)[] = [];
+  if ('wecomWebhookUrl' in patch) {
+    sets.push('c.wecom_webhook_url = ?');
+    values.push(patch.wecomWebhookUrl ?? null);
+  }
+  if ('logoUrl' in patch) {
+    sets.push('c.logo_url = ?');
+    values.push(patch.logoUrl ?? null);
+  }
+  // 一個欄位都沒帶：不是錯誤，但也沒有 SQL 可以跑。回 0 會被呼叫端當成
+  // 「未歸屬」而回一句不相干的錯誤訊息，所以這裡由路由層先擋掉。
+  if (sets.length === 0) return 0;
+
   const p = requirePool();
   const scope = companyWhereSql(condition, 'c.id');
   const [result] = await p.execute(
-    `UPDATE companies c SET c.wecom_webhook_url = ? WHERE ${scope.sql}`,
-    [webhookUrl, ...scope.params]
+    `UPDATE companies c SET ${sets.join(', ')} WHERE ${scope.sql}`,
+    [...values, ...scope.params]
   );
   return (result as ResultSetHeader).affectedRows;
 }

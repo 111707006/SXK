@@ -34,8 +34,8 @@ vi.mock('../src/admin/adminStore', async () => {
 
   const db = {
     companies: [
-      { id: 1, name: '甲机构', slug: 'jia', wecomWebhookUrl: null as string | null, active: true, createdAt: null },
-      { id: 2, name: '乙机构', slug: 'yi', wecomWebhookUrl: null as string | null, active: true, createdAt: null },
+      { id: 1, name: '甲机构', slug: 'jia', wecomWebhookUrl: null as string | null, logoUrl: null as string | null, active: true, createdAt: null },
+      { id: 2, name: '乙机构', slug: 'yi', wecomWebhookUrl: null as string | null, logoUrl: null as string | null, active: true, createdAt: null },
     ],
     admins: [
       { id: 10, email: 'a@jia.com', role: 'company_member' as const, companyId: 1, active: true, createdAt: null, passwordHash: hash('pw-jia-123') },
@@ -102,7 +102,7 @@ vi.mock('../src/admin/adminStore', async () => {
       if (db.companies.some(c => c.slug === slug)) {
         throw Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY' });
       }
-      const row = { id: db.companies.length + 1, name, slug, wecomWebhookUrl: null, active: true, createdAt: null };
+      const row = { id: db.companies.length + 1, name, slug, wecomWebhookUrl: null, logoUrl: null, active: true, createdAt: null };
       db.companies.push(row);
       return row;
     },
@@ -141,11 +141,17 @@ vi.mock('../src/admin/adminStore', async () => {
       if (condition.kind !== 'company') return null;
       return db.companies.find(c => c.id === condition.companyId) ?? null;
     },
-    async updateScopedCompanyWebhook(condition: Cond, url: string | null) {
+    async updateScopedCompanySettings(
+      condition: Cond,
+      patch: { wecomWebhookUrl?: string | null; logoUrl?: string | null }
+    ) {
       if (condition.kind !== 'company') return 0;
       const c = db.companies.find(x => x.id === condition.companyId);
       if (!c) return 0;
-      c.wecomWebhookUrl = url;
+      // 與正式那一句同一個語意：**只寫進 patch 裡真的帶了的鍵**。
+      // 替身若改成兩欄一起寫，「只換 LOGO 不會覆蓋 webhook」那一條就驗不到了。
+      if ('wecomWebhookUrl' in patch) c.wecomWebhookUrl = patch.wecomWebhookUrl ?? null;
+      if ('logoUrl' in patch) c.logoUrl = patch.logoUrl ?? null;
       return 1;
     },
 
@@ -492,6 +498,61 @@ describe('各公司自己的企業微信通知位置（#11）', () => {
     expect(db.companies.find((c: any) => c.id === 1).wecomWebhookUrl).toContain('key=jia');
     // 動到別家公司的設定是這裡最糟的失敗，明確驗一次。
     expect(db.companies.find((c: any) => c.id === 2).wecomWebhookUrl).toBeNull();
+  });
+
+  /**
+   * LOGO 走同一支路由。這裡要抓的是**只改一個欄位不會把另一個清掉** ——
+   * 兩欄一起寫的話，一個只想換 LOGO 的動作會把通知位置覆蓋成當時輸入框裡的值，
+   * 而那個失敗要等到下一位家長送出預約、通知沒送到才會有人發現。
+   */
+  it('只換 LOGO 不會把通知位置一起覆蓋掉', async () => {
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const db = (store as any).__db;
+
+    // 先把通知位置設起來（`beforeEach` 會把替身資料重置，不能靠前一條測試留下的值）。
+    await client.request('/api/admin/company', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...h(token!) },
+      body: JSON.stringify({ wecomWebhookUrl: 'https://qyapi.weixin.qq.com/hook?key=jia' }),
+    });
+    const before = db.companies.find((c: any) => c.id === 1).wecomWebhookUrl;
+    expect(before).toBeTruthy();
+
+    const resp = await client.request('/api/admin/company', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...h(token!) },
+      body: JSON.stringify({ logoUrl: 'https://cdn.example.com/jia.png' }),
+    });
+    expect(resp.status).toBe(200);
+    expect(db.companies.find((c: any) => c.id === 1).logoUrl).toBe('https://cdn.example.com/jia.png');
+    expect(db.companies.find((c: any) => c.id === 1).wecomWebhookUrl).toBe(before);
+    // 別家公司一樣不准被動到。
+    expect(db.companies.find((c: any) => c.id === 2).logoUrl).toBeNull();
+  });
+
+  it.each([
+    ['http（會被瀏覽器當混合內容擋掉）', 'http://cdn.example.com/logo.png'],
+    ['協定相對網址（長得像站內路徑，其實是外連）', '//example.com/logo.png'],
+    ['javascript:', 'javascript:alert(1)'],
+  ])('LOGO 網址是 %s 時被擋下', async (_label, bad) => {
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const resp = await client.request('/api/admin/company', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...h(token!) },
+      body: JSON.stringify({ logoUrl: bad }),
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it('一個欄位都沒帶時明說沒東西要更新，不講成「未歸屬」', async () => {
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const resp = await client.request('/api/admin/company', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...h(token!) },
+      body: JSON.stringify({}),
+    });
+    expect(resp.status).toBe(400);
+    expect((await resp.json()).error).toContain('没有要更新的设定');
   });
 
   it('非 https 的 webhook 會被擋下', async () => {

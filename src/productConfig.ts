@@ -83,7 +83,23 @@ export interface ProductProfile {
     /** 頁尾版權列 */
     copyright: string;
     /**
+     * 那顆方塊裡放的東西，從哪裡來。
+     *
+     * - `builtin`：一律用下面的 `logoMark` 字標（專案 A —— 它一家合作公司都沒有）
+     * - `company`：家長進站識別碼所屬公司自己設定的 LOGO 圖，取不到才退回字標
+     *   （專案 B）
+     *
+     * 【為什麼要有這個開關，而不是「有設定就用」】
+     * 專案 A 的資料庫裡 `companies` 是空的，去問一定拿不到東西 —— 那是一次
+     * 每個家長進站都要付的、注定失敗的請求。而且 `/api/company-brand` 只在
+     * B 註冊，A 打過去會拿到 404，主控台每次都紅一條，看起來像壞了。
+     */
+    logoSource: 'builtin' | 'company';
+    /**
      * 頁首與登入頁那顆圓形標記裡的字。
+     *
+     * `logoSource: 'company'` 時它是**退路**：合作公司沒設定 LOGO、圖載不進來、
+     * 或家長沒帶進站識別碼進來時，畫的就是這個字。
      *
      * 專案 A 是「森」——森心康的字標。B 不能用它：一個綠底圓形配「森」字
      * 就是這個品牌的標記，名字拿掉了標記還在，等於沒拿掉。
@@ -239,6 +255,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       operatorClause: '由森心康品牌运营（以下简称“运营方”），',
       ipHolder: '森跃诺动健康科技有限公司',
       copyright: '© 2026 森心康儿童综合发展评估系统',
+      // A 一家合作公司都沒有，沒有人可以問。
+      logoSource: 'builtin',
       logoMark: '森',
       bioClause: '森心康儿童康复品牌康复质量管理部负责人，',
       promptName: '森心康',
@@ -302,6 +320,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       operatorClause: '及其运营方（以下简称“运营方”）',
       ipHolder: '本系统运营方',
       copyright: '© 2026 儿童综合发展评估系统',
+      // 各合作公司可在「本機構設定」掛自己的 LOGO；沒設定就用下面那個字標。
+      logoSource: 'company',
       logoMark: '评',
       bioClause: null,
       promptName: '本系统',

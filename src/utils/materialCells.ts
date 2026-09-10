@@ -17,6 +17,7 @@
  */
 import { DIMENSIONS_DATA } from '../data';
 import { T1_AGE_BANDS } from '../t1Data';
+import { isAllowedAssetUrl } from './assetUrl';
 
 /**
  * 需要干預素材的兩級嚴重度，就是報告上被標記的那兩種判定。
@@ -187,21 +188,9 @@ export type MaterialInputResult =
   | { ok: true; input: MaterialInput }
   | { ok: false; error: string };
 
-/**
- * 網址只收 `https://` 或站內的 `/…`。
- *
- * 家長端整站走 https，`http://` 的圖會被瀏覽器當成混合內容擋掉 —— 後台看起來
- * 存好了，家長那邊是一張破圖，而且沒有人會收到訊息。`javascript:` 與 `data:`
- * 則是把一段可執行的東西存進資料庫，再原樣貼到家長的頁面上。
- *
- * 站內路徑要放行是因為這個 repo **沒有檔案上傳能力**：隨著建置一起出貨的
- * `public/` 圖檔是唯一不依賴外部主機的來源。
- */
-function isAllowedUrl(value: string): boolean {
-  if (value.startsWith('https://')) return value.length > 'https://'.length;
-  // `//example.com` 是協定相對網址，不是站內路徑 —— 擋掉。
-  return value.startsWith('/') && !value.startsWith('//');
-}
+// 網址規則搬到 `assetUrl.ts`，與合作公司 LOGO 共用同一份 —— 兩套規則遲早會有
+// 一套少擋一種東西，而少擋的那一種正是它存在的理由。理由寫在該檔。
+const isAllowedUrl = isAllowedAssetUrl;
 
 function readText(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;

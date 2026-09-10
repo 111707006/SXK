@@ -112,13 +112,22 @@ export function BrandMark() {
       <img
         src={logoUrl}
         alt=""
-        // 方塊是正方形的，`object-contain` 讓非正方形的圖完整顯示而不被裁掉；
-        // 留一點內距，圖才不會頂到圓角。
-        //
-        // ⚠️ 這個格子是**正方形**的（它本來是為了裝一個「森」字）。企業 LOGO
-        // 多半是橫式的（標記＋中英文兩行字），整張塞進來等比縮到 40px 寬，
-        // 字就糊成一團。合作公司要提供的是**方形的標記**，不是完整的橫式組合。
-        className="h-full w-full object-contain p-1"
+        /*
+          `object-contain`：格子是正方形的，非正方形的圖要完整顯示而不被裁掉。
+          `p-1`：留一點內距，圖才不會頂到圓角。
+
+          `bg-white` + `rounded-[inherit]`：**把方塊底下那層品牌綠蓋掉**。
+          那顆綠方塊是森心康自己的標記（A 的綠底配「森」字就是它的字標），
+          合作公司的 LOGO 貼在上面等於兩個品牌疊在一起；多數 LOGO 又是白底或
+          去背的，邊緣還會露出一圈綠。有自己的 LOGO 時整顆方塊改成白底。
+          圓角用 `inherit` —— 兩個呼叫端一個 `rounded-xl` 一個 `rounded-2xl`，
+          繼承外框的就不必各傳一次。
+
+          ⚠️ 這個格子是**正方形**的（它本來是為了裝一個「森」字）。企業 LOGO
+          多半是橫式的（標記＋中英文兩行字），整張塞進來等比縮到 40px 寬，
+          字就糊成一團。合作公司要提供的是**方形的標記**，不是完整的橫式組合。
+        */
+        className="h-full w-full rounded-[inherit] bg-white object-contain p-1"
         onError={() => setBroken(true)}
       />
     );

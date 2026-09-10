@@ -644,12 +644,24 @@ export default function App() {
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">{PRODUCT.brand.headerTitle}</h1>
-                {/* 建置模式徽章：文案與配色皆來自 productConfig，這裡不判斷 mode */}
-                <span
-                  id="build-mode-badge"
-                  title={PRODUCT.buildBadge.title}
-                  className={`px-2 py-0.5 rounded-full border text-[10px] font-black tracking-wide whitespace-nowrap shadow-sm ${PRODUCT.buildBadge.className}`}
-                >
+                {/*
+                  建置模式標記 —— 2026-09-10 起**不顯示在畫面上**。
+
+                  它原本是掛在標題旁的一顆徽章（A 灰綠色「完整版」、B 琥珀色「T1 版」），
+                  用來一眼看出當前開的是哪一個產品。那是**開發與驗收**要的訊號，對家長
+                  沒有意義；而 B 是交付給合作公司的網站，掛一個看不懂的內部標籤只會讓
+                  對方問「T1 是什麼」。
+
+                  但「這份產物是 A 還是 B」仍然要答得出來 —— 每一次部署都靠它擋住
+                  「把 A 版傳到合作公司網域上」這種錯誤。所以標記留在 DOM 裡但不渲染：
+                  `hidden` 不佔任何版面，文字與 `data-build-mode` 仍然會被打包進產物。
+
+                  查法：
+                    產物　`grep -c 'T1 版' dist/assets/index-*.js`（B 回 1，A 回 0）
+                    線上　開發者工具貼
+                          document.getElementById('build-mode-badge').dataset.buildMode
+                */}
+                <span id="build-mode-badge" hidden data-build-mode={PRODUCT.mode} title={PRODUCT.buildBadge.title}>
                   {PRODUCT.buildBadge.label}
                 </span>
               </div>

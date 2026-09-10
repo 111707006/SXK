@@ -18,6 +18,7 @@ import {
 } from './src/utils/reportLink';
 import { renderParentExportHtml } from './src/admin/exportView';
 import { readServiceType } from './src/utils/serviceTypes';
+import { isValidCompanySlug } from './src/utils/companySlug';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
 import { matchIntervention, resolveInterventionCell } from './src/utils/interventionMatch';
 import qrcode from 'qrcode-generator';
@@ -121,6 +122,14 @@ const paidOnly = APP_MODE === 'full' ? app : express.Router();
 // It lives here rather than being read from src/productConfig.ts because that
 // module reads `import.meta.env`, which only exists in the browser build.
 const ADMIN_MULTI_COMPANY = APP_MODE === 't1only';
+
+// Per-company branding is a project-B-only idea, so the endpoint that serves it
+// only exists there — same never-mounted-Router trick as tier2Only above.
+//
+// Project A has no partner companies at all, so asking would be a request every
+// visitor pays for and that can only ever come back empty. Worse, it would come
+// back 404 and paint a red line in every parent's console, which reads as broken.
+const multiCompanyOnly = APP_MODE === 't1only' ? app : express.Router();
 
 // ── Branding (backend counterpart of PRODUCT.brand) ──
 // Project B ships to a partner company and must not say "森心康" anywhere the
@@ -1678,6 +1687,56 @@ app.get('/api/specialists', async (req, res) => {
   } catch (err: any) {
     console.error('[Specialists] Lookup failed:', err.message);
     res.status(500).json({ error: '读取专家名单失败。' });
+  }
+});
+
+/**
+ * 這家合作公司的 LOGO —— 家長端頁首與登入卡那顆方塊要畫什麼（專案 B 專屬）。
+ *
+ * **公開，不需要登入。** 那顆方塊在登入畫面上就要出現，而那時候還沒有帳號可查。
+ * 唯一的線索是進站連結上的 `?c=<識別碼>`（前端記在 localStorage，見
+ * `src/utils/attribution.ts`），由呼叫端當查詢參數帶過來。
+ *
+ * 【只回 LOGO，不回公司名稱】
+ * 識別碼印在傳單上、貼在轉發的訊息裡，任何人都拿得到，所以這條路徑的輸出
+ * 等於對外公開。家長端**不顯示合作公司名稱**是既有的產品決定（見
+ * `deploy/schema.sql` 的 `companies.name` 註解），這裡多回一個欄位就等於
+ * 悄悄推翻它。資料層那一句也只 SELECT `logo_url` 一欄。
+ *
+ * 【永遠回 200，用 `reason` 說明】
+ * 呼叫端在任何情況下都畫得出東西（取不到就用建置內建的字標），所以「查不到」
+ * 不是錯誤。但也不能只回一個空值讓前端自己猜 —— 同 `/api/specialists`，
+ * 回應永遠帶一個明確的 `reason`，「為什麼沒顯示」才有得查：
+ *
+ *   ok              這家公司設了 LOGO
+ *   no_slug         請求沒帶識別碼（家長從乾淨連結或書籤進來）
+ *   bad_slug        識別碼格式不對
+ *   unavailable     這個部署沒有資料庫
+ *   unknown         查無此識別碼，或那家公司已停用
+ *   not_configured  公司在，但還沒設 LOGO
+ */
+multiCompanyOnly.get('/api/company-brand', async (req, res) => {
+  const done = (logoUrl: string | null, reason: string) => res.json({ logoUrl, reason });
+  try {
+    const raw = req.query.c;
+    const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    if (!slug) return done(null, 'no_slug');
+    // 形狀不對的一律不查資料庫。這是一條公開路徑，每一次查詢都是別人可以
+    // 免費叫我們做的工 —— 與 `/r/:token` 同一個處置。
+    if (!isValidCompanySlug(slug)) return done(null, 'bad_slug');
+    if (!mysqlDb.isConfigured()) return done(null, 'unavailable');
+
+    const logoUrl = await withTimeout(mysqlDb.findCompanyLogoBySlug(slug), 2000);
+    if (logoUrl === null) {
+      // 查無此公司與「公司在但沒設 LOGO」在資料層長得一樣（都是 null）。
+      // 對呼叫端來說結果相同（畫字標），所以不為了分辨它們再查一次。
+      return done(null, 'unknown_or_not_configured');
+    }
+    return done(logoUrl, 'ok');
+  } catch (err: any) {
+    // 這一頁是裝飾，不該因為資料庫慢就讓家長看到錯誤。記在日誌，畫面退回字標。
+    console.error('[CompanyBrand] Lookup failed:', err.message);
+    return done(null, 'unavailable');
   }
 });
 

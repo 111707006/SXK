@@ -34,6 +34,21 @@ export interface ProductProfile {
    * 不代表法律關係改變。
    */
   brand: {
+    /**
+     * ⚠️ **系統名是同一個名字，三處必須說同一件事**：`documentTitle`、
+     * `headerTitle`、`copyright`。
+     *
+     * 2026-09-10 之前這三處各自演化成了三個名字 —— 分頁寫「儿童发育评估系统」、
+     * 頁首寫「儿童综合发展评估」（少了「系统」）、頁尾寫「儿童神经网络分层评估
+     * 系统」。同一個畫面上三個名字，使用者當然會問哪一個才是真的。
+     *
+     * 現在統一成 **儿童综合发展评估系统**（A 前面加「森心康」）。
+     * `test/productNaming.structure.test.ts` 擋住它再次分岔。
+     *
+     * 不在這個約定裡的兩個：`reportTitle`（那是**報告產生器**的名字，不是系統名）
+     * 與 `systemName`（條款內文用的法律全名，動它等於改一份已核可的法律文件）。
+     */
+
     /** 瀏覽器分頁標題。`index.html` 是兩個建置共用的靜態檔，改由執行期設定。 */
     documentTitle: string;
     /** 頁首與登入頁的大標題 */
@@ -214,8 +229,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
   full: {
     mode: 'full',
     brand: {
-      documentTitle: '森心康 - 儿童发育评估系统',
-      headerTitle: '森心康儿童综合发展评估',
+      documentTitle: '森心康 - 儿童综合发展评估系统',
+      headerTitle: '森心康儿童综合发展评估系统',
       welcomeName: '森心康',
       reportTitle: '森心康 AI 神经网络分层评估报告生成器',
       systemName: '森心康（SenXinKang）儿童数字测听与康复分层评估系统',
@@ -223,7 +238,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       // 兩句都照抄客戶 2026-09-04 修訂版的原文。
       operatorClause: '由森心康品牌运营（以下简称“运营方”），',
       ipHolder: '森跃诺动健康科技有限公司',
-      copyright: '© 2026 森心康（SenXinKang）神经网络科学技术实验室',
+      copyright: '© 2026 森心康儿童综合发展评估系统',
       logoMark: '森',
       bioClause: '森心康儿童康复品牌康复质量管理部负责人，',
       promptName: '森心康',
@@ -276,8 +291,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     // 也刻意不寫成對方公司的名字：那樣每換一個合作對象就要改一次程式碼，
     // 而且備案與資料掌管方仍是森心康，掛對方的名字反而與事實不符。
     brand: {
-      documentTitle: '儿童发育评估系统',
-      headerTitle: '儿童综合发展评估',
+      documentTitle: '儿童综合发展评估系统',
+      headerTitle: '儿童综合发展评估系统',
       welcomeName: null,
       reportTitle: 'AI 神经网络分层评估报告生成器',
       systemName: '本儿童数字测听与康复分层评估系统',
@@ -286,7 +301,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       // 畫面上。改成不指名的講法 —— 條款後面整份都在說「运营方」，得先把它定義出來。
       operatorClause: '及其运营方（以下简称“运营方”）',
       ipHolder: '本系统运营方',
-      copyright: '© 2026 儿童神经网络分层评估系统',
+      copyright: '© 2026 儿童综合发展评估系统',
       logoMark: '评',
       bioClause: null,
       promptName: '本系统',

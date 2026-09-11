@@ -17,8 +17,9 @@ import type { DiagnosisDirection, DimensionCode, PlanItem, T1Flag, T2Plan } from
  * 後備漏補一支，結果是某個月齡的孩子被告知「這個年齡沒有工具」，其實有。
  *
  * 下面的表是從規格附錄 B.1／B.2 **重新抄一次**的，不是從 `routing.ts` 讀出來的。
- * 幾處與附錄 B.1 字面不同的地方（`sxk-dev` 恆排末尾、段界那三個月、ADL 那格的 asq）
- * 各自在該條測試上方寫了理由 —— 那些是規格自己前後矛盾，取站得住的那一邊。
+ * 幾處與附錄 B.1 字面不同的地方（`sxk-dev` 恆排末尾、段界那三個月、B.1 列了但附錄 F 說不餵
+ * 該維度的三格）在 `SPEC_B1` 上方逐條寫了理由 —— 那些是規格自己前後矛盾，取站得住的那一邊；
+ * 全部收在 `docs/specs/t2-v2-errata-2026-09-11.md`。
  */
 
 const GREEN: Record<DimensionCode, T1Flag> = {
@@ -237,11 +238,41 @@ describe('客戶的原始表（DIM／DIS）抄對了', () => {
     expect(empty.sort()).toEqual(['adhd', 'ld', 'tic']);
   });
 
-  it('DIS：智力障礙同發展遲緩、心理疾病同情緒障礙、多動症／抽動症同學習障礙（工具欄）', () => {
-    expect(DIS_ROUTES.id.functionOrder).toEqual(DIS_ROUTES.dd.functionOrder);
-    expect(DIS_ROUTES.psych).toEqual(DIS_ROUTES.emo);
-    expect(DIS_ROUTES.adhd.cells).toEqual(DIS_ROUTES.ld.cells);
-    expect(DIS_ROUTES.tic.cells).toEqual(DIS_ROUTES.ld.cells);
+  // ---------------------------------------------------------------------------
+  // 附錄 B.2 重抄：疾病 × 月齡段。規格用「gm、dev、asq…」的短名，這裡照抄再補 `sxk-` 前綴；
+  // 「同學習障礙」「同情緒障礙」那些格，規格是用文字指過去，這裡也照做（引用同一個常數），
+  // 但 ld／emo 本身是逐字抄的。`routing.ts` 那份是從中控台的 DIS 抄的，兩份來源不同。
+  // ---------------------------------------------------------------------------
+  const t = (...xs: string[]): ToolId[] =>
+    xs.map(x => (x === 'mchat-rf' || x === 'snap-iv' || x === 'chexi' ? x : `sxk-${x}`) as ToolId);
+  const LD = [t(), t('dev', 'chexi', 'ab', 'snap-iv', 'spa', 'soc'), t('ldp', 'chexi', 'ab', 'snap-iv', 'att', 'spb'), t('lds', 'chexi', 'att', 'spb', 'ab', 'snap-iv')];
+  const EMO = [t('tempa', 'mchat-rf', 'lang', 'adp', 'soc', 'asq'), t('dev', 'chexi', 'asb', 'asr', 'soc', 'lang'), t('chexi', 'asb', 'asr', 'att', 'ab', 'snap-iv'), t('chexi', 'asr', 'ab', 'att', 'snap-iv', 'spb')];
+  const DD_ORDER: DimensionCode[] = ['COG', 'LANG', 'SEN', 'ATT', 'LEARN', 'SOC', 'EMO', 'MOT'];   // 認知›語言›感覺處理›注意力›學習›社交›情緒›動作
+  const LD_ORDER: DimensionCode[] = ['LEARN', 'ATT', 'SEN', 'COG', 'LANG', 'SOC', 'EMO', 'MOT'];   // 學習›注意力›感覺處理›認知›語言›社交›情緒›動作
+  const EMO_ORDER: DimensionCode[] = ['EMO', 'ATT', 'LANG', 'COG', 'SEN', 'SOC', 'LEARN'];         // 情緒›注意力›語言›認知›感覺處理›社交›學習
+  const SPEC_B2: Record<DiagnosisDirection, { order: DimensionCode[]; cells: ToolId[][] }> = {
+    cp: { order: ['MOT', 'COG', 'LANG', 'SEN', 'ATT', 'EMO', 'SOC', 'LEARN'],                     // 動作›認知›語言›感覺處理›注意力›情緒›社交›學習
+      cells: [t('gm', 'dev', 'asq', 'voc', 'lang', 'adl'), t('gm', 'dev', 'lang', 'spa', 'adl'), t('adl', 'spb', 'ldp'), t('adl', 'spb', 'lds', 'chexi')] },
+    dd: { order: DD_ORDER,
+      cells: [t('dev', 'asq', 'adp', 'gm', 'voc', 'tempa'), t('dev', 'lang', 'gm', 'chexi', 'spa', 'adl'), t('adl', 'spb', 'ldp', 'chexi'), t('adl', 'spb', 'lds', 'chexi')] },
+    id: { order: DD_ORDER,                                                                          // 同發展遲緩
+      cells: [t('dev', 'asq', 'voc', 'tempa', 'adl', 'adp'), t('dev', 'lang', 'gm', 'soc', 'adp', 'chexi'), t('ldp', 'chexi', 'spb', 'adl'), t('lds', 'chexi', 'spb', 'adl')] },
+    ld: { order: LD_ORDER, cells: LD },
+    adhd: { order: ['ATT', 'LEARN', 'SEN', 'COG', 'LANG', 'SOC', 'EMO', 'MOT'], cells: LD },        // 注意力›學習›感覺處理›認知›語言›社交›情緒›動作；同學習障礙
+    lang: { order: ['LANG', 'COG', 'LEARN', 'SOC', 'SEN', 'ATT', 'EMO', 'MOT'],                   // 語言›認知›學習›社交›感覺處理›注意力›情緒›動作
+      cells: [t('voc', 'lang', 'mchat-rf', 'soc', 'dev', 'adp'), t('lang', 'asb', 'asr', 'soc', 'adp', 'dev'), t('chexi', 'ldp', 'asb', 'asr', 'spb', 'adl'), t('lds', 'chexi', 'asr', 'ab', 'snap-iv', 'spb')] },
+    emo: { order: EMO_ORDER, cells: EMO },
+    psych: { order: EMO_ORDER, cells: EMO },                                                        // 同情緒障礙
+    tic: { order: ['EMO', 'SEN', 'ATT', 'LEARN', 'COG', 'LANG', 'SOC'], cells: LD },                // 情緒›感覺處理›注意力›學習›認知›語言›社交；同學習障礙
+    asd: { order: ['SOC', 'EMO', 'LANG', 'COG', 'LEARN', 'SEN', 'ATT', 'MOT'],                    // 社交›情緒›語言›認知›學習›感覺處理›注意力›動作
+      cells: [t('mchat-rf', 'voc', 'soc', 'lang', 'adp', 'gm'), t('asb', 'asr', 'lang', 'dev', 'soc', 'adp'), t('asb', 'asr', 'chexi', 'spb', 'ldp', 'adl'), t('asr', 'lds', 'chexi', 'ab', 'snap-iv', 'spb')] },
+  };
+
+  it('DIS 十種 × 四段的工具欄與功能處理順序，逐格與附錄 B.2 重抄相符', () => {
+    for (const k of Object.keys(SPEC_B2) as DiagnosisDirection[]) {
+      expect({ k, order: functionOrderOf(k) }).toEqual({ k, order: SPEC_B2[k].order });
+      expect({ k, cells: DIS_ROUTES[k].cells.map(c => [...c.tools]) }).toEqual({ k, cells: SPEC_B2[k].cells });
+    }
   });
 
   it('功能處理順序：每種都有、無重複、只用九碼；沒有一列有 ADL', () => {
@@ -478,10 +509,21 @@ describe('診斷方向（§4.3、附錄 B.2）', () => {
     expect(withAdhd.functionOrder).toBeNull();
   });
 
-  it('沒選（undefined 或 null）與選了空格，三者輸出一樣', () => {
+  it('沒選（undefined 或 null）、空字串（中控台「未定」）、選了客戶留白的格，四者輸出一樣', () => {
     const a = planT2(flags({ ATT: 2 }), 30);
     expect(planT2(flags({ ATT: 2 }), 30, null)).toEqual(a);
+    expect(planT2(flags({ ATT: 2 }), 30, '' as unknown as DiagnosisDirection)).toEqual(a);
     expect(planT2(flags({ ATT: 2 }), 30, 'ld')).toEqual(a);
+  });
+
+  it('客戶那格有列工具但全在窗口外（自閉症 4 個月）：沒有必做，但功能處理順序照客戶給的回傳', () => {
+    expect(diagnosisToolsFor('asd', 4)).toEqual([]);
+    const plan = planT2(flags({ SOC: 2 }), 4, 'asd');
+    expect(ids(plan.required)).toEqual(['sxk-dev']);                // 只有 T1 路由來的
+    expect(plan.functionOrder).toEqual(['SOC', 'EMO', 'LANG', 'COG', 'LEARN', 'SEN', 'ATT', 'MOT']);
+    // 情緒障礙 0–11 也是這種格；學習障礙 0–36 是客戶留白，才是 null
+    expect(planT2(GREEN, 8, 'emo').functionOrder).toEqual(['EMO', 'ATT', 'LANG', 'COG', 'SEN', 'SOC', 'LEARN']);
+    expect(planT2(GREEN, 8, 'ld').functionOrder).toBeNull();
   });
 
   it('過窗口：學習障礙 48 個月的 snap-iv（72＋）拿掉；chexi 不出 band，落到 extras 不進必做', () => {
@@ -591,6 +633,11 @@ describe('輸入守衛', () => {
     // 36.5 會掉進客戶表 0–36 與 37–72 之間的縫，只剩後備 —— 不能讓它安靜地過
     expect(() => planT2(GREEN, 36.5)).toThrow(/整數/);
     expect(() => planT2(GREEN, 0)).not.toThrow();
+  });
+
+  it('t1Flags 不是物件就丟清楚的錯，不是 TypeError', () => {
+    expect(() => planT2(undefined as unknown as Record<DimensionCode, T1Flag>, 48)).toThrow(/t1Flags/);
+    expect(() => planT2(null as unknown as Record<DimensionCode, T1Flag>, 48)).toThrow(/t1Flags/);
   });
 
   it('T1 標記不是 0／1／2 就丟錯：JSON 進來的字串 "2" 不能安靜地變成綠', () => {

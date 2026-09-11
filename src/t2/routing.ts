@@ -193,9 +193,14 @@ function routable(id: ToolId, ageMonth: number): boolean {
   return TOOL_SPECS[id].routed && inWindow(id, ageMonth);
 }
 
+/** 客戶的年齡段是閉區間（§4.2：`months/12 <= hi`，取第一個命中的段）。DIM 與 DIS 共用這一條。 */
+function inSegment(seg: { lo: number; hi: number }, ageMonth: number): boolean {
+  return ageMonth >= seg.lo && ageMonth <= seg.hi;
+}
+
 /** 客戶表在這個月齡、這個維度列的工具（原樣）；沒有那一段就是空的。 */
 function dimListed(dimension: DimensionCode, ageMonth: number): ReadonlyArray<ToolId> {
-  return DIM_ROUTES.find(r => r.dimension === dimension && ageMonth >= r.lo && ageMonth <= r.hi)?.tools ?? [];
+  return DIM_ROUTES.find(r => r.dimension === dimension && inSegment(r, ageMonth))?.tools ?? [];
 }
 
 /** 去重、保序地收工具。 */
@@ -242,13 +247,21 @@ function disRouteOf(diagnosis: DiagnosisDirection): DisRoute {
   return route;
 }
 
-/** `DIS[疾病][段]` 過窗口後的工具，依客戶的順序；那一格是空的、或月齡沒有段，回空。 */
-export function diagnosisToolsFor(diagnosis: DiagnosisDirection, ageMonth: number): ToolId[] {
-  const cell = disRouteOf(diagnosis).cells.find(c => ageMonth >= c.lo && ageMonth <= c.hi);
-  return (cell?.tools ?? []).filter(id => routable(id, ageMonth));
+/** 客戶表 `DIS[疾病][段]` 那一格**原樣**（不過窗口）；那一格是空的、或月齡沒有段，回空。 */
+function disListed(diagnosis: DiagnosisDirection, ageMonth: number): ReadonlyArray<ToolId> {
+  return disRouteOf(diagnosis).cells.find(c => inSegment(c, ageMonth))?.tools ?? [];
 }
 
-/** 客戶的「功能處理順序」（附錄 B.2）。不看月齡 —— 但 `planT2` 只在那一格非空時才帶出去。 */
+/** `DIS[疾病][段]` 過窗口後的工具，依客戶的順序。 */
+export function diagnosisToolsFor(diagnosis: DiagnosisDirection, ageMonth: number): ToolId[] {
+  return disListed(diagnosis, ageMonth).filter(id => routable(id, ageMonth));
+}
+
+/**
+ * 客戶的「功能處理順序」（附錄 B.2）。不看月齡 —— 但 `planT2` 只在客戶表那一格**非空**時才帶出去
+ * （看的是過窗口**前**：自閉症 0–5 個月六支全在窗口外，客戶仍給了順序，報告照它排；
+ * 學習障礙 0–36 那格客戶自己留白，才是「選了等於沒選」）。
+ */
 export function functionOrderOf(diagnosis: DiagnosisDirection): DimensionCode[] {
   return [...disRouteOf(diagnosis).functionOrder];
 }
@@ -294,8 +307,9 @@ function sumAsked(items: ReadonlyArray<PlanItem>): number {
  * - `ageMonth`：實足月齡（**整數**月，不進位）。不是非負整數就丟錯：NaN 會讓每個維度都安靜地變成
  *   no_tool；36.5 會掉進客戶表 0–36 與 37–72 兩段之間的縫，客戶的順序整個不見卻不報錯。
  *   216 以上不丟錯，只是全部 no_tool。
- * - `diagnosis`：§4.3 的診斷方向，選填。沒選、`null`、或選的那一格是空的，三者輸出完全一樣；
- *   不認得的代號丟錯。
+ * - `diagnosis`：§4.3 的診斷方向，選填。沒選、`null`、空字串（中控台「未定」那個選項的值）、
+ *   或選的那一格客戶留白，四者輸出完全一樣；不認得的代號丟錯。那一格有列工具但全在窗口外
+ *   （自閉症 0–5 個月、情緒障礙 0–11 個月）：沒有工具可提，但 `functionOrder` 照客戶給的回傳。
  *
  * 回傳的每個陣列與 `PlanItem` 都是新的，可以放心改。
  */
@@ -306,6 +320,9 @@ export function planT2(
 ): T2Plan {
   if (!Number.isInteger(ageMonth) || ageMonth < 0) {
     throw new Error(`planT2：月齡要是非負整數（實足月齡，不進位），拿到 ${ageMonth}`);
+  }
+  if (t1Flags === null || typeof t1Flags !== 'object') {
+    throw new Error(`planT2：t1Flags 要是九個維度的物件，拿到 ${JSON.stringify(t1Flags)}`);
   }
   for (const d of DIMENSION_CODES) {
     const flag: unknown = t1Flags[d];
@@ -335,13 +352,14 @@ export function planT2(
     for (const id of rest) band.add(id, 'followup', [d]);
   }
 
-  // 4：診斷方向 —— 那一格過窗口後有東西才算「選了」
+  // 4：診斷方向 —— 客戶表那一格有東西才算「選了」；空字串是中控台「未定」的值，視同沒選
   let functionOrder: DimensionCode[] | null = null;
-  if (diagnosis) {
-    const tools = diagnosisToolsFor(diagnosis, ageMonth);
-    if (tools.length > 0) {
+  if (diagnosis != null && (diagnosis as string) !== '') {
+    const listed = disListed(diagnosis, ageMonth);
+    if (listed.length > 0) {
       functionOrder = functionOrderOf(diagnosis);
-      for (const id of tools) {
+      for (const id of listed) {
+        if (!routable(id, ageMonth)) continue;
         const dims = TOOL_FEEDS[id].map(f => f.dimension);
         if (TOOL_SPECS[id].producesBand) band.add(id, 'required', dims);
         else extras.add(id, 'extra', dims);

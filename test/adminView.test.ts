@@ -14,6 +14,8 @@ import {
   genderLabel,
   formatDateTime,
   showCompanySwitcher,
+  screeningNewerThanReport,
+  parentPrintIdFromPath,
   type AdminCenterShape,
   type AdminTabId,
 } from '../src/admin/adminView';
@@ -442,5 +444,89 @@ describe('共用標籤', () => {
     expect(formatDateTime(undefined)).toBe('—');
     expect(formatDateTime('')).toBe('—');
     expect(formatDateTime('not-a-date')).toBe('—');
+  });
+});
+
+/**
+ * 報告（快照）與篩查結果（現況）分岔（ADR-0007 / CONTEXT.md「報告」）。
+ *
+ * 後台的列表照篩查結果亮燈，詳情照最近一份報告。家長重做了篩查卻沒有再按一次
+ * 「生成」時兩者就不一樣了，而畫面上看不出任何異狀 —— 客服會照著一份舊報告
+ * 講電話，家長手裡是新的燈號。
+ *
+ * ⚠️ **比較的是成績的 `completedAt`，不是 `screenedAt`。** 後者是 `user_data.updated_at`，
+ * 家長端每一次存檔都會動它 —— 包含「生成報告」本身那一次存檔。拿它去比，每一位
+ * 生成過報告的家長都會被說成分岔。
+ */
+describe('報告與篩查結果分岔', () => {
+  const at = (iso: string) => ({ completedAt: iso });
+
+  it('成績比報告新 → 分岔，回傳那次篩查的時間', () => {
+    expect(
+      screeningNewerThanReport([at('2026-09-03T10:00:00Z'), at('2026-09-05T08:00:00Z')], '2026-09-01T00:00:00Z')
+    ).toBe('2026-09-05T08:00:00Z');
+  });
+
+  it('報告比成績新（做完就生成）→ 不分岔', () => {
+    expect(
+      screeningNewerThanReport([at('2026-09-05T08:00:00Z')], '2026-09-05T08:00:30Z')
+    ).toBeNull();
+  });
+
+  it('沒有報告就無從分岔 —— 詳情此時本來就只有篩查結果可看', () => {
+    expect(screeningNewerThanReport([at('2026-09-05T08:00:00Z')], null)).toBeNull();
+  });
+
+  it('沒有成績、或成績沒存時間（舊資料）→ 不亂報分岔', () => {
+    expect(screeningNewerThanReport([], '2026-09-01T00:00:00Z')).toBeNull();
+    expect(screeningNewerThanReport([{}], '2026-09-01T00:00:00Z')).toBeNull();
+    expect(screeningNewerThanReport([{ completedAt: '不是时间' }], '2026-09-01T00:00:00Z')).toBeNull();
+  });
+
+  it('壞掉的報告時間不會讓每個人都看起來分岔', () => {
+    expect(screeningNewerThanReport([at('2026-09-05T08:00:00Z')], '不是时间')).toBeNull();
+  });
+});
+
+/**
+ * 列印用的路徑（ADR-0007）。
+ *
+ * 後台的「打印报告」開的是同一個 SPA 的另一條路徑，那一頁只畫報告本體並叫出
+ * 列印對話框。解析寫成純函式，是因為認錯路徑的樣子很安靜 —— 使用者拿到的是
+ * 後台登入畫面，而不是任何一種錯誤。
+ */
+describe('家長報告列印路徑', () => {
+  it('認得 /admin/parents/:id/print', () => {
+    expect(parentPrintIdFromPath('/admin/parents/123/print')).toBe(123);
+  });
+
+  it('結尾多一條斜線也算 —— 使用者與瀏覽器都會補上它', () => {
+    expect(parentPrintIdFromPath('/admin/parents/7/print/')).toBe(7);
+  });
+
+  it('後台的其他路徑一律不是列印頁', () => {
+    for (const path of [
+      '/admin',
+      '/admin/',
+      '/admin/parents',
+      '/admin/parents/123',
+      '/admin/parents/123/export',
+      '/administrator/parents/1/print',
+      '/parents/1/print',
+    ]) {
+      expect(parentPrintIdFromPath(path), path).toBeNull();
+    }
+  });
+
+  it('id 不是正整數就不是列印頁 —— 不把 NaN 送進 API', () => {
+    for (const path of [
+      '/admin/parents/abc/print',
+      '/admin/parents/-1/print',
+      '/admin/parents/1.5/print',
+      '/admin/parents/0/print',
+      '/admin/parents//print',
+    ]) {
+      expect(parentPrintIdFromPath(path), path).toBeNull();
+    }
   });
 });

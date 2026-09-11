@@ -6,7 +6,6 @@ import {
   ALL_CLEAR_SUMMARY,
   SCREENING_DISCLAIMER,
   STATUS_WORDING,
-  concernLabel,
   flaggedSummary,
 } from '../src/utils/statusWording';
 import { BRAIN_NODES, REHAB_SUGGESTIONS } from '../src/dimensionContent';
@@ -55,6 +54,7 @@ const PARENT_FACING_FILES = [
   'src/components/DimensionGrid.tsx',
   'src/components/T1Screening.tsx',
   'src/components/AnalysisReport.tsx',
+  'src/components/ReportBody.tsx',
   'src/components/ReportCharts.tsx',
   'src/App.tsx',
 ];
@@ -109,14 +109,20 @@ describe('三級標示（statusWording.ts）', () => {
     }
   });
 
-  it('雷達圖四級（0–8 關注分）全部覆蓋、沒有禁字、由高到低不重複', () => {
-    const labels = [8, 7, 6, 5, 4, 3, 2, 1, 0].map(concernLabel);
-    for (const l of labels) expect(findBannedWords(l), l).toEqual([]);
-    // ≥6 / 5 / 3–4 / ≤2 四級，與原本「需重点关注／需关注／临界／大致良好」的門檻相同。
-    expect(new Set(labels).size).toBe(4);
-    expect(concernLabel(6)).toBe(concernLabel(8));
-    expect(concernLabel(3)).toBe(concernLabel(4));
-    expect(concernLabel(0)).toBe(concernLabel(2));
+  /**
+   * 關注分不再是第二套判定（ADR-0007 / CONTEXT.md「關注分」）。
+   *
+   * 這一條原本在驗 `concernLabel` 的四級。那支函式連同它的四級一起廢除了 ——
+   * 留一條「它不存在」的測試，是因為下一個覺得「三級太粗」的人最自然的動作
+   * 就是把它加回來，而加回來不會有任何其他測試出聲。
+   */
+  it('沒有第二套刻度：statusWording 不再輸出依關注分切的標籤', () => {
+    const source = read('src/utils/statusWording.ts');
+    expect(source).not.toMatch(/export function concernLabel/);
+    // 報告本體只把關注分當成雷達圖的軸值，不拿它決定顏色或文字。
+    const body = stripComments(read('src/components/ReportBody.tsx'));
+    expect(body).not.toMatch(/concernScore\s*>=\s*\d/);
+    expect(body).not.toMatch(/concernScore\s*===\s*\d/);
   });
 
   it('全綠結論逐字等於對照表指定的那一句', () => {
@@ -173,7 +179,7 @@ describe('專案 B 的行動標籤（productConfig.ts）', () => {
 });
 
 describe('定位句固定出現在結果頁與報告頁最上方', () => {
-  it.each(['src/components/T1Screening.tsx', 'src/components/AnalysisReport.tsx'])('%s', rel => {
+  it.each(['src/components/T1Screening.tsx', 'src/components/ReportBody.tsx'])('%s', rel => {
     expect(stripComments(read(rel))).toContain('SCREENING_DISCLAIMER');
   });
 });

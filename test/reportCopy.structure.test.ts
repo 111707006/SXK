@@ -32,7 +32,9 @@ function stripComments(source: string): string {
 }
 
 const productConfig = stripComments(read('src/productConfig.ts'));
-const analysisReport = stripComments(read('src/components/AnalysisReport.tsx'));
+// 雷達圖在 2026-09-11 隨報告本體搬進 `ReportBody.tsx`（ADR-0007）——
+// 家長端與後台看的是同一個元件，那串客戶指定的標題因此只剩這一份。
+const reportBody = stripComments(read('src/components/ReportBody.tsx'));
 
 describe('維度卡片的文案（p.9）', () => {
   /** 卡片上那兩句話的**唯一**來源，兩個產品模式各一份。 */
@@ -84,12 +86,12 @@ describe('維度卡片的文案（p.9）', () => {
 describe('雷達圖區段標題（p.12）', () => {
   // 客戶逐字指定：不加空格，破折號是兩個全形。
   it('逐字等於「9大维度结论——雷达图分析」', () => {
-    expect(analysisReport).toContain('9大维度结论——雷达图分析');
+    expect(reportBody).toContain('9大维度结论——雷达图分析');
   });
 
   it('不是被「順手排版」過的那些寫法', () => {
     for (const stale of ['9 大维度结论 —— 雷达图分析', '9 大维度结论——雷达图分析']) {
-      expect(analysisReport, stale).not.toContain(stale);
+      expect(reportBody, stale).not.toContain(stale);
     }
   });
 });

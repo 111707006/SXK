@@ -64,22 +64,18 @@ export const STATUS_WORDING: Record<AssessmentStatus, StatusWording> = {
   },
 };
 
-/**
- * 報告雷達圖用的四級細分，依關注分（0–8，越高越需要支持）切：
- *   ≥ 6 → 差距较明显   （對照表：严重 → 「目前差距较明显，建议优先安排专业咨询」）
- *   = 5 → 需要较多支持
- *   3–4 → 需要少量支持
- *   ≤ 2 → 发展稳定
+/*
+ * 這裡曾經有一支 `concernLabel(concernScore)`，給報告雷達圖的圖例分四級
+ * （≥6 差距较明显／=5 需要较多支持／3–4 需要少量支持／≤2 发展稳定）。
  *
- * 門檻與 `AnalysisReport.tsx` 雷達圖原本的四級（需重点关注／需关注／临界／大致良好）
- * 完全相同，只換了字。
+ * **2026-09-11 定案廢除**（ADR-0007、CONTEXT.md「關注分」）：那是第二套刻度。
+ * 它畫的線比篩查判定寬鬆一格 —— 得分 6 的維度在篩查頁亮黃燈，在雷達圖上卻說
+ * 「大致良好」，而 CONTEXT.md 對嚴重度的定義是「與報告上的判定是同一組值，
+ * 不另立一套刻度」。圖表現在一律照 `STATUS_WORDING` 的三級走，關注分只剩
+ * 「雷達圖那一角凸出去多少」這一個工作。
+ *
+ * 留這段話是為了讓下一個想「圖例只有三級好像太粗」的人先看到這裡。
  */
-export function concernLabel(concernScore: number): string {
-  if (concernScore >= 6) return '差距较明显';
-  if (concernScore === 5) return STATUS_WORDING.delay.label;
-  if (concernScore >= 3) return STATUS_WORDING.borderline.label;
-  return STATUS_WORDING.normal.label;
-}
 
 /**
  * 對照表要求固定放在報告最上方的定位句。原句照抄，不要潤飾 ——

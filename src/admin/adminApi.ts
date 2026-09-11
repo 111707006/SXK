@@ -6,6 +6,7 @@
  * 對方登入狀態的 bug，而那種 bug 在後台最不該出現。
  */
 
+import type { AssessmentRecord } from '../types';
 import type { MaterialInput, MaterialRecord } from '../utils/materialCells';
 
 const TOKEN_KEY = 'sxk_admin_token';
@@ -52,13 +53,14 @@ export interface AdminParentDetail extends AdminParentListItem {
     dimensionId: string; dimensionName: string; tierId: string;
     score: number; maxScore: number; status: string; completedAt: string;
   }>;
-  reportHistory: Array<{
-    id: string; createdAt: string; isAiGenerated?: boolean;
-    aiReport?: {
-      summary: string; neuralPathwayAnalysis: string;
-      rehabSuggestions: string[]; homeGuidance: string[]; prognosisPrediction: string;
-    };
-  }>;
+  /**
+   * 這位家長歷次生成的報告，最完整的那一份型別（ADR-0007）。
+   *
+   * 先前這裡手寫了一個子集，漏掉 `child`、`scores` 與 `criticalMetrics` ——
+   * 資料一直是完整的（後端回的就是 `AssessmentRecord[]`），只有型別以為它不是。
+   * 後台要畫的是家長看到的那一份報告，而那需要快照裡的孩子與成績，不只文字。
+   */
+  reportHistory: AssessmentRecord[];
   bookings: Array<{
     id: number; specialistId: string; specialistName: string | null;
     parentName: string; parentPhone: string; preferredSlot: string | null;
@@ -274,19 +276,3 @@ export const adminApi = {
   updateMaterial: (id: number, input: MaterialInput) =>
     request<{ ok: true }>(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
 };
-
-/** 匯出走瀏覽器分頁開新視窗，因此需要一條帶得上 token 的路。 */
-export async function fetchParentExport(id: number): Promise<string> {
-  const token = getAdminToken();
-  const resp = await fetch(`/api/admin/parents/${id}/export`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!resp.ok) {
-    let body: any = {};
-    try {
-      body = await resp.json();
-    } catch { /* 非 JSON 的錯誤 */ }
-    throw new AdminApiError(body.error || '汇出失败', (body.code as AdminErrorCode) || 'UNKNOWN', resp.status);
-  }
-  return resp.text();
-}

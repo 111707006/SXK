@@ -321,27 +321,29 @@ describe('公司隔離（#6）', () => {
   });
 });
 
-describe('匯出不得成為第二條路（#8）', () => {
-  it('匯出自己公司的家長拿得到內容', async () => {
+/**
+ * 匯出端點在 2026-09-11 移除（ADR-0007）—— 後台的列印改走前端的
+ * `/admin/parents/:id/print`，資料仍然只有 `GET /parents/:id` 這一支。
+ *
+ * 這一組因此換了工作：不再驗「匯出有沒有帶公司條件」，改驗**那條路真的不見了**，
+ * 以及 issue #8 當初要守的東西（取家長資料只有一條路，而那條路帶著公司條件）
+ * 沒有跟著一起消失。
+ */
+describe('伺服器端的匯出端點已不存在（ADR-0007）', () => {
+  it('連自己公司的家長都匯不出來 —— 那條路整個沒了', async () => {
     const token = await login('a@jia.com', 'pw-jia-123');
     const resp = await client.get('/api/admin/parents/101/export', h(token!));
-    expect(resp.status).toBe(200);
-    expect(await resp.text()).toContain('甲家孩子');
+    expect(resp.status).toBe(404);
   });
 
-  it('匯出別家公司的家長被拒，且與不存在的回應相同', async () => {
+  it('取資料仍然只有詳情這一支，而它帶著公司條件', async () => {
     const token = await login('a@jia.com', 'pw-jia-123');
-    const otherCompany = await client.get('/api/admin/parents/202/export', h(token!));
-    const nonExistent = await client.get('/api/admin/parents/999999/export', h(token!));
+    expect((await client.get('/api/admin/parents/101', h(token!))).status).toBe(200);
+
+    const otherCompany = await client.get('/api/admin/parents/202', h(token!));
+    const nonExistent = await client.get('/api/admin/parents/999999', h(token!));
     expect(otherCompany.status).toBe(404);
     expect(await otherCompany.json()).toEqual(await nonExistent.json());
-  });
-
-  it('未選定公司的全域管理員同樣匯不出東西', async () => {
-    const token = await login('god@sxk.com', 'pw-god-123');
-    const resp = await client.get('/api/admin/parents/101/export', h(token!));
-    expect(resp.status).toBe(409);
-    expect((await resp.json()).code).toBe('NO_COMPANY_SELECTED');
   });
 });
 

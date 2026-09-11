@@ -1,30 +1,47 @@
 /**
- * 家長列表、單筆詳情與匯出（issues #6 / #7 / #8）。
+ * 家長列表、單筆詳情與列印（issues #6 / #7 / #8、ADR-0007）。
  *
- * 三者共用同一條取資料的路：後端的 `getParentDetail` 同時服務詳情與匯出，
+ * 三者共用同一條取資料的路：後端的 `getParentDetail` 同時服務詳情與列印頁，
  * 而列表與它們都經過同一個公司條件。前端這邊沒有任何「公司」的參數可以傳 ——
  * 視野在 token 裡，換視野要走 `/select-company`。
+ *
+ * 【詳情裡的報告就是家長看到的那一份】（ADR-0007）
+ * 客服接的是家長的電話。家長說「我看到那個儀表 72%」，客服得看得到同一個 72%，
+ * 所以這裡嵌的是家長端那個 `ReportBody`，不是另做一份給專家判讀的版本。
+ * 裡頭有幾張圖是裝飾性的（發育軌跡的四個數字每個孩子都一樣、百分位沒有常模）——
+ * **不要只在後台把它們修掉**，那會讓兩邊分岔。要改就改共用元件。
+ *
+ * 【列表看現況、詳情看快照】
+ * 列表的燈號來自篩查結果（現況），詳情的報告是快照。家長重測而沒有再生成報告時
+ * 兩者分岔，此時詳情頂端會說出來，底下的「九维筛查结果」表就是現況那一份。
  */
 import { useCallback, useState } from 'react';
-import { Calendar, Download, FileText, Phone, Printer, User, X } from 'lucide-react';
+import { AlertTriangle, Calendar, FileText, Phone, Printer, User, X } from 'lucide-react';
 import {
   adminApi,
-  fetchParentExport,
   type AdminParentDetail,
   type AdminParentListItem,
 } from '../adminApi';
-import { formatDateTime, genderLabel, statusLabel, type AdminErrorView } from '../adminView';
+import {
+  formatDateTime,
+  genderLabel,
+  screeningNewerThanReport,
+  statusLabel,
+  type AdminErrorView,
+} from '../adminView';
 import { ageBandDrift } from '../../utils/ageBandDrift';
+import { latestReportOf, screeningReportCount } from '../../utils/reportHistory';
 import { isOfflineService, serviceTypeLabel } from '../../utils/serviceTypes';
+import ReportBody from '../../components/ReportBody';
 import {
   Button,
   EmptyState,
   ErrorNote,
+  LinkButton,
   Panel,
   Select,
   Spinner,
   StatusBadge,
-  toErrorView,
   useAsyncData,
 } from '../ui';
 
@@ -152,148 +169,91 @@ function ParentDetailModal({
 }) {
   const load = useCallback(() => adminApi.parent(id), [id]);
   const { data, loading, failure, reload } = useAsyncData(load, [id], onError);
-  const [exportFailure, setExportFailure] = useState<string | null>(null);
-  const [popupBlocked, setPopupBlocked] = useState(false);
-
-  function reportExportError(err: unknown) {
-    const view = toErrorView(err);
-    if (view.action === 'none') setExportFailure(view.message);
-    else onError(view);
-  }
-
-  function openExport() {
-    setExportFailure(null);
-    setPopupBlocked(false);
-    // window.open 必須在點擊的當下同步呼叫，否則會被弹出視窗封鎖擋下。
-    // 因此先開一個空白視窗，再把抓回來的內容填進去。
-    const win = window.open('', '_blank');
-    if (!win) {
-      setPopupBlocked(true);
-      return;
-    }
-    win.document.write('<p style="font-family:sans-serif;padding:24px">正在准备汇出内容…</p>');
-
-    fetchParentExport(id)
-      .then(html => {
-        win.document.open();
-        win.document.write(html);
-        win.document.close();
-        win.focus();
-        // 匯出的是一頁可列印的 HTML，由浏览器「列印 → 另存为 PDF」。
-        // 直接叫出列印对话框，省掉一步找选单。
-        if (win.document.readyState === 'complete') win.print();
-        else win.addEventListener('load', () => win.print(), { once: true });
-      })
-      .catch(err => {
-        win.close();
-        reportExportError(err);
-      });
-  }
-
-  /**
-   * 彈出視窗被擋掉時的備援：把同一份 HTML 存成檔案。
-   *
-   * 沒有這條路的話，一個把弹出視窗全部封鎖的浏览器（企業環境很常見）會讓匯出
-   * 變成一顆按了沒反應的按鈕 —— 而使用者不會知道要去改浏览器設定。
-   * 存下來的是同一份可列印的 HTML，開啟後一樣「列印 → 另存为 PDF」。
-   */
-  async function downloadExport() {
-    setExportFailure(null);
-    try {
-      const html = await fetchParentExport(id);
-      const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `筛查资料-${data?.parent.childName || id}.html`;
-      // 掛進 document 再點，而且**不要同步 revoke**：部分瀏覽器在 click() 回傳
-      // 之後才非同步啟動下載，此時 object URL 已被撤銷，結果是按鈕按了沒反應也
-      // 沒有錯誤訊息 —— 而這條路本身就是彈出視窗被擋掉後的最後一條路。
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        link.remove();
-        URL.revokeObjectURL(url);
-      }, 0);
-      setPopupBlocked(false);
-    } catch (err) {
-      reportExportError(err);
-    }
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-charcoal/40 p-4 sm:p-8"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-3xl rounded-3xl border border-brand-stone bg-white"
-        onClick={e => e.stopPropagation()}
-      >
-        <header className="flex items-start justify-between gap-3 border-b border-brand-stone px-5 py-4">
-          <div>
-            <h3 className="text-sm font-bold text-brand-forest">
-              {data?.parent.childName || (loading ? '载入中…' : '家长资料')}
-            </h3>
-            {data && (
-              <p className="mt-0.5 text-[11px] text-brand-charcoal/50">
-                {data.parent.childAgeMonth === null ? '月龄未填' : `${data.parent.childAgeMonth} 个月`}
-                　{genderLabel(data.parent.childGender)}
-                　注册于 {formatDateTime(data.parent.registeredAt)}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {data && (
-              <Button variant="ghost" onClick={openExport}>
-                <Printer size={12} />
-                汇出
-              </Button>
-            )}
-            <button
-              onClick={onClose}
-              aria-label="关闭"
-              className="rounded-lg p-1.5 text-brand-charcoal/50 transition hover:bg-brand-sage"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </header>
-
-        <div className="space-y-5 px-5 py-5">
-          {exportFailure && <ErrorNote message={exportFailure} />}
-          {popupBlocked && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <p className="text-xs leading-relaxed text-amber-900">
-                浏览器拦截了新视窗。可以允许本站开启弹出视窗后重试，或直接把汇出内容存成档案。
-              </p>
-              <Button variant="ghost" onClick={() => void downloadExport()}>
-                <Download size={12} />
-                改为下载
-              </Button>
-            </div>
-          )}
-          {loading ? (
-            <Spinner />
-          ) : failure ? (
-            <ErrorNote message={failure} onRetry={reload} />
-          ) : data ? (
-            <ParentDetailBody parent={data.parent} />
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
-  const latestReport = parent.reportHistory
-    .filter(r => r.aiReport)
-    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
-  const ai = latestReport?.aiReport;
-  const crossBand = ageBandDrift(parent.childAgeMonth, parent.assessedAgeMonth);
 
   return (
     <>
+      <div
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-charcoal/40 p-4 sm:p-8"
+        onClick={onClose}
+      >
+        <div
+          className="w-full max-w-3xl rounded-3xl border border-brand-stone bg-white"
+          onClick={e => e.stopPropagation()}
+        >
+          <header className="flex items-start justify-between gap-3 border-b border-brand-stone px-5 py-4">
+            <div>
+              <h3 className="text-sm font-bold text-brand-forest">
+                {data?.parent.childName || (loading ? '载入中…' : '家长资料')}
+              </h3>
+              {data && (
+                <p className="mt-0.5 text-[11px] text-brand-charcoal/50">
+                  {data.parent.childAgeMonth === null ? '月龄未填' : `${data.parent.childAgeMonth} 个月`}
+                  　{genderLabel(data.parent.childGender)}
+                  　注册于 {formatDateTime(data.parent.registeredAt)}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {/*
+                列印開的是同一份報告本體的另一個分頁（ADR-0007）。做成**連結**而不是
+                `onClick` 裡的 `window.open`：腳本開的視窗會被彈出視窗封鎖擋掉，
+                而被擋掉的樣子是一顆按了沒反應的按鈕，使用者不會知道要去改瀏覽器設定。
+              */}
+              {data && (
+                <LinkButton href={`/admin/parents/${id}/print`} target="_blank" rel="noopener">
+                  <Printer size={12} />
+                  打印报告
+                </LinkButton>
+              )}
+              <button
+                onClick={onClose}
+                aria-label="关闭"
+                className="rounded-lg p-1.5 text-brand-charcoal/50 transition hover:bg-brand-sage"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </header>
+
+          <div className="space-y-5 px-5 py-5">
+            {loading ? (
+              <Spinner />
+            ) : failure ? (
+              <ErrorNote message={failure} onRetry={reload} />
+            ) : data ? (
+              <ParentDetailBody parent={data.parent} />
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
+  const latestReport = latestReportOf(parent.reportHistory);
+  // 只算篩查報告：整串 `reportHistory` 還包含深度評估與沒生成過報告的篩查紀錄，
+  // 拿它的長度去說「共 N 份」會報一個與畫面上那一份對不起來的數字。
+  const reportCount = screeningReportCount(parent.reportHistory);
+  const crossBand = ageBandDrift(parent.childAgeMonth, parent.assessedAgeMonth);
+  // 報告是快照、下面那張表是現況。分岔時必須說出來，不能只挑一邊顯示。
+  const newerScreeningAt = screeningNewerThanReport(parent.scores, latestReport?.createdAt ?? null);
+
+  return (
+    <>
+      {newerScreeningAt && (
+        <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+          <p className="text-[11px] leading-relaxed text-amber-900">
+            下方这份报告产生于 {formatDateTime(latestReport?.createdAt ?? null)}，之后这位家长在{' '}
+            {formatDateTime(newerScreeningAt)} 又做了一次筛查，没有再生成报告。
+            <span className="font-bold">家长现在看到的灯号是下面「九维筛查结果」那一张表</span>
+            ，与这份报告不一定相同。
+          </p>
+        </div>
+      )}
+
       <Section icon={<Phone size={12} />} title="联络方式">
         <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
           <Row label="帐号信箱" value={parent.email || '—'} />
@@ -307,7 +267,7 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
         </dl>
       </Section>
 
-      <Section icon={<FileText size={12} />} title="九维筛查结果">
+      <Section icon={<FileText size={12} />} title="九维筛查结果（现况）">
         {/*
           测评月龄与年龄段必须写在分数**上面**。分数是照当时那一段的题目与判准算出来的，
           而标头那个月龄是照今天算的 —— 孩子跨段之后两者会分岔，此时照今天的年龄段去
@@ -403,25 +363,34 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
         )}
       </Section>
 
-      <Section icon={<User size={12} />} title="AI 发展报告">
-        {!ai ? (
+      <Section icon={<User size={12} />} title="家长看到的报告">
+        {!latestReport?.aiReport ? (
           <p className="text-xs text-brand-charcoal/50">尚未产生 AI 发展报告。</p>
         ) : (
-          <div className="space-y-3 text-xs leading-relaxed text-brand-charcoal/80">
-            <Para label="总结" text={ai.summary} />
-            <Para label="神经环路分析" text={ai.neuralPathwayAnalysis} />
-            <Bullets label="康复建议" items={ai.rehabSuggestions} />
-            <Bullets label="家庭指导" items={ai.homeGuidance} />
-            <Para label="预后预判" text={ai.prognosisPrediction} />
+          <div className="space-y-2">
             <p className="text-[10px] text-brand-charcoal/40">
               报告来源：
-              {latestReport?.isAiGenerated === true
+              {latestReport.isAiGenerated === true
                 ? 'AI 生成'
-                : latestReport?.isAiGenerated === false
+                : latestReport.isAiGenerated === false
                   ? '本地模板'
                   : '未记录'}
-              　产生时间：{formatDateTime(latestReport?.createdAt ?? null)}
+              　产生时间：{formatDateTime(latestReport.createdAt)}
+              {reportCount > 1 && `　共 ${reportCount} 份，此为最近一份`}
             </p>
+            {/*
+              抽屜比家長的手機窄，而報告本體是照手機排的。`-mx-2` 把它撐回卡片邊緣，
+              讓九宮格在這個寬度下仍排得成三欄。
+            */}
+            <div className="-mx-2">
+              <ReportBody
+                childName={latestReport.childName}
+                scores={latestReport.scores}
+                aiReport={latestReport.aiReport}
+                isAiGenerated={latestReport.isAiGenerated}
+                reportId={latestReport.id}
+              />
+            </div>
           </div>
         )}
       </Section>
@@ -446,29 +415,6 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex gap-2">
       <dt className="shrink-0 text-brand-charcoal/45">{label}</dt>
       <dd className="text-brand-charcoal/80">{value}</dd>
-    </div>
-  );
-}
-
-function Para({ label, text }: { label: string; text: string }) {
-  return (
-    <p>
-      <span className="font-bold text-brand-forest">{label}：</span>
-      {text}
-    </p>
-  );
-}
-
-function Bullets({ label, items }: { label: string; items: string[] }) {
-  if (!items?.length) return null;
-  return (
-    <div>
-      <p className="font-bold text-brand-forest">{label}：</p>
-      <ul className="mt-1 list-disc space-y-0.5 pl-4">
-        {items.map((item, i) => (
-          <li key={i}>{item}</li>
-        ))}
-      </ul>
     </div>
   );
 }

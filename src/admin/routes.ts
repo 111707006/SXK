@@ -19,7 +19,6 @@ import {
   type CompanyCondition,
 } from './companyScope';
 import { buildIdentity, signAdminToken, verifyAdminToken } from './adminAuth';
-import { renderParentExportHtml } from './exportView';
 import { readMaterialInput } from '../utils/materialCells';
 import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
@@ -274,32 +273,19 @@ export function createAdminRouter(shape: AdminCenterShape): express.Router {
     }
   });
 
-  /**
-   * 匯出單筆家長資料（可列印，交給不會登入系統的專家）。
+  /*
+   * 匯出單筆家長資料的 `GET /parents/:id/export` 在 2026-09-11 移除（ADR-0007）。
    *
-   * **刻意呼叫與詳情畫面同一個 `getParentDetail`**，不另開取資料的路徑 ——
-   * 匯出最容易被實作成一句獨立查詢，而那句查詢就會成為繞過範圍限制的第二條路。
+   * 它回的是伺服器拼字串出的純 HTML —— 一張九維度表格加 AI 文字，一張圖都沒有。
+   * 後台改成顯示家長看到的那份報告之後，要讓這條路「長得一樣」等於用字串再實作
+   * 一次整份報告（雷達圖、儀表、軌跡圖），而且之後每次改報告都要改兩處。
+   *
+   * 現在的列印走 `/admin/parents/:id/print`：同一個 SPA 的另一條路徑，呼叫的是
+   * 上面那支 `GET /parents/:id`。issue #8 的理由（不讓匯出成為繞過公司範圍的第二條
+   * 取資料路徑）因此原封不動成立 —— 新分頁只是再呼叫一次同一支端點。
+   *
+   * `renderParentExportHtml` 本身留著，家長掃碼帶走的那一頁（`/r/:token`）還在用它。
    */
-  router.get('/parents/:id/export', async (req: AuthedRequest, res) => {
-    const condition = withScope(req, res);
-    if (!condition) return;
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
-      res.status(404).json({ error: '找不到该家长。' });
-      return;
-    }
-    try {
-      const detail = await store.getParentDetail(condition, id);
-      if (!detail) {
-        res.status(404).json({ error: '找不到该家长。' });
-        return;
-      }
-      res.type('html').send(renderParentExportHtml(detail));
-    } catch (err: any) {
-      console.error('[Admin] export failed:', err.message);
-      res.status(500).json({ error: '汇出失败。' });
-    }
-  });
 
   // ── 專家名單 ──
   router.get('/specialists', async (req: AuthedRequest, res) => {

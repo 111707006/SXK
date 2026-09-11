@@ -9,7 +9,7 @@
  * 與家長端共用同一份部署與資料庫，但工作階段完全分開（不同的 localStorage 鍵、
  * 後端不同的簽章）—— 後台成員在同一台電腦上通常也是家長。
  */
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, useCallback, useEffect, useState } from 'react';
 import { Building2, ChevronDown, Loader2, LogOut, RefreshCw, ShieldAlert } from 'lucide-react';
 import {
   adminApi,
@@ -19,6 +19,7 @@ import {
   type AdminIdentityView,
 } from './adminApi';
 import {
+  parentPrintIdFromPath,
   parseSwitcherValue,
   resolveScreen,
   scopeKey,
@@ -32,6 +33,7 @@ import {
 } from './adminView';
 import { PRODUCT } from '../productConfig';
 import { BeianFooter } from '../components/BeianFooter';
+import LazyBoundary from '../components/LazyBoundary';
 import { Button, ErrorNote, Field, Spinner, TextInput, toErrorView } from './ui';
 import ParentsPanel from './panels/ParentsPanel';
 import SpecialistsPanel from './panels/SpecialistsPanel';
@@ -40,6 +42,14 @@ import CompaniesPanel from './panels/CompaniesPanel';
 import AdminUsersPanel from './panels/AdminUsersPanel';
 import SummaryPanel from './panels/SummaryPanel';
 import MaterialsPanel from './panels/MaterialsPanel';
+
+/**
+ * 列印頁連同整份報告本體（雷達圖、儀表、軌跡圖）另外切一包。
+ *
+ * 管理中心平常不需要它 —— 只有按下「打印报告」開出來的那個分頁會用到，
+ * 而那一頁本來就要重新載入一次。
+ */
+const ParentReportPrint = lazy(() => import('./panels/ParentReportPrint'));
 
 /**
  * 這個產品有沒有合作公司這回事。**分歧只有一個入口**（`productConfig.ts`），
@@ -51,7 +61,28 @@ import MaterialsPanel from './panels/MaterialsPanel';
  */
 const ADMIN_SHAPE = PRODUCT.adminCenter;
 
+/**
+ * 後台的入口。`/admin/parents/:id/print` 走列印頁，其餘一律是管理中心本體。
+ *
+ * 路徑在一次頁面載入中不會改變，因此這個分支不會在兩個元件之間來回切換 ——
+ * 兩邊各自有自己的 hook，互不影響。
+ *
+ * 列印頁**不走管理中心的殼**：它只畫報告本體，沒有頁首、沒有分頁、沒有公司
+ * 切換器。那一頁的下一步是列印對話框，紙上不該有導覽列。
+ */
 export default function AdminApp() {
+  const printParentId = parentPrintIdFromPath(window.location.pathname);
+  if (printParentId !== null) {
+    return (
+      <LazyBoundary>
+        <ParentReportPrint id={printParentId} />
+      </LazyBoundary>
+    );
+  }
+  return <AdminCenter />;
+}
+
+function AdminCenter() {
   const [identity, setIdentity] = useState<AdminIdentityView | null>(null);
   const [companies, setCompanies] = useState<AdminCompany[]>([]);
   const [unavailable, setUnavailable] = useState(false);

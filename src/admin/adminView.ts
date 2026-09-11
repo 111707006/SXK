@@ -329,3 +329,55 @@ export function formatDateTime(iso: string | null | undefined): string {
   const hour = at('hour') === '24' ? '00' : at('hour');
   return `${at('year')}-${at('month')}-${at('day')} ${hour}:${at('minute')}:${at('second')}`;
 }
+
+/**
+ * 最近一次篩查是不是**比報告新**。是的話回傳那次篩查的時間，否則回 `null`。
+ *
+ * 【為什麼需要它】（ADR-0007 / CONTEXT.md「報告」）
+ * 報告是快照，篩查結果是現況。家長重做了篩查卻沒有再按一次「生成」時，兩者就
+ * 不一樣了 —— 後台的列表照現況亮燈，詳情照快照。少了這個提示，客服會對著一份
+ * 舊報告講電話，而家長手裡是新的燈號，兩邊都不知道對方在看什麼。
+ *
+ * ⚠️ **比較的是成績自己的 `completedAt`，不是家長列表上的 `screenedAt`。**
+ * 後者是 `user_data.updated_at`，家長端每一次存檔都會動它 —— 包含「生成報告」
+ * 本身那一次存檔。拿它去比，每一位生成過報告的家長都會被標成分岔。
+ *
+ * 讀不出時間的成績（本欄位之前的舊資料）一律當作「沒有證據說它比較新」，
+ * 不猜。寧可漏報一次分岔，也不要在每一位舊家長的詳情頂端掛一條假警告。
+ */
+export function screeningNewerThanReport(
+  scores: ReadonlyArray<{ completedAt?: string }>,
+  reportCreatedAt: string | null | undefined
+): string | null {
+  if (!reportCreatedAt) return null;
+  const reportAt = new Date(reportCreatedAt).getTime();
+  if (Number.isNaN(reportAt)) return null;
+
+  let newest: { iso: string; at: number } | null = null;
+  for (const score of scores) {
+    if (!score.completedAt) continue;
+    const at = new Date(score.completedAt).getTime();
+    if (Number.isNaN(at)) continue;
+    if (!newest || at > newest.at) newest = { iso: score.completedAt, at };
+  }
+
+  return newest && newest.at > reportAt ? newest.iso : null;
+}
+
+/**
+ * 列印用的路徑：`/admin/parents/:id/print`（ADR-0007）。
+ *
+ * 後台的「打印报告」在新分頁開這一條路徑，那一頁只畫報告本體並叫出列印對話框。
+ * 資料走的是**同一支 `/api/admin/parents/:id`** —— 匯出當初被做成伺服器端的理由
+ * （issue #8：不讓它成為繞過公司範圍的第二條取資料路徑）沒有改變，新分頁只是
+ * 再呼叫一次同一支端點。
+ *
+ * 認錯路徑的樣子很安靜：使用者拿到的是後台登入畫面，而不是任何一種錯誤訊息。
+ * 因此這裡比對得嚴格 —— id 必須是正整數，前綴必須剛好是 `/admin`。
+ */
+export function parentPrintIdFromPath(pathname: string): number | null {
+  const match = /^\/admin\/parents\/(\d+)\/print\/?$/.exec(pathname);
+  if (!match) return null;
+  const id = Number(match[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}

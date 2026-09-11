@@ -207,8 +207,12 @@ describe('後台路由不得繞過單一入口', () => {
     expect(routes).not.toMatch(/req\.(query|params)\.companyId\b/);
   });
 
+  /**
+   * 下限跟著「受公司條件保護的路由有幾支」走，加一支就把它往上調一格。
+   * 2026-09-11 從 8 降到 7：伺服器端的匯出端點隨 ADR-0007 移除。
+   */
   it('每一支讀寫家長資料的路由都經過 withScope', () => {
     const scopeUses = routes.match(/withScope\(req, res\)/g) || [];
-    expect(scopeUses.length).toBeGreaterThanOrEqual(8);
+    expect(scopeUses.length).toBeGreaterThanOrEqual(7);
   });
 });

@@ -149,12 +149,15 @@ export function Panel({
   );
 }
 
+type ButtonVariant = 'primary' | 'ghost' | 'danger';
+
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'ghost' | 'danger';
+  variant?: ButtonVariant;
   busy?: boolean;
 };
 
-export function Button({ variant = 'primary', busy, children, className = '', ...rest }: ButtonProps) {
+/** 按鈕與連結共用同一套外觀 —— 兩邊各抄一份的話，其中一個遲早會被改漏。 */
+function buttonClasses(variant: ButtonVariant): string {
   const base =
     'inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50';
   const skin =
@@ -163,11 +166,36 @@ export function Button({ variant = 'primary', busy, children, className = '', ..
       : variant === 'danger'
         ? 'border border-red-200 bg-red-50 text-red-700'
         : 'border border-brand-stone bg-white text-brand-charcoal';
+  return `${base} ${skin}`;
+}
+
+/**
+ * 開新分頁的動作**必須是一條真的連結**，不是 `onClick` 裡的 `window.open`。
+ *
+ * 瀏覽器只把「使用者點了一條連結」當成使用者的意圖，腳本開的視窗會被彈出視窗
+ * 封鎖擋掉 —— 企業環境的預設值常常就是全部封鎖，而被擋掉的樣子是一顆按了沒有
+ * 反應的按鈕，使用者不會知道要去改瀏覽器設定。
+ */
+export function LinkButton({
+  variant = 'ghost',
+  children,
+  className = '',
+  ...rest
+}: React.AnchorHTMLAttributes<HTMLAnchorElement> & { variant?: ButtonVariant }) {
+  return (
+    <a className={`${buttonClasses(variant)} ${className}`} {...rest}>
+      {children}
+    </a>
+  );
+}
+
+export function Button({ variant = 'primary', busy, children, className = '', ...rest }: ButtonProps) {
+  const skin = buttonClasses(variant);
   return (
     // `disabled` 寫在 {...rest} **之後**：反過來的話，呼叫端只要明確傳了
     // `disabled={false}`，展開就會把 busy 算出來的 true 蓋掉，送出中的按鈕
     // 又變回可以重複點 —— 在「开设后台帐号」上就是連開兩個帳號。
-    <button className={`${base} ${skin} ${className}`} {...rest} disabled={busy || rest.disabled}>
+    <button className={`${skin} ${className}`} {...rest} disabled={busy || rest.disabled}>
       {busy && <Loader2 size={12} className="animate-spin" />}
       {children}
     </button>

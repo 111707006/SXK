@@ -3,11 +3,10 @@ import { Child, DimensionScore, AssessmentRecord } from '../types';
 import { formatAge } from '../utils/dateUtils';
 import { bookingDateError, bookingWindow } from '../utils/bookingWindow';
 import { useToday } from '../utils/useToday';
-import { 
-  ArrowLeft, Brain, Sparkles, CheckCircle2, AlertTriangle, AlertCircle, 
-  RefreshCw, Layers, ShieldAlert, Award, Compass, HeartHandshake, Printer,
-  Activity, MessageSquare, Smile, BookOpen, Target, Home, Heart, Calendar, User, Phone, Check, Info,
-  ClipboardCheck, Loader2, QrCode, Mic, ChevronRight
+import {
+  ArrowLeft, Brain, Sparkles, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw, Printer,
+  Activity, MessageSquare, Smile, BookOpen, Target, Home, Heart, Calendar, User, Phone, Check,
+  Loader2, QrCode, Mic, ChevronRight
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
 import { PRODUCT } from '../productConfig';
@@ -24,15 +23,8 @@ import {
   type ReportSpecialist,
 } from '../utils/specialists';
 import { BUILTIN_SPECIALISTS } from '../builtinSpecialists';
-import {
-  ALL_CLEAR_SUMMARY,
-  SCREENING_DISCLAIMER,
-  STATUS_WORDING,
-  concernLabel,
-} from '../utils/statusWording';
-import { 
-  IntegrationGauges, NeuralNetworkTopology, WeeklyRehabPlanner, PrognosisTrajectoryChart 
-} from './ReportCharts';
+import { STATUS_WORDING } from '../utils/statusWording';
+import ReportBody from './ReportBody';
 
 /** 沒有照片時的替代標記 —— 合作公司多半不會有每位治療師的沙龍照。 */
 function SpecialistAvatar({ spec, size }: { spec: ReportSpecialist; size: number }) {
@@ -190,17 +182,6 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
       </div>
     </div>
   );
-}
-
-/**
- * Normalise a score from any tier onto the shared 0-8 "concern" scale used by
- * the report's badges, bars and radar. T1 is scored out of 8, but T2/T3 are out
- * of 50/120, so the previous `8 - score` produced negative values and coloured
- * badly-performing dimensions green. For T1 this is identical to `8 - score`.
- */
-function toConcernScore(score: number, maxScore: number): number {
-  const max = maxScore > 0 ? maxScore : 8;
-  return Math.round(8 * (1 - score / max));
 }
 
 interface AnalysisReportProps {
@@ -439,6 +420,111 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
     return Math.round((count / total) * 100);
   };
 
+  /**
+   * 語言專項評估的入口 —— **家長端專屬**，放進報告本體的語言插槽（ADR-0007）。
+   *
+   * 後台不放：它是一顆按下去會開始做一件事的按鈕，而後台的讀者是客服，
+   * 工作是讀家長看到的東西，不是替家長按下去。
+   *
+   * 專案 B 不會收到這個 prop（`features.tier2And3` 為 false），付費未解鎖時
+   * App 會把這個動作導向付費牆。只在語言維度被標記時出現：發展穩定的孩子
+   * 不需要被推銷一次錄音評測。
+   */
+  const languageSlot = onGoToLanguageSpecial && hasLanguageIssue ? (
+    <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1.5">
+          <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+            <Mic size={10} /> 语言溝通 · 专项深测
+          </span>
+          <h3 className="text-sm font-extrabold text-brand-forest">
+            语言沟通方面{languageScore?.status === 'delay' ? STATUS_WORDING.delay.describe : STATUS_WORDING.borderline.describe}，建议进行言语专项录音评测
+          </h3>
+          <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">
+            依孩子月龄匹配语音题目，由孩子跟读、系统进行语音识别与构音判读，输出声学剖析、干预目标与一周言语训练课表。
+          </p>
+        </div>
+        <button
+          onClick={onGoToLanguageSpecial}
+          className="px-5 py-3 bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-extrabold rounded-xl shadow-md shadow-brand-moss/20 transition active:scale-95 cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+        >
+          进入语言专项评估
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  /**
+   * 專家預約入口 —— **家長端專屬**，放進報告本體的預約插槽（ADR-0007）。
+   *
+   * 沒有可預約的專家時，這裡**不出現空白的預約區塊**，而是說清楚為什麼。
+   * 一顆按不出東西的「立即預約」比沒有按鈕更糟：家長會以為是自己操作錯了。
+   */
+  const bookingSlot = specialists.length === 0 ? (
+    <div ref={bookingSectionRef} className="bg-brand-cream/30 border border-brand-stone rounded-3xl p-6 mt-6 text-left space-y-2">
+      <h3 className="text-sm font-bold text-brand-forest">
+        {emptySpecialistsMessage(specialistsReason).title}
+      </h3>
+      {emptySpecialistsMessage(specialistsReason).body && (
+        <p className="text-xs text-brand-charcoal/70 leading-relaxed max-w-xl">
+          {emptySpecialistsMessage(specialistsReason).body}
+        </p>
+      )}
+    </div>
+  ) : (
+    /* Highly visual Online Appointment Booking CTA card */
+    <div ref={bookingSectionRef} className="bg-gradient-to-r from-brand-forest to-brand-moss text-white rounded-3xl p-6 shadow-md relative overflow-hidden mt-6 text-left">
+      <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
+      <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-brand-sage/20 rounded-full blur-2xl" />
+
+      <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+        <div className="space-y-2">
+          {/*
+            入口不再只講線上（issue #21）。四種服務走同一顆按鈕、同一張
+            表單，這裡若還寫死「线上」，要約線下訓練的家長根本不會點進去 ——
+            而選類型的那一步就在點進去之後的第一格。
+          */}
+          <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
+            专家咨询与干预训练
+          </span>
+          <h3 className="text-lg font-bold">预约 1 对 1 专家，线上或到机构都可以</h3>
+          <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
+            四种可选：线上咨询说明、线上干预训练指导、线下干预训练、线下咨询。
+            由儿童发展评估专家为您逐项说明这份报告，并给出接下来可以怎么做。
+          </p>
+        </div>
+
+        <button
+          onClick={() => {
+            // 滚动到预约模块并居中
+            if (bookingSectionRef.current) {
+              bookingSectionRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+              });
+            }
+            // 延迟打开弹窗，等待滚动完成
+            setTimeout(() => {
+              setParentName('');
+              setParentPhone('');
+              setBookingStatus('idle');
+              setBookingError('');
+              setSelectedSlot('');
+              // 每次重開都回到預設的那一種。留著上一次的選擇，家長會在
+              // 一個他沒有再選過的類型上按下送出。
+              setServiceType(DEFAULT_SERVICE_TYPE);
+              setShowBookingModal(true);
+            }, 400);
+          }}
+          className="px-6 py-3 bg-brand-sage text-brand-forest font-bold text-xs rounded-xl hover:bg-white transition duration-200 shadow-lg shrink-0 w-full md:w-auto text-center active:scale-95 cursor-pointer"
+        >
+          预约专家
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Back navigation header */}
@@ -639,626 +725,23 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         </div>
       )}
 
-      {/* Interactive AI report outputs */}
+      {/*
+        報告本體 —— 與後台的家長詳情共用同一個元件（ADR-0007）。
+        家長端專屬的三塊從插槽放回原位，順序與抽出去之前完全相同。
+      */}
       {aiReport && (
-        <div className="space-y-8 animate-fade-in text-left bg-white rounded-3xl border border-brand-stone shadow-sm overflow-hidden p-6 md:p-8">
-          
-          {/* Diagnostic top header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-cream pb-5 mb-6">
-            <div>
-              <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
-                <Award size={14} />
-                {isAiGenerated ? 'AI 生成' : '本地模板生成'}
-              </div>
-              <h2 className="text-xl font-bold text-brand-forest mt-1">儿童综合发展评估报告</h2>
-              {/* 對照表要求固定放在報告最上方的定位句，原句照抄（見 statusWording.ts）。 */}
-              <p className="text-[11px] text-brand-charcoal/70 mt-1.5">{SCREENING_DISCLAIMER}</p>
-            </div>
-            <span className="text-[10px] text-brand-charcoal/50 text-right">监测号: SXK-{Date.now().toString().slice(-6)}</span>
-          </div>
-
-          {/* AI One-Sentence Summary */}
-          <div className="bg-brand-sage/35 p-4.5 rounded-2xl border border-brand-stone/40">
-            <h4 className="text-xs font-bold text-brand-forest flex items-center gap-1.5 mb-1.5">
-              <Compass size={14} /> 首席专家建议:
-            </h4>
-            <p className="text-xs text-brand-charcoal leading-relaxed font-semibold">
-              {aiReport.summary}
-            </p>
-          </div>
-
-          {/* SECTION 1: ALERT BANNER */}
-          {(() => {
-            const redNames = completedScores
-              .filter(s => toConcernScore(s.score, s.maxScore) >= 5)
-              .map(s => s.dimensionName);
-            const yellowNames = completedScores
-              .filter(s => {
-                const c = toConcernScore(s.score, s.maxScore);
-                return c >= 3 && c <= 4;
-              })
-              .map(s => s.dimensionName);
-            
-            if (redNames.length === 0 && yellowNames.length === 0) {
-              return (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-3 text-xs font-semibold leading-relaxed">
-                  <CheckCircle2 className="text-emerald-600 shrink-0 mt-0.5" size={16} />
-                  <div>
-                    {ALL_CLEAR_SUMMARY}请配合日常亲子共读与游戏互动继续保持。
-                  </div>
-                </div>
-              );
-            }
-
-            /*
-              句型照對照表的公式：（能力方面）＋（中性描述）＋（行動建議）。
-              紅燈與黃燈各自成句 —— 兩者的行動建議不同，混在一起會把優先順序丟掉。
-              產品各自的下一步（B 約專家、A 進第二層）接在最後。
-            */
-            return (
-              <div className="p-4 bg-rose-50 border border-rose-200 text-rose-950 rounded-2xl flex items-start gap-3 text-xs leading-relaxed font-medium">
-                <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={16} />
-                <div>
-                  本次筛查提示：
-                  {redNames.length > 0 && (
-                    <>
-                      <span className="font-bold text-rose-600">{redNames.join('、')}</span>
-                      方面{STATUS_WORDING.delay.describe}，<span className="font-bold text-rose-800">{STATUS_WORDING.delay.tag}</span>
-                    </>
-                  )}
-                  {redNames.length > 0 && yellowNames.length > 0 && '；'}
-                  {yellowNames.length > 0 && (
-                    <>
-                      <span className="font-bold text-amber-600">{yellowNames.join('、')}</span>
-                      方面{STATUS_WORDING.borderline.describe}，<span className="font-bold text-amber-700">{STATUS_WORDING.borderline.tag}</span>
-                    </>
-                  )}
-                  。{PRODUCT.nextStep.alertText}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* SECTION 2: 9宫格明细 */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
-                <Layers size={15} className="text-brand-moss" />
-                9 维度评估结果明细
-              </h3>
-              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">条形图代表该维度的「关注分」（0-8分，分数越高，越建议进一步了解）</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {DIMENSIONS_DATA.map((dim) => {
-                const score = completedScores.find(s => s.dimensionId === dim.id);
-                if (!score) return null;
-                const concernScore = toConcernScore(score.score, score.maxScore);
-                let statusBadge = STATUS_WORDING.normal.label;
-                let badgeClass = "bg-emerald-50 border-emerald-200 text-emerald-700";
-                let fillClass = "bg-emerald-500";
-                let actionText = "继续观察";
-                let actionClass = "text-emerald-600";
-
-                if (concernScore >= 5) {
-                  statusBadge = STATUS_WORDING.delay.label;
-                  badgeClass = "bg-rose-50 border-rose-200 text-rose-700 font-bold";
-                  fillClass = "bg-rose-500";
-                  actionText = PRODUCT.nextStep.actionLabelHigh;
-                  actionClass = "text-rose-600 font-bold";
-                } else if (concernScore >= 3) {
-                  statusBadge = STATUS_WORDING.borderline.label;
-                  badgeClass = "bg-amber-50 border-amber-200 text-amber-700 font-bold";
-                  fillClass = "bg-amber-500";
-                  actionText = PRODUCT.nextStep.actionLabelMedium;
-                  actionClass = "text-amber-600 font-bold";
-                }
-
-                return (
-                  <div key={dim.id} className="relative overflow-hidden bg-white border border-brand-stone/70 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
-                    <div className={`absolute top-0 left-0 right-0 h-1 ${concernScore >= 5 ? 'bg-rose-500' : concernScore >= 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-brand-forest">{dim.name}</span>
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full border ${badgeClass}`}>{statusBadge}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-[10px] text-brand-charcoal/70">
-                        <span>关注分: <strong className="font-extrabold">{concernScore}</strong> / 8</span>
-                        <span className={`text-[9px] ${actionClass}`}>{actionText} →</span>
-                      </div>
-
-                      <div className="w-full h-1.5 bg-brand-cream/50 rounded-full overflow-hidden border border-brand-stone/30">
-                        <div 
-                          className={`h-full rounded-full transition-all duration-500 ${fillClass}`} 
-                          style={{ width: `${(concernScore / 8) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div className="flex justify-center gap-4 text-[9px] text-brand-charcoal/60 pt-1">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> {STATUS_WORDING.normal.label} (继续观察)
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {STATUS_WORDING.borderline.label} ({PRODUCT.nextStep.legendAttentionHint})
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> {STATUS_WORDING.delay.label} ({PRODUCT.nextStep.legendConcernHint})
-              </span>
-            </div>
-          </div>
-
-          {/* SECTION 3: 重点问题标注 KEY FINDINGS - 雷达图 */}
-          {(() => {
-            const sortedScores = [...completedScores]
-              .map(s => {
-                const concernScore = toConcernScore(s.score, s.maxScore);
-                // 字由 concernLabel 決定，這裡只管顏色與排序權重。
-                const severityLabel = concernLabel(concernScore);
-                let severityColor = "bg-emerald-500 text-white";
-                let severityVal = 1;
-
-                if (concernScore >= 6) {
-                  severityColor = "bg-rose-600 text-white";
-                  severityVal = 4;
-                } else if (concernScore === 5) {
-                  severityColor = "bg-amber-500 text-white";
-                  severityVal = 3;
-                } else if (concernScore >= 3) {
-                  severityColor = "bg-amber-400 text-brand-charcoal";
-                  severityVal = 2;
-                }
-
-                return {
-                  ...s,
-                  concernScore,
-                  severityLabel,
-                  severityColor,
-                  severityVal
-                };
-              })
-              .sort((a, b) => b.concernScore - a.concernScore || b.severityVal - a.severityVal);
-
-            const redCount = sortedScores.filter(s => s.concernScore >= 5).length;
-            const yellowCount = sortedScores.filter(s => s.concernScore >= 3 && s.concernScore <= 4).length;
-            const attentionCount = redCount + yellowCount;
-
-            // 雷达图参数
-            const cx = 160, cy = 160, maxR = 120;
-            const axes = sortedScores.length;
-            const angleStep = (2 * Math.PI) / axes;
-
-            // 计算每个维度的坐标点
-            const getPoint = (index: number, value: number, maxVal: number = 8) => {
-              const angle = angleStep * index - Math.PI / 2;
-              // 限制值在 0 到 maxVal 之间，防止负分或超分导致图表变形
-              const clampedValue = Math.max(0, Math.min(value, maxVal));
-              const r = (clampedValue / maxVal) * maxR;
-              return {
-                x: cx + r * Math.cos(angle),
-                y: cy + r * Math.sin(angle)
-              };
-            };
-
-            // 生成数据多边形路径
-            const dataPath = sortedScores
-              .map((s, i) => {
-                const pt = getPoint(i, s.concernScore);
-                return `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`;
-              })
-              .join(' ') + ' Z';
-
-            // 生成网格路径（5层）
-            const gridLevels = [2, 4, 6, 8];
-            const gridPaths = gridLevels.map(level =>
-              sortedScores
-                .map((_, i) => {
-                  const pt = getPoint(i, level);
-                  return `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`;
-                })
-                .join(' ') + ' Z'
-            );
-
-            // 根据严重程度获取颜色
-            const getSeverityColor = (concernScore: number) => {
-              if (concernScore >= 6) return '#e11d48'; // rose-600
-              if (concernScore === 5) return '#f59e0b'; // amber-500
-              if (concernScore >= 3) return '#fbbf24'; // amber-400
-              return '#10b981'; // emerald-500
-            };
-
-            // 计算多边形填充颜色（取最严重的颜色）
-            const maxConcern = Math.max(...sortedScores.map(s => s.concernScore));
-            const polygonColor = getSeverityColor(maxConcern);
-
-            return (
-              <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">
-                <div className="border-b border-brand-cream pb-2.5">
-                  <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
-                    <ClipboardCheck size={15} className="text-brand-moss" />
-                    {/* 客戶指定的字串，一字不動（issue #18 / p.12）：不加空格、破折號用兩個全形。 */}
-                    9大维度结论——雷达图分析
-                  </h3>
-                  <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
-                    共评测 9 项发展维度，其中 <span className="font-bold text-rose-600">{attentionCount} 项</span> 建议进一步了解（<span className="font-bold text-rose-600">{redCount} 项</span> 建议优先安排专业咨询）
-                  </p>
-                </div>
-
-                {/*
-                  雷达图
-
-                  `w-full max-w-[320px]` 而不是原本的固定 `width="320"`：320 是圖形
-                  本身的大小，維度標籤畫在 viewBox **之外**（`labelR = maxR + 25`
-                  = 145，最左/最右那兩根軸的錨點在 x ≈ 17 與 x ≈ 303，配上最長的
-                  維度名「生活自理与适应」7 字約 70px，會伸到 x = -53 與 373），
-                  靠 `overflow-visible` 露出來。
-
-                  桌機上外層卡片寬鬆，露出去也還在卡片裡；手機上卡片只剩 253px，
-                  露出去的標籤就撞上報告外框的 `overflow-hidden`，左邊那個維度名
-                  被削掉一角。改成隨容器縮放後，縮放比 253/320 ≈ 0.79 讓標籤範圍
-                  收在外框內（實測餘裕約 3px），標籤字則從 10px 變成約 7.9px。
-
-                  `max-w-[320px]` 保住桌機：容器一旦寬於 320 就維持 1:1，尺寸與
-                  字級和原本完全相同。
-
-                  ⚠️ 餘裕不大 —— 若日後維度名超過 7 個字，最左那一個會再度被削。
-                  真要加長名稱，得連 `labelR` 與 viewBox 一起重算。
-                */}
-                <div className="flex justify-center">
-                  <svg width="320" height="320" viewBox="0 0 320 320" className="w-full max-w-[320px] h-auto overflow-visible">
-                    {/* 网格背景 */}
-                    {gridPaths.map((path, i) => (
-                      <path
-                        key={`grid-${i}`}
-                        d={path}
-                        fill="none"
-                        stroke="#e5e7eb"
-                        strokeWidth="1"
-                        strokeDasharray={i === gridLevels.length - 1 ? "0" : "3,3"}
-                      />
-                    ))}
-
-                    {/* 轴线 */}
-                    {sortedScores.map((_, i) => {
-                      const pt = getPoint(i, 8);
-                      return (
-                        <line
-                          key={`axis-${i}`}
-                          x1={cx}
-                          y1={cy}
-                          x2={pt.x}
-                          y2={pt.y}
-                          stroke="#d1d5db"
-                          strokeWidth="1"
-                        />
-                      );
-                    })}
-
-                    {/* 数据多边形 */}
-                    <path
-                      d={dataPath}
-                      fill={`${polygonColor}20`}
-                      stroke={polygonColor}
-                      strokeWidth="2"
-                    />
-
-                    {/* 数据点 */}
-                    {sortedScores.map((s, i) => {
-                      const pt = getPoint(i, s.concernScore);
-                      const color = getSeverityColor(s.concernScore);
-                      return (
-                        <g key={`point-${i}`}>
-                          <circle
-                            cx={pt.x}
-                            cy={pt.y}
-                            r="4"
-                            fill={color}
-                            stroke="white"
-                            strokeWidth="2"
-                          />
-                          {/* 数值标签 */}
-                          <text
-                            x={pt.x}
-                            y={pt.y - 8}
-                            textAnchor="middle"
-                            fontSize="9"
-                            fontWeight="bold"
-                            fill={color}
-                          >
-                            {s.concernScore}
-                          </text>
-                        </g>
-                      );
-                    })}
-
-                    {/* 维度标签 */}
-                    {sortedScores.map((s, i) => {
-                      const pt = getPoint(i, 8);
-                      const angle = angleStep * i - Math.PI / 2;
-                      const labelR = maxR + 25;
-                      const lx = cx + labelR * Math.cos(angle);
-                      const ly = cy + labelR * Math.sin(angle);
-                      
-                      // 调整文本锚点
-                      // 型別標註是必要的：不寫的話會被推論成 string，而 SVG 的
-                      // textAnchor 只接受這幾個字面值。
-                      let textAnchor: 'start' | 'middle' | 'end' = 'middle';
-                      if (Math.cos(angle) > 0.3) textAnchor = 'start';
-                      else if (Math.cos(angle) < -0.3) textAnchor = 'end';
-                      
-                      return (
-                        <text
-                          key={`label-${i}`}
-                          x={lx}
-                          y={ly}
-                          textAnchor={textAnchor}
-                          fontSize="10"
-                          fontWeight="600"
-                          fill="#374151"
-                        >
-                          {s.dimensionName}
-                        </text>
-                      );
-                    })}
-
-                    {/* 中心点 */}
-                    <circle cx={cx} cy={cy} r="3" fill="#9ca3af" />
-                  </svg>
-                </div>
-
-                {/* 图例 */}
-                <div className="flex flex-wrap justify-center gap-3 text-[10px]">
-                  <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-rose-600"></div>
-                    <span className="text-brand-charcoal/70">{concernLabel(6)} (≥6)</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-                    <span className="text-brand-charcoal/70">{concernLabel(5)} (5)</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
-                    <span className="text-brand-charcoal/70">{concernLabel(3)} (3-4)</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-                    <span className="text-brand-charcoal/70">{concernLabel(0)} (≤2)</span>
-                  </div>
-                </div>
-
-                {/* 详细列表 */}
-                <div className="border-t border-brand-cream pt-3 space-y-2">
-                  <p className="text-[10px] font-bold text-brand-charcoal/60 text-center">各维度关注分详情</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {sortedScores.map((item) => (
-                      <div
-                        key={`${item.dimensionId}-${item.tierId}`}
-                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] ${
-                          item.concernScore >= 5 ? 'bg-rose-50/30' :
-                          item.concernScore >= 3 ? 'bg-amber-50/30' :
-                          'bg-emerald-50/30'
-                        }`}
-                      >
-                        <span className="font-medium text-brand-charcoal/80 truncate">{item.dimensionName}</span>
-                        <span className={`font-bold ml-1 ${
-                          item.concernScore >= 5 ? 'text-rose-600' :
-                          item.concernScore >= 3 ? 'text-amber-600' :
-                          'text-emerald-600'
-                        }`}>
-                          {item.concernScore}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/*
-            語言專項評估的入口。
-            這個元件（2,388 行）先前**全庫沒有任何按鈕能開啟它** —— `onGoToLanguageSpecial`
-            宣告了卻沒有任何地方渲染。專案 B 不會收到這個 prop（`features.tier2And3`
-            為 false），付費未解鎖時 App 會把這個動作導向付費牆。
-            只在語言維度被標記時出現：發育正常的孩子不需要被推銷一次錄音評測。
-          */}
-          {onGoToLanguageSpecial && hasLanguageIssue && (
-            <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1.5">
-                  <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
-                    <Mic size={10} /> 语言溝通 · 专项深测
-                  </span>
-                  <h3 className="text-sm font-extrabold text-brand-forest">
-                    语言沟通方面{languageScore?.status === 'delay' ? STATUS_WORDING.delay.describe : STATUS_WORDING.borderline.describe}，建议进行言语专项录音评测
-                  </h3>
-                  <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">
-                    依孩子月龄匹配语音题目，由孩子跟读、系统进行语音识别与构音判读，输出声学剖析、干预目标与一周言语训练课表。
-                  </p>
-                </div>
-                <button
-                  onClick={onGoToLanguageSpecial}
-                  className="px-5 py-3 bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-extrabold rounded-xl shadow-md shadow-brand-moss/20 transition active:scale-95 cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
-                >
-                  进入语言专项评估
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* New Visual Section 1: Overall Peer Development Level Comparison (Inspired by Attachment) */}
-          <div className="bg-white rounded-2xl border border-brand-stone/70 p-5 shadow-sm space-y-4 text-left">
-            <div className="border-b border-brand-cream pb-2.5">
-              <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
-                <Activity size={15} className="text-brand-moss animate-pulse" />
-                发育进度对比 (与同龄儿童发育水平比较)
-              </h3>
-            </div>
-
-            <div className="py-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-extrabold text-brand-forest">总体发育水平百分位</span>
-                <span className="text-xs font-extrabold text-brand-moss bg-brand-sage/20 border border-brand-moss/30 px-2 py-0.5 rounded-full">
-                  居同龄前 {100 - (completedScores.reduce((acc, score) => acc + (score.score / score.maxScore) * 100, 0) / completedScores.length > 0 ? Math.round(completedScores.reduce((acc, score) => acc + (score.score / score.maxScore) * 100, 0) / completedScores.length) : 50)}%
-                </span>
-              </div>
-
-              {/* Segmented color track with red vertical pointer indicator */}
-              <div className="relative w-full h-5 rounded-full overflow-hidden flex border border-brand-stone/50 shadow-inner">
-                <div className="w-1/4 h-full bg-rose-200" title={STATUS_WORDING.delay.label} />
-                <div className="w-1/4 h-full bg-orange-100" title={STATUS_WORDING.borderline.label} />
-                <div className="w-1/4 h-full bg-amber-50" title="平均水平" />
-                <div className="w-1/4 h-full bg-emerald-100" title="高于平均" />
-                
-                {/* Visual red pointer indicator bar */}
-                <div 
-                  className="absolute top-0 bottom-0 w-1.5 bg-rose-600 shadow-lg shadow-rose-600/30 transition-all duration-1000"
-                  style={{ 
-                    left: `${completedScores.length > 0 ? Math.round(completedScores.reduce((acc, s) => acc + (s.score / s.maxScore) * 100, 0) / completedScores.length) : 50}%`,
-                    transform: 'translateX(-50%)' 
-                  }}
-                />
-              </div>
-
-              {/* Labels matching attachment */}
-              <div className="flex justify-between text-[10px] text-brand-charcoal/80 font-bold px-1 mt-2">
-                <span className="w-1/4 text-center">{STATUS_WORDING.delay.label}</span>
-                <span className="w-1/4 text-center">{STATUS_WORDING.borderline.label}</span>
-                <span className="w-1/4 text-center">平均水平</span>
-                <span className="w-1/4 text-center">高于平均</span>
-              </div>
-            </div>
-
-            <div className="bg-brand-sage/10 p-3 rounded-xl border border-brand-moss/20 text-xs text-brand-charcoal leading-relaxed font-semibold">
-              💡 {(() => {
-                const totalPct = completedScores.reduce((acc, s) => acc + (s.score / s.maxScore) * 100, 0);
-                const avgPct = completedScores.length > 0 ? Math.round(totalPct / completedScores.length) : 50;
-                // 主語是「发展节奏」，不是孩子 —— 對照表：避免「孩子有……」這種以孩子為主語的判定句。
-                if (avgPct < 40) {
-                  return `${child.name} 的整体发展节奏与同龄常见的节奏有一定差距。建议跟进最下方的 7 日居家活动安排，并近期预约专家一对一说明。`;
-                } else if (avgPct < 70) {
-                  return `${child.name} 的整体发展节奏接近同龄常见水平，有几项仍在建立中，多做亲子互动与居家共读会有帮助。`;
-                } else if (avgPct < 85) {
-                  return `${child.name} 的整体发展处于同龄常见水平偏上，大部分维度表现稳定，针对性的日常练习可巩固优势。`;
-                } else {
-                  return `${child.name} 的整体发展高于同龄常见水平，各维度表现均衡。`;
-                }
-              })()}
-            </div>
-          </div>
-
-          {/* 1. Circular Dial Gauges for Critical Brain Indices */}
-          <IntegrationGauges criticalMetrics={aiReport.criticalMetrics} />
-
-          {/* 2. Interactive Synaptic Connection Topology Diagram & Pathway Analysis */}
-          {/*
-            拓撲圖底下原本還有一段「脑突触剪切与微环路协同性分析」總覽敘述，
-            依客戶需求移除 —— 那段是寫給臨床看的神經生理術語，家長讀不出行動。
-            `aiReport.neuralPathwayAnalysis` 仍由後端產生並保留在型別裡，只是不再渲染。
-          */}
-          <div className="space-y-4">
-            <NeuralNetworkTopology completedScores={completedScores} />
-          </div>
-
-          {/* 4. Smooth trajectory 3-month forecast line-graph & Prognosis Narrative */}
-          <div className="space-y-4">
-            <PrognosisTrajectoryChart completedScores={completedScores} />
-
-            <div className="bg-brand-sand/50 p-4 rounded-2xl border border-brand-stone/60 text-left">
-              <span className="text-[10px] font-bold text-brand-clay uppercase tracking-wider flex items-center gap-1 mb-1.5">
-                <Compass size={11} className="text-brand-clay" />
-                后续发展预判与家长指引
-              </span>
-              <p className="text-xs text-brand-charcoal leading-relaxed font-semibold">
-                {aiReport.prognosisPrediction}
-              </p>
-            </div>
-          </div>
-
-          {/* 掃碼把報告帶回自己的手機（issue #22）*/}
-          <ReportTakeawayCard reportId={reportId} />
-
-          {/* 3. Gamified Weekly Sensori-Motor Training Calendar - MOVED TO THE BOTTOM AS REQUESTED */}
-          <div className="space-y-4 pt-4 border-t border-brand-cream/80">
-            <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} />
-            
-            {/*
-              沒有可預約的專家時，這裡**不出現空白的預約區塊**，而是說清楚為什麼。
-              一顆按不出東西的「立即預約」比沒有按鈕更糟：家長會以為是自己操作錯了。
-            */}
-            {specialists.length === 0 ? (
-              <div ref={bookingSectionRef} className="bg-brand-cream/30 border border-brand-stone rounded-3xl p-6 mt-6 text-left space-y-2">
-                <h3 className="text-sm font-bold text-brand-forest">
-                  {emptySpecialistsMessage(specialistsReason).title}
-                </h3>
-                {emptySpecialistsMessage(specialistsReason).body && (
-                  <p className="text-xs text-brand-charcoal/70 leading-relaxed max-w-xl">
-                    {emptySpecialistsMessage(specialistsReason).body}
-                  </p>
-                )}
-              </div>
-            ) : (
-            /* Highly visual Online Appointment Booking CTA card */
-            <div ref={bookingSectionRef} className="bg-gradient-to-r from-brand-forest to-brand-moss text-white rounded-3xl p-6 shadow-md relative overflow-hidden mt-6 text-left">
-              <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
-              <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-brand-sage/20 rounded-full blur-2xl" />
-
-              <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-                <div className="space-y-2">
-                  {/*
-                    入口不再只講線上（issue #21）。四種服務走同一顆按鈕、同一張
-                    表單，這裡若還寫死「线上」，要約線下訓練的家長根本不會點進去 ——
-                    而選類型的那一步就在點進去之後的第一格。
-                  */}
-                  <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
-                    专家咨询与干预训练
-                  </span>
-                  <h3 className="text-lg font-bold">预约 1 对 1 专家，线上或到机构都可以</h3>
-                  <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
-                    四种可选：线上咨询说明、线上干预训练指导、线下干预训练、线下咨询。
-                    由儿童发展评估专家为您逐项说明这份报告，并给出接下来可以怎么做。
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    // 滚动到预约模块并居中
-                    if (bookingSectionRef.current) {
-                      bookingSectionRef.current.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center'
-                      });
-                    }
-                    // 延迟打开弹窗，等待滚动完成
-                    setTimeout(() => {
-                      setParentName('');
-                      setParentPhone('');
-                      setBookingStatus('idle');
-                      setBookingError('');
-                      setSelectedSlot('');
-                      // 每次重開都回到預設的那一種。留著上一次的選擇，家長會在
-                      // 一個他沒有再選過的類型上按下送出。
-                      setServiceType(DEFAULT_SERVICE_TYPE);
-                      setShowBookingModal(true);
-                    }, 400);
-                  }}
-                  className="px-6 py-3 bg-brand-sage text-brand-forest font-bold text-xs rounded-xl hover:bg-white transition duration-200 shadow-lg shrink-0 w-full md:w-auto text-center active:scale-95 cursor-pointer"
-                >
-                  预约专家
-                </button>
-              </div>
-            </div>
-            )}
-          </div>
-        </div>
+        <ReportBody
+          childName={reportChild.name}
+          scores={completedScores}
+          aiReport={aiReport}
+          isAiGenerated={isAiGenerated}
+          reportId={reportId}
+          languageSlot={languageSlot}
+          takeawaySlot={<ReportTakeawayCard reportId={reportId} />}
+          bookingSlot={bookingSlot}
+        />
       )}
+
 
       {/* Specialist Booking Modal Dialog */}
       {showBookingModal && (

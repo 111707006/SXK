@@ -143,13 +143,11 @@ describe('登入後直接看得到家長，不必先選一家不存在的公司'
     expect(parents.map((p: any) => p.childName)).not.toContain('不该出现的孩子');
   });
 
-  it('家長詳情與匯出同樣不必先選公司', async () => {
+  it('家長詳情同樣不必先選公司', async () => {
     const token = await loginGlobal();
-    expect((await client.get('/api/admin/parents/101', h(token))).status).toBe(200);
-
-    const exported = await client.get('/api/admin/parents/101/export', h(token));
-    expect(exported.status).toBe(200);
-    expect(await exported.text()).toContain('直属的孩子');
+    const detail = await client.get('/api/admin/parents/101', h(token));
+    expect(detail.status).toBe(200);
+    expect((await detail.json()).parent.childName).toBe('直属的孩子');
   });
 
   // 帶歸屬的那一位在這個部署裡不存在，而「不存在」與「不屬於這個視野」

@@ -40,7 +40,13 @@
 │   │   ├── WearablesMall.tsx        # 穿戴设备商城
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
 │   ├── t2/
-│   │   └── toolkit/       # T2 题库：22 支工具的题目、选项、分段（脚本产出，勿手改）
+│   │   ├── toolkit/       # T2 题库：22 支工具的题目、选项、分段（脚本产出，勿手改）
+│   │   ├── types.ts       # 规则引擎的型别（规格 v2 附录 A）
+│   │   ├── toolSpecs.ts   # 工具登录表 22 笔：月龄窗口、计分族、喂哪个维度、固定 caveat
+│   │   ├── findingTags.ts # 发现标签的受控词汇 57 个（★ 配活动／只进报告）
+│   │   ├── caveats.ts     # caveat 的受控值 17 个
+│   │   ├── sectionTags.ts # §5.9 的面向→标签、chexi 因素、气质向度、前置题
+│   │   └── itemTags.ts    # §5.9 的逐题标签表（asb／asr／adl／mchat 四支＋gm／asq／warn 几条）
 │   └── utils/
 │       ├── dateUtils.ts   # 日期工具函数
 │       └── reportUtils.ts # 报告生成工具
@@ -78,6 +84,12 @@ npx tsx scripts/t2-diff-paper.ts
 > **不要手改** —— `test/toolkit.structure.test.ts` 会重跑脚本比对。工具包的 HTML 一行都不执行：
 > 只取 `<script>` 开头的纯资料宣告在沙箱求值，分段函式用正则读（`scripts/t2/literals.ts`、`scripts/t2/kit.ts`）。
 > 同一支 HTML 里有三套分级，常数只抄报告那一套（＝纸本「分数解读」），规格 v2 附录 D 第一栏。
+
+> `src/t2/` 其余几档是**手写的资料表**（#42）：`toolSpecs.ts` 的分段与前置题直接转出题库那一份，
+> 不另抄一次；`findingTags.ts`／`caveats.ts` 是受控词汇，量表规则表与活动库两边贴的必须是同一组字。
+> 护栏测试：`test/t2ToolSpecs.structure.test.ts`（登录表逐格对规格 §3／附录 F）、
+> `test/t2FindingTags.test.ts`（每个标签至少一个来源、每个维度的标签数）、
+> `test/t2ItemTags.test.ts`（逐题表的题号在该面向范围内）。
 
 ## API 接口清单
 

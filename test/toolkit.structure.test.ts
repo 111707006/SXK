@@ -470,6 +470,8 @@ describe('題目本身的完整性', () => {
 });
 
 describe('抽取腳本從 zip 重跑，產出與 repo 內已提交的逐位元一致', () => {
+  // 這一條要把 438 KB 的 zip 解開、22 支 HTML 過沙箱、再逐位元比對 —— 單獨跑約 1 秒，
+  // 但整套並行時會壓過 vitest 預設的 5 秒而 timeout（不是斷言失敗，是機器忙）。給它 30 秒。
   it('22 份 src/t2/toolkit/<id>.ts 與腳本重跑的結果相同', () => {
     const rendered = renderToolkitFiles(ROOT);
     expect([...rendered.keys()].sort()).toEqual(TOOL_IDS.map(id => `src/t2/toolkit/${id}.ts`).sort());
@@ -478,5 +480,5 @@ describe('抽取腳本從 zip 重跑，產出與 repo 內已提交的逐位元�
       // 只容忍 git 的 CRLF；其餘任何一個位元不同都要紅（見 sameToolkitContent）。
       expect(sameToolkitContent(onDisk, content), `${rel} 與重跑結果不同 —— 重跑 npx tsx scripts/t2-extract-toolkit.ts`).toBe(true);
     }
-  });
+  }, 30_000);
 });

@@ -49,6 +49,24 @@ export interface PreQuestionSpec {
 }
 
 /**
+ * 一條「這支工具用哪些面向餵哪個維度」的對應（附錄 F）。
+ *
+ * ⚠️ **它只決定 band，不決定標籤歸哪個維度。** 附錄 F 的那句「`producesBand=false` 的
+ * 工具 `feeds` 只用來決定標籤歸哪個維度」對好幾支是錯的：氣質的 `feeds` 是 EMO，卻會出
+ * `att.inattention`（D8）、`sen.threshold_low`（D9）、`learn.task_persistence`（D7）；
+ * chexi 的 `feeds` 是 ATT，卻會出 `emo.regulation`；adp（COG）出 `mot.fine_motor`、
+ * soc（SOC）與 ab（ATT）出 `emo.regulation`、adl（ADL）出 `mot.locomotion`、
+ * ldp（LEARN）出 `att.inattention`。**標籤的維度一律看標籤自己的前綴**
+ * （`findingTags.ts` 的 `tagDimension()`），不看這一欄 —— 照附錄 F 那句做，
+ * 氣質的「堅持不下去」會落到情緒那一格，而且標籤仍然合法，沒有一層會喊。
+ */
+export interface ToolFeed {
+  dimension: DimensionCode;
+  /** 面向 key（題庫的 `sections[].key`）；`'overall'` 用總分。 */
+  sections: ReadonlyArray<string> | 'overall';
+}
+
+/**
  * 一支工具的登錄資料（§3 ＋ 附錄 F）。**只有事實，沒有函式** ——
  * 「這支工具是什麼」與「這支工具怎麼判」分開，後者是 `ToolRule`。
  */
@@ -61,8 +79,8 @@ export interface ToolSpec {
   family: ScoringFamily;
   /** 適用題數少於此值的面向不單獨判讀：達成率族 3、獨立率 2、其餘 1（§5.2）。 */
   minItems: number;
-  /** 附錄 F。`sections` 是面向 key；`'overall'` 用總分。多維度工具每個維度用自己那組面向算 band。 */
-  feeds: Array<{ dimension: DimensionCode; sections: string[] | 'overall' }>;
+  /** 附錄 F。多維度工具每個維度用自己那組面向算 band。**只決定 band，不決定標籤歸哪個維度**（見 `ToolFeed`）。 */
+  feeds: ReadonlyArray<ToolFeed>;
   /** chexi、tempa、tempb 為 false —— 它們只出標籤，不推任何維度的判定（§5.4）。 */
   producesBand: boolean;
   /** 22 支全為 true：T2 沒有治療師在場，全部由家長自行施測（§0）。 */

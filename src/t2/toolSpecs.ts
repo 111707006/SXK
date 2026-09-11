@@ -21,7 +21,7 @@
 import { TOOLKIT } from './toolkit';
 import type { ToolId } from './toolkit';
 import type { Caveat } from './caveats';
-import type { DimensionCode, ScoringFamily, ToolSpec } from './types';
+import type { DimensionCode, ScoringFamily, ToolFeed, ToolSpec } from './types';
 
 /**
  * 附錄 F：工具 → 維度 ← 面向。`sections` 是題庫的面向 key，`'overall'` 用總分。
@@ -30,7 +30,7 @@ import type { DimensionCode, ScoringFamily, ToolSpec } from './types';
  * （warn 的面向是 `m3`、`m6`…… 十一個時點，每個時點四條的欄位相同）。
  * 逐條的位置對應寫在 `itemTags.ts` 的 `WARN_POSITION_FEEDS`。
  */
-export const TOOL_FEEDS: Record<ToolId, Array<{ dimension: DimensionCode; sections: string[] | 'overall' }>> = {
+export const TOOL_FEEDS: Readonly<Record<ToolId, ReadonlyArray<ToolFeed>>> = {
   'sxk-dev': [
     { dimension: 'MOT', sections: ['MOT'] }, { dimension: 'LANG', sections: ['LANG'] },
     { dimension: 'SOC', sections: ['SOC'] }, { dimension: 'ADL', sections: ['ADL'] },
@@ -184,7 +184,13 @@ function specOf(id: ToolId): ToolSpec {
     windowMonths: { lo, hi },
     family,
     minItems: minItemsOf(family),
-    feeds: TOOL_FEEDS[id],
+    // 複本，不是 `TOOL_FEEDS[id]` 本身 —— 兩個都是導出的常數，共用同一個陣列時，
+    // 任何一個呼叫端就地 `sort()`／`filter()` 都會把另一個永久改掉，而型別層攔不到
+    // 這種「在 process 裡慢慢腐爛」的改動，測試在乾淨的 import 下也照樣綠。
+    feeds: TOOL_FEEDS[id].map(f => ({
+      dimension: f.dimension,
+      sections: f.sections === 'overall' ? 'overall' : [...f.sections],
+    })),
     producesBand: !NO_BAND.includes(id),
     parentDoable: true,
     routed: !NOT_ROUTED.includes(id),
@@ -212,6 +218,6 @@ export function feedsDimension(id: ToolId, dimension: DimensionCode): boolean {
 }
 
 /** 這個維度在這支工具裡用哪些面向算 band；不餵這個維度時回 `null`。 */
-export function sectionsFor(id: ToolId, dimension: DimensionCode): string[] | 'overall' | null {
+export function sectionsFor(id: ToolId, dimension: DimensionCode): ReadonlyArray<string> | 'overall' | null {
   return TOOL_SPECS[id].feeds.find(f => f.dimension === dimension)?.sections ?? null;
 }

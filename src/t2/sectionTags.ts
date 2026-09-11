@@ -26,7 +26,7 @@ import type { FindingTag } from './findingTags';
  * `sxk-dev` 的 key 是領域（六個年齡段共用同一組 key）。
  * 括號裡是面向名稱，抄自題庫，方便與規格 §5.9 逐格對。
  */
-export const SECTION_TAGS: Partial<Record<ToolId, Record<string, FindingTag[]>>> = {
+export const SECTION_TAGS: Readonly<Partial<Record<ToolId, Readonly<Record<string, ReadonlyArray<FindingTag>>>>>> = {
   'sxk-dev': {
     MOT: ['mot.locomotion'],                                  // 粗大动作
     FM: ['mot.fine_motor'],                                   // 精细动作（不出 band，只出標籤）
@@ -132,9 +132,9 @@ export const CHEXI_FACTOR_MIN_PCT = 67;
 export const CHEXI_FACTORS: ReadonlyArray<{
   key: 'F1' | 'F2';
   name: string;
-  sections: string[];
-  tags: FindingTag[];
-  extra: { section: string; minMean: number; tags: FindingTag[] };
+  sections: ReadonlyArray<string>;
+  tags: ReadonlyArray<FindingTag>;
+  extra: { section: string; minMean: number; tags: ReadonlyArray<FindingTag> };
 }> = [
   {
     key: 'F1',
@@ -164,7 +164,7 @@ export const CHEXI_FACTORS: ReadonlyArray<{
  */
 export const TEMPERAMENT_TAG_DEV = 1.0;
 
-export const TEMPERAMENT_TAGS: Record<string, { hi: FindingTag[]; lo: FindingTag[] }> = {
+export const TEMPERAMENT_TAGS: Readonly<Record<string, { hi: ReadonlyArray<FindingTag>; lo: ReadonlyArray<FindingTag> }>> = {
   D1: { hi: ['emo.activity_high'], lo: [] },                  // 活动量
   D2: { hi: ['emo.regularity_low'], lo: [] },                 // 规律性
   D3: { hi: ['emo.slow_to_warm'], lo: [] },                   // 趋避性
@@ -182,7 +182,7 @@ export const TEMPERAMENT_TAGS: Record<string, { hi: FindingTag[]; lo: FindingTag
  * 勾「無」時不出標籤，改出 caveat `no_functional_impact`；那是 #47 的事。
  * 這三個標籤都是**只進報告** —— 影響到哪裡是脈絡，不是要練的能力。
  */
-export const PRE_QUESTION_TAGS: Partial<Record<ToolId, Record<string, Record<string, FindingTag[]>>>> = {
+export const PRE_QUESTION_TAGS: Readonly<Partial<Record<ToolId, Readonly<Record<string, Readonly<Record<string, ReadonlyArray<FindingTag>>>>>>>> = {
   'sxk-spa': { impact: { adl: ['sen.impact_adl'], group: ['sen.impact_group'], play: ['sen.impact_play'] } },
   'sxk-spb': { impact: { adl: ['sen.impact_adl'], group: ['sen.impact_group'], play: ['sen.impact_play'] } },
 };

@@ -166,6 +166,19 @@ describe('登錄表：feeds 與附錄 F 逐支相符', () => {
     expect(TOOL_FEEDS).toEqual(SPEC_FEEDS);
   });
 
+  it('spec.feeds 是複本，不是 TOOL_FEEDS 那個陣列本身', () => {
+    // 兩個都是導出的常數。共用同一個陣列時，任何一個呼叫端就地 sort()／filter()
+    // 都會把另一個永久改掉 —— 而且是在 process 跑起來之後才腐爛，測試在乾淨的
+    // import 下照樣綠。#43 要把候選維度排序是很自然的寫法，這裡先斷開。
+    for (const id of TOOL_IDS) {
+      expect(spec(id).feeds, id).not.toBe(TOOL_FEEDS[id]);
+      spec(id).feeds.forEach((f, i) => {
+        if (f.sections === 'overall') return;
+        expect(f.sections, `${id} feeds[${i}].sections`).not.toBe(TOOL_FEEDS[id][i].sections);
+      });
+    }
+  });
+
   it('面向 key 都是題庫真有的（warn 例外：它的 i1–i4 是時點內的位置）', () => {
     for (const id of TOOL_IDS) {
       if (id === 'sxk-warn') continue;

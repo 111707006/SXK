@@ -10,6 +10,8 @@ import {
   EXPRESSION_GAP_RULES, SEVERITY_TAG,
 } from '../src/t2/sectionTags';
 import { ITEM_TAGS, WARN_POSITION_FEEDS } from '../src/t2/itemTags';
+import { TOOLKIT, TOOL_IDS } from '../src/t2/toolkit';
+import type { ToolId } from '../src/t2/toolkit';
 
 /**
  * 發現標籤與 caveat 的受控詞彙測試（#42，規格 v2 §5.5、§5.6）。
@@ -226,6 +228,61 @@ describe('發現標籤：每個標籤至少一個來源（§5.9）', () => {
         `sxk-spb 前置題 impact=${tag.replace('sen.impact_', '')}`,
       ]);
     }
+  });
+});
+
+/**
+ * 每一支工具是靠哪一類規則出標籤的。
+ *
+ * 「每個標籤至少一個來源」只驗了**標籤 → 規則**這一個方向，反方向沒人看：把
+ * `SECTION_TAGS['sxk-att']` 整個五面向刪掉，上面那條照樣綠 —— 因為 att.inattention、
+ * impulsivity、organization、learn.task_persistence 在 ab、snap、ldp、chexi、氣質
+ * 那邊都另有來源。結果會是做完 SXK-ATT 的孩子一個發現標籤都拿不到，報告看起來
+ * 還是完整的，只是配活動那一步安靜地少一批。spa／spb、ldp／lds 這兩對互為備份的
+ * 工具同樣中招。
+ */
+function toolsWithTagRules(): Map<ToolId, string> {
+  const out = new Map<ToolId, string>();
+  const note = (id: ToolId, how: string) => { if (!out.has(id)) out.set(id, how); };
+
+  for (const [toolId, sections] of Object.entries(SECTION_TAGS)) {
+    if (Object.values(sections ?? {}).some(tags => tags.length > 0)) note(toolId as ToolId, '面向級');
+  }
+  for (const [toolId, sections] of Object.entries(ITEM_TAGS)) {
+    const any = Object.values(sections ?? {})
+      .some(items => Object.values(items).some(r => r.tags.length > 0 || (r.caveats?.length ?? 0) > 0));
+    if (any) note(toolId as ToolId, '逐題');
+  }
+  if (CHEXI_FACTORS.some(f => f.tags.length > 0)) note('chexi', '因素');
+  if (Object.values(TEMPERAMENT_TAGS).some(d => d.hi.length > 0 || d.lo.length > 0)) {
+    note('sxk-tempa', '向度偏離');
+    note('sxk-tempb', '向度偏離');
+  }
+  for (const toolId of Object.keys(PRE_QUESTION_TAGS)) note(toolId as ToolId, '前置題');
+  for (const rule of EXPRESSION_GAP_RULES) note(rule.toolId, '衍生規則');
+  if (WARN_POSITION_FEEDS.some(f => f.tags.length > 0)) note('sxk-warn', '時點內位置');
+  return out;
+}
+
+describe('發現標籤：反方向 —— 每一支工具都要出得了標籤（§5.9）', () => {
+  it('22 支一支都不缺，刪掉任何一支的規則都會紅', () => {
+    const rules = toolsWithTagRules();
+    const missing = TOOL_IDS.filter(id => !rules.has(id));
+    expect(missing).toEqual([]);
+    expect(rules.size).toBe(22);
+  });
+
+  it('走面向級的那幾支，每個面向都出標籤 —— 唯一的例外是 asq 的 PE', () => {
+    // asq 的「个人社会」六題分成生活自理三題與社交三題，整個面向出一組標籤會貼錯一半，
+    // 所以它走逐題（見 itemTags.ts）。其餘面向少一個就是那一塊能力永遠不會被指出來。
+    const holes: string[] = [];
+    for (const [toolId, sections] of Object.entries(SECTION_TAGS)) {
+      for (const sec of TOOLKIT[toolId as ToolId].sections) {
+        const tags = (sections ?? {})[sec.key];
+        if (!tags || tags.length === 0) holes.push(`${toolId} ${sec.key}`);
+      }
+    }
+    expect([...new Set(holes)]).toEqual(['sxk-asq PE']);
   });
 });
 

@@ -32,13 +32,20 @@ import type { Caveat } from './caveats';
 import type { DimensionCode } from './types';
 import type { FindingTag } from './findingTags';
 
-/** 一題觸發時出的東西。多數只有標籤；asb SH 第 8 項只出 caveat。 */
+/**
+ * 一題觸發時出的東西。多數只有標籤；asb SH 第 8 項只出 caveat。
+ *
+ * 兩個陣列都是唯讀的：`itemRule()` 回傳的是這張表裡的**原物件**，不是複本。
+ * `const out = itemRule(...)?.tags ?? []; out.push(x)` 是累加標籤最直覺的寫法，
+ * 而它會就地改掉受控詞彙表 —— 那筆污染還會跟著同一份報告的後續題目一直滯留。
+ * 宣告成 `ReadonlyArray` 讓這種寫法在 `pnpm run lint` 就編不過。
+ */
 export interface ItemTagRule {
-  tags: FindingTag[];
-  caveats?: Caveat[];
+  tags: ReadonlyArray<FindingTag>;
+  caveats?: ReadonlyArray<Caveat>;
 }
 
-type SectionItemTags = Record<string, Record<number, ItemTagRule>>;
+type SectionItemTags = Readonly<Record<string, Readonly<Record<number, ItemTagRule>>>>;
 
 /** M-CHAT-R/F 20 題（單一面向 `all`）。題 2 另外要求先做聽力檢查。 */
 const MCHAT_ITEMS: Record<number, ItemTagRule> = {
@@ -110,7 +117,7 @@ const ASB_ITEMS: SectionItemTags = {
  * 對應的面向見 `ASR_SECTION_ORDER`：SC 1–5、SN 6–8、BH 9–12、GN 13–15。
  * 14（能力發展的均勻度）與 15（整體印象）不出標籤 —— 它們是整體印象，不指向任何能力。
  */
-export const ASR_ITEM_TAGS: Record<number, ItemTagRule> = {
+export const ASR_ITEM_TAGS: Readonly<Record<number, ItemTagRule>> = {
   1: { tags: ['soc.social_initiation'] },                     // 与人的关系
   2: { tags: ['soc.imitation'] },                             // 模仿能力
   3: { tags: ['emo.regulation'] },                            // 情绪反应
@@ -145,7 +152,7 @@ export function asrGlobalNo(section: string, itemNo: number): number | null {
 }
 
 function asrBySection(): SectionItemTags {
-  const out: SectionItemTags = {};
+  const out: Record<string, Record<number, ItemTagRule>> = {};
   let base = 0;
   for (const s of ASR_SECTION_ORDER) {
     const bucket: Record<number, ItemTagRule> = {};
@@ -219,7 +226,7 @@ const ASQ_ITEMS: SectionItemTags = {
 export const WARN_POSITION_FEEDS: ReadonlyArray<{
   position: 1 | 2 | 3 | 4;
   dimension: DimensionCode;
-  tags: FindingTag[];
+  tags: ReadonlyArray<FindingTag>;
 }> = [
   { position: 1, dimension: 'LANG', tags: [] },
   { position: 2, dimension: 'SOC', tags: [] },
@@ -228,7 +235,7 @@ export const WARN_POSITION_FEEDS: ReadonlyArray<{
 ];
 
 /** warn 前置題的兩個勾各自指向哪個維度（§5.9）。勾了就算初篩異常。 */
-export const WARN_REGRESSION_FEEDS: Record<string, DimensionCode> = {
+export const WARN_REGRESSION_FEEDS: Readonly<Record<string, DimensionCode>> = {
   language: 'LANG',
   social: 'SOC',
 };
@@ -238,7 +245,7 @@ export const WARN_REGRESSION_FEEDS: Record<string, DimensionCode> = {
  *
  * 沒有列出的題號 = 該題不出標籤（§5.9 明寫的那些，以及 mchat 以外沒有逐題規則的工具）。
  */
-export const ITEM_TAGS: Partial<Record<ToolId, SectionItemTags>> = {
+export const ITEM_TAGS: Readonly<Partial<Record<ToolId, SectionItemTags>>> = {
   'mchat-rf': { all: MCHAT_ITEMS },
   'sxk-asb': ASB_ITEMS,
   'sxk-asr': asrBySection(),

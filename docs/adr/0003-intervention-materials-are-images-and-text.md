@@ -1,9 +1,15 @@
 ---
-status: accepted
+status: partially superseded by ADR-0005
 date: 2026-08-09
 ---
 
 # 干預素材以圖文為主、影片連結為輔
+
+> **2026-09-06：本文的「一格一筆」被 [ADR-0005](./0005-home-training-content-is-a-tagged-activity-library.md) 取代。**
+> 干預內容改為一庫多支的活動、依標籤配對，九十格與 `uk_material_cell` 退場。
+> **被取代的只有形狀那一層**——「圖文為主、影片為輔」、網址白名單、只停用不刪除、
+> 不吃 `company_id`，這四條原封不動搬進活動庫，理由沒有一條失效（這個 repo 仍然
+> 沒有檔案上傳能力，依賴清冊裡仍然沒有物件儲存）。下文保留原樣，供對照。
 
 需求說明書的 T2 干預包要求「分解步驟＋示範」。我們決定素材的主體是**一張圖配一句指令**的有序步驟，影片是**選填的外部連結**，存在 `intervention_materials.video_url` 這一個欄位裡。
 

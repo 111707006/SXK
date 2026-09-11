@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Child, DimensionScore, AssessmentStatus } from '../types';
 import { getT1QuestionsForAge, getT1AgeBandName, T1Question } from '../t1Data';
 import { PRODUCT } from '../productConfig';
+import { ALL_CLEAR_SUMMARY, SCREENING_DISCLAIMER, STATUS_WORDING, flaggedSummary } from '../utils/statusWording';
 import { 
   Activity, Sparkles, Brain, MessageSquare, Smile, BookOpen, Target, Home, Heart,
   ChevronRight, ChevronLeft, CheckCircle2, ClipboardCheck, AlertTriangle, ShieldAlert,
@@ -191,6 +192,8 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
               <p className="text-xs text-brand-charcoal/70 mt-0.5">
                 受测儿童：{child.name} | 实足月龄：{child.ageMonth}个月 | 评估量表：{ageBandName}
               </p>
+              {/* 對照表要求固定放在最上方的定位句，原句照抄（見 statusWording.ts）。 */}
+              <p className="text-[11px] text-brand-charcoal/60 mt-1">{SCREENING_DISCLAIMER}</p>
             </div>
           </div>
 
@@ -207,10 +210,8 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
             )}
             <div className="flex-1 space-y-1">
               <h3 className="text-sm font-bold">
-                {lowDimensions.length > 0 
-                  ? `评估提示：发现孩子在 ${lowDimensions.map(d => d.dimensionName).join('、')} 等 ${lowDimensions.length} 个维度上存在发育边缘或落后风险。`
-                  : '评估提示：恭喜，孩子在所有 9 大维度上的基本发育状态均符合标准指标值。'
-                }
+                {/* 紅燈與黃燈分開講，句型見 flaggedSummary；全綠時用對照表指定的那一句。 */}
+                {flaggedSummary(calculatedScores) ?? ALL_CLEAR_SUMMARY}
               </h3>
               <p className="text-xs text-brand-charcoal/75 leading-relaxed">
                 {lowDimensions.length > 0
@@ -249,7 +250,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                       score.status === 'borderline' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                       'bg-emerald-50 text-emerald-700 border-emerald-200'
                     }`}>
-                      {score.status === 'delay' ? '发育迟缓' : score.status === 'borderline' ? '临界状态' : '良好'}
+                      {STATUS_WORDING[score.status].label}
                     </span>
                   </div>
 
@@ -274,8 +275,8 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                   <div className="border-t border-brand-cream mt-2 pt-2 text-[10px] text-right flex items-center justify-between">
                     <span className="text-[9px] text-brand-charcoal/40">T1 基础评估层</span>
                     {(score.status === 'delay' || score.status === 'borderline') ? (
-                      // 顏色跟著等級走：紅＝高度、橘黃＝中度。先前兩級都是 rose，
-                      // 標籤改成「高度／中度警告」後那樣會自相矛盾。
+                      // 顏色跟著等級走：紅＝優先諮詢、橘黃＝進一步了解。先前兩級都是 rose，
+                      // 標籤分成兩句之後那樣會自相矛盾。
                       <span className={`font-extrabold flex items-center gap-0.5 ${
                         score.status === 'delay' ? 'text-rose-600' : 'text-amber-600'
                       }`}>
@@ -285,7 +286,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                           : PRODUCT.nextStep.actionLabelMedium}
                       </span>
                     ) : (
-                      <span className="text-brand-moss font-medium">基本正常</span>
+                      <span className="text-brand-moss font-medium">继续观察</span>
                     )}
                   </div>
                 </div>

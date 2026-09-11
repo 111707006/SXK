@@ -7,6 +7,7 @@ import React, { useState, useEffect, useMemo, lazy } from 'react';
 import { Child, DimensionScore, MallOrder, AssessmentRecord } from './types';
 import { DIMENSIONS_DATA } from './data';
 import { PRODUCT } from './productConfig';
+import { STATUS_WORDING } from './utils/statusWording';
 import { getOrCreateDeviceId } from './utils/deviceId';
 import ChildProfileForm from './components/ChildProfileForm';
 import DimensionGrid from './components/DimensionGrid';
@@ -898,8 +899,7 @@ export default function App() {
                                     score.status === 'delay' ? 'text-rose-600' :
                                     score.status === 'borderline' ? 'text-amber-600' : 'text-emerald-600'
                                   }`}>
-                                    {score.status === 'delay' ? '落后' :
-                                     score.status === 'borderline' ? '关注' : '正常'}
+                                    {STATUS_WORDING[score.status].label}
                                   </span>
                                 </div>
                               </div>
@@ -1001,11 +1001,16 @@ export default function App() {
                   <div className="absolute bottom-[-10px] right-[-10px] w-48 h-48 bg-white/5 rounded-full blur-2xl" />
 
                   <div className="relative z-10 max-w-2xl space-y-3.5">
-                    <span className="text-[10px] uppercase tracking-wider font-extrabold bg-brand-sage/20 border border-brand-cream/10 px-3 py-1 rounded-full backdrop-blur-sm">
-                      儿童生长发育评定专家
-                    </span>
+                    {/*
+                      系統只有一個名字（見 productConfig 的 brand 說明與
+                      test/productNaming.structure.test.ts）。2026-09-11 之前這裡寫死
+                      「儿童神经网络综合发展评估」，上面還掛一顆「儿童生长发育评定专家」
+                      的膠囊 —— 頁首、分頁、頁尾好不容易統一了，家長往下捲一格又看到
+                      第四、第五個名字。標題改讀同一個來源；膠囊拿掉，留著就是同一個
+                      名字上下疊兩次。
+                    */}
                     <h2 className="text-2xl md:text-3xl font-black font-sans leading-tight">
-                      儿童神经网络综合发展评估
+                      {PRODUCT.brand.headerTitle}
                     </h2>
                     <div className="flex flex-col gap-1">
                       <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">1</span>点击「启动 T1 综合评估」，完成基础评估</p>
@@ -1218,7 +1223,7 @@ export default function App() {
                                     <h5 className="text-xs font-bold text-brand-charcoal mt-1">儿童综合发展评估报告</h5>
                                     <div className="flex items-center gap-2 mt-2">
                                       <span className="text-[10px] bg-red-50 text-red-600 border border-red-100 rounded px-1.5 font-medium">
-                                        迟缓维度: {delayCount}
+                                        {STATUS_WORDING.delay.label}: {delayCount}
                                       </span>
                                       <span className="text-[10px] bg-brand-sage/40 text-brand-forest border border-brand-stone/40 rounded px-1.5 font-medium">
                                         已测: {rec.scores.length}
@@ -1242,7 +1247,7 @@ export default function App() {
                           </div>
                           <div>
                             <h3 className="text-sm font-black text-brand-charcoal">T2/T3 神经网络深度专项评估成长报告</h3>
-                            <p className="text-[10px] text-brand-charcoal/50">针对发育异常维度进行的高精度互动评估与脑科学数据分析</p>
+                            <p className="text-[10px] text-brand-charcoal/50">针对需要更多支持的维度进行的高精度互动评估与脑科学数据分析</p>
                           </div>
                         </div>
                         <span className="text-[10px] font-bold bg-red-50 px-2 py-0.5 rounded text-red-600">评估层</span>
@@ -1302,7 +1307,7 @@ export default function App() {
                                       <div className="flex justify-between text-[10px]">
                                         <span className="text-brand-charcoal/60">表现特征:</span>
                                         <span className={`font-bold ${t3Result?.status === 'delay' ? 'text-red-500' : 'text-amber-600'}`}>
-                                          {t3Result?.status === 'delay' ? '发育迟缓 (Delay)' : '边缘警示 (Borderline)'}
+                                          {t3Result?.status === 'delay' ? STATUS_WORDING.delay.label : STATUS_WORDING.borderline.label}
                                         </span>
                                       </div>
                                       <div className="flex justify-between text-[10px]">

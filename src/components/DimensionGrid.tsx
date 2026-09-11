@@ -2,6 +2,7 @@ import React from 'react';
 import { DimensionConfig, DimensionScore } from '../types';
 import { DIMENSIONS_DATA } from '../data';
 import { PRODUCT } from '../productConfig';
+import { STATUS_WORDING } from '../utils/statusWording';
 import { 
   Activity, Sparkles, Brain, MessageSquare, Smile, BookOpen, Target, Home, Heart,
   CheckCircle, ChevronRight, PieChart, ShieldAlert, BadgeInfo, Play, Lock, BrainCircuit
@@ -119,7 +120,7 @@ export default function DimensionGrid({
               <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
             )}
             <BrainCircuit size={16} className={`shrink-0 ${!isT1Completed ? 'animate-bounce' : ''}`} />
-            <span>{isT1Completed ? '重新进行 T1 综合评估' : '立即开始 T1 综合评估'}</span>
+            <span>{isT1Completed ? '重新进行 T1 综合评估' : '开始 T1 综合评估'}</span>
             {!isT1Completed && <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />}
           </button>
         </div>
@@ -218,7 +219,7 @@ export default function DimensionGrid({
                       t1Rec.status === 'borderline' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
                       'bg-emerald-50 text-emerald-700 border-emerald-200'
                     }`}>
-                      T1 {t1Rec.status === 'delay' ? '迟缓风险' : t1Rec.status === 'borderline' ? '临界待测' : '发育良好'}
+                      T1 {STATUS_WORDING[t1Rec.status].label}
                     </span>
                   ) : (
                     <span className="text-[10px] text-brand-charcoal/40 py-1 px-2.5 bg-brand-cream border border-brand-stone/30 rounded-full">未完成</span>

@@ -144,12 +144,17 @@ export interface ProductProfile {
     /**
      * 報告中每個維度旁的行動標籤，依嚴重度分成兩個。
      *
-     * 拆成兩個是因為專案 B 的標籤本身就是警示等級（紅＝高度、橘黃＝中度），
-     * 一個字串無法同時扮演兩級。專案 A 的標籤是「去哪裡」而不是「多嚴重」，
-     * 兩級填同一個值即可 —— 不必為了對稱硬掰出兩種說法。
+     * 拆成兩個是因為專案 B 的標籤依等級各說一句（紅＝優先安排專業諮詢、
+     * 橘黃＝進一步了解），一個字串無法同時扮演兩級。專案 A 的標籤是「去哪裡」
+     * 而不是「多嚴重」，兩級填同一個值即可 —— 不必為了對稱硬掰出兩種說法。
      *
      * High：關注分 ≥ 5 / 狀態 `delay`（紅）
      * Medium：關注分 3–4 / 狀態 `borderline`（橘黃）
+     *
+     * ⚠️ 用字受《家长报告用语对照表》約束（`src/utils/statusWording.ts` 開頭有
+     * 說明）：「警告／风险／迟缓／落后／尽快／立即」這一類不得出現，
+     * `test/parentWording.structure.test.ts` 會擋。2026-09-11 之前 B 這兩格寫的是
+     * 「高度警告／中度警告」—— 家長看到紅字配「警告」，第一反應是「孩子有病」。
      */
     actionLabelHigh: string;
     actionLabelMedium: string;
@@ -273,22 +278,23 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     nextStep: {
       actionLabelHigh: '第二层评估',
       actionLabelMedium: '第二层评估',
-      alertText: '建议尽快进入第二层「量表评估中心」。',
+      alertText: '建议近期进入第二层「量表评估中心」。',
       legendAttentionHint: '进入第二层评估',
       legendConcernHint: '建议进入第二层评估',
       finishButtonLabel: '一键对接 AI 判读并启动 T2/T3 深度专项评估',
-      screeningResultWithFindings: '为了精确定位孩子在大脑突触环路与功能上的发展状况并建立成长引导方案，推荐立即进入相应维度的 T2 能力评估层 与 T3 专项深入评估。',
-      screeningResultAllClear: '基本发育水平良好。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，您亦可点击下方一键对接 AI 判读建档并视情探索 T2/T3 检测。',
+      screeningResultWithFindings: '为了更清楚了解孩子在大脑突触环路与功能上的发展状况并建立成长引导方案，建议方便时进入相应维度的 T2 能力评估层 与 T3 专项深入评估。',
+      screeningResultAllClear: '各维度发展稳定。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，您亦可点击下方一键对接 AI 判读建档并视情探索 T2/T3 检测。',
       action: 'goto_tier2',
     },
     dashboard: {
       stepTwoHint: '点击高亮的黄色 / 红色维度卡片，进入 T2、T3 深度测评',
       stepTwoIsPaid: true,
       screeningIntro: 'T1 评估 36 题依据 HELP、儿童发展学、神经科学、语言科学综合而来。完成基本评估后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。',
-      gridHintCompleted: '以下为 9 维 T1 评估结果。点击标有黄色/红色警告的维度卡片，直接推进 T2 问卷 与 T3 专项检测！',
+      gridHintCompleted: '以下为 9 维 T1 评估结果。点击标有黄色/红色标记的维度卡片，直接推进 T2 问卷 与 T3 专项检测！',
       dimensionCardSubLabel: 'T2 自评量表 + T3 专项上传',
       dimensionCardHint: '点击进入本维度测定',
-      dimensionCardCta: '立即深测',
+      // 2026-09-11 起不再寫「立即」—— 對照表把「立即／马上」列為要改的字（去除緊迫壓迫感）。
+      dimensionCardCta: '进入深测',
     },
     // 轉接真人走企業微信二維碼。不列微信號 —— 企業微信客服掃碼即進，
     // 手打帳號那條路在企業微信上並不通，寫出來只會讓家長白試一次。
@@ -336,16 +342,19 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       className: 'bg-amber-400 text-brand-forest border-amber-500',
     },
     nextStep: {
-      actionLabelHigh: '高度警告',
-      actionLabelMedium: '中度警告',
-      alertText: '建议尽快联系专家进行一对一说明。',
+      // 對照表「落地建議」逐字指定的三級標示：红→建议优先安排专业咨询、橙→建议进一步了解。
+      // 與 `statusWording.ts` 的 `tag` 是同一組字，這裡寫成字面量是為了讓 B 的 profile
+      // 一眼看得到家長實際讀到什麼。
+      actionLabelHigh: '建议优先安排专业咨询',
+      actionLabelMedium: '建议进一步了解',
+      alertText: '建议近期联系专家进行一对一说明。',
       // 圖例就在九維卡片正下方，跟卡片右下角的行動標籤是同一組語彙 ——
-      // 卡片改成「中度／高度警告」之後，圖例還寫「联系专家」等於同一頁兩套講法。
-      legendAttentionHint: '中度警告',
-      legendConcernHint: '高度警告',
+      // 兩處必須說同一句話，否則同一頁兩套講法。
+      legendAttentionHint: '建议进一步了解',
+      legendConcernHint: '建议优先安排专业咨询',
       finishButtonLabel: '一键生成 AI 发展报告',
       screeningResultWithFindings: '为了更清楚了解孩子在这些维度上的发展状况，建议生成完整 AI 发展报告，并就标记的维度联系专家进行一对一说明。',
-      screeningResultAllClear: '基本发育水平良好。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，可点击下方生成完整 AI 发展报告。',
+      screeningResultAllClear: '各维度发展稳定。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，可点击下方生成完整 AI 发展报告。',
       action: 'contact_expert',
     },
     dashboard: {

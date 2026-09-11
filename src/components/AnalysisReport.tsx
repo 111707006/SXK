@@ -23,48 +23,16 @@ import {
   useReportSpecialists,
   type ReportSpecialist,
 } from '../utils/specialists';
+import { BUILTIN_SPECIALISTS } from '../builtinSpecialists';
+import {
+  ALL_CLEAR_SUMMARY,
+  SCREENING_DISCLAIMER,
+  STATUS_WORDING,
+  concernLabel,
+} from '../utils/statusWording';
 import { 
   IntegrationGauges, NeuralNetworkTopology, WeeklyRehabPlanner, PrognosisTrajectoryChart 
 } from './ReportCharts';
-
-/**
- * 森心康自己的三位專家 —— **只有專案 A 用得到**。
- *
- * 專案 B 的每一家合作公司自備專家，名單改由 `/api/specialists` 依家長的歸屬
- * 供應（見 `utils/specialists.ts`）。這份常數在 B 的建置裡不會被讀到，
- * 也不會退回來當備援：那會讓合作公司的家長看到三位森心康醫師的姓名與照片。
- */
-const BUILTIN_SPECIALISTS: ReportSpecialist[] = [
-  {
-    id: 'spec-1',
-    name: '王素娟',
-    title: '儿童专科医院 副主任医师',
-    avatarUrl: '/expert-wang.jpg',
-    specialty: '儿童脑瘫的系统管理与康复、脑损伤后遗症的全面康复干预、高危新生儿的长期随访与发育监测、学习障碍、阅读障碍、书写障碍等发育障碍的康复治疗。',
-    experience: '从业30年，复旦大学附属儿科医院，中国康复医学会康复评定专委会委员，中国妇幼保健协会高危儿专业委员',
-    slots: ['周四上午', '周五下午', '周六上午']
-  },
-  {
-    id: 'spec-2',
-    name: '何明哲',
-    title: '国家合格康复督导师',
-    avatarUrl: '/expert-he.jpg',
-    specialty: '儿童作业、心理、多动症、自闭症、学习障碍、言语功能等干预训练，儿童发育迟缓调整训练。',
-    // 品牌職稱那一句由 PRODUCT.brand.bioClause 提供，B 為 null 即整段不出現。
-    // 其餘資歷一字不動 —— 這是真人的簡歷，能省略但不能改寫。
-    experience: `从业20年，中国台湾大学职能治疗学系，台北护理大学语言治疗病理学硕士，${PRODUCT.brand.bioClause ?? ''}上海星晨儿童医院（暨复旦大学附设儿科医院新虹桥分院）康复科督导`,
-    slots: ['周一上午', '周二下午', '周三上午']
-  },
-  {
-    id: 'spec-3',
-    name: '张厚亮',
-    title: '神经内科医学博士、院长',
-    avatarUrl: '/expert-zhang.png',
-    specialty: '神经内科医学、脑神经专家、神经内科疑难杂症干细胞修复治疗、功能医学辅助神经康复。',
-    experience: '26 年神经系统疾病临床诊疗经验，美年大健康门诊部院长，华山医院神经内科、中心医院神经内科、上海新起点康复医院副院长',
-    slots: ['周三上午', '周五上午', '周日上午']
-  }
-];
 
 /** 沒有照片時的替代標記 —— 合作公司多半不會有每位治療師的沙龍照。 */
 function SpecialistAvatar({ spec, size }: { spec: ReportSpecialist; size: number }) {
@@ -370,10 +338,10 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
     try {
       // 交給專家的行前摘要：只列被標記的維度，正常的不佔篇幅。
       const flagged = [
-        ...delayList.map(s => `${s.dimensionName}（迟缓风险 ${s.score}/${s.maxScore}）`),
-        ...borderlineList.map(s => `${s.dimensionName}（临界 ${s.score}/${s.maxScore}）`),
+        ...delayList.map(s => `${s.dimensionName}（${STATUS_WORDING.delay.label} ${s.score}/${s.maxScore}）`),
+        ...borderlineList.map(s => `${s.dimensionName}（${STATUS_WORDING.borderline.label} ${s.score}/${s.maxScore}）`),
       ];
-      const summary = flagged.length ? flagged.join('；') : '本次筛查各维度均在正常范围';
+      const summary = flagged.length ? flagged.join('；') : '本次筛查各维度发展稳定';
 
       const token = localStorage.getItem('senxinkang_token');
       const resp = await fetch('/api/expert-booking', {
@@ -492,34 +460,34 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         <div className="bg-brand-sage/40 border border-brand-stone p-5 rounded-2xl text-left shadow-sm">
           <div className="flex items-center gap-2.5 text-brand-forest">
             <CheckCircle2 size={18} className="text-brand-moss" />
-            <h3 className="text-sm font-bold">生理/心理发育正常</h3>
+            <h3 className="text-sm font-bold">{STATUS_WORDING.normal.tag}</h3>
           </div>
           <div className="text-2xl font-bold font-sans text-brand-forest mt-2.5">
             {completedScores.filter(s => s.status === 'normal').length} 个维度
           </div>
-          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('normal')}%，发育状态平稳</p>
+          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('normal')}%，可在日常互动中继续保持</p>
         </div>
 
         <div className="bg-brand-sand/55 border border-brand-stone p-5 rounded-2xl text-left shadow-sm">
           <div className="flex items-center gap-2.5 text-brand-clay">
             <AlertTriangle size={18} className="text-brand-clay" />
-            <h3 className="text-sm font-bold">边缘警示与滞后过渡</h3>
+            <h3 className="text-sm font-bold">{STATUS_WORDING.borderline.tag}</h3>
           </div>
           <div className="text-2xl font-bold font-sans text-brand-clay mt-2.5">
             {completedScores.filter(s => s.status === 'borderline').length} 个维度
           </div>
-          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('borderline')}%，需轻度康复及环境干预</p>
+          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('borderline')}%，仍在建立中，可在日常中多加练习</p>
         </div>
 
         <div className="bg-rose-50/30 border border-rose-200/60 p-5 rounded-2xl text-left shadow-sm">
           <div className="flex items-center gap-2.5 text-rose-800">
             <AlertCircle size={18} className="text-rose-600" />
-            <h3 className="text-sm font-bold">需关注的发育落后风险</h3>
+            <h3 className="text-sm font-bold">{STATUS_WORDING.delay.tag}</h3>
           </div>
           <div className="text-2xl font-bold font-sans text-rose-700 mt-2.5">
             {completedScores.filter(s => s.status === 'delay').length} 个维度
           </div>
-          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('delay')}%，强烈推荐进行深度特训</p>
+          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('delay')}%，建议近期安排专业咨询</p>
         </div>
       </div>
 
@@ -542,7 +510,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 </span>
               </h2>
               <p className="text-[11px] text-brand-cream/80 max-w-xl">
-                根据 9 个维度的筛查结果，生成发育程度评价、康复训练建议与居家互动方案。
+                根据 9 个维度的筛查结果，生成发展情况说明、训练建议与居家互动方案。
               </p>
             </div>
           </div>
@@ -661,7 +629,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                         score.status === 'borderline' ? 'bg-brand-clay' :
                         'bg-rose-600'
                       }`} />
-                      {score.status === 'normal' ? '健康普通' : score.status === 'borderline' ? '临界/关注' : '落后风险偏高'}
+                      {STATUS_WORDING[score.status].tag}
                     </div>
                   </div>
                 </div>
@@ -683,6 +651,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 {isAiGenerated ? 'AI 生成' : '本地模板生成'}
               </div>
               <h2 className="text-xl font-bold text-brand-forest mt-1">儿童综合发展评估报告</h2>
+              {/* 對照表要求固定放在報告最上方的定位句，原句照抄（見 statusWording.ts）。 */}
+              <p className="text-[11px] text-brand-charcoal/70 mt-1.5">{SCREENING_DISCLAIMER}</p>
             </div>
             <span className="text-[10px] text-brand-charcoal/50 text-right">监测号: SXK-{Date.now().toString().slice(-6)}</span>
           </div>
@@ -714,32 +684,36 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-3 text-xs font-semibold leading-relaxed">
                   <CheckCircle2 className="text-emerald-600 shrink-0 mt-0.5" size={16} />
                   <div>
-                    建议维持当前的常规评估观察。本次评估结果显示所有 9 项发育领域表现大致良好，神经系统联动与行为适应能力发育平衡，请配合日常亲子伴读及益智活动继续保持。
+                    {ALL_CLEAR_SUMMARY}请配合日常亲子共读与游戏互动继续保持。
                   </div>
                 </div>
               );
             }
 
+            /*
+              句型照對照表的公式：（能力方面）＋（中性描述）＋（行動建議）。
+              紅燈與黃燈各自成句 —— 兩者的行動建議不同，混在一起會把優先順序丟掉。
+              產品各自的下一步（B 約專家、A 進第二層）接在最後。
+            */
             return (
               <div className="p-4 bg-rose-50 border border-rose-200 text-rose-950 rounded-2xl flex items-start gap-3 text-xs leading-relaxed font-medium">
                 <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={16} />
                 <div>
-                  <span className="font-bold text-rose-800">{PRODUCT.nextStep.alertText}</span>
-                  本次评估在{' '}
+                  本次筛查提示：
                   {redNames.length > 0 && (
                     <>
-                      <span className="font-bold text-rose-600">{redNames.join('、')}</span>{' '}
-                      显示明显<span className="font-bold text-rose-600">需关注</span>
+                      <span className="font-bold text-rose-600">{redNames.join('、')}</span>
+                      方面{STATUS_WORDING.delay.describe}，<span className="font-bold text-rose-800">{STATUS_WORDING.delay.tag}</span>
                     </>
                   )}
-                  {redNames.length > 0 && yellowNames.length > 0 && '，另有 '}
+                  {redNames.length > 0 && yellowNames.length > 0 && '；'}
                   {yellowNames.length > 0 && (
                     <>
-                      <span className="font-bold text-amber-600">{yellowNames.join('、')}</span>{' '}
-                      <span className="font-bold text-amber-600">需留意</span>
+                      <span className="font-bold text-amber-600">{yellowNames.join('、')}</span>
+                      方面{STATUS_WORDING.borderline.describe}，<span className="font-bold text-amber-700">{STATUS_WORDING.borderline.tag}</span>
                     </>
                   )}
-                  。
+                  。{PRODUCT.nextStep.alertText}
                 </div>
               </div>
             );
@@ -752,7 +726,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <Layers size={15} className="text-brand-moss" />
                 9 维度评估结果明细
               </h3>
-              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">条形图代表该领域的「关注分」（0-8分，分数越高越需关注）</p>
+              <p className="text-[10px] text-brand-charcoal/50 mt-0.5">条形图代表该维度的「关注分」（0-8分，分数越高，越建议进一步了解）</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -760,20 +734,20 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 const score = completedScores.find(s => s.dimensionId === dim.id);
                 if (!score) return null;
                 const concernScore = toConcernScore(score.score, score.maxScore);
-                let statusBadge = "大致良好";
+                let statusBadge = STATUS_WORDING.normal.label;
                 let badgeClass = "bg-emerald-50 border-emerald-200 text-emerald-700";
                 let fillClass = "bg-emerald-500";
                 let actionText = "继续观察";
                 let actionClass = "text-emerald-600";
 
                 if (concernScore >= 5) {
-                  statusBadge = "需关注";
+                  statusBadge = STATUS_WORDING.delay.label;
                   badgeClass = "bg-rose-50 border-rose-200 text-rose-700 font-bold";
                   fillClass = "bg-rose-500";
                   actionText = PRODUCT.nextStep.actionLabelHigh;
                   actionClass = "text-rose-600 font-bold";
                 } else if (concernScore >= 3) {
-                  statusBadge = "需留意";
+                  statusBadge = STATUS_WORDING.borderline.label;
                   badgeClass = "bg-amber-50 border-amber-200 text-amber-700 font-bold";
                   fillClass = "bg-amber-500";
                   actionText = PRODUCT.nextStep.actionLabelMedium;
@@ -809,13 +783,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             
             <div className="flex justify-center gap-4 text-[9px] text-brand-charcoal/60 pt-1">
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> 大致良好 (继续观察)
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> {STATUS_WORDING.normal.label} (继续观察)
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> 需留意 ({PRODUCT.nextStep.legendAttentionHint})
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {STATUS_WORDING.borderline.label} ({PRODUCT.nextStep.legendAttentionHint})
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> 需关注 ({PRODUCT.nextStep.legendConcernHint})
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> {STATUS_WORDING.delay.label} ({PRODUCT.nextStep.legendConcernHint})
               </span>
             </div>
           </div>
@@ -825,20 +799,18 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             const sortedScores = [...completedScores]
               .map(s => {
                 const concernScore = toConcernScore(s.score, s.maxScore);
-                let severityLabel = "大致良好";
+                // 字由 concernLabel 決定，這裡只管顏色與排序權重。
+                const severityLabel = concernLabel(concernScore);
                 let severityColor = "bg-emerald-500 text-white";
                 let severityVal = 1;
 
                 if (concernScore >= 6) {
-                  severityLabel = "需重点关注";
                   severityColor = "bg-rose-600 text-white";
                   severityVal = 4;
                 } else if (concernScore === 5) {
-                  severityLabel = "需关注";
                   severityColor = "bg-amber-500 text-white";
                   severityVal = 3;
                 } else if (concernScore >= 3) {
-                  severityLabel = "临界";
                   severityColor = "bg-amber-400 text-brand-charcoal";
                   severityVal = 2;
                 }
@@ -914,7 +886,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     9大维度结论——雷达图分析
                   </h3>
                   <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
-                    共评测 9 项发育维度，检测到 <span className="font-bold text-rose-600">{attentionCount} 项</span> 需留意/关注领域（其中 <span className="font-bold text-rose-600">{redCount} 项</span> 需重点关注）
+                    共评测 9 项发展维度，其中 <span className="font-bold text-rose-600">{attentionCount} 项</span> 建议进一步了解（<span className="font-bold text-rose-600">{redCount} 项</span> 建议优先安排专业咨询）
                   </p>
                 </div>
 
@@ -1044,19 +1016,19 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <div className="flex flex-wrap justify-center gap-3 text-[10px]">
                   <div className="flex items-center gap-1">
                     <div className="w-2.5 h-2.5 rounded-full bg-rose-600"></div>
-                    <span className="text-brand-charcoal/70">需重点关注 (≥6)</span>
+                    <span className="text-brand-charcoal/70">{concernLabel(6)} (≥6)</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-                    <span className="text-brand-charcoal/70">需关注 (5)</span>
+                    <span className="text-brand-charcoal/70">{concernLabel(5)} (5)</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
-                    <span className="text-brand-charcoal/70">临界 (3-4)</span>
+                    <span className="text-brand-charcoal/70">{concernLabel(3)} (3-4)</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-                    <span className="text-brand-charcoal/70">大致良好 (≤2)</span>
+                    <span className="text-brand-charcoal/70">{concernLabel(0)} (≤2)</span>
                   </div>
                 </div>
 
@@ -1104,7 +1076,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     <Mic size={10} /> 语言溝通 · 专项深测
                   </span>
                   <h3 className="text-sm font-extrabold text-brand-forest">
-                    语言沟通为{languageScore?.status === 'delay' ? '迟缓风险' : '临界待测'}，建议进行言语专项录音评测
+                    语言沟通方面{languageScore?.status === 'delay' ? STATUS_WORDING.delay.describe : STATUS_WORDING.borderline.describe}，建议进行言语专项录音评测
                   </h3>
                   <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">
                     依孩子月龄匹配语音题目，由孩子跟读、系统进行语音识别与构音判读，输出声学剖析、干预目标与一周言语训练课表。
@@ -1140,8 +1112,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
               {/* Segmented color track with red vertical pointer indicator */}
               <div className="relative w-full h-5 rounded-full overflow-hidden flex border border-brand-stone/50 shadow-inner">
-                <div className="w-1/4 h-full bg-rose-200" title="需要干预" />
-                <div className="w-1/4 h-full bg-orange-100" title="稍低于平均" />
+                <div className="w-1/4 h-full bg-rose-200" title={STATUS_WORDING.delay.label} />
+                <div className="w-1/4 h-full bg-orange-100" title={STATUS_WORDING.borderline.label} />
                 <div className="w-1/4 h-full bg-amber-50" title="平均水平" />
                 <div className="w-1/4 h-full bg-emerald-100" title="高于平均" />
                 
@@ -1157,8 +1129,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
               {/* Labels matching attachment */}
               <div className="flex justify-between text-[10px] text-brand-charcoal/80 font-bold px-1 mt-2">
-                <span className="w-1/4 text-center">需要干预</span>
-                <span className="w-1/4 text-center">稍低于平均</span>
+                <span className="w-1/4 text-center">{STATUS_WORDING.delay.label}</span>
+                <span className="w-1/4 text-center">{STATUS_WORDING.borderline.label}</span>
                 <span className="w-1/4 text-center">平均水平</span>
                 <span className="w-1/4 text-center">高于平均</span>
               </div>
@@ -1168,14 +1140,15 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
               💡 {(() => {
                 const totalPct = completedScores.reduce((acc, s) => acc + (s.score / s.maxScore) * 100, 0);
                 const avgPct = completedScores.length > 0 ? Math.round(totalPct / completedScores.length) : 50;
+                // 主語是「发展节奏」，不是孩子 —— 對照表：避免「孩子有……」這種以孩子為主語的判定句。
                 if (avgPct < 40) {
-                  return `您的孩子 (${child.name}) 整体发育进度相对滞后，处于偏弱区间。推荐重点跟进最下方制定的 7日感官训练行事历，及预约线上专家一对一指导。`;
+                  return `${child.name} 的整体发展节奏与同龄常见的节奏有一定差距。建议跟进最下方的 7 日居家活动安排，并近期预约专家一对一说明。`;
                 } else if (avgPct < 70) {
-                  return `您的孩子 (${child.name}) 整体发育进度处于中等稍弱水平。有几项处于边缘区间，多做亲子互动与居家共读会有帮助。`;
+                  return `${child.name} 的整体发展节奏接近同龄常见水平，有几项仍在建立中，多做亲子互动与居家共读会有帮助。`;
                 } else if (avgPct < 85) {
-                  return `您的孩子 (${child.name}) 整体发育处于同龄人平均水平偏上。在大部分测验维度中表现良好，通过针对性轻度干预可巩固优势。`;
+                  return `${child.name} 的整体发展处于同龄常见水平偏上，大部分维度表现稳定，针对性的日常练习可巩固优势。`;
                 } else {
-                  return `您的孩子 (${child.name}) 发育进度整体高于同龄平均水平，各维度表现均衡。`;
+                  return `${child.name} 的整体发展高于同龄常见水平，各维度表现均衡。`;
                 }
               })()}
             </div>
@@ -1278,7 +1251,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   }}
                   className="px-6 py-3 bg-brand-sage text-brand-forest font-bold text-xs rounded-xl hover:bg-white transition duration-200 shadow-lg shrink-0 w-full md:w-auto text-center active:scale-95 cursor-pointer"
                 >
-                  立即预约专家
+                  预约专家
                 </button>
               </div>
             </div>

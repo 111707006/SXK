@@ -145,6 +145,21 @@ const WEARABLES_PROMPT_CLAUSE = APP_MODE === 'full'
   ? '建议中可提倡将森心康智能穿戴硬件（脑电反馈带、精细OT手套、步态腰带等）编织到日常游戏中辅疗增效。'
   : '请聚焦于家庭日常可执行的互动与游戏，不要推荐任何需要购买的硬件或产品。';
 
+// The parent reads the generated text verbatim, so the model has to follow the
+// same wording rules as the screens do (客戶 2026-09-11《家长报告用语对照表》,
+// docs/reference/client-mockups/家长报告用语对照表-2026-09-11.md; the screen-side
+// half lives in src/utils/statusWording.ts). Without this clause the model, told
+// it is a "首席临床医学主任医生", reliably writes 诊断 / 迟缓 / 障碍 / 风险 —
+// exactly the words the table bans. Appended to every report prompt.
+const PARENT_WORDING_CLAUSE = `用词规范（家长会直接阅读本报告，请严格遵守）：
+- 本报告是发展筛查，不是诊断。不要写「诊断」「确诊」，不要点任何病名（如自闭症、脑瘫、多动症、智力障碍），不要写「阳性」。
+- 不使用「障碍、疾病、症状、异常、不正常、缺陷、缺损、迟缓、发育迟缓、落后、滞后、失调、严重、重度、中度、轻度、不足、缺乏、困难、低于标准、未通过、不合格、偏低」这类判定性字眼。
+- 不使用「风险、高风险、警告、危险、必须、一定要、立即、马上、尽快、否则会、将会导致、恶化、退化、错过黄金期」这类制造紧迫感的字眼。
+- 不使用「治疗、矫正、转介、转诊、介入、患儿」；改用「训练、练习、支持、协助、孩子」。
+- 描述现况请用「仍在建立中」「需要更多时间」「与同龄常见的发展节奏有差距」「目前需要较多支持」；给建议请用「建议进一步了解」「建议近期安排专业咨询」「可在日常中练习」。
+- 一句话结论的句型是「（能力方面）＋（中性描述）＋（行动建议）」，不要以「孩子有……」作为判定句。
+- 结果稳定时也要说清楚：「各方面发展稳定，可作为日后对照的基线记录。」`;
+
 /** ¥19.9 per dimension, in 分 — WeChat Pay's amount.total is an integer in 分. */
 const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;
 
@@ -592,11 +607,11 @@ function generateFallbackReport(child: any, scores: any[]) {
 
   let summary = `对儿童【${child.name}】（${child.ageMonth}个月，${child.gender === 'boy' ? '男孩' : '女孩'}）的发育进行了9维度的评估分析。`;
   if (struggling.length === 0) {
-    summary += `检测结果显示所有筛查指标极其稳健，各维度神经环路分层发育平衡，未见可疑的发育迟缓表征，建议维持当前的良性多感官成长氛围。`;
+    summary += `本次筛查各方面发展稳定，可作为日后对照的基线记录，建议维持当前的多感官成长氛围。`;
   } else if (delayCount > 0) {
-    summary += `综合评估发现，儿童在【${struggling.map(s => s.dimensionName).join('、')}】等维度显露一定的发育滞后或边缘偏差，尤以【${scores.filter((s: any) => s.status === 'delay').map(s => s.dimensionName).join('、') || '部分项目'}】较为突出，脑部特异功能区环路协同性需要重点拉伸康复。`;
+    summary += `本次筛查提示，【${struggling.map(s => s.dimensionName).join('、')}】等方面与同龄常见的发展节奏有差距，其中【${scores.filter((s: any) => s.status === 'delay').map(s => s.dimensionName).join('、') || '部分项目'}】建议优先安排专业咨询，其余方面可在日常互动中多加练习。`;
   } else {
-    summary += `当前评估显示各领域发展基本正常，但【${struggling.map(s => s.dimensionName).join('、')}】指标逼近正常阈值下限，处于“边缘警告”状态。需进行有意识的轻度环境赋能与家庭指导，防止迟缓转化。`;
+    summary += `本次筛查显示各方面发展大致稳定，其中【${struggling.map(s => s.dimensionName).join('、')}】仍在建立中，建议进一步了解，并在日常互动中多加练习。`;
   }
 
   // Calculate simulated critical metrics
@@ -621,8 +636,8 @@ function generateFallbackReport(child: any, scores: any[]) {
   // 是最容易漏掉的一處：它只在降級路徑上才會出現。
   const defaultRehab = [
     APP_MODE === 'full'
-      ? '建议使用森心康智能穿戴套件，将康复游戏从2D升级为3D。配合高精度传感器做家庭OT康复指导。'
-      : '将康复训练融入日常游戏，透过重复性的互动动作巩固神经环路，无需额外器材。',
+      ? '建议使用森心康智能穿戴套件，将训练游戏从2D升级为3D。配合高精度传感器做家庭OT训练指导。'
+      : '将训练融入日常游戏，透过重复性的互动动作巩固神经环路，无需额外器材。',
     '坚持每天定时间的少儿关节拉伸运动，刺激下丘脑及神经营养因子释放，助力幼童认知成长。'
   ];
 
@@ -655,16 +670,16 @@ function generateFallbackReport(child: any, scores: any[]) {
 
   let neuralPathwayAnalysis = '';
   if (delayCount > 0) {
-    neuralPathwayAnalysis = `当前发育分析表明，患儿存在局部大脑神经元突触剪切与环路阻抗滞后情况。特别是在前庭平衡与部分前额叶网路区域，因突触密度或整合度可能低于同龄均值，导致外周感受传导反射至皮质的时间成本增加。当前处于突触重塑的“黄金窗口期”（Brain plasticity golden period），加强智能传感和游戏化密集OT物理反馈，能极大激发未分化神经元的跨脑区功能质变。`;
+    neuralPathwayAnalysis = `当前发展分析表明，孩子在局部大脑神经元突触剪切与环路传导上仍在建立中。特别是在前庭平衡与部分前额叶网路区域，突触密度或整合度与同龄常见水平有差距，外周感受传导反射至皮质所需的时间较长。当前正处于突触重塑的发展窗口期（Brain plasticity period），加强游戏化的密集 OT 练习与反馈，能有效促进未分化神经元的跨脑区功能建立。`;
   } else if (borderlineCount > 0) {
-    neuralPathwayAnalysis = `脑机理测绘显示患儿感觉整合与情绪通路目前处于典型的中性过渡带。脑深层核团如杏仁核、纹状体与精细运动小脑区信息偶联良好，但传导通路的容错裕度偏低。如果长时间缺乏富有情绪互动力的高感官互动刺激，神经网突触连结密度可能会呈现自适应收缩。当前亟需微阻力定向活动与正合家庭环境进行环路突触稳连。`;
+    neuralPathwayAnalysis = `脑机理测绘显示孩子的感觉整合与情绪通路目前处于典型的中性过渡带。脑深层核团如杏仁核、纹状体与精细运动小脑区信息偶联良好，传导通路的容错裕度仍在建立中。持续提供富有情绪互动的高感官互动刺激，有助于神经网突触连结密度稳定增长。建议以微阻力定向活动与温暖的家庭环境支持环路突触稳连。`;
   } else {
-    neuralPathwayAnalysis = `评估数据勾勒出患儿具有极其健康、极高弹性（High resilience）的脑结构协同性。前额叶皮层、枕叶视觉中枢与颞叶听觉语言区之间的神经递质传输极为平滑，双侧半球联合纤维胼胝体发育匀称。其动作规划机制和多感官整合功能已达甚至溢出同龄水平，建议提供复杂的益智或少儿创造性互动，促进其潜在优势半球技能在高级突触环路层面的进一步沉淀。`;
+    neuralPathwayAnalysis = `评估数据勾勒出孩子具有极其健康、极高弹性（High resilience）的脑结构协同性。前额叶皮层、枕叶视觉中枢与颞叶听觉语言区之间的神经递质传输极为平滑，双侧半球联合纤维胼胝体发育匀称。其动作规划机制和多感官整合功能已达甚至溢出同龄水平，建议提供复杂的益智或少儿创造性互动，促进其潜在优势半球技能在高级突触环路层面的进一步沉淀。`;
   }
 
   let prognosisPrediction = '';
   if (delayCount > 0) {
-    prognosisPrediction = `若从当月起落实每日1.5小时具有定制传感器反馈的家庭康复锻炼，在接下来的3-6个月中，其神经环路的活性提升在78%以上，多项边缘维度有极大概率回归ASQ正常基线。家长切忌焦虑或盲目攀比，多使用正面情绪。`;
+    prognosisPrediction = `若从当月起坚持每日约 1 小时的家庭互动练习，接下来 3-6 个月内，多个仍在建立中的方面通常会有明显进展，有较大机会回到 ASQ 常见范围。发展窗口期内的支持通常效果较好；家长可以保持轻松的心态，多给正面回应，不必焦虑或比较。`;
   } else {
     prognosisPrediction = `未来3-6个月，若坚持适度运动、低干扰数码陪伴及高频率亲子共读，儿童在语言组织、注意力连续性等核心维度将会有极佳的向上突显。建议家长保持轻松乐观的心态配合其成长。`;
   }
@@ -704,7 +719,7 @@ app.post('/api/report', async (req: express.Request, res: express.Response) => {
     const reportSystemInstruction = 'You are a compassionate pediatric neuro-rehabilitation expert. You strictly return output as a single, valid JSON block exactly matching the instructed schema, with no markdown codeblocks, no front/end spacing, in Chinese language.';
 
     const basePrompt = `您是一位在儿童神经康复、脑科学发育及儿童成长心理学领域深耕20年的首席临床医学主任医生。
-请针对以下儿童的基础发育筛查详细数据，结合${BRAND_NAME}儿童康复的“9维3层分层神经系统检测”理念，为其精确诊断并生成出一份深度、高精准、温暖且富有专业建设意义的“AI脑神经分层网络智能评估报告”。
+请针对以下儿童的基础发育筛查详细数据，结合${BRAND_NAME}儿童康复的“9维3层分层神经系统检测”理念，为其生成一份深度、高精准、温暖且富有专业建设意义的“AI脑神经分层网络智能评估报告”。
 
 儿童档案:
 - 姓名: ${child.name}
@@ -717,8 +732,9 @@ ${scoresSummaryStr}
 请注意：
 1. 您必须严格按照指定的JSON数据格式输出（不要夹杂任何额外的文字、\`\`\`json 格式标记，只返回标准的可解析的JSON对象）。
 2. 在您的神经环路发育状态分析中，请以专业脑神经突触偶联、脑功能定位（如前额叶、小脑精细区、前庭反射等）、以及神经可塑性等先进脑科学概念给予严密解析，既要表现医学大师的透彻，又要字字充满对受测儿童的厚爱与成长温煦。
-3. 康复建议及家庭指导方案必须具有极强的动作实操逻辑，不要给出假大空的敷衍建议。${WEARABLES_PROMPT_CLAUSE}
+3. 训练建议及家庭指导方案要有极强的动作实操逻辑，不要给出假大空的敷衍建议。${WEARABLES_PROMPT_CLAUSE}
 4. metrics（百分值度区间在45至98之间）要根据上面的筛查分值客观联动。
+5. ${PARENT_WORDING_CLAUSE}
 `;
 
     // Qwen has no responseSchema equivalent, so the JSON contract is embedded in the prompt
@@ -726,10 +742,10 @@ ${scoresSummaryStr}
 你必须严格返回以下JSON结构（字段齐全，不要任何额外文字或\`\`\`json标记）：
 {
   "summary": "一句话总结该名受测少儿此时的核心脑成长特征（60-120字）",
-  "neuralPathwayAnalysis": "深入剖析患儿当前的脑网络状态、感觉中枢协调性、前额皮层控制环等神经反射弧健康状态（100-250字）",
-  "rehabSuggestions": ["康复训练方案建议（共3至4条）"],
+  "neuralPathwayAnalysis": "深入剖析孩子当前的脑网络状态、感觉中枢协调性、前额皮层控制环等神经反射弧状态（100-250字）",
+  "rehabSuggestions": ["训练方案建议（共3至4条）"],
   "homeGuidance": ["家庭场景协作活动（共3条）"],
-  "prognosisPrediction": "3-6个月后的预后康复轨迹预判（100字左右）",
+  "prognosisPrediction": "3-6个月后的发展轨迹预判（100字左右）",
   "criticalMetrics": {
     "neuralPlasticity": 45至98的整数,
     "sensoryIntegration": 45至98的整数,
@@ -780,12 +796,12 @@ ${scoresSummaryStr}
                 },
                 neuralPathwayAnalysis: {
                   type: Type.STRING,
-                  description: '深入剖析患儿当前的脑软硬件网络状态、感觉中枢协调性、前额皮层控制环等神经反射弧健康状态（100-250字）。'
+                  description: '深入剖析孩子当前的脑软硬件网络状态、感觉中枢协调性、前额皮层控制环等神经反射弧状态（100-250字）。'
                 },
                 rehabSuggestions: {
                   type: Type.ARRAY,
                   items: { type: Type.STRING },
-                  description: '输出具有极强指导力、适合由康复师或家长辅导的长效临床训练或物理康复训练方案建议列表（3至4条）。'
+                  description: '输出具有极强指导力、适合由康复师或家长辅导的长效训练方案建议列表（3至4条）。'
                 },
                 homeGuidance: {
                   type: Type.ARRAY,
@@ -794,7 +810,7 @@ ${scoresSummaryStr}
                 },
                 prognosisPrediction: {
                   type: Type.STRING,
-                  description: '中肯预判在实施针对性家庭训练康复3-6个月后的预后脑环路康复轨迹图景与心理辅导话术（100字左右）。'
+                  description: '中肯预判在实施针对性家庭训练3-6个月后的脑环路发展轨迹图景与给家长的鼓励话术（100字左右）。'
                 },
                 criticalMetrics: {
                   type: Type.OBJECT,
@@ -918,7 +934,9 @@ tier2Only.post('/api/specialized-report', async (req: express.Request, res: expr
       return;
     }
 
-    const statusText = status === 'delay' ? '发育迟缓' : status === 'borderline' ? '边缘警示' : '发育良好';
+    // Same three labels the screens use (src/utils/statusWording.ts) — the model
+    // echoes whatever we call the status, so feed it the parent-facing words.
+    const statusText = status === 'delay' ? '需要较多支持' : status === 'borderline' ? '需要少量支持' : '发展稳定';
     const systemInstruction = 'You are a compassionate pediatric neuro-rehabilitation expert. You strictly return output as a single, valid JSON block exactly matching the instructed schema, with no markdown codeblocks, no front/end spacing, in Chinese language.';
     const prompt = `您是一位在儿童神经康复、脑科学发育及儿童成长心理学领域深耕20年的首席临床医学主任医生。
 请针对以下儿童在【${dimensionName}】这一单一发育维度的 T2（家属能力自评）与 T3（临床互动实测）深度评估结果，生成一份聚焦该维度的“脑发育深度专项评估报告”。
@@ -936,15 +954,16 @@ tier2Only.post('/api/specialized-report', async (req: express.Request, res: expr
 请注意：
 1. 只聚焦【${dimensionName}】这一个维度，不要泛谈其他维度。
 2. neuralPathwayAnalysis 要用专业脑神经突触偶联、脑功能定位（如前额叶、小脑精细区、前庭反射、Broca/Wernicke 言语区等）与神经可塑性概念严密解析该维度，既透彻又充满对孩子的厚爱。
-3. 康复建议与家庭指导必须有极强动作实操逻辑，可自然融入森心康智能穿戴硬件（脑电反馈带、精细OT手套、步态腰带等）。
+3. 训练建议与家庭指导要有极强动作实操逻辑，可自然融入森心康智能穿戴硬件（脑电反馈带、精细OT手套、步态腰带等）。
 4. criticalMetrics 的百分值（45-98 之间的整数）要与上面的得分率客观联动（得分越低指标越低）。
+5. ${PARENT_WORDING_CLAUSE}
 你必须严格返回以下JSON结构（字段齐全，不要任何额外文字或\`\`\`json标记）：
 {
   "summary": "一句话总结该维度当前的核心脑成长特征（60-120字）",
   "neuralPathwayAnalysis": "深入剖析该维度相关的脑网络/神经反射弧状态（120-250字）",
-  "rehabSuggestions": ["针对该维度的康复训练建议（共3至4条）"],
+  "rehabSuggestions": ["针对该维度的训练建议（共3至4条）"],
   "homeGuidance": ["可在家操演的场景化活动（共3条）"],
-  "prognosisPrediction": "3-6个月针对性训练后的预后轨迹预判（100字左右）",
+  "prognosisPrediction": "3-6个月针对性训练后的发展轨迹预判（100字左右）",
   "criticalMetrics": {
     "neuralPlasticity": 45至98的整数,
     "sensoryIntegration": 45至98的整数,

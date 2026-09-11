@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DimensionScore, Child } from '../types';
 import { BRAIN_NODES } from '../dimensionContent';
+import { STATUS_WORDING } from '../utils/statusWording';
 import {
   Activity, Brain, Calendar, CheckSquare, Clock, Compass, Dumbbell, 
   Heart, Milestone, ShieldAlert, Sparkles, Zap, ChevronRight, Info
@@ -44,7 +45,7 @@ export function IntegrationGauges({ criticalMetrics }: { criticalMetrics: ChartP
       bgRing: 'stroke-brand-cream/60',
       fillColor: 'bg-brand-cream/20',
       icon: <Activity size={14} className="text-brand-forest" />,
-      tag: '中度统合',
+      tag: '协同建立中',
     },
     {
       id: 'family',
@@ -66,7 +67,7 @@ export function IntegrationGauges({ criticalMetrics }: { criticalMetrics: ChartP
       bgRing: 'stroke-amber-100/50',
       fillColor: 'bg-amber-50/20',
       icon: <Dumbbell size={14} className="text-amber-600" />,
-      tag: '边缘失调',
+      tag: '协调建立中',
     }
   ];
 
@@ -168,12 +169,12 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
     const avgPercent = Math.round(totalScore / scores.length);
 
     if (delayCount > 0) {
-      return { status: 'delay', score: avgPercent, label: '传导风险/偏弱' };
+      return { status: 'delay', score: avgPercent, label: STATUS_WORDING.delay.label };
     }
     if (borderlineCount > 0) {
-      return { status: 'borderline', score: avgPercent, label: '边缘发育/需介入' };
+      return { status: 'borderline', score: avgPercent, label: STATUS_WORDING.borderline.label };
     }
-    return { status: 'normal', score: avgPercent, label: '正常传导/平稳' };
+    return { status: 'normal', score: avgPercent, label: STATUS_WORDING.normal.label };
   };
 
   const getStatusColor = (status: string, type: 'bg' | 'text' | 'stroke' | 'fill') => {
@@ -294,13 +295,13 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
           {/* Simple Legend */}
           <div className="flex items-center gap-4 text-[9px] font-bold text-brand-charcoal/60 mt-2 border-t border-brand-stone/30 pt-2 w-full justify-center">
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-brand-moss shrink-0" /> 发育正常
+              <span className="w-2 h-2 rounded-full bg-brand-moss shrink-0" /> {STATUS_WORDING.normal.label}
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-brand-clay shrink-0" /> 边缘关注
+              <span className="w-2 h-2 rounded-full bg-brand-clay shrink-0" /> {STATUS_WORDING.borderline.label}
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> 落后风险
+              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> {STATUS_WORDING.delay.label}
             </span>
           </div>
         </div>
@@ -331,7 +332,7 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
             </p>
 
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-brand-clay block">🎯 临床发育病理评估建议:</span>
+              <span className="text-[10px] font-bold text-brand-clay block">🎯 发展观察与建议:</span>
               <p className="text-[10px] text-brand-charcoal leading-relaxed">
                 {activeNode.clinicalNotes}
               </p>
@@ -385,10 +386,10 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
       const rehabIndex = dayIndex % rehabSuggestions.length;
       tasks.push({
         id: `rehab-${dayIndex}`,
-        type: 'OT/PT 核心康复训练',
+        type: 'OT/PT 核心训练',
         text: rehabSuggestions[rehabIndex],
         time: '30分钟',
-        intensity: dayIndex % 2 === 0 ? '中度负荷' : '低度负荷',
+        intensity: dayIndex % 2 === 0 ? '适中负荷' : '低度负荷',
         sensorBadge: '智能肌电/重力仪支持',
         intensityClass: dayIndex % 2 === 0 ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-brand-sage text-brand-forest border border-brand-moss/30'
       });
@@ -399,7 +400,7 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
       const homeIndex = (dayIndex + 1) % homeGuidance.length;
       tasks.push({
         id: `home-${dayIndex}`,
-        type: '居家亲子游戏疗法',
+        type: '居家亲子游戏',
         text: homeGuidance[homeIndex],
         time: '20分钟',
         intensity: '低度负荷',
@@ -532,7 +533,7 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
         <div className="mt-4 p-3.5 bg-brand-sage/20 border border-brand-moss/20 rounded-2xl flex items-center gap-3 text-[11px] text-brand-forest">
           <Sparkles size={14} className="text-brand-moss shrink-0 animate-bounce" />
           <p className="leading-normal font-bold">
-            💡 <strong>系统提示:</strong> 临床分层评估发现，每天上午是儿童前额叶突触活跃的黄金时间，建议在上午 10 点前进行 OT/PT 核心康复训练。
+            💡 <strong>系统提示:</strong> 每天上午通常是儿童前额叶较活跃的时段，建议在上午 10 点前进行 OT/PT 核心训练。
           </p>
         </div>
 
@@ -552,7 +553,7 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
   const tracks = [
     {
       id: 'intervention',
-      name: '定制智能化介入训练轨迹 (ASQ 正常)',
+      name: '定制训练支持轨迹 (ASQ 正常)',
       color: '#2D5A27',
       strokeClass: 'stroke-brand-moss',
       areaClass: 'fill-brand-sage/10',
@@ -570,7 +571,7 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
       color: '#B28247',
       strokeClass: 'stroke-brand-clay',
       areaClass: 'fill-brand-sand/5',
-      desc: '无专门器材训练、无定期OT/PT辅导，仅依靠儿童自发发育的预测路径。发展平缓，易造成发育窗口期流失。',
+      desc: '无专门训练、无定期 OT/PT 辅导，仅依靠自然发展的预测路径。发展较平缓；发展窗口期内给予支持，通常效果较好。',
       points: [
         { week: '当期基线', score: 62, x: 50, y: 170 },
         { week: '第4周', score: 66, x: 175, y: 155 },
@@ -580,11 +581,11 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
     },
     {
       id: 'risk',
-      name: '无干预及低情绪环境衰变风险',
+      name: '高干扰环境预测路径',
       color: '#E11D48',
       strokeClass: 'stroke-rose-500',
       areaClass: 'fill-rose-500/5',
-      desc: '若不及时矫正家庭数码沉溺及训斥环境，发育落后风险将增加，导致边缘神经环路活性自适应减退收缩。',
+      desc: '屏幕时间较长、互动与鼓励较少的家庭环境下的预测路径。调整家庭互动方式，通常有助于把握发展时机。',
       points: [
         { week: '当期基线', score: 62, x: 50, y: 170 },
         { week: '第4周', score: 59, x: 175, y: 180 },
@@ -643,15 +644,15 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
             {/* Vertical Y-axis guide labels */}
             <text x="18" y="50" className="text-[8px] font-bold fill-brand-charcoal/50">95% (优良)</text>
             <text x="18" y="85" className="text-[8px] font-bold fill-brand-charcoal/50">87% (普通)</text>
-            <text x="18" y="130" className="text-[8px] font-bold fill-brand-charcoal/50">76% (边缘)</text>
-            <text x="18" y="175" className="text-[8px] font-bold fill-brand-charcoal/50">62% (落后)</text>
-            <text x="18" y="205" className="text-[8px] font-bold fill-brand-charcoal/50">50% (滞后)</text>
+            <text x="18" y="130" className="text-[8px] font-bold fill-brand-charcoal/50">76% (建立中)</text>
+            <text x="18" y="175" className="text-[8px] font-bold fill-brand-charcoal/50">62% (有差距)</text>
+            <text x="18" y="205" className="text-[8px] font-bold fill-brand-charcoal/50">50% (差距明显)</text>
 
             {/* Timeline ticks X-axis */}
             <line x1="50" y1="210" x2="425" y2="210" className="stroke-brand-stone stroke-[1.5]" />
             
             <text x="50" y="222" textAnchor="middle" className="text-[9px] font-bold fill-brand-charcoal/80">当前评估阶段</text>
-            <text x="175" y="222" textAnchor="middle" className="text-[9px] font-bold fill-brand-charcoal/80">介入第4周</text>
+            <text x="175" y="222" textAnchor="middle" className="text-[9px] font-bold fill-brand-charcoal/80">训练第4周</text>
             <text x="300" y="222" textAnchor="middle" className="text-[9px] font-bold fill-brand-charcoal/80">核心第8周</text>
             <text x="425" y="222" textAnchor="middle" className="text-[9px] font-bold fill-brand-charcoal/80">评估3个月(12周)</text>
 
@@ -743,7 +744,7 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
         <div className="mt-4 p-4 rounded-2xl border border-brand-stone/60 bg-brand-cream/15 text-xs text-brand-charcoal">
           {activeTrack === 'all' ? (
             <div className="space-y-2">
-              <span className="font-bold text-brand-forest block">📈 神经网络康复成效走向精算:</span>
+              <span className="font-bold text-brand-forest block">📈 神经网络训练成效走向预测:</span>
               <p className="leading-relaxed">
                 上图预测展现了儿童在三种环境状态下的成长轴线。进行<strong>系统性 OT/PT 发育训练</strong>有极高概率在 8 到 12 周内建立更稳固的神经元旁支桥接，突触传导效率提升可达 30% 以上。
               </p>

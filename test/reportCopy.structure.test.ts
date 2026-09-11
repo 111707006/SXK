@@ -72,10 +72,12 @@ describe('維度卡片的文案（p.9）', () => {
     expect(grid).not.toMatch(/['"]t1only['"]/);
   });
 
-  // 專案 A 的說法一個字都不能被這次改動碰到（本 issue 最後一條驗收條件）。
+  // 專案 A 的說法一個字都不能被 issue #18 碰到（該 issue 最後一條驗收條件）。
+  // 2026-09-11 依客戶《家长报告用语对照表》把「立即深测」改成「进入深测」——
+  // 那是另一條指示，不是 #18 的回歸；「立即」在表上是要去掉的字。
   it('專案 A 的維度卡片文案維持原樣', () => {
     expect(valuesOf('dimensionCardHint')).toContain('点击进入本维度测定');
-    expect(valuesOf('dimensionCardCta')).toContain('立即深测');
+    expect(valuesOf('dimensionCardCta')).toContain('进入深测');
   });
 });
 

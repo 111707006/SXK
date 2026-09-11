@@ -20,6 +20,11 @@ export function readDocxBlocks(docx: Buffer): DocxBlock[] {
   const inner = readZip(docx);
   const xml = inner.get('word/document.xml')?.toString('utf8');
   if (!xml) throw new Error('docx：沒有 word/document.xml');
+  return parseDocumentXml(xml);
+}
+
+/** `word/document.xml` 的內容 → 區塊串。拆出來是為了不用造一個 zip 就能測。 */
+export function parseDocumentXml(xml: string): DocxBlock[] {
   const start = xml.indexOf('<w:body>');
   const end = xml.lastIndexOf('</w:body>');
   if (start < 0 || end < 0) throw new Error('docx：document.xml 沒有 <w:body>');
@@ -28,33 +33,59 @@ export function readDocxBlocks(docx: Buffer): DocxBlock[] {
   const blocks: DocxBlock[] = [];
   let p = 0;
   while (p < body.length) {
-    const nextTbl = body.indexOf('<w:tbl>', p);
-    const nextP = indexOfParagraphOpen(body, p);
+    const nextTbl = indexOfTag(body, 'w:tbl', p);
+    const nextP = indexOfTag(body, 'w:p', p);
     if (nextTbl < 0 && nextP < 0) break;
 
     if (nextTbl >= 0 && (nextP < 0 || nextTbl < nextP)) {
-      const end = body.indexOf('</w:tbl>', nextTbl);
+      const open = openTagEnd(body, nextTbl, 'w:tbl');
+      if (open.selfClosing) throw new Error('docx：出現自閉合的 <w:tbl/>，表格沒有列，本讀取器不處理');
+      const end = body.indexOf('</w:tbl>', open.next);
       if (end < 0) throw new Error('docx：<w:tbl> 沒有結尾');
-      const tbl = body.slice(nextTbl + '<w:tbl>'.length, end);
-      if (tbl.includes('<w:tbl>')) throw new Error('docx：出現巢套表格，本讀取器不處理');
+      const tbl = body.slice(open.next, end);
+      // 巢套表格時第一個 `</w:tbl>` 關的是內層，這一段就會夾著另一個開始標籤。
+      if (indexOfTag(tbl, 'w:tbl', 0) >= 0) throw new Error('docx：出現巢套表格，本讀取器不處理');
       blocks.push({ kind: 'table', rows: tableRows(tbl) });
       p = end + '</w:tbl>'.length;
     } else {
-      const end = body.indexOf('</w:p>', nextP);
-      if (end < 0) throw new Error('docx：<w:p> 沒有結尾');
-      blocks.push({ kind: 'p', text: runText(body.slice(nextP, end)) });
-      p = end + '</w:p>'.length;
+      const para = readParagraph(body, nextP);
+      blocks.push({ kind: 'p', text: para.text });
+      p = para.next;
     }
   }
   return blocks;
 }
 
-/** `<w:p>` 或 `<w:p ...>`，但不能誤抓 `<w:pPr>`、`<w:pStyle>` 這些同字首的標籤。 */
-function indexOfParagraphOpen(s: string, from: number): number {
-  const re = /<w:p(?=[\s>\/])/g;
+/**
+ * `<w:x>`、`<w:x ...>` 或 `<w:x/>` 的位置，但不能誤抓 `<w:pPr>`、`<w:trPr>`、`<w:tcPr>`
+ * 這些同字首的標籤。`-1` 代表找不到。
+ */
+function indexOfTag(s: string, tag: string, from: number): number {
+  const re = new RegExp(`<${tag}(?=[\\s>/])`, 'g');
   re.lastIndex = from;
   const m = re.exec(s);
   return m ? m.index : -1;
+}
+
+/** 開始標籤的 `>` 之後的位置，以及它是不是 `<w:x/>` 這種自閉合的寫法。 */
+function openTagEnd(s: string, start: number, tag: string): { next: number; selfClosing: boolean } {
+  const gt = s.indexOf('>', start);
+  if (gt < 0) throw new Error(`docx：<${tag}> 的開始標籤沒有結尾`);
+  return { next: gt + 1, selfClosing: s[gt - 1] === '/' };
+}
+
+/**
+ * 一個段落的文字，與它結束之後的位置。
+ *
+ * Word 對空段落有時會寫成自閉合的 `<w:p/>`：那種段落沒有 `</w:p>`，照著找結尾會一路
+ * 吃到**下一段**的結尾，把兩段併成一段、還讓後面少一段。所以先看開始標籤是不是自閉合的。
+ */
+function readParagraph(s: string, start: number): { text: string; next: number } {
+  const open = openTagEnd(s, start, 'w:p');
+  if (open.selfClosing) return { text: '', next: open.next };
+  const end = s.indexOf('</w:p>', open.next);
+  if (end < 0) throw new Error('docx：<w:p> 沒有結尾');
+  return { text: runText(s.slice(start, end)), next: end + '</w:p>'.length };
 }
 
 function tableRows(tbl: string): string[][] {
@@ -64,7 +95,13 @@ function tableRows(tbl: string): string[][] {
     const cells: string[] = [];
     for (const tc of tr.split(/<w:tc(?=[\s>\/])/).slice(1)) {
       // 儲存格裡可能有多個段落，用換行接起來 —— 紙本的七級定義就是這樣排的。
-      const paras = [...tc.matchAll(/<w:p(?=[\s>\/])[\s\S]*?<\/w:p>/g)].map(m => runText(m[0]));
+      // 走 readParagraph 而不是自己配對 `<w:p>…</w:p>`，儲存格裡的 `<w:p/>` 才不會吃掉下一段。
+      const paras: string[] = [];
+      for (let q = indexOfTag(tc, 'w:p', 0); q >= 0; q = indexOfTag(tc, 'w:p', q)) {
+        const para = readParagraph(tc, q);
+        paras.push(para.text);
+        q = para.next;
+      }
       cells.push(paras.join('\n').trim());
     }
     rows.push(cells);

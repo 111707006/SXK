@@ -31,6 +31,13 @@ export function diffToolAgainstPaper(bank: ToolkitBank, paper: PaperTool): ToolD
   const notes: string[] = [];
   let itemsCompared = 0;
 
+  // ---- 標題 ----
+  // 常數的 title 來自工具包 HTML 的 <h1>，除了這裡沒有別的地方對過；不比的話，
+  // h1Title() 哪天剝標籤剝出別的東西，錯的標題會一路進到報告抬頭都沒人發現。
+  if (bank.title !== paper.title) {
+    otherDiffs.push(`標題：常數「${bank.title}」，紙本「${paper.title}」`);
+  }
+
   // ---- 面向 ----
   const kitSecs = bank.sections;
   const paperSecs = paper.sections;

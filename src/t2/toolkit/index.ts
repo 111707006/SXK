@@ -74,13 +74,24 @@ export const TOOL_IDS: ReadonlyArray<ToolId> = Object.keys(TOOLKIT) as ToolId[];
  * 沒有適用題目的面向仍會回傳（`items` 為空），畫面上要顯示「本月齡暫無適用題目」
  * 得靠它。工具的月齡窗口**不在這裡檢查** —— 那是登錄表（#42）與路由（#43）的事；
  * 窗口外的月齡在這裡只是題數少或為零。
+ *
+ * 月齡必須是有限的非負數，不是就丟錯：NaN 會讓 `lo ≤ 月齡 ≤ hi` 的兩個比較同時為
+ * false，年齡段型的工具（dev、warn）會把**每一個**年齡段都收進來（dev 180 題而不是
+ * 30 題），其餘工具則收到零題 —— 同一個壞月齡在不同工具產生相反方向的錯，而且兩種
+ * 都不會自己喊。生日缺漏或格式錯算出來的就是 NaN，擋在這裡比讓它流到題量預估便宜。
+ *
+ * 回傳的面向與 `items` 陣列都是複本，可以安心排序或增刪；但**題目物件本身是共用的**，
+ * 不要改 `items[i]` 的欄位。
  */
 export function askedSections(bank: ToolkitBank, ageMonth: number): ToolkitSection[] {
+  if (!Number.isFinite(ageMonth) || ageMonth < 0) {
+    throw new Error(`askedSections：月齡要是有限的非負數，拿到 ${ageMonth}`);
+  }
   const out: ToolkitSection[] = [];
   for (const s of bank.sections) {
     if (s.ageBand) {
       if (ageMonth < s.ageBand.lo || ageMonth > s.ageBand.hi) continue;
-      out.push(s);
+      out.push({ ...s, items: [...s.items] });
       continue;
     }
     const items: ToolkitItem[] = s.items.filter(it => it.startMonth === null || it.startMonth <= ageMonth);

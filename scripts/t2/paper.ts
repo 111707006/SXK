@@ -115,10 +115,15 @@ export function readPaperTool(id: ToolId, docx: Buffer): PaperTool {
     const items: PaperItem[] = [];
     for (const row of b.rows.slice(1)) {
       if (!/^\d+$/.test(row[noCol] ?? '')) continue; // 「小计」列
+      const where = `${PAPER_FILES[id]} 第 ${row[noCol]} 題`;
+      if (row[textCol] === undefined) {
+        // 合併儲存格會讓那一列少幾格；寧可停下來說清楚，也不要拿 undefined 去 trim()。
+        throw new Error(`${where}：這一列只有 ${row.length} 格，沒有第 ${textCol + 1} 格「项目」`);
+      }
       items.push({
         no: Number(row[noCol]),
         text: row[textCol].trim(),
-        startMonth: monthCol >= 0 ? Number(row[monthCol]) : null,
+        startMonth: monthCol >= 0 ? startMonthCell(row[monthCol], where) : null,
       });
     }
     sections.push({ name: pending?.name ?? '', ageBand, declaredCount: pending?.declaredCount, items });
@@ -129,6 +134,19 @@ export function readPaperTool(id: ToolId, docx: Buffer): PaperTool {
   const out: PaperTool = { id, file: PAPER_FILES[id], title, sections, optionLabels, tiers };
   if (id === 'sxk-adl') out.levelDefinitions = readLevelDefinitions(body);
   return out;
+}
+
+/**
+ * 「起始月龄」欄只接受純數字。
+ *
+ * 不能用 `Number(cell)` 了事：`Number('')` 是 **0**，所以紙本漏印或合併掉的那一格會
+ * 安靜地變成「起始月齡 0」，而 0 在達成率族是大量存在的合法值 —— 比對會說「零差異」，
+ * 但其實那一題根本沒比到。這支腳本的工作就是拿紙本抓常數抄錯，不能自己製造假的一致。
+ */
+function startMonthCell(cell: string | undefined, where: string): number {
+  const t = (cell ?? '').trim();
+  if (!/^\d+$/.test(t)) throw new Error(`${where}：起始月齡欄是「${t}」，不是數字`);
+  return Number(t);
 }
 
 function slice(blocks: DocxBlock[], from: RegExp, to: RegExp): DocxBlock[] {

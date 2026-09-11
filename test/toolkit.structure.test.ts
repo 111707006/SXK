@@ -158,6 +158,36 @@ describe('§4.4 的題量表用 askedCount 重算逐格相符', () => {
     expect(secs.map(s => s.key)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5']);
     expect(secs.find(s => s.key === 'P5')!.items).toHaveLength(0);
   });
+
+  /**
+   * 壞月齡要當場丟錯，不能安靜地回一個數字。
+   *
+   * NaN 會讓 `lo ≤ 月齡 ≤ hi` 的兩個比較同時為 false：年齡段型的 dev 曾經因此把六個
+   * 年齡段全收進來（180 題，正確是 30），warn 是 44（正確 4），而 gm 這種非年齡段的
+   * 工具卻回零 —— 同一個壞輸入在不同工具往相反方向錯，而且兩邊都不會喊。
+   * 生日欄位缺漏或格式不對算出來的就是 NaN。
+   */
+  it('月齡不是有限的非負數就丟錯（NaN 曾讓 dev 回 180 題、warn 回 44 條）', () => {
+    for (const bad of [NaN, Infinity, -1, undefined as unknown as number]) {
+      expect(() => askedCount('sxk-dev', bad), String(bad)).toThrow(/月齡/);
+      expect(() => askedCount('sxk-warn', bad), String(bad)).toThrow(/月齡/);
+      expect(() => askedCount('sxk-gm', bad), String(bad)).toThrow(/月齡/);
+    }
+    expect(askedCount('sxk-dev', 0)).toBe(30);
+  });
+
+  it('回傳的面向與 items 都是複本，改了不會汙染題庫常數', () => {
+    for (const id of ['sxk-dev', 'sxk-gm'] as const) {
+      const before = bank(id).sections.map(s => s.items.length);
+      const secs = askedSections(bank(id), 30);
+      expect(secs.length, id).toBeGreaterThan(0);
+      for (const s of secs) {
+        expect(bank(id).sections.some(orig => orig.items === s.items), `${id} 的 items 陣列是共用的`).toBe(false);
+        s.items.length = 0;
+      }
+      expect(bank(id).sections.map(s => s.items.length), id).toEqual(before);
+    }
+  });
 });
 
 describe('分段與附錄 D 第一欄相符；回傳那一套的切點不存在', () => {

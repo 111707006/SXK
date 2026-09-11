@@ -19,7 +19,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { collectDataDeclarations } from './literals';
+import { collectDataDeclarations, type DataDeclaration } from './literals';
 import type {
   ToolId, ToolkitBank, ToolkitItem, ToolkitOption, ToolkitPreQuestion, ToolkitSection, ToolkitTier,
 } from '../../src/t2/toolkit/types';
@@ -33,8 +33,8 @@ interface Source {
   html: string;
   /** 第一個 `<script>` 的內容。 */
   script: string;
-  /** script 開頭的純資料宣告。 */
-  consts: Map<string, unknown>;
+  /** script 開頭的純資料宣告，依名稱查；`.raw` 是初始值原文，抽錯時拿來看。 */
+  consts: Map<string, DataDeclaration>;
 }
 
 interface Recipe {
@@ -54,14 +54,13 @@ function loadSource(zip: Map<string, Buffer>, file: string): Source {
   const html = buf.toString('utf8');
   const m = /<script[^>]*>([\s\S]*?)<\/script>/.exec(html);
   if (!m) throw new Error(`${file}：找不到 <script>`);
-  const consts = new Map<string, unknown>();
-  for (const d of collectDataDeclarations(m[1]).values()) consts.set(d.name, d.value);
-  return { file, html, script: m[1], consts };
+  return { file, html, script: m[1], consts: collectDataDeclarations(m[1]) };
 }
 
 function need<T>(src: Source, name: string): T {
-  if (!src.consts.has(name)) throw new Error(`${src.file}：script 開頭沒有純資料的 const ${name}`);
-  return src.consts.get(name) as T;
+  const d = src.consts.get(name);
+  if (!d) throw new Error(`${src.file}：script 開頭沒有純資料的 const ${name}`);
+  return d.value as T;
 }
 
 /** 正則探針：一定要命中，命中就回傳 capture groups。預設讀 script；前置題那些在 body 裡的用 `'html'`。 */
@@ -71,10 +70,13 @@ function probe(src: Source, what: string, re: RegExp, where: 'script' | 'html' =
   return m.slice(1);
 }
 
+/**
+ * 只接受純數字的寫法。不能只靠 `Number.isFinite`：`Number('')` 與 `Number(' ')` 都是 0，
+ * 空字串會安靜地變成一個值為 0 的選項或切點，而 0 在好幾個計分族都是合法值。
+ */
 function num(s: string): number {
-  const n = Number(s);
-  if (!Number.isFinite(n)) throw new Error(`不是數字：${s}`);
-  return n;
+  if (!/^-?\d+(?:\.\d+)?$/.test(s.trim())) throw new Error(`不是數字：「${s}」`);
+  return Number(s.trim());
 }
 
 function stripTags(s: string): string {
@@ -156,16 +158,24 @@ function optionsFromOpts(src: Source): ToolkitOption[] {
 /**
  * 沒有 `OPTS` 的工具，選項寫在畫面模板裡：`value="2"><em>已经会</em>`。
  * 依模板出現的順序抓，`mapValue` 把 HTML 的值換成 §3.1 的值域。
+ *
+ * `expected` 是配方說好的選項數，一定要對上。`name="${namePrefix}[^"]*"` 是前綴比對，
+ * 工具包哪天在同一支加一組 `name="impact"`／`name="info"` 的 radio，前綴 `i` 會把它們
+ * 一起收進來 —— 那些值多半也落在既有值域裡（同樣是 0／1／2），mapValue 不會攔下來。
+ * 只擋「零筆」擋不住多抓，所以這裡要數。
  */
 function optionsFromTemplate(
   src: Source,
   namePrefix: string,
+  expected: number,
   mapValue: (v: string) => number | string,
 ): ToolkitOption[] {
   const re = new RegExp(`<input type="radio" name="${namePrefix}[^"]*" value="([^"]+)"><em>([^<]+)</em>`, 'g');
   const out: ToolkitOption[] = [];
   for (const m of src.script.matchAll(re)) out.push({ value: mapValue(m[1]), label: m[2] });
-  if (out.length === 0) throw new Error(`${src.file}：畫面模板裡找不到 ${namePrefix} 的選項`);
+  if (out.length !== expected) {
+    throw new Error(`${src.file}：畫面模板裡 name="${namePrefix}…" 的選項抓到 ${out.length} 個，配方預期 ${expected} 個（${out.map(o => o.label).join('／')}）`);
+  }
   return out;
 }
 
@@ -268,7 +278,7 @@ function achievementRecipe(id: ToolId, code: string, file: string): Recipe {
   return {
     id, code, file,
     build: src => ({
-      options: optionsFromTemplate(src, 'i', v => num(v)),
+      options: optionsFromTemplate(src, 'i', 3, v => num(v)),
       sections: sectionsWithMonths(src),
       tiers: tiersFromMinLevels(src),
       preQuestions: [],
@@ -325,7 +335,7 @@ export const RECIPES: Recipe[] = [
       }
       return {
         // 畫面的值是 "1"／"0"／"x"，§3.1 的值域是 pass／fail／skip。
-        options: optionsFromTemplate(src, 'i', v => mapOr(src, { '1': 'pass', '0': 'fail', x: 'skip' }, v)),
+        options: optionsFromTemplate(src, 'i', 3, v => mapOr(src, { '1': 'pass', '0': 'fail', x: 'skip' }, v)),
         sections,
         tiers: tiersFromMinLevels(src),
         preQuestions: [],
@@ -339,6 +349,18 @@ export const RECIPES: Recipe[] = [
       // 「取 ≤ 月齡的最大時點」（`ptFor`）：這個時點管到下一個時點的前一個月；
       // 最後一個時點管到工具自己說「超出範圍」的那個月齡減一（`showAge` 的 `a.months>=84`）。
       const outOfRange = num(probe(src, '幾個月起超出範圍', /a\.months>=(\d+)\)\{box\.classList\.add\("bad"\);s\+=`　·　本表适用未满 7 周岁/)[0]);
+      // 「下一個時點減一」只有在 POINTS 由小到大時才是這一段的上界。工具包換版時把時點
+      // 插錯位置，算出來會是 lo > hi 的空區間 —— 那個時點的四條預警徵象從此不再出現，
+      // 而且沒有任何一層會喊。同一檔的 LEVELS／BANDS 都有各自的順序檢查，這裡補上。
+      if (points.length === 0) throw new Error(`${src.file}：POINTS 是空的`);
+      points.forEach((p, pi) => {
+        if (typeof p.m !== 'number') throw new Error(`${src.file}：POINTS 第 ${pi + 1} 個時點的 m 不是數字`);
+        if (pi > 0 && p.m <= points[pi - 1].m) {
+          throw new Error(`${src.file}：POINTS 不是由小到大（第 ${pi + 1} 個時點 ${p.m} 不大於前一個 ${points[pi - 1].m}）`);
+        }
+      });
+      const last = points[points.length - 1].m;
+      if (last >= outOfRange) throw new Error(`${src.file}：最後一個時點 ${last} 沒有早於超出範圍的 ${outOfRange} 個月`);
       const sections: ToolkitSection[] = points.map((p, pi) => ({
         key: `m${p.m}`,
         name: p.label,
@@ -355,7 +377,7 @@ export const RECIPES: Recipe[] = [
       // WARN 的這一題沒有 <h3>，問法是區塊上方的那一句說明。
       const ask = askBlock(src, 'regression', 'multi', REGRESSION_VALUES, /<div class="chk">([\s\S]*?)<p class="hint">/, prompt);
       return {
-        options: optionsFromTemplate(src, 'w', v => num(v)),
+        options: optionsFromTemplate(src, 'w', 2, v => num(v)),
         sections,
         tiers: [
           { tier: 1, key: normal, max: 0 },
@@ -383,7 +405,7 @@ export const RECIPES: Recipe[] = [
       }
       const concernPrompt = probe(src, '擔心那一題', /<span>(醫護人員或家長是否對兒童患上自閉症譜系障礙有擔心？)<\/span>\s*<select id="f_concern"><option value="">請選擇<\/option><option>否<\/option><option>是<\/option><\/select>/, 'html')[0];
       return {
-        options: optionsFromTemplate(src, 'i', v => v),
+        options: optionsFromTemplate(src, 'i', 2, v => v),
         // M-CHAT 沒有面向；用一個沒有名字的面向裝 20 題，不替原文發明一個標題。
         sections: [{ key: 'all', name: '', items }],
         tiers: [

@@ -23,21 +23,32 @@ export interface DataDeclaration {
   raw: string;
 }
 
+/*
+ * 這三個是 sticky（`y`）正則：設好 `lastIndex` 就從那個位置比對，不必先把剩下的字串
+ * 切出來。每支 HTML 的 script 有數十 KB，`script.slice(p)` 擺在逐字元前進的迴圈裡會
+ * 是 O(n²)，而這段程式不只抽題時跑 —— 結構測試的「逐位元一致」那條每次 `npm test`
+ * 都會把 22 支重跑一遍。
+ */
+const DECL_HEAD = /(?:const|let|var)\s+/y;
+const DECLARATOR = /([A-Za-z_$][\w$]*)\s*=\s*/y;
+const TRIVIA = /(?:\s+|"use strict";|\/\*[\s\S]*?\*\/|\/\/[^\n]*)/y;
+
 /** 回傳依出現順序排列的宣告；碰到第一個非資料敘述就停。 */
 export function collectDataDeclarations(script: string): Map<string, DataDeclaration> {
   const out = new Map<string, DataDeclaration>();
   let p = skipTrivia(script, 0);
   while (p < script.length) {
-    const head = /^(?:const|let|var)\s+/.exec(script.slice(p));
-    if (!head) break;
-    p += head[0].length;
+    DECL_HEAD.lastIndex = p;
+    if (!DECL_HEAD.exec(script)) break;
+    p = DECL_HEAD.lastIndex;
 
     // 一個宣告可能有多個 declarator：`let A = {}, F = {};`
     let more = true;
     while (more) {
-      const nameMatch = /^([A-Za-z_$][\w$]*)\s*=\s*/.exec(script.slice(p));
+      DECLARATOR.lastIndex = p;
+      const nameMatch = DECLARATOR.exec(script);
       if (!nameMatch) return out;
-      p += nameMatch[0].length;
+      p = DECLARATOR.lastIndex;
       const end = scanInitializer(script, p);
       if (end < 0) return out;
       const raw = script.slice(p, end).trim();
@@ -57,9 +68,10 @@ export function collectDataDeclarations(script: string): Map<string, DataDeclara
 /** 跳過空白、`"use strict";` 與兩種註解。 */
 function skipTrivia(s: string, p: number): number {
   for (;;) {
-    const m = /^(?:\s+|"use strict";|\/\*[\s\S]*?\*\/|\/\/[^\n]*)/.exec(s.slice(p));
+    TRIVIA.lastIndex = p;
+    const m = TRIVIA.exec(s);
     if (!m || m[0].length === 0) return p;
-    p += m[0].length;
+    p = TRIVIA.lastIndex;
   }
 }
 
@@ -111,8 +123,9 @@ export function isPureData(raw: string): boolean {
       let j = i;
       while (j < raw.length && /[\w$]/.test(raw[j])) j++;
       const word = raw.slice(i, j);
-      const next = raw.slice(j).match(/^\s*(\S)/)?.[1];
-      const isKey = next === ':';
+      let k = j;
+      while (k < raw.length && /\s/.test(raw[k])) k++;
+      const isKey = raw[k] === ':';
       if (!isKey && !['null', 'true', 'false'].includes(word)) return false;
       i = j - 1;
       continue;

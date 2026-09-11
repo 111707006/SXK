@@ -16,15 +16,18 @@
  * 兩者分岔，此時詳情頂端會說出來，底下的「九维筛查结果」表就是現況那一份。
  */
 import { useCallback, useState } from 'react';
-import { AlertTriangle, Calendar, FileText, Phone, Printer, User, X } from 'lucide-react';
+import { AlertTriangle, Calendar, FileText, Phone, Printer, Trash2, User, X } from 'lucide-react';
 import {
   adminApi,
   type AdminParentDetail,
   type AdminParentListItem,
 } from '../adminApi';
 import {
+  deletionChallenge,
   formatDateTime,
   genderLabel,
+  isBookingInProgress,
+  matchesChallenge,
   screeningNewerThanReport,
   statusLabel,
   type AdminErrorView,
@@ -37,11 +40,14 @@ import {
   Button,
   EmptyState,
   ErrorNote,
+  Field,
   LinkButton,
   Panel,
   Select,
   Spinner,
   StatusBadge,
+  TextInput,
+  toErrorView,
   useAsyncData,
 } from '../ui';
 
@@ -112,7 +118,17 @@ export default function ParentsPanel({ onError }: { onError: (view: AdminErrorVi
       </Panel>
 
       {openId !== null && (
-        <ParentDetailModal id={openId} onClose={() => setOpenId(null)} onError={onError} />
+        <ParentDetailModal
+          id={openId}
+          onClose={() => setOpenId(null)}
+          onError={onError}
+          onDeleted={() => {
+            // 先關抽屜再重抓列表：那位家長已經不存在了，抽屜開著只會在下一次
+            // 重新整理時撞上 404。
+            setOpenId(null);
+            reload();
+          }}
+        />
       )}
     </>
   );
@@ -162,15 +178,24 @@ function ParentDetailModal({
   id,
   onClose,
   onError,
+  onDeleted,
 }: {
   id: number;
   onClose: () => void;
   onError: (view: AdminErrorView) => void;
+  onDeleted: () => void;
 }) {
   const load = useCallback(() => adminApi.parent(id), [id]);
   const { data, loading, failure, reload } = useAsyncData(load, [id], onError);
+  const [confirming, setConfirming] = useState(false);
 
   return (
+    /*
+      確認框是這個抽屜的**兄弟，不是子孫**。
+      放進下面那層 `onClick={onClose}` 的遮罩裡的話，點確認框自己的遮罩想反悔時，
+      那一次點擊會先觸發 onCancel、再往上冒泡撞到 onClose —— 抽屜跟著一起關掉，
+      使用者被丟回列表，還得重新找一次剛剛那一列。
+    */
     <>
       <div
         className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-charcoal/40 p-4 sm:p-8"
@@ -194,16 +219,26 @@ function ParentDetailModal({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/*
-                列印開的是同一份報告本體的另一個分頁（ADR-0007）。做成**連結**而不是
-                `onClick` 裡的 `window.open`：腳本開的視窗會被彈出視窗封鎖擋掉，
-                而被擋掉的樣子是一顆按了沒反應的按鈕，使用者不會知道要去改瀏覽器設定。
-              */}
               {data && (
-                <LinkButton href={`/admin/parents/${id}/print`} target="_blank" rel="noopener">
-                  <Printer size={12} />
-                  打印报告
-                </LinkButton>
+                <>
+                  {/*
+                    列印開的是同一份報告本體的另一個分頁（ADR-0007）。做成**連結**而不是
+                    `onClick` 裡的 `window.open`：腳本開的視窗會被彈出視窗封鎖擋掉，
+                    而被擋掉的樣子是一顆按了沒反應的按鈕，使用者不會知道要去改瀏覽器設定。
+                  */}
+                  <LinkButton href={`/admin/parents/${id}/print`} target="_blank" rel="noopener">
+                    <Printer size={12} />
+                    打印报告
+                  </LinkButton>
+                  {/*
+                    刪除是硬刪、不留紀錄（ADR-0006）。這顆按鈕只負責打開確認框 ——
+                    真正的動作在那裡，而那裡會要求照著這位家長的資料打一段字。
+                  */}
+                  <Button variant="danger" onClick={() => setConfirming(true)}>
+                    <Trash2 size={12} />
+                    删除家长
+                  </Button>
+                </>
               )}
               <button
                 onClick={onClose}
@@ -226,10 +261,152 @@ function ParentDetailModal({
           </div>
         </div>
       </div>
+
+      {confirming && data && (
+        <DeleteParentModal
+          parent={data.parent}
+          onCancel={() => setConfirming(false)}
+          onDeleted={onDeleted}
+          onError={onError}
+        />
+      )}
     </>
   );
 }
 
+
+/**
+ * 刪除家長的確認框（ADR-0006）。
+ *
+ * 【為什麼要打字，不是「確定嗎？」】
+ * 刪除是硬刪：`users` 那一列不見，外鍵連帶刪掉孩子檔案、篩查結果、報告、掃碼
+ * 連結與解鎖權益，而且**不留紀錄**。列表上兩位家長的「查看」按鈕只差幾個像素，
+ * 點錯的成本是另一位家長的全部資料。要求照著這位家長的資料打一段字，打錯的
+ * 就是打錯的那一位。
+ *
+ * 【為什麼要把會刪掉什麼列出來】
+ * 後台成員的心智模型多半是「刪掉這筆列表項目」。掃碼帶走的報告連結從此 404、
+ * 付費解鎖的權益一併消失 —— 這兩件事不寫出來沒有人會想到。
+ */
+function DeleteParentModal({
+  parent,
+  onCancel,
+  onDeleted,
+  onError,
+}: {
+  parent: AdminParentDetail;
+  onCancel: () => void;
+  onDeleted: () => void;
+  onError: (view: AdminErrorView) => void;
+}) {
+  const challenge = deletionChallenge(parent);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const activeBookings = parent.bookings.filter(b => isBookingInProgress(b.status));
+  const reportCount = screeningReportCount(parent.reportHistory);
+  const ready = matchesChallenge(challenge, typed);
+
+  async function confirm() {
+    if (!ready || busy) return;
+    setBusy(true);
+    setFailure(null);
+    try {
+      await adminApi.deleteParent(parent.id);
+      onDeleted();
+    } catch (err) {
+      const view = toErrorView(err);
+      // 「有付款紀錄」是這個畫面自己要說的話：使用者的下一步是去找對帳的人，
+      // 不是重新登入或換公司。只有處理不了的錯誤才丟給管理中心的殼。
+      if (view.action === 'none') setFailure(view.message);
+      else onError(view);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-brand-charcoal/60 p-4 sm:p-8"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-lg rounded-3xl border border-red-200 bg-white"
+        onClick={e => e.stopPropagation()}
+      >
+        <header className="flex items-center gap-2 border-b border-brand-stone px-5 py-4">
+          <Trash2 size={14} className="text-red-600" />
+          <h3 className="text-sm font-bold text-red-700">
+            删除「{parent.childName || '未填姓名'}」的家长帐号
+          </h3>
+        </header>
+
+        <div className="space-y-4 px-5 py-5">
+          <p className="text-xs font-bold leading-relaxed text-brand-charcoal">
+            这个动作无法复原，系统也不会留下删除纪录。以下资料会一并永久删除：
+          </p>
+
+          <ul className="list-disc space-y-1 pl-5 text-[11px] leading-relaxed text-brand-charcoal/75">
+            <li>孩子档案与九维筛查结果</li>
+            <li>{reportCount === 0 ? '发展报告（目前没有）' : `${reportCount} 份发展报告`}</li>
+            <li>扫码带走报告的连结 —— 家长手机上收藏的那一页从此打不开</li>
+            <li>已付费解锁的深度评估权益</li>
+            <li>{parent.bookings.length === 0 ? '专家预约（目前没有）' : `${parent.bookings.length} 笔专家预约`}</li>
+          </ul>
+
+          {activeBookings.length > 0 && (
+            <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+              <div className="text-[11px] leading-relaxed text-amber-900">
+                <p className="font-bold">这位家长有 {activeBookings.length} 笔预约还在进行中：</p>
+                <ul className="mt-1 space-y-0.5">
+                  {activeBookings.map(b => (
+                    <li key={b.id}>
+                      {serviceTypeLabel(b.serviceType)}　{b.preferredSlot || '未指定时段'}　（{b.status}）
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1">删除之后这几笔会一起消失，负责跟进的客服不会收到任何通知。</p>
+              </div>
+            </div>
+          )}
+
+          {/*
+            這一行是給人比對用的，不是裝飾。確認框蓋住了抽屜裡的「聯絡方式」——
+            也就是手機號唯一出現的地方 —— 沒有它，後台成員得先取消、看一眼、
+            再打開一次。露出來的那一段刻意遮掉答案（見 `deletionChallenge`）。
+          */}
+          {challenge.identity && (
+            <p className="rounded-xl border border-brand-stone bg-brand-cream/40 px-3 py-2 font-mono text-xs text-brand-charcoal">
+              {challenge.identity}
+            </p>
+          )}
+
+          <Field label="确认" hint={challenge.prompt}>
+            <TextInput
+              value={typed}
+              onChange={e => setTyped(e.target.value)}
+              placeholder={challenge.kind === 'phone' ? '末四码' : ''}
+              autoFocus
+            />
+          </Field>
+
+          {failure && <ErrorNote message={failure} />}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={onCancel} disabled={busy}>
+              取消
+            </Button>
+            <Button variant="danger" busy={busy} disabled={!ready} onClick={() => void confirm()}>
+              永久删除
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
   const latestReport = latestReportOf(parent.reportHistory);

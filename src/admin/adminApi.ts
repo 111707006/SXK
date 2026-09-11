@@ -146,6 +146,8 @@ export type AdminErrorCode =
   | 'ADMIN_UNAUTHENTICATED'
   | 'NO_COMPANY_SELECTED'
   | 'FORBIDDEN'
+  /** 有付款紀錄的家長刪不得（ADR-0006）。付款是對帳憑證。 */
+  | 'HAS_PAYMENTS'
   | 'UNKNOWN';
 
 export class AdminApiError extends Error {
@@ -220,6 +222,15 @@ export const adminApi = {
     request<{ parents: AdminParentListItem[] }>(`/parents?sort=${sort}&booked=${booked}`),
 
   parent: (id: number) => request<{ parent: AdminParentDetail }>(`/parents/${id}`),
+
+  /**
+   * 刪除一位家長（ADR-0006）。**硬刪，刪掉就沒了。**
+   *
+   * 失敗的兩種都由 `AdminApiError` 帶出來：跨視野／不存在是 404，
+   * 有付款紀錄是 409 + `HAS_PAYMENTS`。呼叫端要分開講 —— 前者是「找不到」，
+   * 後者是「找得到但不准刪」，而使用者的下一步完全不同。
+   */
+  deleteParent: (id: number) => request<{ ok: true }>(`/parents/${id}`, { method: 'DELETE' }),
 
   specialists: () => request<{ specialists: AdminSpecialist[] }>('/specialists'),
 

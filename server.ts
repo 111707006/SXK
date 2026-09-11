@@ -2264,6 +2264,23 @@ function resolveSyncIdentity(req: express.Request): { userId: UserId } | 'anonym
   return userId ? { userId } : 'unauthorized';
 }
 
+/**
+ * 這個工作階段的帳號還在嗎（ADR-0006）。
+ *
+ * 後台的刪除是硬刪：`users` 那一列不見了，但家長手機上那顆通行證還是有效的簽章。
+ * 少了這一步，被刪掉的家長會看到一個空白的評估面板，存檔靜靜落進記憶體備份，
+ * 而他以為自己的資料還在。回 401 之後前端會請他重新登入 —— 重新登入即新帳號，
+ * 這正是「刪了就刪了」的意思。
+ *
+ * **資料庫出問題時不回 401。** 只有明確查到「沒有這個人」才算帳號不在；一次逾時
+ * 就把所有人登出，代價比漏判一位已刪帳號大得多。
+ */
+async function sessionAccountMissing(userId: UserId | null): Promise<boolean> {
+  if (!userId || !mysqlDb.isConfigured()) return false;
+  const user = await withTimeout(findSessionUser(userId), 2000).catch(() => undefined);
+  return user === null;
+}
+
 // Endpoint to load child assessment records
 app.get('/api/db/load', async (req, res) => {
   try {
@@ -2278,6 +2295,11 @@ app.get('/api/db/load', async (req, res) => {
     const userId = identity === 'anonymous' ? null : identity.userId;
     if (!userId && (!deviceId || typeof deviceId !== 'string')) {
       res.status(400).json({ error: 'Missing deviceId parameter.' });
+      return;
+    }
+
+    if (await sessionAccountMissing(userId)) {
+      res.status(401).json({ error: '帐号已不存在，请重新登录' });
       return;
     }
 
@@ -2326,6 +2348,14 @@ app.post('/api/db/save', async (req, res) => {
     const userId = identity === 'anonymous' ? null : identity.userId;
     if (!userId && !deviceId) {
       res.status(400).json({ error: 'Missing deviceId.' });
+      return;
+    }
+
+    // 帳號被後台刪掉之後，這顆通行證仍然是有效的簽章（ADR-0006）。不先擋下來的話，
+    // 這一次存檔會因為外鍵而寫不進資料庫，然後落進下面那條「記憶體備份」的退路，
+    // 回給家長一句 `success: true` —— 他以為存好了。
+    if (await sessionAccountMissing(userId)) {
+      res.status(401).json({ error: '帐号已不存在，请重新登录' });
       return;
     }
 
@@ -2567,7 +2597,21 @@ function reportLinkNotFoundHtml(message = '这个报告连结无效，或对应�
 // 掛在這裡（所有家長端路由之後、404 兜底之前）。路由本身在 src/admin/routes.ts，
 // 那個檔案不得直接碰資料庫 —— 後台的每一句家長查詢都必須經過帶公司條件的
 // 單一入口，見 src/admin/adminStore.ts 與 test/adminScope.structure.test.ts。
-app.use('/api/admin', createAdminRouter({ multiCompany: ADMIN_MULTI_COMPANY }));
+app.use(
+  '/api/admin',
+  createAdminRouter(
+    { multiCompany: ADMIN_MULTI_COMPANY },
+    {
+      // 硬刪要連記憶體裡這份熱備份一起刪（ADR-0006）。少了這一行，被刪掉的孩子的
+      // 姓名、生日、分數與整串報告歷史會留在跑著的進程裡直到下一次重啟，而條款
+      // 承諾的是全部關聯資料都刪掉。
+      // 鍵是 `UserId`（字串形式的帳號 id），與 `/api/db/save` 寫進去時用的同一個。
+      onParentDeleted: parentId => {
+        offlineUserData.delete(String(parentId));
+      },
+    }
+  )
+);
 
 // Anything under /api that reached this point matched no route. Answer with a
 // JSON 404 before the SPA fallback in startServer() gets a chance to serve

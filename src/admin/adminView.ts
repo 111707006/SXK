@@ -381,3 +381,106 @@ export function parentPrintIdFromPath(pathname: string): number | null {
   const id = Number(match[1]);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
+
+// ══════════════════════════════════════════════
+// 刪除家長（ADR-0006）
+// ══════════════════════════════════════════════
+
+/**
+ * 確認框要求打哪一段字。
+ *
+ * 刪除是硬刪、不留紀錄、外鍵連帶刪掉孩子檔案與報告 —— 按錯一次沒有回頭路。
+ * 因此確認框不是「確定嗎？」，而是要求照著畫面上那位家長的資料打一段字：
+ * 打錯就是打錯的那一位，而不是列表上剛好被點到的那一位。
+ */
+export type DeletionChallenge = {
+  kind: 'phone' | 'email' | 'word';
+  /** 使用者必須打出來的字。 */
+  expected: string;
+  /** 輸入框上方那一句提示。 */
+  prompt: string;
+  /**
+   * 畫面上那位家長的識別資料，**遮掉答案的那一段**。`null` = 沒有東西可以顯示。
+   *
+   * 確認框蓋住了抽屜裡的「聯絡方式」，也就是手機號唯一出現的地方 —— 沒有這一行，
+   * 後台成員得先取消、看一眼、再打開一次。而這道題的用意正是「確認你在刪的是
+   * 畫面上這一位」，要確認就得有東西可以比對。
+   *
+   * 遮的是**答案那一段**，不是隨手遮：手機遮末四碼、信箱遮使用者名稱的後半。
+   * 把答案印在題目旁邊，這道題就只剩打字的手續，不再是一次確認。
+   */
+  identity: string | null;
+};
+
+function trimmed(value: string | null | undefined): string {
+  return (value ?? '').trim();
+}
+
+/** 這位家長的確認題。手機優先 —— 現在註冊一律用手機，信箱是舊帳號才有。 */
+export function deletionChallenge(parent: {
+  phone: string | null;
+  email: string | null;
+}): DeletionChallenge {
+  const phone = trimmed(parent.phone);
+  if (phone) {
+    // 不足四碼就整串當答案。取後四碼會在這裡回一個空字串，而空字串等於
+    // 「什麼都不打就通過」—— 正是這道題要擋的事。
+    const short = phone.length < 4;
+    return {
+      kind: 'phone',
+      expected: short ? phone : phone.slice(-4),
+      prompt: '请输入这位家长注册手机的末四码',
+      // 整串太短時前面沒有東西可以露，露了就等於給答案。
+      identity: short ? null : `${phone.slice(0, -4)}****`,
+    };
+  }
+
+  const email = trimmed(parent.email);
+  if (email) {
+    return {
+      kind: 'email',
+      expected: email,
+      prompt: '这个帐号没有手机，请输入它的信箱',
+      identity: maskEmail(email),
+    };
+  }
+
+  return {
+    kind: 'word',
+    expected: '删除',
+    prompt: '这个帐号没有手机也没有信箱，请输入「删除」二字',
+    identity: null,
+  };
+}
+
+/** `abc@x.com` → `a***@x.com`。認得出是哪一個帳號，但打不出完整答案。 */
+function maskEmail(email: string): string {
+  const at = email.lastIndexOf('@');
+  if (at <= 0) return '***';
+  return `${email.slice(0, 1)}***${email.slice(at)}`;
+}
+
+/** 使用者打的字對不對。前後空白一律不算數 —— 複製貼上常常多一個空格。 */
+export function matchesChallenge(challenge: DeletionChallenge, input: string): boolean {
+  const typed = input.trim();
+  if (!typed) return false;
+  // 信箱不分大小寫，郵件位址本來就不分；手機與「删除」要一模一樣。
+  return challenge.kind === 'email'
+    ? typed.toLowerCase() === challenge.expected.toLowerCase()
+    : typed === challenge.expected;
+}
+
+/**
+ * 這筆預約還在進行中嗎。
+ *
+ * 刪掉家長就刪掉他的預約，而客服可能正排著時間要打給他 —— 確認框必須把這幾筆
+ * 標出來，否則那通電話會變成打給一個系統裡已經不存在的人。
+ *
+ * 認不得的狀態一律當作「不是進行中」：這串字來自資料庫，遷移之前的舊列讀出來
+ * 可能是任何東西，而憑空多一句警告會讓真的該注意的那幾筆被淹掉。
+ */
+const IN_PROGRESS_BOOKING_STATUSES = ['new', 'contacted', 'scheduled'];
+
+export function isBookingInProgress(status: string): boolean {
+  return IN_PROGRESS_BOOKING_STATUSES.includes(status);
+}

@@ -61,10 +61,25 @@ function issueToken(identity: AdminIdentity): string {
 }
 
 /**
+ * 後台碰不到、但必須跟著後台一起變的東西。
+ *
+ * `server.ts` 在記憶體裡留著一份家長資料的熱備份（`offlineUserData`），而
+ * `adminStore` 只碰得到資料庫。刪掉一位家長之後那份備份必須跟著消失，否則孩子的
+ * 健康資料會留在跑著的進程裡，直到下一次重啟 —— 而 ADR-0006 與家長端條款承諾的
+ * 是「全部關聯資料」都刪掉。
+ *
+ * 做成回呼而不是讓 routes 去 import server：那會是一個循環相依（server 匯入 routes）。
+ */
+export interface AdminRouterHooks {
+  /** 一位家長被刪除之後呼叫。丟例外不會讓那次刪除失敗 —— 資料庫那邊已經提交了。 */
+  onParentDeleted?: (parentId: number) => void;
+}
+
+/**
  * @param shape 這個部署有沒有合作公司這回事。**沒有預設值**：忘了傳就是型別
  *   錯誤，而不是安靜地退回多公司行為 —— 那在專案 A 上的樣子是一個空列表。
  */
-export function createAdminRouter(shape: AdminCenterShape): express.Router {
+export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHooks = {}): express.Router {
   const router = express.Router();
 
   /**
@@ -270,6 +285,62 @@ export function createAdminRouter(shape: AdminCenterShape): express.Router {
     } catch (err: any) {
       console.error('[Admin] getParentDetail failed:', err.message);
       res.status(500).json({ error: '读取家长资料失败。' });
+    }
+  });
+
+  /**
+   * 刪除一位家長（ADR-0006）。**硬刪，不留紀錄。**
+   *
+   * 【兩種後台成員都刪得到】
+   * 範圍就是各自的視野 —— 公司成員只刪得到自己公司的家長，全域管理員刪當下切到
+   * 的視野裡的家長。這是刻意的偏離：`deploy/schema.sql` 的註解寫著孩子的健康資料
+   * 掌管方是森心康，照那句話「只有全域管理員能刪」本來是預設答案。改成公司成員
+   * 也能刪，是為了讓家長向合作公司提出刪除申請時，流程不必轉一手到森心康。
+   * 不是漏了角色檢查。
+   *
+   * 【跨公司回 404，不是 403】
+   * 與詳情路由一致 —— 403 等於承認那個 id 存在。
+   *
+   * 【有付款紀錄的擋下來】
+   * 409 + `HAS_PAYMENTS`。付款是對帳憑證。已知缺口：付過錢的家長提出刪除申請目前
+   * 沒有路可走，而條款承諾的是刪除。ADR-0006 記下了這件事，本次不做匿名化。
+   */
+  router.delete('/parents/:id', async (req: AuthedRequest, res) => {
+    const condition = withScope(req, res);
+    if (!condition) return;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(404).json({ error: '找不到该家长。' });
+      return;
+    }
+    try {
+      const result = await store.deleteParent(condition, id);
+      if (result === 'not_found') {
+        res.status(404).json({ error: '找不到该家长。' });
+        return;
+      }
+      if (result === 'has_payments') {
+        res.status(409).json({
+          error: '这位家长有付款纪录，无法删除。付款纪录是对帐凭证，退款与客诉都要用到。',
+          code: 'HAS_PAYMENTS',
+        });
+        return;
+      }
+      // 資料庫以外還有一份記憶體熱備份要清（見 `AdminRouterHooks`）。
+      // 包在 try 裡：那一步失敗不該讓一次已經提交的刪除回報成 500，
+      // 但也不該無聲無息 —— 沒清掉就是孩子的資料還留在這個進程裡。
+      try {
+        hooks.onParentDeleted?.(id);
+      } catch (hookErr: any) {
+        console.error('[Admin] onParentDeleted hook failed:', hookErr?.message);
+      }
+      // 伺服器日誌照既有慣例留一行。**這不是刪除紀錄** —— ADR-0006 決定不建那張表，
+      // 日誌會被輪替掉，兩年後問「你們當時刪了嗎」，系統答不出來。
+      console.log(`[Admin] deleted parent ${id} by ${req.admin?.email ?? 'unknown'}`);
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error('[Admin] deleteParent failed:', err.message);
+      res.status(500).json({ error: '删除失败。' });
     }
   });
 

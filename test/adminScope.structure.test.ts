@@ -27,8 +27,14 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 }
 
-/** 家長資料所在的表。碰到它們的查詢一定要帶公司條件。 */
-const SCOPED_TABLES = ['users', 'user_data', 'expert_bookings', 'specialists'];
+/**
+ * 家長資料所在的表。碰到它們的查詢一定要帶公司條件。
+ *
+ * `payments` 2026-09-11 加入（ADR-0006）：刪除家長之前要先數這位家長有沒有付款
+ * 紀錄，而那句 COUNT 自己看不出公司 —— `payments` 沒有 company_id，必須 JOIN
+ * `users` 才帶得上條件。少了這一條，那句話可以在別家公司的家長身上數出零筆。
+ */
+const SCOPED_TABLES = ['users', 'user_data', 'expert_bookings', 'specialists', 'payments'];
 
 /**
  * 不帶公司條件的表，每一張都要寫明為什麼它不是家長資料。
@@ -209,10 +215,11 @@ describe('後台路由不得繞過單一入口', () => {
 
   /**
    * 下限跟著「受公司條件保護的路由有幾支」走，加一支就把它往上調一格。
-   * 2026-09-11 從 8 降到 7：伺服器端的匯出端點隨 ADR-0007 移除。
+   * 2026-09-11 先從 8 降到 7（ADR-0007 移除伺服器端的匯出端點），
+   * 再回到 8（ADR-0006 加上 `DELETE /parents/:id`）。
    */
   it('每一支讀寫家長資料的路由都經過 withScope', () => {
     const scopeUses = routes.match(/withScope\(req, res\)/g) || [];
-    expect(scopeUses.length).toBeGreaterThanOrEqual(7);
+    expect(scopeUses.length).toBeGreaterThanOrEqual(8);
   });
 });

@@ -351,6 +351,100 @@ export async function getParentDetail(
   };
 }
 
+
+/**
+ * 刪除一位家長的結果。
+ *
+ * `not_found` 同時代表「這個 id 不存在」與「不在這個視野裡」—— 與詳情路由同一個
+ * 理由：分開回應等於送出一台「這個 id 存在嗎」的查詢機。
+ */
+export type DeleteParentResult = 'deleted' | 'not_found' | 'has_payments';
+
+/**
+ * 硬刪一位家長（ADR-0006）。
+ *
+ * 【硬刪，不是軟刪】
+ * `LegalTerms.tsx` 的「刪除權」承諾的是**刪除**，不是隱藏。軟刪還有兩個實際的麻煩：
+ * 後台每一句查詢與家長登入都要多一個「排除已刪除」的條件；`uk_company_phone`
+ * 唯一索引會讓被軟刪的手機號再也註冊不了，除非再加特例。
+ *
+ * 【為什麼要一個交易】
+ * `expert_bookings.user_id` 的外鍵是 `ON DELETE SET NULL`（專案 B 的匿名預約需要
+ * 它可以是 null），所以直接刪 `users` 會留下一筆後台永遠找不到、卻含著家長姓名
+ * 與手機號的孤兒列。預約必須先刪，而「先刪預約」與「刪帳號」中間失敗的話，那位
+ * 家長就失去了他的預約紀錄卻還在 —— 兩句話要嘛一起成立，要嘛都不成立。
+ *
+ * 【為什麼擋付款】
+ * 付款紀錄是對帳憑證，退款與客訴都要它。`payments` 的外鍵是 `ON DELETE CASCADE`，
+ * 刪掉家長就一起沒了。實際上只有專案 A 有付款、只有專案 B 有公司成員，這道擋門
+ * 與公司成員永遠碰不到面 —— 程式碼兩道都做，不因為現實中碰不到就省掉。
+ *
+ * 其餘的表（`user_data`、`unlocks`、`report_links`）靠外鍵連帶刪除。
+ * **掃碼帶走的報告連結因此 404** —— 那條連結原本永久有效、沒有撤回手段，
+ * 刪除家長成了唯一的撤回方法。
+ */
+export async function deleteParent(
+  condition: CompanyCondition,
+  parentId: number
+): Promise<DeleteParentResult> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const conn = await p.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 先確認他在這個視野裡，並把那一列鎖住 —— 中間有人送出預約或付款的話，
+    // 下面兩句要看到的是同一個狀態。
+    const [found] = await conn.execute(
+      `SELECT u.id FROM users u
+        WHERE ${scope.sql} AND u.id = ?
+        FOR UPDATE`,
+      [...scope.params, parentId]
+    );
+    if (!(found as any[])[0]) {
+      await conn.rollback();
+      return 'not_found';
+    }
+
+    // JOIN users 而不是只看 `payments.user_id`：公司條件必須跟著每一句走，
+    // 而 `payments` 自己沒有 company_id。
+    const [paid] = await conn.execute(
+      `SELECT COUNT(*) AS n
+         FROM payments pay
+         JOIN users u ON u.id = pay.user_id
+        WHERE ${scope.sql} AND pay.user_id = ?`,
+      [...scope.params, parentId]
+    );
+    if (Number((paid as any[])[0]?.n ?? 0) > 0) {
+      await conn.rollback();
+      return 'has_payments';
+    }
+
+    await conn.execute(
+      `DELETE b FROM expert_bookings b
+         JOIN users u ON u.id = b.user_id
+        WHERE ${scope.sql} AND b.user_id = ?`,
+      [...scope.params, parentId]
+    );
+
+    const [result] = await conn.execute(
+      `DELETE u FROM users u
+        WHERE ${scope.sql} AND u.id = ?`,
+      [...scope.params, parentId]
+    );
+
+    await conn.commit();
+    return (result as ResultSetHeader).affectedRows > 0 ? 'deleted' : 'not_found';
+  } catch (err) {
+    // 回滾本身也可能失敗（連線斷了）。吞掉它，讓原本那個錯誤傳上去 ——
+    // 那才是解釋得了發生什麼事的那一個。
+    await conn.rollback().catch(() => {});
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
 // ══════════════════════════════════════════════════════════════
 // 專家名單（後台維護）—— 同樣帶公司條件
 // ══════════════════════════════════════════════════════════════

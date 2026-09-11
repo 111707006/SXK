@@ -161,3 +161,43 @@ describe('通行證被動過手腳時（#15）', () => {
     expect(loadedByUserId).toHaveLength(0);
   });
 });
+
+/**
+ * 帳號被後台刪掉之後的同步（ADR-0006）。
+ *
+ * 刪除是硬刪，但家長手機上那顆通行證仍然是一個有效的簽章 —— 簽章有效不等於帳號
+ * 還在。少了這一關，讀取會回一份空資料（家長看到空白的評估面板，像是資料不見了
+ * 而不是帳號沒了），而存檔會因為外鍵寫不進去、落進記憶體備份那條退路，回一句
+ * `success: true`。兩種都讓家長以為系統壞了，而不是「這個帳號已經被刪除」。
+ */
+describe('帳號已被刪除（ADR-0006）', () => {
+  /** 替身的 `findUserById` 只認得 42 與 43，其餘一律回 null —— 也就是「被刪掉了」。 */
+  const DELETED_ID = 99;
+
+  it('讀取回 401，不是一份空資料', async () => {
+    const resp = await client.get('/api/db/load?deviceId=dev-1', bearer(DELETED_ID));
+    expect(resp.status).toBe(401);
+    // 而且沒有去撈那個人的資料 —— 擋在前面，不是撈完才發現。
+    expect(loadedByUserId).toHaveLength(0);
+  });
+
+  it('存檔回 401，不是假的成功', async () => {
+    const resp = await client.postJson(
+      '/api/db/save',
+      { deviceId: 'dev-1', child: { name: '小明' }, completedScores: [] },
+      bearer(DELETED_ID)
+    );
+    expect(resp.status).toBe(401);
+    expect(saved).toHaveLength(0);
+  });
+
+  it('還在的帳號不受影響', async () => {
+    expect((await client.get('/api/db/load?deviceId=dev-1', bearer(PARENT_ID))).status).toBe(200);
+  });
+
+  it('沒登入的匿名裝置紀錄照舊 —— 它本來就沒有帳號可以查', async () => {
+    const resp = await client.get('/api/db/load?deviceId=dev-anon');
+    expect(resp.status).toBe(200);
+    expect(loadedByDevice).toContain('dev-anon');
+  });
+});

@@ -16,6 +16,9 @@ import {
   showCompanySwitcher,
   screeningNewerThanReport,
   parentPrintIdFromPath,
+  deletionChallenge,
+  matchesChallenge,
+  isBookingInProgress,
   type AdminCenterShape,
   type AdminTabId,
 } from '../src/admin/adminView';
@@ -528,5 +531,118 @@ describe('家長報告列印路徑', () => {
     ]) {
       expect(parentPrintIdFromPath(path), path).toBeNull();
     }
+  });
+});
+
+/**
+ * 刪除家長之前的確認題（ADR-0006）。
+ *
+ * 硬刪、不留紀錄、外鍵連帶刪掉孩子檔案與報告 —— 這顆按鈕按錯一次就沒有回頭路。
+ * 確認框因此不是「確定嗎？」，而是要求照著畫面上那位家長的資料**打一段字**：
+ * 打錯就是打錯的那一位，而不是列表上剛好被點到的那一位。
+ */
+describe('刪除家長的確認題', () => {
+  it('有手機就問尾號四碼', () => {
+    const challenge = deletionChallenge({ phone: '13800001234', email: null });
+    expect(challenge.kind).toBe('phone');
+    expect(challenge.expected).toBe('1234');
+  });
+
+  it('沒有手機的舊信箱帳號改問信箱', () => {
+    const challenge = deletionChallenge({ phone: null, email: 'a@b.com' });
+    expect(challenge.kind).toBe('email');
+    expect(challenge.expected).toBe('a@b.com');
+  });
+
+  it('手機短到不足四碼就整串當答案 —— 不是回一個空字串', () => {
+    // 空字串會讓「什麼都不打」直接通過，而那正是這道題要擋的事。
+    const challenge = deletionChallenge({ phone: '138', email: null });
+    expect(challenge.expected).toBe('138');
+  });
+
+  it('兩者都沒有時要求打「删除」二字', () => {
+    const challenge = deletionChallenge({ phone: null, email: null });
+    expect(challenge.kind).toBe('word');
+    expect(challenge.expected).toBe('删除');
+  });
+
+  it('空白字串不算有值', () => {
+    expect(deletionChallenge({ phone: '  ', email: '  ' }).kind).toBe('word');
+  });
+
+  it('比對前後空白不算數 —— 複製貼上常常多一個空格', () => {
+    const challenge = deletionChallenge({ phone: '13800001234', email: null });
+    expect(matchesChallenge(challenge, ' 1234 ')).toBe(true);
+    expect(matchesChallenge(challenge, '1234')).toBe(true);
+    expect(matchesChallenge(challenge, '')).toBe(false);
+    expect(matchesChallenge(challenge, '12345')).toBe(false);
+  });
+
+  it('信箱不分大小寫 —— 郵件位址本來就不分', () => {
+    const challenge = deletionChallenge({ phone: null, email: 'A@B.com' });
+    expect(matchesChallenge(challenge, 'a@b.COM')).toBe(true);
+    expect(matchesChallenge(challenge, 'a@b.co')).toBe(false);
+  });
+
+  /**
+   * 確認框蓋住了抽屜裡唯一顯示手機號的地方，所以題目旁邊要有東西可以比對 ——
+   * 但**不能是答案本身**，否則這道題只剩打字的手續。
+   */
+  it('手機露出前幾碼、遮掉要打的末四碼', () => {
+    expect(deletionChallenge({ phone: '13800001234', email: null }).identity).toBe('1380000****');
+  });
+
+  it('信箱只露第一個字與網域', () => {
+    expect(deletionChallenge({ phone: null, email: 'abc@x.com' }).identity).toBe('a***@x.com');
+  });
+
+  it('露出來的那一段永遠不包含答案', () => {
+    for (const parent of [
+      { phone: '13800001234', email: null },
+      { phone: null, email: 'abc@x.com' },
+      { phone: null, email: null },
+      { phone: '138', email: null },
+    ]) {
+      const challenge = deletionChallenge(parent);
+      expect(challenge.identity ?? '', JSON.stringify(parent)).not.toContain(challenge.expected);
+    }
+  });
+
+  it('手機短到沒有東西可以露時就不露 —— 露了等於給答案', () => {
+    expect(deletionChallenge({ phone: '138', email: null }).identity).toBeNull();
+  });
+
+  it('沒有手機也沒有信箱時沒有東西可以比對', () => {
+    expect(deletionChallenge({ phone: null, email: null }).identity).toBeNull();
+  });
+
+  it('手機尾號要一模一樣，不做大小寫以外的寬容', () => {
+    const challenge = deletionChallenge({ phone: '13800001234', email: 'a@b.com' });
+    expect(challenge.kind).toBe('phone');
+    expect(matchesChallenge(challenge, 'a@b.com')).toBe(false);
+  });
+});
+
+/**
+ * 進行中的預約要在確認框裡特別標出來（ADR-0006）。
+ *
+ * 刪掉家長就刪掉他的預約，而客服可能正排著時間要打給他。畫面上看不到這一點的話，
+ * 那通電話會變成打給一個系統裡已經不存在的人。
+ */
+describe('進行中的預約', () => {
+  it('new／contacted／scheduled 算進行中', () => {
+    for (const status of ['new', 'contacted', 'scheduled']) {
+      expect(isBookingInProgress(status), status).toBe(true);
+    }
+  });
+
+  it('已完成與已取消不算', () => {
+    for (const status of ['done', 'cancelled', 'closed', '']) {
+      expect(isBookingInProgress(status), status).toBe(false);
+    }
+  });
+
+  it('認不得的狀態不算進行中 —— 不憑空製造一句警告', () => {
+    expect(isBookingInProgress('不认得的状态')).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
+import { bearer } from './helpers/session';
 
 /**
  * ⚠️ **必須在載入 `server.ts` 之前設定。** 公司隔離是專案 B 的功能：合作公司、
@@ -47,7 +48,10 @@ vi.mock('../src/admin/adminStore', async () => {
       { id: 101, email: 'p1@x.com', phone: null, companyId: 1, childName: '甲家孩子', childAgeMonth: 36, childGender: 'boy', flaggedDimensions: [], screenedAt: null, registeredAt: null, hasBooking: true },
       { id: 202, email: 'p2@x.com', phone: null, companyId: 2, childName: '乙家孩子', childAgeMonth: 30, childGender: 'girl', flaggedDimensions: [], screenedAt: null, registeredAt: null, hasBooking: false },
       { id: 303, email: 'p3@x.com', phone: null, companyId: null, childName: '没有归属的孩子', childAgeMonth: 24, childGender: 'boy', flaggedDimensions: [], screenedAt: null, registeredAt: null, hasBooking: false },
+      { id: 111, email: null, phone: '13800001234', companyId: 1, childName: '付过钱的孩子', childAgeMonth: 40, childGender: 'girl', flaggedDimensions: [], screenedAt: null, registeredAt: null, hasBooking: false },
     ],
+    /** 有付款紀錄的家長刪不得（ADR-0006）。替身只需要知道「有沒有」。 */
+    paidParentIds: [111],
     specialists: [
       { id: 1001, companyId: 1, name: '甲机构的治疗师', title: null, specialty: null, experience: null, avatarUrl: null, slots: ['周一上午'], active: true },
       { id: 2002, companyId: 2, name: '乙机构的治疗师', title: null, specialty: null, experience: null, avatarUrl: null, slots: [], active: true },
@@ -57,13 +61,17 @@ vi.mock('../src/admin/adminStore', async () => {
     available: true,
   };
 
-  const initial = JSON.parse(JSON.stringify({ specialists: db.specialists, companies: db.companies }));
+  const initial = JSON.parse(
+    JSON.stringify({ specialists: db.specialists, companies: db.companies, parents: db.parents })
+  );
 
   return {
     __db: db,
     __reset() {
       db.specialists = JSON.parse(JSON.stringify(initial.specialists));
       db.companies = JSON.parse(JSON.stringify(initial.companies));
+      // 刪除測試會真的把家長從替身裡拿掉，不重置的話後面每一條都少一個人。
+      db.parents = JSON.parse(JSON.stringify(initial.parents));
       db.switches = [];
       db.available = true;
     },
@@ -117,6 +125,16 @@ vi.mock('../src/admin/adminStore', async () => {
     async getParentDetail(condition: Cond, id: number) {
       const p = db.parents.find(x => x.id === id && matchesCompanyCondition(condition, x));
       return p ? { ...p, scores: [], reportHistory: [], bookings: [] } : null;
+    },
+    async deleteParent(condition: Cond, id: number) {
+      // 順序與正式那一支相同：先看在不在視野裡，再看有沒有付款。
+      // 反過來的話，別家公司的家長會因為「有付款」而收到 409 —— 而 409 等於
+      // 承認那個 id 存在。
+      const p = db.parents.find(x => x.id === id && matchesCompanyCondition(condition, x));
+      if (!p) return 'not_found';
+      if (db.paidParentIds.includes(id)) return 'has_payments';
+      db.parents = db.parents.filter(x => x.id !== id);
+      return 'deleted';
     },
 
     async listSpecialists(condition: Cond, includeInactive: boolean) {
@@ -286,7 +304,7 @@ describe('公司隔離（#6）', () => {
     const token = await login('a@jia.com', 'pw-jia-123');
     const body = await (await client.get('/api/admin/parents', h(token!))).json();
 
-    expect(body.parents.map((p: any) => p.id)).toEqual([101]);
+    expect(body.parents.map((p: any) => p.id)).toEqual([101, 111]);
     // 不只是「id 對」—— 整份回應裡不得出現別家公司家長的任何痕跡。
     const raw = JSON.stringify(body);
     expect(raw).not.toContain('乙家孩子');
@@ -317,7 +335,7 @@ describe('公司隔離（#6）', () => {
     const body = await (
       await client.get('/api/admin/parents?companyId=2&company=2&scope=all', h(token!))
     ).json();
-    expect(body.parents.map((p: any) => p.id)).toEqual([101]);
+    expect(body.parents.map((p: any) => p.id)).toEqual([101, 111]);
   });
 });
 
@@ -594,5 +612,140 @@ describe('跨公司彙總（#13）', () => {
   it('全域管理員即使未選定公司也看得到彙總', async () => {
     const token = await login('god@sxk.com', 'pw-god-123');
     expect((await client.get('/api/admin/summary', h(token!))).status).toBe(200);
+  });
+});
+
+/**
+ * 刪除家長（ADR-0006）。
+ *
+ * 這一組驗的是「刪除這個動作照著視野走」——與讀取同一條規則，但代價不同：讀錯
+ * 是看到不該看的，刪錯是把別家公司的孩子資料永久銷毀，而且系統不留紀錄。
+ */
+describe('刪除家長（ADR-0006）', () => {
+  const del = (path: string, token: string) =>
+    client.request(path, { method: 'DELETE', headers: h(token) });
+
+  it('公司成員刪得掉自己公司的家長', async () => {
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const resp = await del('/api/admin/parents/101', token!);
+    expect(resp.status).toBe(200);
+
+    const after = await (await client.get('/api/admin/parents', h(token!))).json();
+    expect(after.parents.map((p: any) => p.id)).not.toContain(101);
+  });
+
+  it('刪別家公司的家長被拒，且與不存在的回應一模一樣', async () => {
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const otherCompany = await del('/api/admin/parents/202', token!);
+    const nonExistent = await del('/api/admin/parents/999999', token!);
+    // 403 會承認那個 id 存在 —— 這支端點就成了一台「這個 id 存在嗎」的查詢機。
+    expect(otherCompany.status).toBe(404);
+    expect(nonExistent.status).toBe(404);
+    expect(await otherCompany.json()).toEqual(await nonExistent.json());
+  });
+
+  it('被拒的那一位真的還在', async () => {
+    const attacker = await login('a@jia.com', 'pw-jia-123');
+    await del('/api/admin/parents/202', attacker!);
+
+    const victim = await login('b@yi.com', 'pw-yi-123');
+    const list = await (await client.get('/api/admin/parents', h(victim!))).json();
+    expect(list.parents.map((p: any) => p.id)).toContain(202);
+  });
+
+  it('有付款紀錄的家長刪不得，回 409 並說明原因', async () => {
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const resp = await del('/api/admin/parents/111', token!);
+    expect(resp.status).toBe(409);
+    expect((await resp.json()).code).toBe('HAS_PAYMENTS');
+
+    const after = await (await client.get('/api/admin/parents', h(token!))).json();
+    expect(after.parents.map((p: any) => p.id)).toContain(111);
+  });
+
+  it('未選定公司的全域管理員刪不掉任何人', async () => {
+    const token = await login('god@sxk.com', 'pw-god-123');
+    const resp = await del('/api/admin/parents/101', token!);
+    expect(resp.status).toBe(409);
+    expect((await resp.json()).code).toBe('NO_COMPANY_SELECTED');
+  });
+
+  it('全域管理員切到未歸屬，刪得掉未歸屬的家長', async () => {
+    const token = await loginGlobalOn('unassigned');
+    expect((await del('/api/admin/parents/303', token)).status).toBe(200);
+  });
+
+  it('全域管理員切到甲公司時，碰不到未歸屬的家長', async () => {
+    const token = await loginGlobalOn({ companyId: 1 });
+    expect((await del('/api/admin/parents/303', token)).status).toBe(404);
+  });
+
+  it('沒登入就刪不了', async () => {
+    const resp = await client.request('/api/admin/parents/101', { method: 'DELETE' });
+    expect(resp.status).toBe(401);
+  });
+});
+
+/**
+ * 刪除也要清掉記憶體裡那份熱備份（ADR-0006）。
+ *
+ * `server.ts` 的 `offlineUserData` 是 `/api/db/save` 每一次都會寫的一份副本，
+ * 裡面是孩子的姓名、生日、九維分數與整串報告歷史。`adminStore` 只碰得到資料庫，
+ * 所以刪除必須經過一個回呼才清得到它 —— 少了那一步，被刪掉的孩子的資料會留在
+ * 跑著的進程裡直到下一次重啟，而條款承諾的是「全部關聯資料」。
+ *
+ * 這一組沒有替身：`src/db/mysql` 在這支測試裡是未設定的（見 `test/setup/testEnv.ts`），
+ * 所以存檔與讀取走的正是那條記憶體路徑，直接看得到它有沒有被清掉。
+ */
+describe('刪除會清掉記憶體裡的熱備份（ADR-0006）', () => {
+  const child = { name: '要被删掉的孩子', birthDate: '2023-05-15', ageMonth: 40, gender: 'boy' };
+
+  async function saveMemoryBackupFor(parentId: number) {
+    const resp = await client.postJson(
+      '/api/db/save',
+      { deviceId: `dev-${parentId}`, child, completedScores: [] },
+      bearer(parentId)
+    );
+    expect(resp.status).toBe(200);
+  }
+
+  async function loadMemoryBackupFor(parentId: number) {
+    return (await client.get('/api/db/load', bearer(parentId))).json();
+  }
+
+  it('護欄本身沒有壞掉：存進去之後讀得回來', async () => {
+    await saveMemoryBackupFor(101);
+    const loaded = await loadMemoryBackupFor(101);
+    expect(loaded.source).toBe('memory');
+    expect(loaded.child.name).toBe('要被删掉的孩子');
+  });
+
+  it('刪除之後那份備份不見了', async () => {
+    await saveMemoryBackupFor(101);
+
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const deleted = await client.request('/api/admin/parents/101', {
+      method: 'DELETE',
+      headers: h(token!),
+    });
+    expect(deleted.status).toBe(200);
+
+    const loaded = await loadMemoryBackupFor(101);
+    expect(loaded.source).not.toBe('memory');
+    expect(JSON.stringify(loaded)).not.toContain('要被删掉的孩子');
+  });
+
+  it('刪不成功就不清 —— 別家公司的家長碰不到他的備份', async () => {
+    await saveMemoryBackupFor(202);
+
+    const attacker = await login('a@jia.com', 'pw-jia-123');
+    const refused = await client.request('/api/admin/parents/202', {
+      method: 'DELETE',
+      headers: h(attacker!),
+    });
+    expect(refused.status).toBe(404);
+
+    const loaded = await loadMemoryBackupFor(202);
+    expect(loaded.child.name).toBe('要被删掉的孩子');
   });
 });

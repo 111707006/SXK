@@ -39,9 +39,12 @@
 │   │   ├── ReportCharts.tsx         # 报告图表
 │   │   ├── WearablesMall.tsx        # 穿戴设备商城
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
+│   ├── t2/
+│   │   └── toolkit/       # T2 题库：22 支工具的题目、选项、分段（脚本产出，勿手改）
 │   └── utils/
 │       ├── dateUtils.ts   # 日期工具函数
 │       └── reportUtils.ts # 报告生成工具
+├── NEWT2/                 # 客户 2026-09-08 评估工具包 zip 与 09-10 纸本版 zip（题库的来源）
 └── assets/                # 静态资源
 ```
 
@@ -62,7 +65,19 @@ pnpm run start      # node dist/server.cjs
 
 # 类型检查
 pnpm run lint       # tsc --noEmit
+
+# T2 题库：从工具包 zip 重新抽出 src/t2/toolkit/<id>.ts（--check 只比对不写）
+npx tsx scripts/t2-extract-toolkit.ts
+npx tsx scripts/t2-extract-toolkit.ts --check
+
+# T2 题库对纸本版逐题比对，印出每支的差异
+npx tsx scripts/t2-diff-paper.ts
 ```
+
+> `src/t2/toolkit/` 里的 22 份是脚本从 `NEWT2/森心康评估工具包_20260908.zip` 抽出来的常数，
+> **不要手改** —— `test/toolkit.structure.test.ts` 会重跑脚本比对。工具包的 HTML 一行都不执行：
+> 只取 `<script>` 开头的纯资料宣告在沙箱求值，分段函式用正则读（`scripts/t2/literals.ts`、`scripts/t2/kit.ts`）。
+> 同一支 HTML 里有三套分级，常数只抄报告那一套（＝纸本「分数解读」），规格 v2 附录 D 第一栏。
 
 ## API 接口清单
 

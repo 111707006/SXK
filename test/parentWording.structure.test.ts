@@ -57,7 +57,39 @@ const PARENT_FACING_FILES = [
   'src/components/ReportBody.tsx',
   'src/components/ReportCharts.tsx',
   'src/App.tsx',
+  // 2026-09-11 補上：家長在 T1 路徑上還會走到的其餘畫面。先前這份清單只涵蓋
+  // 「報告」那幾頁，於是 `InterventionPack` 的膠囊寫著「需关注」而報告寫著
+  // 「需要较多支持」—— 同一顆紅燈兩個名字，正是這條護欄要擋的事。
+  'src/components/AuthScreen.tsx',
+  'src/components/ChildProfileForm.tsx',
+  'src/components/EditProfileModal.tsx',
+  'src/components/AgeBandDriftNotice.tsx',
+  'src/components/InterventionPack.tsx',
+  'src/components/Paywall.tsx',
+  'src/components/WearablesMall.tsx',
+  'src/utils/interventionPack.ts',
+  'src/utils/specialists.ts',
+  'src/utils/ageBandDrift.ts',
 ];
+
+/**
+ * 專案 A 的深度評估路徑（T2／T3）**尚未納入這條護欄**，這是 2026-09-11 的
+ * 決定，不是漏掉。
+ *
+ * 那幾個檔案 —— `SpecializedReportView.tsx`、`utils/reportUtils.ts`、
+ * `LanguageSpecialAssessment.tsx`、`MotionVideoAssessment.tsx`、`cpmvData.ts`、
+ * `utils/cpmvReport.ts`、`AssessmentPanel.tsx` 描述 T2/T3 的那兩句 —— 合計約
+ * 五十處禁字（「🚨 重度发育落后」「必须在未来 2-3 周内」「脑瘫儿童动作影像评估
+ * 报告」…）。客戶的對照表明寫適用於「T1 筛查报告与**各层**家长版报告」，所以
+ * 它們該改。
+ *
+ * **不現在改的理由：整個 T2 正在重做。** 題庫、判級門檻、報告產生方式都要換成
+ * 客戶提供的 23 份量表（見 `docs/specs/t2-rules-engine-report-and-video-matching.md`
+ * 與 ADR-0005），現在把這些字一個一個柔化，改完的句子多半會連同整個檔案被換掉。
+ *
+ * ⚠️ **T2 重做完成時，把那幾個檔案加進上面那份清單。** 沒有這一條護欄，新寫的
+ * T2 報告會重新長出同一批字 —— 這個專案已經證明過它會。
+ */
 
 describe('護欄本身沒有壞掉', () => {
   it('禁字清單不是空的，而且抓得到已知的舊文案', () => {

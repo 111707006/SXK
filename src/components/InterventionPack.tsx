@@ -12,6 +12,7 @@
 import React from 'react';
 import { AlertCircle, ClipboardList, MessageSquare, PlayCircle } from 'lucide-react';
 import { useInterventionPack, interventionMessage } from '../utils/interventionPack';
+import { STATUS_WORDING } from '../utils/statusWording';
 
 interface InterventionPackProps {
   dimensionId: string | null;
@@ -42,7 +43,14 @@ export default function InterventionPack({
         // 測評月齡讀的 —— 孩子跨段之後兩者會分岔，不寫出來就沒有人知道這組步驟
         // 是照哪一個年齡挑的。
         <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">
-          {cell.ageBandName}・{cell.severity === 'delay' ? '需关注' : '需留意'}
+          {/*
+            三級標示走 `STATUS_WORDING`，不在這裡寫死。這一句原本是
+            `severity === 'delay' ? '需关注' : '需留意'` —— 2026-09-11 把三級標籤
+            收成單一來源時漏掉了它，於是同一顆紅燈在報告裡說「需要较多支持」、
+            在干預包的膠囊上說「需关注」，而「需关注」正是《家长报告用语对照表》
+            要改掉的字。
+          */}
+          {cell.ageBandName}・{STATUS_WORDING[cell.severity].label}
         </span>
       )}
     </div>

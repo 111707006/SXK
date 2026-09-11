@@ -20,6 +20,18 @@ export type { ToolId };
 export type DimensionCode = 'COG' | 'LANG' | 'SOC' | 'EMO' | 'ATT' | 'MOT' | 'SEN' | 'ADL' | 'LEARN';
 
 /**
+ * 九個維度的固定順序（＝附錄 A 的宣告順序）。要「對每個維度做一遍」時用它，
+ * 不要用 `Object.keys(t1Flags)` —— 那個順序是呼叫端寫物件時的手順，
+ * 路由與報告的輸出順序不該跟著它漂。這不是報告的排序（那是 §8 的另一組順序）。
+ */
+export const DIMENSION_CODES: ReadonlyArray<DimensionCode> = [
+  'COG', 'LANG', 'SOC', 'EMO', 'ATT', 'MOT', 'SEN', 'ADL', 'LEARN',
+];
+
+/** T1 對一個維度的標記：0 綠（不做）、1 黃（選做）、2 紅（必做）（§4.1）。 */
+export type T1Flag = 0 | 1 | 2;
+
+/**
  * 給家長的三級判定。內部名稱，家長端顯示的字一律走 `src/utils/statusWording.ts`。
  * `clear` 與「沒做完」是不同的事，別把 `DimensionFinding.band` 的
  * `partial`／`not_assessed`／`no_tool` 塌進 `clear`（§5.7）。
@@ -155,9 +167,16 @@ export interface T2Plan {
   required: PlanItem[];
   optional: PlanItem[];
   followup: PlanItem[];
-  /** 只出標籤的工具（chexi、tempa、tempb）。 */
+  /** 只出標籤的工具（chexi、tempa、tempb）。恆為選做，不進 `estimatedItems`。 */
   extras: PlanItem[];
   /** 被 T1 標記、但這個月齡沒有任何會出 band 的工具的維度（§4.5）。 */
   noTool: DimensionCode[];
   estimatedItems: { required: number; optional: number; followup: number };
+  /**
+   * 診斷方向帶進來的「功能處理順序」（§4.3、附錄 B.2），報告拿它排維度。
+   * 沒選、或選的那一格是空的（學習障礙／多動症／抽動症 0–36）→ `null`，
+   * 兩種情況對下游要是同一件事。客戶的順序**不是九個都在**（沒有一列有 ADL），
+   * 缺的維度怎麼補是報告那一層的事。
+   */
+  functionOrder: DimensionCode[] | null;
 }

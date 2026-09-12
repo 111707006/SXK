@@ -35,8 +35,8 @@ import { calculateAgeMonth, formatAge, refreshChildAge } from './utils/dateUtils
 import { ageBandDrift, latestAssessedAgeMonth } from './utils/ageBandDrift';
 import { useToday } from './utils/useToday';
 import { authFetch, setUnauthorizedHandler } from './utils/api';
-import { getDimensionAccess, isPaywallActive } from './utils/access';
-import { DEFAULT_UNLOCK_PRICE_FEN, formatFen } from './utils/price';
+import { getT2Access, isPaywallActive } from './utils/access';
+import { DEFAULT_UNLOCK_PRICE_FEN } from './utils/price';
 import { BeianFooter } from './components/BeianFooter';
 import { BrandMark } from './components/BrandMark';
 // 條款內文的唯一來源。登入頁（AuthScreen）渲染的是同一份 —— 見該檔說明。
@@ -125,15 +125,25 @@ export default function App() {
 
   // ── 付費解鎖狀態 ──
   // 存取權的唯一真實來源是後端（`GET /api/unlocks`），這裡存的只是畫面用的快取。
-  // 真正的閘門在 server.ts 的 denyIfLocked —— 前端擋畫面、後端擋資料。
-  /** 已解鎖的維度；`null` 代表尚未查到（判斷上等同未解鎖）。 */
-  const [unlockedDimensionIds, setUnlockedDimensionIds] = useState<string[] | null>(null);
+  // 真正的閘門在 server.ts 的 denyIfT2Locked —— 前端擋畫面、後端擋資料。
+  /**
+   * 這位家長有沒有**整份 T2** 的權益；`null` 代表尚未查到（判斷上等同未解鎖）。
+   *
+   * 是一個布林而不是一份維度清單，因為 T2 整份買一次（票 #45）——
+   * 「買了哪幾個維度」這個問題在 T2 這一層不存在。
+   */
+  const [t2Unlocked, setT2Unlocked] = useState<boolean | null>(null);
   /** 後端是否有持久層可承載購買；`null` 代表尚未確定，一律當作付費牆會執行。 */
   const [unlocksAvailable, setUnlocksAvailable] = useState<boolean | null>(null);
   /** 單價（分）。以後端回傳為準，前端不自己寫死金額。 */
   const [unlockPriceFen, setUnlockPriceFen] = useState<number>(DEFAULT_UNLOCK_PRICE_FEN);
-  /** 付費牆正在處理的維度 */
-  const [paywallDimensionId, setPaywallDimensionId] = useState<string | null>(null);
+  /**
+   * 家長被付費牆攔下來之前正要去的地方。解鎖之後把他送回那裡，
+   * 而不是丟回總覽讓他自己再找一次。
+   */
+  const [paywallReturn, setPaywallReturn] = useState<
+    { dimensionId: string; target: 'assessment' | 'language_special' } | null
+  >(null);
 
   const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   const [dbEnvId, setDbEnvId] = useState<string | null>(null);
@@ -368,7 +378,7 @@ export default function App() {
   useEffect(() => {
     if (!PRODUCT.features.paywall) return;
     if (!userIdentity) {
-      setUnlockedDimensionIds(null);
+      setT2Unlocked(null);
       setUnlocksAvailable(null);
       return;
     }
@@ -380,12 +390,14 @@ export default function App() {
         if (!resp.ok || !ct || !ct.includes('application/json')) return;
         const data = await resp.json();
         if (cancelled) return;
-        setUnlockedDimensionIds(Array.isArray(data.dimensionIds) ? data.dimensionIds : []);
+        // 回應裡的 `dimensionIds` 是 T3 的（每個維度各買一次），這裡不讀 ——
+        // 把兩種權益混成一份清單，正是「買了一個維度就打開整份 T2」的走法。
+        setT2Unlocked(data.t2 === true);
         setUnlocksAvailable(data.available === true);
         if (typeof data.priceFen === 'number' && data.priceFen > 0) setUnlockPriceFen(data.priceFen);
       } catch (err) {
         // 保持 null（尚未確定）—— 讀不到權益時 fail-closed，不樂觀放行。
-        console.warn('Failed to load unlocked dimensions:', err);
+        console.warn('Failed to load T2 entitlement:', err);
       }
     })();
     return () => { cancelled = true; };
@@ -394,20 +406,23 @@ export default function App() {
   /**
    * 進入某維度的深度評估，未解鎖則先過付費牆。
    *
-   * `target` 讓語言專項走同一道檢查 —— 它是語言維度的 T2/T3 內容，
+   * 檢查的是**整份 T2 的權益**，不是這一個維度 —— 家長買的是一份，
+   * 九個維度的深度評估不再各賣各的（票 #45）。
+   *
+   * `target` 讓語言專項走同一道檢查 —— 它是語言維度的深度評估內容，
    * 另開一條不檢查的路等於在付費牆旁邊挖一個洞。
    */
   const enterDimension = (dimensionId: string, target: 'assessment' | 'language_special' = 'assessment') => {
-    const access = getDimensionAccess(dimensionId, {
+    const access = getT2Access({
       paywallEnabled: PRODUCT.features.paywall,
       unlocksAvailable,
       isLoggedIn: Boolean(userIdentity),
-      unlockedDimensionIds,
+      t2Unlocked,
     });
     // locked 與 demo 去的是同一個畫面，但結果相反：前者過不去，後者可以略過。
     // 略過的入口只在 demo 下渲染，所以資料庫一接上它就消失。
     if (access === 'locked' || access === 'demo') {
-      setPaywallDimensionId(dimensionId);
+      setPaywallReturn({ dimensionId, target });
       setCurrentView('paywall');
       return;
     }
@@ -597,7 +612,6 @@ export default function App() {
 
   // Find active dimension config
   const activeDimension = DIMENSIONS_DATA.find(d => d.id === selectedDimensionId);
-  const paywallDimension = DIMENSIONS_DATA.find(d => d.id === paywallDimensionId);
 
   /**
    * 孩子的實足月齡是否已經跨出上一次篩查所在的年齡段。
@@ -616,21 +630,24 @@ export default function App() {
 
   // 付費 UI 是否該出現。只有專案 B 完全沒有 —— 展示模式仍要看得到付費牆長什麼樣子。
   const paywallActive = isPaywallActive({ paywallEnabled: PRODUCT.features.paywall });
-  const accessOf = (dimensionId: string) => getDimensionAccess(dimensionId, {
+  const t2Access = getT2Access({
     paywallEnabled: PRODUCT.features.paywall,
     unlocksAvailable,
     isLoggedIn: Boolean(userIdentity),
-    unlockedDimensionIds,
+    t2Unlocked,
   });
-  // 卡片上要顯示 ¥19.9 徽章的維度：真的鎖住的，以及展示模式下「本來會鎖住」的。
-  const lockedDimensionIds = paywallActive
-    ? DIMENSIONS_DATA.filter(d => ['locked', 'demo'].includes(accessOf(d.id))).map(d => d.id)
-    : [];
+  /**
+   * 深度評估要不要在卡片上顯示鎖頭：真的鎖住的，以及展示模式下「本來會鎖住」的。
+   *
+   * 一個布林、不是一份維度清單 —— 九張卡片各掛一個價格的做法在 #45 退場了。
+   * 價格只出現在付費牆上一次，因為家長也只付一次。
+   */
+  const deepAssessmentLocked = paywallActive && ['locked', 'demo'].includes(t2Access);
   /**
    * 路由層的最後一道 —— **只認 `locked`**。展示模式略過付費牆之後仍要進得去，
-   * 所以不能拿上面那個含 `demo` 的清單來擋。
+   * 所以不能拿上面那個含 `demo` 的旗標來擋。
    */
-  const isRouteBlocked = (dimensionId: string) => accessOf(dimensionId) === 'locked';
+  const isRouteBlocked = t2Access === 'locked';
 
   return (
     <div className="min-h-screen bg-brand-cream text-brand-charcoal font-sans flex flex-col justify-between">
@@ -1043,8 +1060,7 @@ export default function App() {
                     }
                     enterDimension(dimId);
                   }}
-                  lockedDimensionIds={lockedDimensionIds}
-                  unlockPriceLabel={paywallActive ? formatFen(unlockPriceFen) : null}
+                  deepAssessmentLocked={deepAssessmentLocked}
                   onViewReport={() => {
                     // Jump straight to the live T1 AI report page, skipping the archive/library page.
                     setViewingLiveT1(true);
@@ -1078,7 +1094,7 @@ export default function App() {
                   }}
                 />
               </div>
-            ) : currentView === 'assessment' && activeDimension && PRODUCT.features.tier2And3 && !isRouteBlocked(activeDimension.id) ? (
+            ) : currentView === 'assessment' && activeDimension && PRODUCT.features.tier2And3 && !isRouteBlocked ? (
               /* Inside selected Portal Questions screen */
               <div className="animate-fade-in">
                 <LazyBoundary>
@@ -1367,27 +1383,29 @@ export default function App() {
                   </div>
                 )}
               </div>
-            ) : currentView === 'paywall' && PRODUCT.features.tier2And3 && PRODUCT.features.paywall && paywallDimension ? (
-              /* 單一維度 T2+T3 的付費解鎖牆（僅專案 A） */
+            ) : currentView === 'paywall' && PRODUCT.features.tier2And3 && PRODUCT.features.paywall ? (
+              /* 整份 T2 深度評估的付費解鎖牆（僅專案 A）—— 一個入口、一個價格 */
               <div className="animate-fade-in">
                 <LazyBoundary>
                   <Paywall
-                    dimension={paywallDimension}
                     priceFen={unlockPriceFen}
-                    isDemo={accessOf(paywallDimension.id) === 'demo'}
+                    isDemo={t2Access === 'demo'}
                     onBack={() => setCurrentView('dashboard')}
                     onAlreadyUnlocked={() => {
-                      // 別的分頁買完了 —— 重讀權益後直接進評估，不讓家長再付一次。
-                      setUnlockedDimensionIds(prev => (
-                        prev && !prev.includes(paywallDimension.id) ? [...prev, paywallDimension.id] : prev
-                      ));
-                      setSelectedDimensionId(paywallDimension.id);
+                      // 別的分頁買完了 —— 記下權益後把他送回原本要去的地方，
+                      // 不讓家長再付一次，也不讓他回總覽自己再找一次。
+                      setT2Unlocked(true);
+                      if (paywallReturn?.target === 'language_special') {
+                        setCurrentView('language_special');
+                        return;
+                      }
+                      if (paywallReturn) setSelectedDimensionId(paywallReturn.dimensionId);
                       setCurrentView('assessment');
                     }}
                   />
                 </LazyBoundary>
               </div>
-            ) : currentView === 'language_special' && PRODUCT.features.tier2And3 && !isRouteBlocked('language') ? (
+            ) : currentView === 'language_special' && PRODUCT.features.tier2And3 && !isRouteBlocked ? (
               /* Deep Language and SLP Diagnostic Assessment Page */
               <div className="animate-fade-in">
                 <LazyBoundary>

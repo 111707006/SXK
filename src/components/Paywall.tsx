@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { DimensionConfig } from '../types';
 import { authFetch } from '../utils/api';
 import { formatFen } from '../utils/price';
 import {
@@ -14,7 +13,6 @@ import {
 const PENDING_ORDER_KEY = 'senxinkang_pending_order';
 
 interface PaywallProps {
-  dimension: DimensionConfig;
   /** 單價（分）。來源是 `GET /api/unlocks` 的 `priceFen`，不在前端寫死。 */
   priceFen: number;
   /**
@@ -23,12 +21,17 @@ interface PaywallProps {
    */
   isDemo?: boolean;
   onBack: () => void;
-  /** 已擁有該維度時呼叫 —— 例如家長在另一個分頁買完後又回來點。 */
+  /** 已擁有 T2 權益時呼叫 —— 例如家長在另一個分頁買完後又回來點。 */
   onAlreadyUnlocked: () => void;
 }
 
 /**
- * 單一維度深度評估（T2 + T3）的付費牆。
+ * 整份第二層深度評估的付費牆 —— **一個入口、一個價格**（票 #45）。
+ *
+ * 2026-09-11 之前這裡賣的是「一個維度的 T2+T3」，總覽的九張卡片各掛一個
+ * 「¥19.9 解锁」。改掉的理由不是畫面難看：T2 的那幾支量表本來就會同時餵好幾個
+ * 維度，按維度賣會讓同一份問卷被賣兩次，而被標記的維度往往不只一個。
+ * T3 綁維度的做法不變，但 T3 暫緩，所以這個畫面上沒有它的入口。
  *
  * ⚠️ 這裡**沒有**「完成付款」的路徑，而且刻意如此。後端唯一會發放權益的地方是
  * 驗簽通過的微信回調與查單補償（`server.ts` 的註解寫了同一件事）。在前端補一顆
@@ -39,7 +42,7 @@ interface PaywallProps {
  * 開放」**，不做假的成功畫面。這是專家預約那次學到的同一課：給家長假的成功，
  * 比直接告訴他還沒好更糟。
  */
-export default function Paywall({ dimension, priceFen, isDemo = false, onBack, onAlreadyUnlocked }: PaywallProps) {
+export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnlocked }: PaywallProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState<{ outTradeNo: string; amountFen: number; reason?: string | null } | null>(null);
@@ -55,9 +58,11 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
   useEffect(() => {
     const raw = sessionStorage.getItem(PENDING_ORDER_KEY);
     if (!raw) return;
-    let saved: { outTradeNo?: string; dimensionId?: string };
+    let saved: { outTradeNo?: string; scope?: string };
     try { saved = JSON.parse(raw); } catch { sessionStorage.removeItem(PENDING_ORDER_KEY); return; }
-    if (!saved.outTradeNo || saved.dimensionId !== dimension.id) return;
+    // 舊版存的是 `dimensionId`。那種殘留不再認得，直接忽略 —— 拿一張舊的維度訂單
+    // 去查 T2 的結果，只會讓家長看到一個對不上的答案。
+    if (!saved.outTradeNo || saved.scope !== 't2') return;
 
     let cancelled = false;
     setIsChecking(true);
@@ -80,7 +85,7 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
       }
     })();
     return () => { cancelled = true; };
-  }, [dimension.id]);
+  }, []);
 
   const handleCreateOrder = async () => {
     setError(null);
@@ -88,7 +93,8 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
     try {
       const resp = await authFetch('/api/payment/create', {
         method: 'POST',
-        body: JSON.stringify({ dimensionId: dimension.id }),
+        // 沒有維度可送。`scope` 就是伺服器用來決定發哪一種權益的那一個欄位。
+        body: JSON.stringify({ scope: 't2' }),
       });
       const ct = resp.headers.get('content-type');
       if (!ct || !ct.includes('application/json')) {
@@ -109,7 +115,7 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
         // 記下訂單號 —— 回跳後要靠它查單。H5 的 h5_url 只有 5 分鐘效期，
         // 拿到就跳，不存起來重用。
         sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify({
-          outTradeNo: data.outTradeNo, dimensionId: dimension.id,
+          outTradeNo: data.outTradeNo, scope: 't2',
         }));
         // 只允許在既有參數後追加 redirect_url，且值必須 urlencode。
         // 用一般導頁（不是 window.open / rel=noreferrer）—— H5 支付會檢查
@@ -147,9 +153,9 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
             <Lock size={12} />
             深度评估 · 待解锁
           </div>
-          <h2 className="text-lg font-extrabold text-brand-forest mt-1">{dimension.name} · T2 + T3 深度评估</h2>
+          <h2 className="text-lg font-extrabold text-brand-forest mt-1">第二层深度评估 · 整份解锁</h2>
           <p className="text-[11px] text-brand-charcoal/70 mt-1">
-            针对本维度的第二层能力量表与第三层专项实测，含 AI 生成的单维度脑发育深度专项报告。
+            依孩子的筛查结果安排要答的量表，答完生成深度报告与每周家庭活动。
           </p>
         </div>
 
@@ -157,14 +163,14 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
           <div className="flex items-baseline gap-1">
             <span className="text-sm font-bold text-brand-forest">¥</span>
             <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(priceFen)}</span>
-            <span className="text-[11px] text-brand-charcoal/60 ml-1">/ 单个维度</span>
+            <span className="text-[11px] text-brand-charcoal/60 ml-1">/ 整份一次</span>
           </div>
 
           <ul className="space-y-2">
             {[
-              { icon: FileText, text: 'T2 家属能力自评量表（本维度）' },
-              { icon: Activity, text: 'T3 临床互动实测与上传评分' },
-              { icon: Sparkles, text: 'AI 单维度脑发育深度专项报告' },
+              { icon: FileText, text: '第二层能力量表，由家长填写' },
+              { icon: Activity, text: '筛查中被标记的能力方面全部涵盖，不分开购买' },
+              { icon: Sparkles, text: 'AI 生成的深度报告与每周家庭活动' },
               { icon: InfinityIcon, text: '永久有效，重做筛查后依然可用，可免费重测' },
             ].map(({ icon: Icon, text }) => (
               <li key={text} className="flex items-start gap-2 text-xs text-brand-charcoal/80">
@@ -177,7 +183,7 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
           <div className="flex items-start gap-2 text-[10px] text-brand-charcoal/60 bg-brand-cream rounded-xl p-3 border border-brand-stone/40">
             <ShieldCheck size={12} className="shrink-0 mt-0.5 text-brand-moss" />
             <span>
-              解锁权益绑定您的帐号与该维度，不绑定某一次筛查批次。付款由微信支付处理，本平台不接触您的支付信息。
+              一次解锁整份第二层深度评估。权益绑定您的帐号，不绑定某一次筛查批次。付款由微信支付处理，本平台不接触您的支付信息。
             </span>
           </div>
 
@@ -259,7 +265,7 @@ export default function Paywall({ dimension, priceFen, isDemo = false, onBack, o
               ) : (
                 <>
                   <Lock size={14} />
-                  ¥{formatFen(priceFen)} 解锁 {dimension.name} 深度评估
+                  ¥{formatFen(priceFen)} 解锁深度评估
                 </>
               )}
             </button>

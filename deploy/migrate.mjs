@@ -149,6 +149,9 @@ function splitMigration(sqlText) {
  */
 const EXACT_EXPECTED = {
   new_tables_ok: 4,
+  // 2026-09-11 的 unlocks 唯一键有三个栏位（user_id, scope, entitlement_key）。
+  // 用「大于 0」去验它，只建到一半的索引会被判成通过。
+  unlocks_unique_key_ok: 3,
 };
 
 /**

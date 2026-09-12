@@ -136,6 +136,9 @@ CREATE TABLE IF NOT EXISTS `sms_codes` (
 CREATE TABLE IF NOT EXISTS `payments` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT UNSIGNED NOT NULL,
+  -- 这笔付款买的是整份 T2，还是单一维度的 T3。结算时唯一知道「买了什么」的地方
+  -- 就是这一列 —— settlePayment 只拿得到订单号。
+  `scope` ENUM('t2','t3') NOT NULL DEFAULT 't3',
   -- 商户订单号，由我方产生，微信以此对帐
   `out_trade_no` VARCHAR(64) NOT NULL UNIQUE,
   -- 微信支付订单号，付款成功后由回调回填
@@ -143,8 +146,9 @@ CREATE TABLE IF NOT EXISTS `payments` (
   -- 金额单位为「分」，避免浮点误差（¥19.9 = 1990）
   `amount_fen` INT UNSIGNED NOT NULL,
   `status` ENUM('pending','success','failed','refunded') NOT NULL DEFAULT 'pending',
-  -- 此次付款要解锁的维度
-  `dimension_id` VARCHAR(64) NOT NULL,
+  -- 此次付款要解锁的维度。scope='t2' 时为 NULL —— T2 是整份买一次，没有维度，
+  -- 硬塞一个假维度进去会在对帐时变成查不出来的脏资料。
+  `dimension_id` VARCHAR(64) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `paid_at` DATETIME DEFAULT NULL,
   INDEX `idx_user` (`user_id`),
@@ -153,12 +157,18 @@ CREATE TABLE IF NOT EXISTS `payments` (
   CONSTRAINT `fk_payments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 解锁权益：某使用者对某维度深度评估（T2+T3）的永久使用权。
--- 绑 user + dimension，不绑筛查批次：家长重做筛查后权益依然有效，可免费重做 T2/T3。
+-- 解锁权益：某使用者对深度评估的永久使用权。
+-- 不绑筛查批次：家长重做筛查后权益依然有效，可免费重做。
+--
+-- 两种范围（2026-09-11，票 #45）：
+--   scope='t2' → **整份 T2 买一次**，一位家长最多一列，dimension_id 为 NULL
+--   scope='t3' → 单一维度，dimension_id 是那个维度（旧的九张卡片就是这种）
 CREATE TABLE IF NOT EXISTS `unlocks` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT UNSIGNED NOT NULL,
-  `dimension_id` VARCHAR(64) NOT NULL,
+  `scope` ENUM('t2','t3') NOT NULL DEFAULT 't3',
+  -- scope='t2' 时为 NULL
+  `dimension_id` VARCHAR(64) DEFAULT NULL,
   -- 取得来源：付款，或由客服／行销免费发放
   `source` ENUM('payment','grant') NOT NULL DEFAULT 'payment',
   `payment_id` BIGINT UNSIGNED DEFAULT NULL,
@@ -166,11 +176,16 @@ CREATE TABLE IF NOT EXISTS `unlocks` (
   -- 退款或人工撤销时填入；非 NULL 代表权益已失效
   `revoked_at` DATETIME DEFAULT NULL,
   --
+  -- 唯一键用的衍生值：把 NULL 换成哨兵 `*`。MySQL 的唯一键**不管 NULL**，
+  -- 少了这一栏，同一位家长可以有无限多列 t2 权益。
+  -- 维度 id 全是 snake_case 的英数字，撞不到 `*`。
+  `entitlement_key` VARCHAR(64) AS (IFNULL(`dimension_id`, '*')) STORED,
+  --
   -- 幂等关键：微信支付回调会重复送达。此唯一键让第二次开通直接失败，
   -- 因此正确的判断是「这笔 unlock 是否已存在」，而不是「付款是否成功」。
   -- 退款后重新购买时，应 UPDATE 既有列把 revoked_at 设回 NULL，而非再 INSERT。
   --
-  UNIQUE KEY `uk_user_dimension` (`user_id`, `dimension_id`),
+  UNIQUE KEY `uk_user_scope_entitlement` (`user_id`, `scope`, `entitlement_key`),
   INDEX `idx_payment` (`payment_id`),
   CONSTRAINT `fk_unlocks_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_unlocks_payment` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`id`) ON DELETE SET NULL

@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise';
 import type { ServiceType } from '../utils/serviceTypes';
 import type { MaterialRecord, MaterialStep } from '../utils/materialCells';
+import type { UnlockScope } from '../types';
 
 let pool: mysql.Pool | null = null;
 
@@ -453,19 +454,30 @@ export async function saveUserData(
 // once, refunds must revoke access while keeping the transaction record, and
 // goodwill grants create access with no transaction behind them.
 
-/** Creates a pending payment row and returns its id. */
-export async function createPayment(
-  userId: number,
-  outTradeNo: string,
-  amountFen: number,
-  dimensionId: string
-): Promise<number | null> {
+/**
+ * Creates a pending payment row and returns its id.
+ *
+ * Takes an object rather than positionals because `scope` and `dimensionId` are
+ * both strings sitting next to each other and one of them is nullable — exactly
+ * the shape that makes a silent argument swap possible, and a swapped scope here
+ * is a parent who paid for T2 and gets a T3 dimension.
+ */
+export interface PaymentInput {
+  userId: number;
+  outTradeNo: string;
+  amountFen: number;
+  scope: UnlockScope;
+  /** Null for `scope: 't2'` — the whole T2 is one purchase, it has no dimension. */
+  dimensionId: string | null;
+}
+
+export async function createPayment(input: PaymentInput): Promise<number | null> {
   const p = getPool();
   if (!p) return null;
   const [result] = await p.execute(
-    `INSERT INTO payments (user_id, out_trade_no, amount_fen, status, dimension_id)
-     VALUES (?, ?, ?, 'pending', ?)`,
-    [userId, outTradeNo, amountFen, dimensionId]
+    `INSERT INTO payments (user_id, out_trade_no, amount_fen, status, scope, dimension_id)
+     VALUES (?, ?, ?, 'pending', ?, ?)`,
+    [input.userId, input.outTradeNo, input.amountFen, input.scope, input.dimensionId]
   );
   return (result as mysql.ResultSetHeader).insertId;
 }
@@ -512,52 +524,99 @@ export async function markPaymentRefunded(outTradeNo: string): Promise<boolean> 
   return (result as mysql.ResultSetHeader).affectedRows === 1;
 }
 
+/** One entitlement: the whole of T2, or one dimension's T3. */
+export interface UnlockInput {
+  userId: number;
+  scope: UnlockScope;
+  /** Null for `scope: 't2'`. */
+  dimensionId: string | null;
+  source: 'payment' | 'grant';
+  paymentId: number | null;
+}
+
 /**
- * Grants permanent access to one dimension's deep assessment.
+ * Grants permanent access to the deep assessment named by `scope`.
  *
- * Upsert rather than insert: `unlocks` has UNIQUE(user_id, dimension_id), so a
- * parent who refunded and later bought again must reuse the existing row with
- * revoked_at cleared. A plain INSERT would just fail on the unique key and the
- * parent would have paid for nothing.
+ * Upsert rather than insert: `unlocks` is unique on
+ * (user_id, scope, entitlement_key), so a parent who refunded and later bought
+ * again must reuse the existing row with revoked_at cleared. A plain INSERT
+ * would just fail on the unique key and the parent would have paid for nothing.
+ *
+ * `entitlement_key` is a generated column (`IFNULL(dimension_id, '*')`) and is
+ * never written here. It exists because MySQL's unique keys ignore NULLs, so
+ * without it every t2 grant would insert yet another row — and the unique key is
+ * what makes a resent WeChat callback a no-op.
  */
-export async function grantUnlock(
-  userId: number,
-  dimensionId: string,
-  source: 'payment' | 'grant',
-  paymentId: number | null
-): Promise<void> {
+export async function grantUnlock(input: UnlockInput): Promise<void> {
   const p = getPool();
   if (!p) return;
   await p.execute(
-    `INSERT INTO unlocks (user_id, dimension_id, source, payment_id)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO unlocks (user_id, scope, dimension_id, source, payment_id)
+     VALUES (?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        source = VALUES(source),
        payment_id = VALUES(payment_id),
        revoked_at = NULL`,
-    [userId, dimensionId, source, paymentId]
+    [input.userId, input.scope, input.dimensionId, input.source, input.paymentId]
   );
 }
 
-/** Revokes access (refund or manual reversal). Keeps the row for audit. */
-export async function revokeUnlock(userId: number, dimensionId: string): Promise<void> {
+/**
+ * Revokes access (refund or manual reversal). Keeps the row for audit.
+ *
+ * Matches on the same generated key the unique index uses, so a t2 revoke needs
+ * no dimension and cannot accidentally match every t3 row of that user.
+ */
+export async function revokeUnlock(
+  userId: number,
+  scope: UnlockScope,
+  dimensionId: string | null
+): Promise<void> {
   const p = getPool();
   if (!p) return;
   await p.execute(
-    'UPDATE unlocks SET revoked_at = NOW() WHERE user_id = ? AND dimension_id = ? AND revoked_at IS NULL',
-    [userId, dimensionId]
+    `UPDATE unlocks SET revoked_at = NOW()
+      WHERE user_id = ? AND scope = ? AND entitlement_key = IFNULL(?, '*')
+        AND revoked_at IS NULL`,
+    [userId, scope, dimensionId]
   );
 }
 
-/** Dimension ids this user currently has access to. Revoked rows excluded. */
+/**
+ * Dimension ids this user currently has T3 access to. Revoked rows excluded.
+ *
+ * `scope = 't3'` is not cosmetic: a t2 row has `dimension_id` NULL, so without
+ * the filter this returns `[null]` and every caller that does `.includes(id)`
+ * keeps working while quietly carrying a null around.
+ */
 export async function listUnlockedDimensions(userId: number): Promise<string[]> {
   const p = getPool();
   if (!p) return [];
   const [rows] = await p.execute(
-    'SELECT dimension_id FROM unlocks WHERE user_id = ? AND revoked_at IS NULL',
+    `SELECT dimension_id FROM unlocks
+      WHERE user_id = ? AND scope = 't3' AND revoked_at IS NULL`,
     [userId]
   );
   return (rows as any[]).map(r => r.dimension_id);
+}
+
+/**
+ * Does this parent hold the whole-of-T2 entitlement?
+ *
+ * Deliberately a boolean and not a list: T2 is bought once, so there is nothing
+ * to enumerate, and returning a list would invite a caller to start checking
+ * dimensions against it again.
+ */
+export async function hasT2Unlock(userId: number): Promise<boolean> {
+  const p = getPool();
+  if (!p) return false;
+  const [rows] = await p.execute(
+    `SELECT 1 FROM unlocks
+      WHERE user_id = ? AND scope = 't2' AND revoked_at IS NULL
+      LIMIT 1`,
+    [userId]
+  );
+  return (rows as any[]).length > 0;
 }
 
 // ---- Expert booking operations ----

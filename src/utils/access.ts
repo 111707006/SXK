@@ -9,8 +9,13 @@
  * `paywallEnabled` 刻意由呼叫端傳入（來源是 `PRODUCT.features.paywall`）而非在
  * 這裡直接讀 —— 這樣專案 B 的行為才測得到，否則測試會永遠跑在建置當下的模式。
  *
- * ⚠️ 這只是**畫面的判斷**。真正的閘門在 `server.ts` 的 `denyIfLocked`：
- * 前端擋畫面、後端擋資料，缺一不可 —— 只做前端的話，知道網址的人照樣拿得到。
+ * ⚠️ 這只是**畫面的判斷**。真正的閘門在 `server.ts`（`denyIfT2Locked` 與
+ * `denyIfLocked`）：前端擋畫面、後端擋資料，缺一不可 ——
+ * 只做前端的話，知道網址的人照樣拿得到。
+ *
+ * 這個檔案裡有兩個判斷函式，對應兩種權益：
+ * - `getT2Access`：**整份 T2**，買一次（票 #45）。家長端今天走的是這一個。
+ * - `getDimensionAccess`：單一維度的 T3，每個維度各買一次。T3 暫緩，見它自己的註解。
  */
 export type DimensionAccess =
   /** 可直接進入深度評估 */
@@ -47,7 +52,14 @@ export interface AccessInput {
   unlockedDimensionIds: string[] | null;
 }
 
-export function getDimensionAccess(dimensionId: string, input: AccessInput): DimensionAccess {
+/**
+ * 兩個函式共用的前三步：專案 B → 放行、展示模式 → demo、未登入 → 導向登入。
+ *
+ * 抽出來是因為「T2 整份」與「T3 單維度」在這三件事上必須永遠一致 ——
+ * 兩份各自寫一遍的話，日後只會有一邊被改到。回 `null` 代表前三步都沒有結論，
+ * 由呼叫端去看它自己那種權益。
+ */
+function prelude(input: Omit<AccessInput, 'unlockedDimensionIds'>): DimensionAccess | null {
   // 專案 B 沒有深度評估也沒有付費牆，這個函式不該影響它的任何流程。
   if (!input.paywallEnabled) return 'open';
 
@@ -57,11 +69,52 @@ export function getDimensionAccess(dimensionId: string, input: AccessInput): Dim
 
   if (!input.isLoggedIn) return 'needs_login';
 
+  return null;
+}
+
+/**
+ * 單一維度深度評估的存取決策（T3 那一種權益）。
+ *
+ * ⚠️ **2026-09-11 起畫面上沒有呼叫它的地方**，這不是漏掉的死碼。
+ * T2 改成整份買一次（票 #45），家長端全部走 `getT2Access`；而伺服器那道對應的
+ * 維度閘門（`denyIfLocked`，仍守著 `/api/specialized-report` 等舊端點）
+ * **這張票明寫不動**。前端的鏡子跟著留下來，T3 恢復時入口回來就有東西可用 ——
+ * 現在刪掉，下次就會有人在沒有鏡子的情況下重寫一個判法不一樣的版本。
+ */
+export function getDimensionAccess(dimensionId: string, input: AccessInput): DimensionAccess {
+  const early = prelude(input);
+  if (early) return early;
+
   // 查詢尚未回來時**當作未解鎖**。反過來（樂觀放行）會在每次重新整理後開一個
   // 短暫的免費視窗，而那正是最容易被發現與濫用的一種漏洞。
   if (input.unlockedDimensionIds === null) return 'locked';
 
   return input.unlockedDimensionIds.includes(dimensionId) ? 'open' : 'locked';
+}
+
+/**
+ * T2 的輸入。與 `AccessInput` 的唯一差別：**沒有維度**。
+ *
+ * `unlockedDimensionIds` 換成一個布林 —— T2 整份買一次（票 #45），
+ * 「買了哪幾個維度」這個問題在 T2 這一層不存在，型別上就問不出來。
+ */
+export interface T2AccessInput extends Omit<AccessInput, 'unlockedDimensionIds'> {
+  /** `GET /api/unlocks` 的 `t2`；尚未查詢完成時為 `null`。 */
+  t2Unlocked: boolean | null;
+}
+
+/**
+ * 整份 T2 深度評估的存取決策。
+ *
+ * ⚠️ 同樣**只是畫面的判斷**。後端那一道是 `server.ts` 的 `denyIfT2Locked`，
+ * 兩者不共用程式碼是刻意的 —— 前端擋畫面、後端擋資料。
+ */
+export function getT2Access(input: T2AccessInput): DimensionAccess {
+  const early = prelude(input);
+  if (early) return early;
+
+  // 與上面同一條規則：不確定 → 當作未解鎖。
+  return input.t2Unlocked === true ? 'open' : 'locked';
 }
 
 /**

@@ -136,6 +136,18 @@ export interface MallOrder {
 export type PaymentStatus = 'pending' | 'success' | 'failed' | 'refunded';
 
 /**
+ * 權益的範圍 —— 這一份買的是什麼（2026-09-11，票 #45）。
+ *
+ * - `'t2'`：**整份 T2 深度評估，買一次**。沒有維度可言（`dimensionId` 為 null）。
+ * - `'t3'`：單一維度的 T3。舊的九張卡片全部是這種，一列一個維度。
+ *
+ * 為什麼 T2 不再按維度賣：家長在 T1 之後被標記的維度往往不只一個，而 T2 的
+ * 那幾支工具本來就會同時餵好幾個維度 —— 按維度賣會讓同一份問卷被賣兩次。
+ * 決定見 v1 §8.2。
+ */
+export type UnlockScope = 't2' | 't3';
+
+/**
  * 付款：一次微信支付交易的紀錄。
  *
  * 與 Unlock 分開是刻意的，理由有三：
@@ -153,22 +165,28 @@ export interface Payment {
   /** 金額，單位為「分」，避免浮點誤差（¥19.9 = 1990） */
   amountFen: number;
   status: PaymentStatus;
-  /** 此次付款要解鎖的維度 */
-  dimensionId: string;
+  /** 此次付款買的是整份 T2 還是單一維度 T3 */
+  scope: UnlockScope;
+  /** 此次付款要解鎖的維度；`scope` 為 `'t2'` 時是 null（整份沒有維度） */
+  dimensionId: string | null;
   createdAt: string;
   paidAt: string | null;
 }
 
 /**
- * 解鎖權益：某使用者對某維度深度評估（T2+T3）的永久使用權。
+ * 解鎖權益：某使用者對深度評估的永久使用權。
  *
- * 綁 userId + dimensionId，**不綁篩查批次** —— 家長重做篩查後權益依然有效，
- * 且可免費重做該維度的 T2/T3。家長買的是「使用權」，不是「一次評估機會」。
+ * **不綁篩查批次** —— 家長重做篩查後權益依然有效，且可免費重做。
+ * 家長買的是「使用權」，不是「一次評估機會」。
+ *
+ * 綁什麼看 `scope`：`'t2'` 綁 userId（整份一次），`'t3'` 綁 userId + dimensionId。
  */
 export interface Unlock {
   id: string;
   userId: string;
-  dimensionId: string;
+  scope: UnlockScope;
+  /** `scope` 為 `'t2'` 時是 null */
+  dimensionId: string | null;
   /** 取得來源：付款，或由客服／行銷免費發放 */
   source: 'payment' | 'grant';
   /** source 為 'payment' 時指向對應的付款紀錄 */

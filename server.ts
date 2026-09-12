@@ -24,6 +24,7 @@ import { matchIntervention, resolveInterventionCell } from './src/utils/interven
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
+import type { UnlockScope } from './src/types';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
@@ -916,6 +917,74 @@ async function rejectIfLocked(req: express.Request, res: express.Response, dimen
   return true;
 }
 
+// ── Paid-content gate for T2 ──
+//
+// T2 is bought once, whole (ticket #45): one entitlement row per parent,
+// `scope = 't2'`, no dimension. So this gate asks a yes/no question and has no
+// dimension to be tricked about — the entire class of bug that denyIfLocked's
+// comment describes cannot occur here, because there is nothing to name.
+//
+// A t3 entitlement does NOT open T2. They are two products: nine per-dimension
+// purchases were the old model, and the migration marked every existing row
+// 't3' precisely so they could not silently become free T2.
+//
+// Memory mode and the demo switch pass, same as the dimension gate — no durable
+// store means no purchase can exist, and the demo paywall's skip entry sends the
+// parent straight in.
+async function denyIfT2Locked(req: express.Request): Promise<UnlockDenial | null> {
+  if (!mysqlDb.isConfigured()) return null;
+  if (PAYWALL_DEMO_OPEN) return null;
+
+  const userId = currentUserId(req);
+  if (!userId) return { status: 401, body: { error: '请先登录后再使用深度评估。', code: 'UNAUTHENTICATED' } };
+
+  const user = await findSessionUser(userId);
+  if (!user) return { status: 401, body: { error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' } };
+
+  if (!(await mysqlDb.hasT2Unlock(user.id))) {
+    return { status: 403, body: { error: '尚未解锁深度评估。', code: 'LOCKED' } };
+  }
+  return null;
+}
+
+/**
+ * Paths under `/api/t2` that stay open to a parent who has not paid.
+ *
+ * Only one: the paywall must say how many questions the child will answer
+ * BEFORE asking for money (spec §9.2). Gating it would leave a price tag and
+ * nothing else on the screen.
+ *
+ * Written as an allowlist, not as "remember to call the gate in each handler".
+ * The 2026-07-31 bypass was exactly a per-handler check that one handler got
+ * wrong; a guard on the prefix means the endpoints tickets #56/#57 add are
+ * closed by default and opening one takes a deliberate line right here.
+ */
+const T2_OPEN_PATHS = new Set(['/plan']);
+
+// Mounted on tier2Only rather than paidOnly: in project B these paths must not
+// exist at all (B has no T2), and a guard that answered 403 there would confirm
+// the endpoint exists. Same never-mounted-Router trick as the rest of tier 2.
+tier2Only.use('/api/t2', async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    if (T2_OPEN_PATHS.has(req.path)) {
+      next();
+      return;
+    }
+    const denial = await denyIfT2Locked(req);
+    if (denial) {
+      res.status(denial.status).json(denial.body);
+      return;
+    }
+    next();
+  } catch (err: any) {
+    // Express 4 does not catch rejected promises from middleware. Without this
+    // the request hangs until the client gives up — and a hanging paywall reads
+    // as "the site is broken", not as "you have not paid".
+    console.error('[Payment] T2 gate failed:', err.message);
+    res.status(500).json({ error: '无法确认深度评估权益，请稍后重试。' });
+  }
+});
+
 /** Dimensions whose deep assessment is served by a fixed endpoint. */
 const LANGUAGE_DIMENSION_ID = 'language';
 const MOTION_DIMENSION_ID = 'gross_motor';
@@ -1383,7 +1452,7 @@ paidOnly.get('/api/unlocks', async (req, res) => {
     // 401 happen first, because a client that cannot ask is a client that fails
     // closed and locks a demo box out of its own deep assessment.
     if (!mysqlDb.isConfigured() || PAYWALL_DEMO_OPEN) {
-      res.json({ dimensionIds: [], available: false, priceFen: UNLOCK_PRICE_FEN });
+      res.json({ dimensionIds: [], t2: false, available: false, priceFen: UNLOCK_PRICE_FEN });
       return;
     }
     const userId = currentUserId(req);
@@ -1400,7 +1469,12 @@ paidOnly.get('/api/unlocks', async (req, res) => {
     // of it. UNLOCK_PRICE_FEN is env-tunable; a screen showing ¥19.9 while the
     // order is opened for something else is a refund dispute by construction.
     res.json({
+      // Two products in one response. `dimensionIds` is the old per-dimension T3
+      // list; `t2` is the whole-of-T2 entitlement (#45). They are separate keys
+      // rather than one merged list because merging them is exactly how a t3
+      // purchase would start opening T2.
       dimensionIds: await mysqlDb.listUnlockedDimensions(user.id),
+      t2: await mysqlDb.hasT2Unlock(user.id),
       available: true,
       priceFen: UNLOCK_PRICE_FEN,
     });
@@ -1427,8 +1501,17 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       res.status(401).json({ error: '请先登录后再购买。' });
       return;
     }
-    const { dimensionId } = req.body || {};
-    if (!DIMENSIONS_DATA.some(d => d.id === dimensionId)) {
+    // `scope` says what is being bought. Absent means the old shape (a dimension
+    // and nothing else) — treated as t3, which is both the previous behaviour and
+    // the conservative side: a request that forgets to say what it wants must not
+    // end up buying the bigger product.
+    const { scope: rawScope, dimensionId } = req.body || {};
+    if (rawScope !== undefined && rawScope !== 't2' && rawScope !== 't3') {
+      res.status(400).json({ error: '购买范围不正确。' });
+      return;
+    }
+    const scope: UnlockScope = rawScope === 't2' ? 't2' : 't3';
+    if (scope === 't3' && !DIMENSIONS_DATA.some(d => d.id === dimensionId)) {
       res.status(400).json({ error: '维度不存在。' });
       return;
     }
@@ -1446,10 +1529,13 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     }
 
     // Already owned → do not create another order. A parent who taps twice, or
-    // returns to an old paywall page, must not be able to pay for the same
-    // dimension a second time.
-    const owned = await mysqlDb.listUnlockedDimensions(user.id);
-    if (owned.includes(dimensionId)) {
+    // returns to an old paywall page, must not be able to pay for the same thing
+    // a second time. Asked per scope: holding a dimension's T3 says nothing about
+    // whether T2 has been bought.
+    const owned = scope === 't2'
+      ? await mysqlDb.hasT2Unlock(user.id)
+      : (await mysqlDb.listUnlockedDimensions(user.id)).includes(dimensionId);
+    if (owned) {
       res.json({ alreadyUnlocked: true });
       return;
     }
@@ -1460,13 +1546,23 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       // failing at WeChat's door with the parent mid-payment.
       throw new Error(`generated out_trade_no violates the official contract: ${outTradeNo}`);
     }
-    const paymentId = await mysqlDb.createPayment(user.id, outTradeNo, UNLOCK_PRICE_FEN, dimensionId);
+    // T2 stores no dimension at all. Putting a placeholder one here would make
+    // the reconciliation report show a purchase of something nobody sold.
+    const paidDimensionId = scope === 't2' ? null : (dimensionId as string);
+    const paymentId = await mysqlDb.createPayment({
+      userId: user.id,
+      outTradeNo,
+      amountFen: UNLOCK_PRICE_FEN,
+      scope,
+      dimensionId: paidDimensionId,
+    });
 
     // Credentials missing → the order row exists but there is nothing to pay
     // with. Say so; the client must never read this as success.
     if (!wechatPayStatus.config) {
       res.json({
-        alreadyUnlocked: false, outTradeNo, paymentId, amountFen: UNLOCK_PRICE_FEN, dimensionId,
+        alreadyUnlocked: false, outTradeNo, paymentId, amountFen: UNLOCK_PRICE_FEN,
+        scope, dimensionId: paidDimensionId,
         wechatReady: false,
         reason: `微信支付尚未配置：缺少 ${wechatPayStatus.missing.join('、')}`,
       });
@@ -1485,12 +1581,16 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     }
 
     const dimensionName = DIMENSIONS_DATA.find(d => d.id === dimensionId)?.name || dimensionId;
+    // What the parent will see on the WeChat payment sheet.
+    const orderDescription = scope === 't2'
+      ? '森心康 深度评估解锁'
+      : `森心康 ${dimensionName} 深度评估解锁`;
     // H5 requires the payer's real IP. Behind nginx this is the X-Forwarded-For
     // hop we already trust (app.set('trust proxy', 1)).
     const payerClientIp = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '');
 
     const order = await wechatPay.placeOrder(wechatPayStatus.config, 'h5', {
-      description: `森心康 ${dimensionName} 深度评估解锁`,
+      description: orderDescription,
       outTradeNo,
       amountFen: UNLOCK_PRICE_FEN,
       payerClientIp,
@@ -1501,7 +1601,8 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       outTradeNo,
       paymentId,
       amountFen: UNLOCK_PRICE_FEN,
-      dimensionId,
+      scope,
+      dimensionId: paidDimensionId,
       wechatReady: true,
       tradeType: 'h5',
       // 有效期只有 5 分鐘 —— 前端拿到就該立刻跳轉，不可存起來重用。
@@ -1533,8 +1634,17 @@ async function settlePayment(outTradeNo: string, transactionId: string | null): 
   const moved = await mysqlDb.markPaymentSuccess(outTradeNo, transactionId);
   if (!moved) return 'already';
 
-  await mysqlDb.grantUnlock(payment.user_id, payment.dimension_id, 'payment', payment.id);
-  console.log(`[Payment] Unlocked ${payment.dimension_id} for user ${payment.user_id} (${outTradeNo})`);
+  // Anything that is not literally 't2' settles as a dimension purchase — the
+  // shape every row had before #45, and the one that grants less.
+  const scope: UnlockScope = payment.scope === 't2' ? 't2' : 't3';
+  await mysqlDb.grantUnlock({
+    userId: payment.user_id,
+    scope,
+    dimensionId: scope === 't2' ? null : payment.dimension_id,
+    source: 'payment',
+    paymentId: payment.id,
+  });
+  console.log(`[Payment] Unlocked ${scope === 't2' ? '整份 T2' : payment.dimension_id} for user ${payment.user_id} (${outTradeNo})`);
   return 'granted';
 }
 
@@ -1650,7 +1760,7 @@ paidOnly.get('/api/payment/status', async (req, res) => {
     }
 
     if (payment.status === 'success') {
-      res.json({ outTradeNo, status: 'success', dimensionId: payment.dimension_id });
+      res.json({ outTradeNo, status: 'success', scope: payment.scope ?? 't3', dimensionId: payment.dimension_id });
       return;
     }
     if (!wechatPayStatus.config) {
@@ -1661,7 +1771,7 @@ paidOnly.get('/api/payment/status', async (req, res) => {
     const remote = await wechatPay.queryOrderByOutTradeNo(wechatPayStatus.config, outTradeNo);
     if (remote.tradeState === 'SUCCESS') {
       await settlePayment(outTradeNo, remote.transactionId);
-      res.json({ outTradeNo, status: 'success', dimensionId: payment.dimension_id });
+      res.json({ outTradeNo, status: 'success', scope: payment.scope ?? 't3', dimensionId: payment.dimension_id });
       return;
     }
     res.json({ outTradeNo, status: payment.status, tradeState: remote.tradeState });

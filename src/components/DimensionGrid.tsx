@@ -14,15 +14,17 @@ interface DimensionGridProps {
   onViewReport: () => void;
   onStartT1Screening: () => void;
   /**
-   * 尚未付費解鎖的維度。卡片仍**可點** —— 點下去進付費牆，
+   * 深度評估尚未解鎖。卡片仍**可點** —— 點下去進付費牆，
    * 而家長剛看到某個維度亮燈的這一刻正是最有意願的時候。
+   *
+   * 一個布林、不是一份維度清單：深度評估整份買一次（票 #45），
+   * 九個維度要嘛全鎖、要嘛全開。專案 B 永遠是 `false`（B 沒有深度評估）。
+   *
+   * **價格不在這裡顯示。** 卡片上各掛一個「¥19.9 解锁」的做法在 #45 退場了 ——
+   * 九張卡片各一個價格，讀起來就是九筆錢，而家長只付一次。
+   * 價格只出現在付費牆上，一次。
    */
-  lockedDimensionIds?: string[];
-  /**
-   * 解鎖單價的顯示文字（如 `19.9`）。`null` 代表付費牆不生效
-   * （專案 B，或後端未接資料庫的展示模式），此時不得出現任何價格與鎖頭。
-   */
-  unlockPriceLabel?: string | null;
+  deepAssessmentLocked?: boolean;
 }
 
 const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => {
@@ -42,7 +44,7 @@ const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => 
 
 export default function DimensionGrid({
   completedScores, onSelectDimension, onViewReport, onStartT1Screening,
-  lockedDimensionIds = [], unlockPriceLabel = null,
+  deepAssessmentLocked = false,
 }: DimensionGridProps) {
   
   // Detect if T1 Screening has been completed globally
@@ -171,14 +173,33 @@ export default function DimensionGrid({
           </div>
         </div>
 
+        {/*
+          深度評估待解鎖 —— **整片一條，不是每張卡片一個**。
+
+          九張卡片各掛一個鎖頭（2026-09-11 之前是各掛一個「¥19.9 解锁」）會把
+          「有一件事要解鎖」講九遍，而實際上只有一件；更糟的是那顆膠囊會蓋掉被
+          標記維度上的行動呼籲，正好是最需要家長點下去的那幾張卡片。
+          深度評估整份買一次，所以它的鎖頭也只出現一次。
+
+          刻意**不做成按鈕**：T2 的入口（題量預估、診斷方向）是另一張票（#56）。
+          這裡只負責把「待解鎖」與「從哪裡進去」這兩件事說清楚，
+          點任何一張卡片都會走到付費牆。
+        */}
+        {isT1Completed && deepAssessmentLocked && (
+          <div className="mb-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <Lock size={13} className="shrink-0 mt-0.5 text-amber-600" />
+            <div className="text-[11px] leading-relaxed text-amber-800">
+              <span className="font-extrabold">深度评估待解锁</span>
+              <span className="text-amber-800/80"> · 一次解锁全部能力方面，点选任一卡片即可查看</span>
+            </div>
+          </div>
+        )}
+
         {/* The 9 entrance cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {DIMENSIONS_DATA.map((dim: DimensionConfig) => {
             const t1Rec = getT1RecordForDimension(dim.id);
             const deepRec = getDeepestRecordForDimension(dim.id);
-            // 付費牆不生效時 unlockPriceLabel 為 null，整段付費 UI 不存在 ——
-            // 專案 B 的畫面不得出現任何價格或鎖頭。
-            const isLocked = unlockPriceLabel !== null && lockedDimensionIds.includes(dim.id);
 
             return (
               <button
@@ -258,13 +279,7 @@ export default function DimensionGrid({
                     <span className="text-brand-charcoal/60">{PRODUCT.dashboard.dimensionCardHint}</span>
                   )}
 
-                  {isT1Completed && isLocked ? (
-                    <span className="flex items-center gap-0.5 py-0.5 px-2 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-extrabold">
-                      <Lock size={9} />
-                      ¥{unlockPriceLabel} 解锁
-                      <ChevronRight size={10} className="text-amber-500" />
-                    </span>
-                  ) : isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
+                  {isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
                     <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
                       {PRODUCT.dashboard.dimensionCardCta}
                       <ChevronRight size={10} className="text-rose-500 animate-bounce" />

@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { RULES_VERSION } from '../src/t2/scoring';
-import { TOOLKIT_VERSION } from '../src/t2/toolkit';
 import { DIMENSION_CODES } from '../src/t2/types';
-import type { DimensionBand, DimensionCode, DimensionFinding, T1Flag, T2Findings } from '../src/t2/types';
+import type { DimensionCode, DimensionFinding } from '../src/t2/types';
+import { t2FindingsFixture } from './helpers/t2Fixtures';
 import { functionOrderOf } from '../src/t2/routing';
 import { FIXED_DIMENSION_ORDER, dimensionOrderOf, prioritizeDimensions } from '../src/t2/dimensionOrder';
 
@@ -12,25 +11,8 @@ import { FIXED_DIMENSION_ORDER, dimensionOrderOf, prioritizeDimensions } from '.
  * 與 SMART 目標（§8）共用。
  */
 
-function findings(
-  dims: Partial<Record<DimensionCode, { band: DimensionBand; t1Flag?: T1Flag }>>,
-  over: Partial<T2Findings> = {},
-): T2Findings {
-  const dimensions: DimensionFinding[] = DIMENSION_CODES.map(d => {
-    const spec = dims[d] ?? { band: 'clear' as const };
-    return {
-      dimensionId: d, band: spec.band, drivenBy: null, tags: [], caveats: [], tools: [],
-      t1Flag: spec.t1Flag ?? (spec.band === 'clear' ? 0 : 2),
-    };
-  });
-  const t1 = {} as Record<DimensionCode, T1Flag>;
-  for (const f of dimensions) t1[f.dimensionId] = f.t1Flag;
-  return {
-    version: 3, toolkitVersion: TOOLKIT_VERSION, rulesVersion: RULES_VERSION,
-    child: { assessedAgeMonth: 48 }, t1, diagnosisDirection: null, dimensions, toolResults: [],
-    computedAt: '2026-09-12T00:00:00.000Z', ...over,
-  };
-}
+/** 共用的 fixture（`test/helpers/t2Fixtures.ts`），SMART 目標那支測試用同一份。 */
+const findings = t2FindingsFixture;
 
 const ids = (fs: ReadonlyArray<DimensionFinding>) => fs.map(f => f.dimensionId);
 

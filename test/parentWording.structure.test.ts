@@ -29,6 +29,12 @@ import { BRAIN_NODES, REHAB_SUGGESTIONS } from '../src/dimensionContent';
  *   能省略不能改寫 —— 這正是它從 `AnalysisReport.tsx` 搬出來的原因。
  * - `src/t1Data.ts`、`src/data.ts`：**題目**本身（「体育课上不明显笨拙、落后」）。
  *   題目是量表，改題目等於改測的東西，那是另一個決定。
+ * - `src/t2/toolkit/`（票 #58）：T2 的 22 支題庫，同一個理由 —— 題目原文含「异常」「困难」「落后」
+ *   是客戶的原文，是在**問**一件事，不是系統在**說**孩子；而且那 22 份由腳本從工具包 zip 重現、
+ *   結構測試逐位元比對，改一個字等於改題目。豁免只到題庫檔為止：畫面元件（`T2Assessment.tsx`）與
+ *   純函式層（`answering.ts`）只 import 題目、不手抄，它們自己寫的每一句都進掃描（AI／模板文案
+ *   走 `src/t2/report/blacklist.ts`，同一份清單）。`test/t2AssessmentCopy.structure.test.ts` 釘住
+ *   元件裡沒有任何一題的原文。
  * - `src/dimensionContent.ts` 整檔：`DIMENSION_DETAILS` 裡是量表的正式名稱
  *   （「物理治疗 PT」「CRRC 语言发育迟缓检查法」），而且沒有任何地方渲染它。
  *   真的會進報告的兩張表（`REHAB_SUGGESTIONS`、`BRAIN_NODES`）改成直接 import 檢查值。
@@ -77,6 +83,9 @@ const PARENT_FACING_FILES = [
   // 2026-09-12（票 #56）：T2 入口與它的題量句子。T2 重做的家長端從這裡開始納入護欄。
   'src/components/T2Entrance.tsx',
   'src/t2/entrance.ts',
+  // 2026-09-12（票 #58）：逐支作答的畫面與它的純函式層（填表人、加測提示那一句、ASR 的白話註解）。
+  'src/components/T2Assessment.tsx',
+  'src/t2/answering.ts',
 ];
 
 /**

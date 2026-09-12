@@ -197,7 +197,7 @@ interface AnalysisReportProps {
    * 只在**即時**報告上出現（`historicalRecord` 為 null）—— plan 是伺服器依最新篩查算的，
    * 掛在一份舊報告底下會對不上那份報告的判定。
    */
-  t2?: { access: DimensionAccess; priceFen: number; onUnlock: () => void };
+  t2?: { access: DimensionAccess; priceFen: number; onUnlock: () => void; onStart: () => void };
   historicalRecord?: AssessmentRecord | null;
   /**
    * 開啟後自動捲到專家預約區塊。專案 B 的維度卡片會走這條路 ——
@@ -458,6 +458,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       access={t2.access}
       priceFen={t2.priceFen}
       onUnlock={t2.onUnlock}
+      onStart={t2.onStart}
       onBookService={openBookingModal}
     />
   ) : null;

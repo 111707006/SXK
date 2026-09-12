@@ -31,8 +31,10 @@
 │   │   ├── AuthScreen.tsx           # 登录/注册
 │   │   ├── ChildProfileForm.tsx     # 儿童档案表单
 │   │   ├── DimensionGrid.tsx        # 维度网格展示
-│   │   ├── AssessmentPanel.tsx      # 评估面板
+│   │   ├── AssessmentPanel.tsx      # 评估面板（只剩 T3；T2 五题占位在 #58 拿掉）
 │   │   ├── T1Screening.tsx          # T1筛查
+│   │   ├── T2Entrance.tsx           # T2 入口（题量、诊断方向、开始作答；挂在即时 T1 报告上，#56）
+│   │   ├── T2Assessment.tsx         # T2 逐支作答：工具清单（已完成／加测提示）＋ 作答表单（#58）
 │   │   ├── AnalysisReport.tsx       # 分析报告
 │   │   ├── SpecializedReportView.tsx # 专项报告视图
 │   │   ├── LanguageSpecialAssessment.tsx # 语言专项评估
@@ -50,6 +52,7 @@
 │   │   ├── act300.ts      # 旧原型 300 支活动的名称与适龄原文（脚本产出，勿手改）
 │   │   ├── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）
+│   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
 │   │   └── diagnosisOptions.ts # 诊断方向十选一的名称与问句；刻意不进家长用字扫描（理由见档头）
 │   ├── db/
 │   │   ├── mysql.ts       # 连线池与家长端资料层

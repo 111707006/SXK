@@ -4,7 +4,7 @@ import { transcribeWithQwenASR } from '../utils/asr';
 import { authFetch } from '../utils/api';
 import MotionVideoAssessment from './MotionVideoAssessment';
 import { 
-  ArrowLeft, Clock, Save, Info, AlertTriangle, CheckCircle2,
+  ArrowLeft, AlertTriangle, CheckCircle2,
   Mic, Square, Play, Pause, Upload, FileAudio, FileVideo, 
   Sparkles, ShieldCheck, Database, Camera, Brain, ChevronRight, Check
 } from 'lucide-react';
@@ -18,15 +18,11 @@ interface AssessmentPanelProps {
 }
 
 export default function AssessmentPanel({ dimension, child, onBack, onSaveResult, existingScores }: AssessmentPanelProps) {
-  // We only do T2 and T3 in this Panel now. T1 is handled in T1Screening.
-  const [selectedTier, setSelectedTier] = useState<'T2' | 'T3'>('T2');
-  const currentScale = dimension.tiers[selectedTier];
+  // 這個面板只剩 T3（票 #58）：T2 的五題佔位與 45／75 門檻整段拿掉，逐支作答在 `T2Assessment.tsx`。
+  // T1 在 T1Screening。
+  const currentScale = dimension.tiers.T3;
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
-  
-  // T2 Answers State
-  const [answers, setAnswers] = useState<Record<string, number>>({});
-  const allT2Answered = dimension.tiers.T2.questions.every(q => answers[q.id] !== undefined);
 
   // T3 Answers and Recording States
   const [t3Answers, setT3Answers] = useState<Record<string, number>>({});
@@ -116,14 +112,13 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
           const mockRecordings: Record<string, any> = {};
           
           dimension.tiers.T3.questions.forEach((q) => {
-            // Give reasonable scores based on T2 score to maintain correlation
-            const t2Score = calculateT2Score().earned;
-            const t2Percent = t2Score / (dimension.tiers.T2.questions.length * 10);
+            // 模擬分數的落點跟著先前存下的 T2 成績走（沒有就取中間值）
+            const t2Ratio = priorT2Ratio();
             
             let score = 10;
-            if (t2Percent < 0.5) {
+            if (t2Ratio < 0.5) {
               score = Math.random() > 0.4 ? 5 : 0;
-            } else if (t2Percent < 0.8) {
+            } else if (t2Ratio < 0.8) {
               score = Math.random() > 0.6 ? 10 : 5;
             } else {
               score = Math.random() > 0.15 ? 10 : 5;
@@ -377,49 +372,13 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
     ctx.fillText('躯干中心垂直偏度: 1.2° (正常)', 15, 55);
   };
 
-  const handleSelectOption = (qId: string, score: number) => {
-    setAnswers(prev => ({
-      ...prev,
-      [qId]: score
-    }));
-  };
-
-  const calculateT2Score = () => {
-    let earned = 0;
-    let max = 0;
-    dimension.tiers.T2.questions.forEach(q => {
-      earned += answers[q.id] || 0;
-      max += 10;
-    });
-
-    const percent = (earned / max) * 100;
-    let status: 'normal' | 'borderline' | 'delay' = 'normal';
-    if (percent < 45) {
-      status = 'delay';
-    } else if (percent < 75) {
-      status = 'borderline';
-    }
-
-    return { earned, max, status };
-  };
-
-  const handleSaveT2 = () => {
-    if (!allT2Answered || isTransitioning) return;
-    const { earned, max, status } = calculateT2Score();
-
-    const result: DimensionScore = {
-      dimensionId: dimension.id,
-      dimensionName: dimension.name,
-      tierId: 'T2',
-      score: earned,
-      maxScore: max,
-      status,
-      completedAt: new Date().toISOString()
-    };
-
-    onSaveResult(result, false);
-    setSelectedTier('T3');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  /**
+   * 先前存下的這個維度的 T2 成績（0–1）。舊資料還可能有（面板從前在這裡存 T2），
+   * 沒有就取 0.6 —— T3 沒答的題照這個比例補分，是原本就有的退路。
+   */
+  const priorT2Ratio = (): number => {
+    const t2Rec = existingScores.find(s => s.dimensionId === dimension.id && s.tierId === 'T2');
+    return t2Rec && t2Rec.maxScore > 0 ? t2Rec.score / t2Rec.maxScore : 0.6;
   };
 
   // Drag & drop file handlers
@@ -523,11 +482,8 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
       if (t3Answers[q.id] !== undefined) {
         earned += t3Answers[q.id];
       } else {
-        // Fallback: estimate from T2 score so we don't end up with 0 if they didn't manually check everything
-        const t2Rec = existingScores.find(s => s.dimensionId === dimension.id && s.tierId === 'T2');
-        const baseScore = t2Rec ? t2Rec.score : 30;
-        const maxT2 = dimension.tiers.T2.questions.length * 10;
-        const t2Ratio = baseScore / maxT2;
+        // Fallback: estimate from the prior T2 score so we don't end up with 0 if they didn't manually check everything
+        const t2Ratio = priorT2Ratio();
         earned += t2Ratio > 0.8 ? 10 : t2Ratio > 0.5 ? 5 : 0;
       }
       max += 10;
@@ -650,7 +606,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
           <ArrowLeft size={16} />
           返回评估面板
         </button>
-        <span className="text-xs font-bold text-brand-charcoal/60">森心康 · 二级与三级深度评估</span>
+        <span className="text-xs font-bold text-brand-charcoal/60">森心康 · 三级深度评估</span>
       </div>
 
       {successMessage && (
@@ -667,130 +623,26 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
         </div>
         <div>
           <h2 className="text-base font-bold text-brand-forest">正在针对【{dimension.name}】进行深度评测</h2>
-          <p className="text-[11px] text-brand-charcoal/70 mt-0.5">请按流程先完成 T2 家居自评量表，随后立即导入 T3 多媒体实操文件进行判读。</p>
+          <p className="text-[11px] text-brand-charcoal/70 mt-0.5">请导入 T3 多媒体实操文件进行判读。</p>
         </div>
       </div>
 
-      {/* Stepper Tabs */}
-      <div className="grid grid-cols-2 gap-3 mb-8">
-        {(['T2', 'T3'] as const).map(tier => {
-          const isSelected = selectedTier === tier;
-          const isPrevCompleted = existingScores.some(s => s.dimensionId === dimension.id && s.tierId === tier);
-
-          return (
-            <button
-              id={`deep-tab-${tier}`}
-              key={tier}
-              disabled={isTransitioning || (tier === 'T3' && !isPrevCompleted && !allT2Answered)}
-              onClick={() => {
-                if (isTransitioning) return;
-                setSelectedTier(tier);
-              }}
-              className={`p-4 rounded-2xl border text-center transition flex flex-col items-center justify-between gap-1.5 relative ${
-                isSelected
-                  ? 'border-brand-moss bg-brand-sage/50 text-brand-forest font-bold ring-2 ring-brand-moss/10'
-                  : 'border-brand-stone/60 hover:bg-brand-cream/40 text-brand-charcoal/80'
-              } ${(tier === 'T3' && !isPrevCompleted && !allT2Answered) ? 'opacity-40 cursor-not-allowed bg-slate-50' : ''}`}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`text-[10px] w-5.5 h-5.5 rounded-lg flex items-center justify-center font-bold ${
-                  isSelected ? 'bg-brand-moss text-white' : 'bg-brand-stone text-brand-charcoal'
-                }`}>
-                  {tier}
-                </span>
-                <span className="text-xs font-semibold">
-                  {tier === 'T2' ? 'T2 能力检测层 (问卷自评)' : 'T3 专项评估层 (临床多媒体上传)'}
-                </span>
-              </div>
-              <div className="text-[10px] text-brand-charcoal/50">
-                {tier === 'T2' ? '多因子家属自护量表' : '骨骼关键点/声学AI算法介入'}
-              </div>
-              {isPrevCompleted && (
-                <span className="absolute top-2 right-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-md font-bold flex items-center gap-0.5">
-                  <Check size={10} />
-                  已保存
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* T3 標示（T2 的頁籤與五題佔位已拿掉，票 #58） */}
+      <div className="p-4 rounded-2xl border border-brand-moss bg-brand-sage/50 text-brand-forest font-bold ring-2 ring-brand-moss/10 mb-8 flex flex-col items-center gap-1.5 relative">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] w-5.5 h-5.5 rounded-lg flex items-center justify-center font-bold bg-brand-moss text-white">T3</span>
+          <span className="text-xs font-semibold">T3 专项评估层 (临床多媒体上传)</span>
+        </div>
+        <div className="text-[10px] text-brand-charcoal/50">骨骼关键点/声学AI算法介入</div>
+        {existingScores.some(s => s.dimensionId === dimension.id && s.tierId === 'T3') && (
+          <span className="absolute top-2 right-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-md font-bold flex items-center gap-0.5">
+            <Check size={10} />
+            已保存
+          </span>
+        )}
       </div>
 
-      {selectedTier === 'T2' ? (
-        /* ======================== T2 VIEW ======================== */
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-brand-sand/55 p-4 rounded-2xl border border-brand-stone/60">
-            <div>
-              <h3 className="text-xs font-bold text-brand-forest flex items-center gap-1.5">
-                <Info size={14} className="text-brand-clay" />
-                当前量表：{currentScale.scaleName}
-              </h3>
-              <p className="text-[11px] text-brand-charcoal/85 mt-1 leading-relaxed">
-                这是针对该发育领域的更深度临床精细指标自评。请结合儿童近一个月的实际表现进行填报，以便系统得出突触阻滞指数。
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-brand-stone/50 shrink-0 text-brand-clay text-xs font-semibold self-start sm:self-center">
-              <Clock size={12} />
-              所需时间：{currentScale.duration}
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            {currentScale.questions.map((q: Question, idx: number) => {
-              const selectedScore = answers[q.id];
-
-              return (
-                <div key={q.id} className="p-5 bg-white border border-brand-stone rounded-2xl space-y-3.5 hover:border-brand-moss/40 transition">
-                  <div className="flex gap-2.5">
-                    <span className="text-xs font-bold text-brand-charcoal/60 bg-brand-cream border border-brand-stone/30 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                      {idx + 1}
-                    </span>
-                    <h4 className="text-xs sm:text-sm font-semibold text-brand-forest leading-relaxed">{q.text}</h4>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pl-8">
-                    {q.options.map((opt) => {
-                      const isOptSelected = selectedScore === opt.score;
-                      return (
-                        <button
-                          id={`t2-opt-${q.id}-${opt.score}`}
-                          key={opt.score}
-                          type="button"
-                          disabled={isTransitioning}
-                          onClick={() => handleSelectOption(q.id, opt.score)}
-                          className={`py-2.5 px-4 rounded-xl border text-xs font-medium text-center transition ${
-                            isOptSelected
-                              ? 'border-brand-moss bg-brand-sage text-brand-forest font-semibold shadow-sm'
-                              : 'border-brand-stone/40 bg-brand-cream/15 hover:bg-brand-cream/50 text-brand-charcoal/80'
-                          } ${isTransitioning ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-brand-stone/60 flex items-center justify-end">
-            <button
-              id="t2-save-next-btn"
-              disabled={!allT2Answered || isTransitioning}
-              onClick={handleSaveT2}
-              className={`px-6 py-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
-                allT2Answered && !isTransitioning
-                  ? 'bg-brand-forest hover:bg-brand-forest/90 text-white shadow-brand-forest/20 active:scale-[0.98]'
-                  : 'bg-brand-cream border border-brand-stone text-brand-charcoal/40 cursor-not-allowed shadow-none'
-              }`}
-            >
-              <Save size={14} />
-              {isTransitioning ? '正在保存...' : '完成并保存 T2，自动进入 T3 专项评估'}
-            </button>
-          </div>
-        </div>
-      ) : dimension.id === 'gross_motor' ? (
+      {dimension.id === 'gross_motor' ? (
         /* ============ T3 VIEW · CPMV-20 动作影像判读 (gross_motor) ============ */
         <MotionVideoAssessment
           child={child}

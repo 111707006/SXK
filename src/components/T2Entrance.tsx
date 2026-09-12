@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Layers, Loader2, Lock, UserRound } from 'lucide-react';
+import { ChevronDown, ChevronRight, Layers, Loader2, Lock, UserRound } from 'lucide-react';
 import { authFetch } from '../utils/api';
 import { formatFen } from '../utils/price';
 import type { DimensionAccess } from '../utils/access';
@@ -23,6 +23,8 @@ interface T2EntranceProps {
   priceFen: number;
   /** 未解鎖時按「解鎖」→ App 導向付費牆。 */
   onUnlock: () => void;
+  /** 已解鎖時按「開始作答」→ App 導向逐支作答（票 #58）。 */
+  onStart: () => void;
   /** 沒有工具的維度導向四種服務：開預約表、預選那一種。 */
   onBookService: (type: ServiceType) => void;
 }
@@ -48,10 +50,10 @@ const NO_TOOL_SENTENCE = '这个年龄目前没有适用的深度评估工具，
  * 一個正常答案；畫面上沒有「未提供」「未填寫」這種像缺漏的字樣（§4.3）。
  *
  * 【解鎖之後】
- * 已解鎖的家長在這裡看到同一份清單，沒有 CTA —— 逐支作答的入口是 #58 的事（那張票
- * 的「工具清單」就是這份 plan）。這一版刻意不放一顆按了沒有下一頁的按鈕。
+ * 已解鎖的家長在這裡看到同一份清單，CTA 是「開始作答」→ 逐支作答畫面（`T2Assessment.tsx`，票 #58），
+ * 那邊的工具清單就是這份 plan。
  */
-export default function T2Entrance({ access, priceFen, onUnlock, onBookService }: T2EntranceProps) {
+export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBookService }: T2EntranceProps) {
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
   const [diagnosis, setDiagnosis] = useState<DiagnosisDirection | null>(null);
@@ -249,6 +251,17 @@ export default function T2Entrance({ access, priceFen, onUnlock, onBookService }
           </p>
           {serviceButtons}
         </div>
+      )}
+
+      {!locked && (
+        <button
+          type="button"
+          onClick={onStart}
+          className="w-full md:w-auto px-6 py-3 rounded-xl bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-extrabold transition shadow-md shadow-brand-moss/20 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-1.5"
+        >
+          开始作答
+          <ChevronRight size={13} />
+        </button>
       )}
 
       {locked && (

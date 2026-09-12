@@ -29,6 +29,8 @@ const CLIENT_FILES = [
   'src/components/LanguageSpecialAssessment.tsx',
   'src/components/MotionVideoAssessment.tsx',
   'src/components/Paywall.tsx',
+  'src/components/T2Assessment.tsx',
+  'src/components/T2Entrance.tsx',
   'src/utils/asr.ts',
   'src/utils/specialists.ts',
 ];

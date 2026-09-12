@@ -28,6 +28,7 @@ const WearablesMall = lazy(() => import('./components/WearablesMall'));
 const LanguageSpecialAssessment = lazy(() => import('./components/LanguageSpecialAssessment'));
 const SpecializedReportView = lazy(() => import('./components/SpecializedReportView'));
 const Paywall = lazy(() => import('./components/Paywall'));
+const T2Assessment = lazy(() => import('./components/T2Assessment'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
@@ -83,8 +84,8 @@ export default function App() {
     [childProfile, today]
   );
 
-  // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'
-  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall'>('dashboard');
+  // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment'
+  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment'>('dashboard');
   
   const [selectedDimensionId, setSelectedDimensionId] = useState<string | null>(null);
   
@@ -440,8 +441,9 @@ export default function App() {
   };
 
   /**
-   * T1 報告上的 T2 入口按「解鎖」（票 #56）。同一道存取檢查；解鎖之後沒有下一頁 ——
-   * 逐支作答是 #58 的事，入口本身（題量、診斷方向、清單）在報告上已經看得到。
+   * T1 報告上的 T2 入口（票 #56、#58）。同一道存取檢查：未解鎖進付費牆（解鎖後送回報告，
+   * 入口以已解鎖的樣子重畫）；已解鎖進逐支作答（`T2Assessment`）。入口上按「解鎖」與
+   * 「開始作答」走的是同一支 —— 入口自己依 access 決定顯示哪一顆，這裡不重複判斷。
    */
   const enterT2 = () => {
     const access = getT2Access({
@@ -453,7 +455,9 @@ export default function App() {
     if (access === 'locked' || access === 'demo') {
       setPaywallReturn({ target: 't2' });
       setCurrentView('paywall');
+      return;
     }
+    if (access === 'open') setCurrentView('t2_assessment');
   };
 
   // Handler for successful authentication (registration or login)
@@ -1144,7 +1148,7 @@ export default function App() {
                     onSaveReportToHistory={handleSaveReportToHistory}
                     onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     // T2 入口只掛在即時報告上（票 #56）；B 沒有 T2。
-                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, priceFen: unlockPriceFen, onUnlock: enterT2 } : undefined}
+                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, priceFen: unlockPriceFen, onUnlock: enterT2, onStart: enterT2 } : undefined}
                     historicalRecord={null}
                     focusBooking={focusBooking}
                   />
@@ -1430,6 +1434,19 @@ export default function App() {
                       }
                       if (paywallReturn) setSelectedDimensionId(paywallReturn.dimensionId);
                       setCurrentView('assessment');
+                    }}
+                  />
+                </LazyBoundary>
+              </div>
+            ) : currentView === 't2_assessment' && PRODUCT.features.tier2And3 && !isRouteBlocked ? (
+              /* T2 深度評估的逐支作答（票 #58）：只有解鎖後到得了；回去是即時 T1 報告（入口在那裡） */
+              <div className="animate-fade-in">
+                <LazyBoundary>
+                  <T2Assessment
+                    onBack={() => {
+                      setViewingLiveT1(true);
+                      setActiveT1Record(null);
+                      setCurrentView('report');
                     }}
                   />
                 </LazyBoundary>

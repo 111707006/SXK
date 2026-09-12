@@ -641,8 +641,10 @@ describe('規則表登錄', () => {
     expect(Object.keys(ATTENTION_SENSORY_RULES)).toEqual(['sxk-ab', 'sxk-att', 'sxk-spa', 'sxk-spb']);
   });
 
-  it('目前登錄的是達成率族六支＋asb／asr＋這四支（#50、#51 各自再加）；toolId 對得上 key，版本是計分那一版', () => {
-    expect(Object.keys(TOOL_RULES)).toEqual([...ACHIEVEMENT_TOOL_IDS, ...ASD_TOOL_IDS, ...ATTENTION_SENSORY_TOOL_IDS]);
+  it('四支都在登錄表裡、排在達成率族六支與 asb／asr 之後（完整的登錄清單由最新的那張票釘住）；toolId 對得上 key，版本是計分那一版', () => {
+    const upToHere = ACHIEVEMENT_TOOL_IDS.length + ASD_TOOL_IDS.length + ATTENTION_SENSORY_TOOL_IDS.length;
+    expect(Object.keys(TOOL_RULES).slice(0, upToHere))
+      .toEqual([...ACHIEVEMENT_TOOL_IDS, ...ASD_TOOL_IDS, ...ATTENTION_SENSORY_TOOL_IDS]);
     for (const toolId of ATTENTION_SENSORY_TOOL_IDS) {
       const rule = ruleFor(toolId);
       expect(rule.toolId).toBe(toolId);

@@ -15,6 +15,7 @@ import type { ToolRule } from '../types';
 import { ACHIEVEMENT_RULES } from './achievement';
 import { ASD_RULES } from './asd';
 import { ATTENTION_SENSORY_RULES } from './attentionSensory';
+import { DEV_ADL_LEARNING_RULES } from './devAdlLearning';
 
 export { bandOfTier, BAND_OF_TIER } from './shared';
 
@@ -22,6 +23,7 @@ export const TOOL_RULES: Readonly<Partial<Record<ToolId, ToolRule>>> = {
   ...ACHIEVEMENT_RULES,
   ...ASD_RULES,
   ...ATTENTION_SENSORY_RULES,
+  ...DEV_ADL_LEARNING_RULES,
 };
 
 export function ruleFor(toolId: ToolId): ToolRule {

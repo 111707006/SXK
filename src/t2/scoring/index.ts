@@ -47,7 +47,7 @@ export interface ScoreInput {
 }
 
 /**
- * 拒算。四種都**不產生 `ToolResult`** —— 沒有半套結果這種東西，一支工具要嘛算得出
+ * 拒算。五種都**不產生 `ToolResult`** —— 沒有半套結果這種東西，一支工具要嘛算得出
  * 一筆完整的，要嘛什麼都沒有。
  *
  * `incomplete` 與 `age_out_of_window` 同時也是 caveat 值（§5.6），但那兩個 caveat
@@ -78,6 +78,13 @@ export type ScoreRefusal =
       answeredCount: number;
       /** 沒答的題 key，照出題順序。 */
       missing: string[];
+    }
+  | {
+      ok: false;
+      reason: 'unexpected_answer';
+      toolId: ToolId;
+      /** 送來了、但這個月齡根本沒出的題 key。 */
+      unexpected: string[];
     }
   | {
       ok: false;
@@ -206,23 +213,60 @@ function chexiFactorStats(
   return out;
 }
 
+/** `pre` 的複本。值可能是陣列（複選題），所以陣列也要複製，不能只複製外層。 */
+function copyPre(pre: ScoreInput['pre']): ToolResult['pre'] {
+  const out: ToolResult['pre'] = {};
+  for (const [key, value] of Object.entries(pre ?? {})) {
+    out[key] = Array.isArray(value) ? [...value] : value;
+  }
+  return out;
+}
+
+/**
+ * 前置題裡「什麼都沒有」的那個選項值（asb、asr、warn、spa、spb 五支都有，都是
+ * `'none'`）。從題庫讀而不是寫死，題庫換字時跟著走。
+ */
+export function noneValueOf(bank: ToolkitBank, preKey: string): string | undefined {
+  const option = bank.preQuestions.find(q => q.key === preKey)?.options?.find(o => o.exclusive);
+  return option?.value;
+}
+
+/**
+ * 前置題「倒退」有沒有勾。
+ *
+ * ⚠️ **「沒有倒退」不是空陣列。** warn 的前置題是複選，「未见异常」是一個真的選項值
+ * `'none'`（題庫標成 `exclusive`），家長勾它送出來的是 `['none']`。早先這裡用「陣列
+ * 非空」判斷，結果是每一個好好回答「沒有倒退」的孩子都被判初篩異常 —— 而那是最常
+ * 走的一條路。
+ *
+ * 認不出「沒有」的值時（題庫換了形狀）一律當成有勾。warn 是紅旗初篩，多轉診一個
+ * 比漏掉一個好；而且那個狀況會讓每一份 warn 都變 tier 3，看得見。
+ * `test/t2Scoring.test.ts` 另有一條直接釘住那個值是 `'none'`，題庫先動測試就會紅。
+ */
+function regressionReported(bank: ToolkitBank, pre: ScoreInput['pre']): boolean {
+  const raw = pre?.regression;
+  if (raw === undefined || raw === null) return false;
+  if (typeof raw === 'boolean') return raw;
+  const none = noneValueOf(bank, 'regression');
+  const values = Array.isArray(raw) ? raw : [raw];
+  return values.some(v => v !== none);
+}
+
 /**
  * `sxk-warn` 的倒退勾：勾了就是初篩異常（tier 3），不論陽性數（§5.3）。
  *
  * 這是 22 支裡**唯一**一支前置題會影響 tier 的。分數本身不變 —— `raw`、`pct`、
  * `native.positives` 都還是只數陽性條目，動到的只有 tier。
  */
-function applyWarnRegression(stat: SectionStat, pre: ScoreInput['pre']): SectionStat {
-  const regression = pre?.regression;
-  const reported = Array.isArray(regression) ? regression.length > 0 : Boolean(regression);
-  if (!reported || stat.n === 0) return stat;
+function applyWarnRegression(stat: SectionStat, bank: ToolkitBank, pre: ScoreInput['pre']): SectionStat {
+  if (!regressionReported(bank, pre)) return stat;
   return { ...stat, tier: 3 };
 }
 
 /**
  * 算一支工具的一次作答。
  *
- * 檢查順序是窗口 → 零題 → 缺答 → 值域，四關都過才進計分。先擋窗口是因為窗口外的題
+ * 檢查順序是窗口 → 零題 → 缺答 → 多餘 → 值域，五關都過才進計分。先擋窗口是因為窗口外的題
  * 本身就不該出（出了也算不得數），先報缺答沒有意義。
  */
 export function scoreTool(input: ScoreInput): ScoreOutcome {
@@ -267,6 +311,16 @@ export function scoreTool(input: ScoreInput): ScoreOutcome {
     };
   }
 
+  // 送來了、但這次沒出的題。計分不會讀它們（只掃 `asked`），所以分數不受影響 ——
+  // 但 `answers` 是要存進資料庫、之後給作答回顧（#61）逐題重播的。放著不管的話，
+  // 一個在 36 個月做過、又回頭補做 24 個月版本而前端沒清狀態的孩子，會存下 34 筆
+  // 作答配上「答了 23 題」，回顧頁列出 11 題這次根本沒問過的題目。
+  const askedKeys = new Set(asked.map(a => a.key));
+  const unexpected = Object.keys(input.answers).filter(k => !askedKeys.has(k));
+  if (unexpected.length > 0) {
+    return { ok: false, reason: 'unexpected_answer', toolId, unexpected };
+  }
+
   // 值域照題庫自己的選項（§3.1），不另立一份對照表。一個 0–2 的題收到 5 會讓
   // 達成率超過 100%，而那個結果看起來完全正常。
   const allowed = new Set<AnswerValue>(bank.options.map(o => o.value));
@@ -288,7 +342,7 @@ export function scoreTool(input: ScoreInput): ScoreOutcome {
     const rs = family.section(valuesOf(section), section.items);
     const tier = tierFor(spec.family, sectionTiers, rs.tierValue);
     const stat = statOf(toolId, rs.n, rs.raw, rs.max, rs.pct, tier);
-    stats[section.key] = toolId === 'sxk-warn' ? applyWarnRegression(stat, input.pre) : stat;
+    stats[section.key] = toolId === 'sxk-warn' ? applyWarnRegression(stat, bank, input.pre) : stat;
     putNative(native, rs.native, section.key);
   }
 
@@ -313,7 +367,7 @@ export function scoreTool(input: ScoreInput): ScoreOutcome {
       totalRaw.pct,
       tierFor(spec.family, bank.tiers, totalRaw.tierValue),
     );
-    if (toolId === 'sxk-warn') overall = applyWarnRegression(overall, input.pre);
+    if (toolId === 'sxk-warn') overall = applyWarnRegression(overall, bank, input.pre);
     putNative(native, totalRaw.native);
   }
 
@@ -326,8 +380,13 @@ export function scoreTool(input: ScoreInput): ScoreOutcome {
       rater: input.rater,
       askedCount: asked.length,
       answeredCount: asked.length,
-      pre: input.pre ?? {},
-      answers: input.answers,
+      // 複本，不是呼叫端傳進來的那個物件。`ToolResult` 是要存進資料庫、之後重讀的
+      // 值物件；共用同一份的話，呼叫端之後就地改一下（把 `req.body.answers` 正規化、
+      // 或把同一個 builder 重複用在下一支工具），已經算完的這一筆就會跟著變，而
+      // `sections`／`overall` 還是舊的 —— 兩者從此對不起來，型別層攔不到，測試在
+      // 乾淨的 import 下也照樣綠。#42 的 code review 已經踩過兩次同一類（14da8d1）。
+      pre: copyPre(input.pre),
+      answers: { ...input.answers },
       sections: stats,
       overall,
       native,

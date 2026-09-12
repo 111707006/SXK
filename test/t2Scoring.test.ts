@@ -7,6 +7,7 @@ import {
   answerKey,
   askedItems,
   isScored,
+  noneValueOf,
   scoreTool,
   tierFor,
 } from '../src/t2/scoring';
@@ -462,6 +463,13 @@ describe('M-CHAT-R/F（risk）：題 2、5、12 反向', () => {
 describe('預警徵象（positive）：陽性索引，以及唯一一支前置題會動到 tier 的工具', () => {
   const AGE = 25; // m24 那個時點
 
+  // 兩個值都從題庫拿，不自己想一個 —— 前端渲染的是這些選項，測試就得用同一組字。
+  const WARN_PRE = TOOLKIT['sxk-warn'].preQuestions.find(q => q.key === 'regression');
+  const NO_REGRESSION = noneValueOf(TOOLKIT['sxk-warn'], 'regression') ?? '';
+  const LANGUAGE_REGRESSION = String(
+    WARN_PRE?.options?.find(o => !o.exclusive)?.value ?? '',
+  );
+
   function warnAnswers(positives: number) {
     const out: Record<string, AnswerValue> = {};
     askedItems('sxk-warn', AGE).forEach((a, i) => {
@@ -488,15 +496,38 @@ describe('預警徵象（positive）：陽性索引，以及唯一一支前置�
   });
 
   it('0 陽性但勾了倒退 → tier 3（§5.3「任一陽性或任一倒退」），分數本身不動', () => {
-    const r = ok(run('sxk-warn', AGE, warnAnswers(0), { regression: ['language'] }));
+    const r = ok(run('sxk-warn', AGE, warnAnswers(0), { regression: [LANGUAGE_REGRESSION] }));
     expect(r.overall.tier).toBe(3);
     expect(r.overall.raw).toBe(0);
     expect(r.native.positives).toEqual([]);
-    expect(r.pre.regression).toEqual(['language']);
+    expect(r.pre.regression).toEqual([LANGUAGE_REGRESSION]);
   });
 
-  it('倒退勾成空陣列不算勾', () => {
-    expect(ok(run('sxk-warn', AGE, warnAnswers(0), { regression: [] })).overall.tier).toBe(1);
+  /**
+   * ⚠️「沒有倒退」**不是空陣列**：warn 的前置題是複選，「未见异常」是一個真的選項值
+   * （`exclusive: true`），家長勾它送出來的是 `['none']`。第一版用「陣列非空」判斷，
+   * 於是每一個好好回答「沒有倒退」的孩子都變成初篩異常 —— 而且測試因為自己造了一個
+   * 題庫裡不存在的「空陣列＝沒勾」表示法而全綠。所以這裡的值一律從題庫拿。
+   */
+  it('勾「未见异常」（題庫的 exclusive 選項）不算勾倒退', () => {
+    expect(NO_REGRESSION).toBe('none');
+    expect(ok(run('sxk-warn', AGE, warnAnswers(0), { regression: [NO_REGRESSION] })).overall.tier).toBe(1);
+    expect(ok(run('sxk-warn', AGE, warnAnswers(1), { regression: [NO_REGRESSION] })).overall.tier).toBe(3);
+  });
+
+  it('沒作答、空陣列、沒給 pre，三種都不算勾', () => {
+    const shapes: Array<Record<string, string | string[] | boolean> | undefined> = [
+      undefined,
+      {},
+      { regression: [] },
+    ];
+    for (const pre of shapes) {
+      expect(ok(run('sxk-warn', AGE, warnAnswers(0), pre)).overall.tier).toBe(1);
+    }
+  });
+
+  it('認不出「沒有」的值時往安全那邊倒 —— warn 是紅旗初篩，寧可多轉診一個', () => {
+    expect(ok(run('sxk-warn', AGE, warnAnswers(0), { regression: ['打錯的值'] })).overall.tier).toBe(3);
   });
 });
 
@@ -627,6 +658,28 @@ describe('完整性：缺答拒算，不以 0 補', () => {
     const out = refused(run('sxk-gm', 72, {}));
     if (out.reason === 'incomplete') expect(out.missing).toHaveLength(40);
   });
+
+  /**
+   * 多餘的 key 不影響分數（計分只掃本次出的題），但 `answers` 是要存進資料庫、之後
+   * 給作答回顧（#61）逐題重播的。放著不管的話，一個在 36 個月做過、又回頭補做 24
+   * 個月版本而前端沒清狀態的孩子，會存下 34 筆作答配上「答了 23 題」。
+   */
+  it('送來這次沒出的題 → unexpected_answer', () => {
+    const answers = flat('sxk-lang', 36, 2);
+    const out = refused(run('sxk-lang', 24, answers));
+    expect(out.reason).toBe('unexpected_answer');
+    if (out.reason === 'unexpected_answer') {
+      expect(out.unexpected).toHaveLength(askedItems('sxk-lang', 36).length - askedItems('sxk-lang', 24).length);
+    }
+  });
+
+  it('多一個亂湊的 key 也擋', () => {
+    const answers = flat('sxk-gm', 72, 2);
+    answers['P9.1'] = 2;
+    const out = refused(run('sxk-gm', 72, answers));
+    expect(out.reason).toBe('unexpected_answer');
+    if (out.reason === 'unexpected_answer') expect(out.unexpected).toEqual(['P9.1']);
+  });
 });
 
 describe('值域：不在 §3.1 值域內的答案拒算', () => {
@@ -730,6 +783,26 @@ describe('ToolResult 的外框（§5.8）', () => {
   it('answers 原樣留著（報告要做作答回顧）', () => {
     const answers = flat('sxk-gm', 72, 1);
     expect(ok(run('sxk-gm', 72, answers)).answers).toEqual(answers);
+  });
+
+  /**
+   * `ToolResult` 是要存進資料庫、之後重讀的值物件。共用同一個 `answers` 物件的話，
+   * 呼叫端之後就地改一下（把 `req.body.answers` 正規化、或把同一個 builder 接著用在
+   * 下一支工具），已經算完的這一筆會跟著變而 `sections`／`overall` 還是舊的。
+   * #42 的 code review 已經踩過兩次同一類（commit 14da8d1）。
+   */
+  it('answers 與 pre 存的是複本 —— 呼叫端之後改自己的物件，結果不會跟著變', () => {
+    const answers = flat('sxk-gm', 72, 1);
+    const pre = { settings: ['home'] };
+    const r = ok(run('sxk-gm', 72, answers, pre));
+
+    answers['P1.1'] = 2;
+    delete answers['P1.2'];
+    pre.settings.push('school');
+
+    expect(r.answers['P1.1']).toBe(1);
+    expect(r.answers['P1.2']).toBe(1);
+    expect(r.pre.settings).toEqual(['home']);
   });
 
   it('22 支在自己窗口的中點都算得出一筆完整結果', () => {

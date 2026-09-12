@@ -46,7 +46,12 @@
 │   │   ├── findingTags.ts # 发现标签的受控词汇 57 个（★ 配活动／只进报告）
 │   │   ├── caveats.ts     # caveat 的受控值 17 个
 │   │   ├── sectionTags.ts # §5.9 的面向→标签、chexi 因素、气质向度、前置题
-│   │   └── itemTags.ts    # §5.9 的逐题标签表（asb／asr／adl／mchat 四支＋gm／asq／warn 几条）
+│   │   ├── itemTags.ts    # §5.9 的逐题标签表（asb／asr／adl／mchat 四支＋gm／asq／warn 几条）
+│   │   ├── act300.ts      # 旧原型 300 支活动的名称与适龄原文（脚本产出，勿手改）
+│   │   └── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
+│   ├── db/
+│   │   ├── mysql.ts       # 连线池与家长端资料层
+│   │   └── activities.ts  # 一列 activities → Activity（后台与家长端共用，只认受控词汇里的标签）
 │   └── utils/
 │       ├── dateUtils.ts   # 日期工具函数
 │       └── reportUtils.ts # 报告生成工具
@@ -78,7 +83,20 @@ npx tsx scripts/t2-extract-toolkit.ts --check
 
 # T2 题库对纸本版逐题比对，印出每支的差异
 npx tsx scripts/t2-diff-paper.ts
+
+# 活动库种子（#44）：从旧原型 files/sxk_t2_activities.js 抽 ACT300 → src/t2/act300.ts
+npx tsx scripts/t2-extract-act300.ts --check
+
+# 活动库种子 → 迁移档 deploy/migrations/2026-09-11-activities.sql 标记之间的 INSERT
+npx tsx scripts/t2-activity-seed-sql.ts --check
 ```
+
+> 活动库（ADR-0005）的 300 支种子是**算**出来的，不是手抄的：`act300.ts` 由脚本抽自旧原型，
+> `activitySeed.ts` 算出模组、月龄区间与维度初值，迁移档里的 INSERT 由种子印出。三层都有
+> 护栏：`test/activitySeed.test.ts` 重跑脚本、重印 SQL、比对 `deploy/schema.sql` 与迁移档的
+> CREATE TABLE 一字不差。**种子全部 `target_month = NULL`**，没填的活动配不到（规格 v2 §7.4），
+> 由内容团队在后台补（#62）。活动库不吃 `company_id`，列在 `test/adminScope.structure.test.ts`
+> 的 `GLOBAL_TABLES`。
 
 > `src/t2/toolkit/` 里的 22 份是脚本从 `NEWT2/森心康评估工具包_20260908.zip` 抽出来的常数，
 > **不要手改** —— `test/toolkit.structure.test.ts` 会重跑脚本比对。工具包的 HTML 一行都不执行：

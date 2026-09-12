@@ -313,6 +313,52 @@ CREATE TABLE IF NOT EXISTS `intervention_materials` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- 活动库（仅专案 A 使用，T2 深度评估；票 #44，ADR-0005）
+-- ============================================================
+-- 一个活动库，每支活动带维度、发现标签、适龄区间，配对演算法依孩子的 T2Findings
+-- 每周选四支。取代上面一格一份的 intervention_materials（那张表不删，ADR-0005）。
+-- 规格 v2 §7.1 在 ADR-0005 的栏位上加了 module_no 与 target_month。
+--
+-- 300 支种子由 deploy/migrations/2026-09-11-activities.sql 写入（来源是旧原型的
+-- ACT300，经 src/t2/activitySeed.ts 算出模组、月龄区间与维度初值）。这里只建表。
+--
+-- 同样刻意**没有 company_id**：活动是森心康的内容，不是家长资料，
+-- 也不属于任何一家合作公司。取资料仍须经过 src/admin/adminStore.ts 这个单一入口。
+
+CREATE TABLE IF NOT EXISTS `activities` (
+  -- 沿用原型 ACT300 的编号：'A017'。之后新增的活动也照这个格式往后编。
+  `id` VARCHAR(8) NOT NULL PRIMARY KEY,
+  `title` VARCHAR(128) NOT NULL,
+  -- 客户的 15 模组（规格 v2 §7.2），1–15。配对用它对 DIM_MOD，不用 dimensions。
+  `module_no` INT NOT NULL,
+  -- 这支活动「做得到的孩子」的发展月龄。NULL = 内容团队还没填，没填的活动配不到（§7.4）。
+  `target_month` INT NULL DEFAULT NULL,
+  -- 从原型「3–8岁」解析出来的区间（月），只当硬闸。
+  `age_min_month` INT NOT NULL,
+  `age_max_month` INT NOT NULL,
+  -- 九码阵列 ["MOT","ADL"]。附录 B.3 从模组推的初值，内容团队在后台改。
+  `dimensions` JSON NOT NULL,
+  -- 练什么。只认 ★ 发现标签（src/t2/findingTags.ts 的 ACTIVITY_TAGS）。
+  `targets` JSON NOT NULL,
+  -- 孩子带着这些标签时不派这支。
+  `avoid_if` JSON NOT NULL,
+  -- 分钟。0 = 还没填。
+  `duration_min` INT NOT NULL DEFAULT 0,
+  -- 器材，字串阵列。
+  `equipment` JSON NOT NULL,
+  -- 分解步骤，有序阵列：[{"imageUrl":"…","instruction":"…"}, …]。图文是主体（ADR-0003／0005）。
+  `steps` JSON NOT NULL,
+  -- 示范连结，选填。只收 https:// 或站内 /… 路径（ADR-0005）。
+  `video_url` VARCHAR(512) DEFAULT NULL,
+  -- 只有停用，没有删除（ADR-0005）。
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_module` (`module_no`),
+  INDEX `idx_active` (`active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 扫码带走的报告连结（issue #22）
 -- ============================================================
 -- 家长在合作公司的 iPad 上看完报告，扫画面上的二维码就能在自己手机上打开

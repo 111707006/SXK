@@ -11,7 +11,7 @@
  */
 
 import type { ToolId, ToolkitTier } from './toolkit';
-import type { FindingTag } from './findingTags';
+import type { ActivityTag, FindingTag } from './findingTags';
 import type { Caveat } from './caveats';
 
 export type { ToolId };
@@ -179,4 +179,44 @@ export interface T2Plan {
    * 缺的維度怎麼補是報告那一層的事。
    */
   functionOrder: DimensionCode[] | null;
+}
+
+/** 客戶的 15 個活動模組（§7.2）。編號 001–020 是模組 1，以此類推：`ceil(編號 / 20)`。 */
+export type ModuleNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
+
+/** 一則分解步驟：一張圖配一句指令，順序即照著做的順序（ADR-0003／0005）。 */
+export interface ActivityStep {
+  imageUrl: string;
+  instruction: string;
+}
+
+/**
+ * 活動庫的一支活動（§7.1 ＝ ADR-0005 的欄位，加 `moduleNo` 與 `targetMonth`）。
+ *
+ * `targetMonth` 是配對真正吃的欄位：這支活動「做得到的孩子」的發展月齡，配對拿它對
+ * §7.2 的偏移窗口。`null` 是「內容團隊還沒填」—— 沒填的活動**配不到**，不是退回
+ * `ageMonths`（退回會讓偏移規則失效而畫面上看不出來，§7.4）。`ageMonths` 是從原型
+ * 「3–8岁」解析出來的區間，只當硬閘。
+ *
+ * `targets` 的型別是 `ActivityTag` 不是 `FindingTag`：活動只認 ★ 標籤（§5.5），
+ * 「慢熱型」這種只進報告的標籤不該出現在這裡。`avoidIf` 對的是孩子的全部標籤，
+ * 所以是 `FindingTag`。
+ */
+export interface Activity {
+  /** 沿用原型 `ACT300` 的編號，`'A017'`。 */
+  id: string;
+  title: string;
+  moduleNo: ModuleNo;
+  targetMonth: number | null;
+  ageMonths: { min: number; max: number };
+  /** 從模組推的初值（附錄 B.3），可多個；內容團隊在後台改。 */
+  dimensions: DimensionCode[];
+  targets: ActivityTag[];
+  avoidIf: FindingTag[];
+  /** 種子沒有這個值，先是 0，內容團隊在後台填。 */
+  durationMin: number;
+  equipment: string[];
+  steps: ActivityStep[];
+  videoUrl: string | null;
+  active: boolean;
 }

@@ -20,6 +20,8 @@ import type { AssessmentRecord, DimensionScore } from '../types';
 import { calculateAgeMonth } from '../utils/dateUtils';
 import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
 import type { MaterialInput, MaterialRecord } from '../utils/materialCells';
+import { activityFromRow } from '../db/activities';
+import type { Activity } from '../t2/types';
 
 // ── 對外型別 ──
 
@@ -822,6 +824,36 @@ export async function updateMaterial(id: number, input: MaterialInput): Promise<
   );
   if ((result as ResultSetHeader).affectedRows > 0) return true;
   return (await findMaterialById(id)) !== null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 活動庫（#44，ADR-0005）—— 同樣不是家長資料，不吃公司條件
+// ══════════════════════════════════════════════════════════════
+//
+// 與上面的素材庫同一個豁免、同一個理由：活動是森心康的內容，不屬於任何一家合作
+// 公司，`test/adminScope.structure.test.ts` 的 `GLOBAL_TABLES` 列了它。列 → 活動的
+// 轉換在 `src/db/activities.ts`，日後家長端的每週配對（#53／#60）讀的是同一支。
+//
+// 這裡只有讀。標記頁的寫入（`targetMonth`、`targets`、停用）是 #62 的事。
+
+/**
+ * 整份活動庫，含已停用的，依編號排序（A001 → A300）。
+ *
+ * 後台要的是 300 支的全貌 —— 「還沒填 targetMonth」與「已停用」在畫面上必須分得開，
+ * 進度數字（已填 N 支）也是從這裡算的。家長端配對只認啟用中且 `targetMonth` 非 null 的，
+ * 那是配對函式自己過濾，不在這裡先篩掉。
+ */
+export async function listActivities(): Promise<Activity[]> {
+  const p = requirePool();
+  const [rows] = await p.execute('SELECT * FROM activities ORDER BY id ASC', []);
+  return (rows as any[]).map(row => activityFromRow(row));
+}
+
+export async function findActivityById(id: string): Promise<Activity | null> {
+  const p = requirePool();
+  const [rows] = await p.execute('SELECT * FROM activities WHERE id = ? LIMIT 1', [id]);
+  const row = (rows as any[])[0];
+  return row ? activityFromRow(row) : null;
 }
 
 /** 每一次公司切換都留下紀錄 —— 越界行為要有痕跡。 */

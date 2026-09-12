@@ -198,8 +198,20 @@ function readText(value: unknown, max: number): string | null {
   return trimmed ? trimmed.slice(0, max) : null;
 }
 
-function readSteps(raw: unknown): { ok: true; steps: MaterialStep[] } | { ok: false; error: string } {
-  if (!Array.isArray(raw) || raw.length === 0) {
+export type StepsResult = { ok: true; steps: MaterialStep[] } | { ok: false; error: string };
+
+/**
+ * 讀一串分解步驟。素材庫與活動庫（#62）共用這一份 —— 圖的網址規則、上限、
+ * 「每一步要同時有圖有字」三件事兩邊必須說同一套話。
+ *
+ * `minSteps` 是唯一的分歧：一格素材至少一則（沒有步驟就沒有素材），而活動庫的
+ * 300 支種子全部是零步，內容團隊是先填 `targetMonth` 再慢慢補圖文的，零步必須存得下去。
+ */
+export function readSteps(raw: unknown, minSteps = 1): StepsResult {
+  if (!Array.isArray(raw)) {
+    return { ok: false, error: minSteps > 0 ? '每一格素材至少要有一则分解步骤。' : '分解步骤必须是一个阵列。' };
+  }
+  if (raw.length < minSteps) {
     return { ok: false, error: '每一格素材至少要有一则分解步骤。' };
   }
   // 超過上限**整筆拒收**，不默默截斷。截斷的話，使用者按下儲存後畫面上還有

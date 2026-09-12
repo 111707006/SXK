@@ -104,8 +104,15 @@ npx tsx scripts/t2-activity-seed-sql.ts --check
 > `activitySeed.ts` 算出模组、月龄区间与维度初值，迁移档里的 INSERT 由种子印出。三层都有
 > 护栏：`test/activitySeed.test.ts` 重跑脚本、重印 SQL、比对 `deploy/schema.sql` 与迁移档的
 > CREATE TABLE 一字不差。**种子全部 `target_month = NULL`**，没填的活动配不到（规格 v2 §7.4），
-> 由内容团队在后台补（#62）。活动库不吃 `company_id`，列在 `test/adminScope.structure.test.ts`
+> 由内容团队在后台「活动库」分页补（#62）。活动库不吃 `company_id`，列在 `test/adminScope.structure.test.ts`
 > 的 `GLOBAL_TABLES`。
+>
+> 后台标记页（#62）：`GET /api/admin/activities` 回 300 支、`PATCH /api/admin/activities/:id` 局部更新
+> （**带了才改**：`targetMonth`／`targets`／`dimensions`／`avoidIf`／`active`／`title`／`durationMin`／
+> `equipment`／`steps`／`videoUrl`），两支都在 `requireGlobal` 之下、不经过 `withScope`；没有新增、没有删除。
+> 输入检查在 `src/utils/activityAdmin.ts`（`targets` 只认 ★ 标签，链接沿用 `assetUrl.ts`，步骤沿用素材库的
+> `readSteps` 但允许零步）；画面 `src/admin/panels/ActivitiesPanel.tsx`，四个进度数字 `activityCoverage`。
+> 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`、`test/activityAdmin.test.ts`。
 
 > `src/t2/toolkit/` 里的 22 份是脚本从 `NEWT2/森心康评估工具包_20260908.zip` 抽出来的常数，
 > **不要手改** —— `test/toolkit.structure.test.ts` 会重跑脚本比对。工具包的 HTML 一行都不执行：

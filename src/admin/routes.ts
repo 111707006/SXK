@@ -20,10 +20,14 @@ import {
 } from './companyScope';
 import { buildIdentity, signAdminToken, verifyAdminToken } from './adminAuth';
 import { readMaterialInput } from '../utils/materialCells';
+import { readActivityPatch } from '../utils/activityAdmin';
 import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 
 const BCRYPT_ROUNDS = 10;
+
+/** 活動編號：一個大寫字母加 3–7 位數字（種子是 'A001'–'A300'，欄位是 VARCHAR(8)）。 */
+const ACTIVITY_ID_PATTERN = /^[A-Z]\d{3,7}$/;
 
 // 進站識別碼的格式規則收在 `src/utils/companySlug.ts`，與前端共用同一份。
 
@@ -717,6 +721,53 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       }
       console.error('[Admin] updateMaterial failed:', err.message);
       res.status(500).json({ error: '更新素材失败。' });
+    }
+  });
+
+  // ── 活動庫標記頁（#62，規格 v2 §7.4）──
+  //
+  // 與素材庫同一個豁免、同一個理由：活動是森心康的內容，不是家長資料，**不經過
+  // `withScope`**；但限定全域管理員 —— 少了 `requireGlobal`，一家合作公司就能改掉
+  // 所有孩子每週拿到的訓練。
+  //
+  // 只有列表與局部更新，**沒有新增、沒有刪除**：300 支由種子寫入，之後新增走遷移；
+  // 不再用的活動只停用（ADR-0005）。PATCH 而不是 PUT 的理由見 `readActivityPatch`。
+
+  router.get('/activities', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    try {
+      res.json({ activities: await store.listActivities() });
+    } catch (err: any) {
+      console.error('[Admin] listActivities failed:', err.message);
+      // 讀取失敗與「一支都沒有」必須分得開：沒跑遷移會被看成「活動庫是空的」。
+      res.status(500).json({ error: '读取活动库失败。' });
+    }
+  });
+
+  router.patch('/activities/:id', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    const id = String(req.params.id);
+    // 編號的格式沿用種子：'A017'（VARCHAR(8)）。格式不對就是找不到，不必問資料庫。
+    if (!ACTIVITY_ID_PATTERN.test(id)) {
+      res.status(404).json({ error: '找不到该活动。' });
+      return;
+    }
+    const parsed = readActivityPatch(req.body);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    try {
+      const activity = await store.updateActivity(id, parsed.patch);
+      if (!activity) {
+        res.status(404).json({ error: '找不到该活动。' });
+        return;
+      }
+      // 回整支更新後的活動：畫面直接換掉列表裡那一列，四個進度數字跟著變，不必重抓 300 支。
+      res.json({ activity });
+    } catch (err: any) {
+      console.error('[Admin] updateActivity failed:', err.message);
+      res.status(500).json({ error: '更新活动失败。' });
     }
   });
 

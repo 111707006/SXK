@@ -8,6 +8,8 @@
 
 import type { AssessmentRecord } from '../types';
 import type { MaterialInput, MaterialRecord } from '../utils/materialCells';
+import type { ActivityPatch } from '../utils/activityAdmin';
+import type { Activity } from '../t2/types';
 
 const TOKEN_KEY = 'sxk_admin_token';
 
@@ -286,4 +288,13 @@ export const adminApi = {
 
   updateMaterial: (id: number, input: MaterialInput) =>
     request<{ ok: true }>(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+
+  // 活動庫（#62）同樣不吃公司條件。局部更新回整支，畫面直接換掉那一列。
+  activities: () => request<{ activities: Activity[] }>('/activities'),
+
+  updateActivity: (id: string, patch: ActivityPatch) =>
+    request<{ activity: Activity }>(`/activities/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
 };

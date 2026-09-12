@@ -21,6 +21,7 @@ import { calculateAgeMonth } from '../utils/dateUtils';
 import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
 import type { MaterialInput, MaterialRecord } from '../utils/materialCells';
 import { activityFromRow } from '../db/activities';
+import type { ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
 
 // ── 對外型別 ──
@@ -834,7 +835,7 @@ export async function updateMaterial(id: number, input: MaterialInput): Promise<
 // 公司，`test/adminScope.structure.test.ts` 的 `GLOBAL_TABLES` 列了它。列 → 活動的
 // 轉換在 `src/db/activities.ts`，日後家長端的每週配對（#53／#60）讀的是同一支。
 //
-// 這裡只有讀。標記頁的寫入（`targetMonth`、`targets`、停用）是 #62 的事。
+// 讀兩支、寫一支。寫的那一支是標記頁（#62）：局部更新，帶了才改。
 
 /**
  * 整份活動庫，含已停用的，依編號排序（A001 → A300）。
@@ -854,6 +855,46 @@ export async function findActivityById(id: string): Promise<Activity | null> {
   const [rows] = await p.execute('SELECT * FROM activities WHERE id = ? LIMIT 1', [id]);
   const row = (rows as any[])[0];
   return row ? activityFromRow(row) : null;
+}
+
+/**
+ * `ActivityPatch` 的每個欄位 → 資料表欄位與序列化方式。
+ *
+ * 寫成一張表而不是十個 if：新增一個可填的欄位時，這裡少一列會在型別檢查就被抓到
+ * （`Record<keyof ActivityPatch, …>` 要求齊全），而不是某個欄位在畫面上存了、資料庫裡沒有。
+ */
+const ACTIVITY_COLUMNS: Readonly<Record<keyof ActivityPatch, { column: string; encode: (v: any) => unknown }>> = {
+  title: { column: 'title', encode: v => v },
+  targetMonth: { column: 'target_month', encode: v => v },
+  dimensions: { column: 'dimensions', encode: v => JSON.stringify(v) },
+  targets: { column: 'targets', encode: v => JSON.stringify(v) },
+  avoidIf: { column: 'avoid_if', encode: v => JSON.stringify(v) },
+  durationMin: { column: 'duration_min', encode: v => v },
+  equipment: { column: 'equipment', encode: v => JSON.stringify(v) },
+  steps: { column: 'steps', encode: v => JSON.stringify(v) },
+  videoUrl: { column: 'video_url', encode: v => v },
+  active: { column: 'active', encode: v => (v ? 1 : 0) },
+};
+
+/**
+ * 局部更新一支活動，回傳更新後的整支；這個 id 不存在回 `null`。
+ *
+ * **帶了才改，沒帶不動**：內容團隊今天填 targetMonth、下週貼標籤，整筆覆寫會讓前端漏送
+ * 一個欄位就悄悄清掉一個。SET 子句只列 `patch` 裡有的欄位，欄位名來自上面那張表，
+ * **不是**請求裡的字 —— 值全部參數化。
+ *
+ * 更新後一律讀回：路由要把整支回給畫面（列表即時更新），而且這樣就不必依賴 `affectedRows`
+ * 去判斷「找不到」—— 那個數字在「內容一模一樣」時也是 0（見 `updateMaterial`）。
+ */
+export async function updateActivity(id: string, patch: ActivityPatch): Promise<Activity | null> {
+  const p = requirePool();
+  const keys = (Object.keys(patch) as Array<keyof ActivityPatch>).filter(k => patch[k] !== undefined);
+  if (keys.length > 0) {
+    const sets = keys.map(k => `${ACTIVITY_COLUMNS[k].column} = ?`).join(', ');
+    const params: any[] = keys.map(k => ACTIVITY_COLUMNS[k].encode(patch[k]));
+    await p.execute(`UPDATE activities SET ${sets} WHERE id = ?`, [...params, id]);
+  }
+  return findActivityById(id);
 }
 
 /** 每一次公司切換都留下紀錄 —— 越界行為要有痕跡。 */

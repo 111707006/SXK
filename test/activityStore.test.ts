@@ -174,3 +174,60 @@ describe('adminStore.findActivityById', () => {
     expect(await store.findActivityById('A999')).toBeNull();
   });
 });
+
+describe('adminStore.updateActivity（#62）', () => {
+  it('只改帶進來的欄位：一句 UPDATE 只 SET 那幾欄，JSON 欄位序列化，再讀回整支', async () => {
+    rows = [{ ...ROW, target_month: 30, targets: '["lang.expression"]' }];
+    const a = await store.updateActivity('A017', { targetMonth: 30, targets: ['lang.expression'] });
+    expect(executed).toHaveLength(2);
+    expect(executed[0].sql).toBe('UPDATE activities SET target_month = ?, targets = ? WHERE id = ?');
+    expect(executed[0].params).toEqual([30, '["lang.expression"]', 'A017']);
+    expect(executed[1].sql).toBe('SELECT * FROM activities WHERE id = ? LIMIT 1');
+    expect(a?.targetMonth).toBe(30);
+    expect(a?.targets).toEqual(['lang.expression']);
+  });
+
+  it('每個可填的欄位都對得到一個欄位名；布林存成 0/1、null 存成 NULL', async () => {
+    rows = [{ ...ROW }];
+    await store.updateActivity('A017', {
+      title: '新标题',
+      targetMonth: null,
+      dimensions: ['MOT', 'ADL'],
+      targets: [],
+      avoidIf: ['sen.threshold_low'],
+      durationMin: 10,
+      equipment: ['积木'],
+      steps: [{ imageUrl: '/1.png', instruction: '一' }],
+      videoUrl: 'https://v.example.com/x',
+      active: false,
+    });
+    expect(executed[0].sql).toBe(
+      'UPDATE activities SET title = ?, target_month = ?, dimensions = ?, targets = ?, avoid_if = ?, '
+        + 'duration_min = ?, equipment = ?, steps = ?, video_url = ?, active = ? WHERE id = ?'
+    );
+    expect(executed[0].params).toEqual([
+      '新标题', null, '["MOT","ADL"]', '[]', '["sen.threshold_low"]', 10, '["积木"]',
+      '[{"imageUrl":"/1.png","instruction":"一"}]', 'https://v.example.com/x', 0, 'A017',
+    ]);
+  });
+
+  it('找不到這支回 null；不存在的 id 一列都改不到，無害', async () => {
+    rows = [];
+    expect(await store.updateActivity('A999', { active: false })).toBeNull();
+  });
+
+  // 空 patch 不該走到這裡（路由層先擋），真的來了也不下一句壞掉的 SQL。
+  it('空 patch 不下 UPDATE，只讀回現況', async () => {
+    rows = [{ ...ROW }];
+    const a = await store.updateActivity('A017', {});
+    expect(executed.map(e => e.sql.split(' ')[0])).toEqual(['SELECT']);
+    expect(a?.id).toBe('A017');
+  });
+
+  it('活動庫的 SQL 一句都不帶公司條件 —— 活動是森心康的內容，不屬於任何一家合作公司', async () => {
+    rows = [{ ...ROW }];
+    await store.listActivities();
+    await store.updateActivity('A017', { active: true });
+    for (const { sql } of executed) expect(sql).not.toMatch(/company/i);
+  });
+});

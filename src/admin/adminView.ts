@@ -95,7 +95,8 @@ export type AdminTabId =
   | 'companies'
   | 'adminUsers'
   | 'summary'
-  | 'materials';
+  | 'materials'
+  | 'activities';
 
 export interface AdminTab {
   id: AdminTabId;
@@ -116,6 +117,8 @@ const GLOBAL_TABS: AdminTab[] = [
   { id: 'summary', label: '跨公司汇总' },
   // 素材庫是森心康的干預內容，合作公司不維護它（專案 B 也沒有深度評估）。
   { id: 'materials', label: '素材库' },
+  // 活動庫（#62）取代素材庫的一庫多支，同樣是森心康的內容。
+  { id: 'activities', label: '活动库' },
 ];
 
 /**

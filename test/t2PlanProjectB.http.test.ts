@@ -50,6 +50,13 @@ vi.mock('../src/db/t2Activities', () => ({
   listActivityLibrary: async () => { throw new Error('專案 B 不該讀活動庫'); },
 }));
 
+// #60 的每週活動。
+vi.mock('../src/db/t2WeeklyPlans', () => ({
+  insertWeeklyPlan: async () => { throw new Error('專案 B 不該寫每週活動'); },
+  findWeeklyPlan: async () => { throw new Error('專案 B 不該讀每週活動'); },
+  recentWeeklyPlans: async () => { throw new Error('專案 B 不該讀每週活動'); },
+}));
+
 vi.mock('../src/admin/adminStore', () => ({
   isAvailable: () => false,
   findAdminUserByEmail: async () => null,
@@ -98,6 +105,10 @@ describe('專案 B 沒有 T2 入口', () => {
 
   it('GET /api/t2/findings/latest 在 B 根本不存在（#59）', async () => {
     expect((await client.get('/api/t2/findings/latest', auth)).status).toBe(404);
+  });
+
+  it('GET /api/t2/weekly-plan 在 B 根本不存在（#60）', async () => {
+    expect((await client.get('/api/t2/weekly-plan', auth)).status).toBe(404);
   });
 
   /** 對照組：少了這一條，上面的 404 也可能是整個伺服器沒起來。 */

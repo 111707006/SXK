@@ -131,6 +131,16 @@ vi.mock('../src/db/t2Activities', () => ({
   listActivityLibrary: async () => [],
 }));
 
+/**
+ * 生成報告會讀「前四週派過的活動編號」——報告提示裡的那幾支，必須與家長在同一頁底下看到的
+ * 每週活動是同一組（#60 的端點用同一份扣分規則）。這支測試沒有歷史，回空陣列即可。
+ */
+vi.mock('../src/db/t2WeeklyPlans', () => ({
+  insertWeeklyPlan: async () => 1,
+  findWeeklyPlan: async () => null,
+  recentWeeklyPlans: async () => [],
+}));
+
 let client: TestClient;
 
 beforeAll(async () => {

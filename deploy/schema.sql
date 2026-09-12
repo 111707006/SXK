@@ -469,6 +469,37 @@ CREATE TABLE IF NOT EXISTS `t2_findings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- T2 每周活动（票 #60，规格 v2 §9.1）
+-- ============================================================
+-- 一周一笔：查的那周没有，就用最新的 T2Findings 快照＋当周实足月龄＋前四周派过的编号
+-- 算一份存起来，之后同一周回同一份。(user_id, week_start) 唯一 —— 家长在同一周里重整
+-- 两次页面必须拿到同一份四支活动，而配对函式对「前四周派过的」会扣分，重算就可能换掉一支。
+--
+-- week_start 是那一周的星期一（Asia/Shanghai）。算法在 src/t2/weeks.ts，伺服器与画面共用一份。
+-- findings_id 记这一周是照哪一份快照配的：家长下周重新生成报告时，这一周已经派出去的四支
+-- 不该跟着变。
+--
+-- activities 存的是 §9.1 那个 {id, reason}[] 的超集：
+--   {"picks":[{"id","dimension","reason"}],"preparing":["SEN"]}
+-- dimension 是「这一支是为哪个维度挑的」（模组 7 同时属于四个维度，光看活动不知道）；
+-- preparing 是「这个维度配不到活动」，从 picks 反推会把「有候选但没抢到名额」误判成准备中。
+-- 活动的内容（标题、时长、步骤）不存 —— 那是活动库的事，内容团队改完家长这周就该看到改好的。
+--
+-- 完整的迁移与验证语句见：deploy/migrations/2026-09-12-t2-weekly-plans.sql
+
+CREATE TABLE IF NOT EXISTS `t2_weekly_plans` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  `findings_id` BIGINT UNSIGNED NOT NULL,
+  `week_start` DATE NOT NULL,
+  `activities` JSON NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_user_week` (`user_id`, `week_start`),
+  CONSTRAINT `fk_t2_weekly_plans_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_t2_weekly_plans_findings` FOREIGN KEY (`findings_id`) REFERENCES `t2_findings` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 扫码带走的报告连结（issue #22）
 -- ============================================================
 -- 家长在合作公司的 iPad 上看完报告，扫画面上的二维码就能在自己手机上打开

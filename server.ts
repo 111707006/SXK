@@ -28,17 +28,20 @@ import { readDiagnosisDirection } from './src/t2/diagnosisOptions';
 import { scoreTool } from './src/t2/scoring';
 import { buildT2Findings, latestCompleteResults } from './src/t2/findings';
 import { readToolSubmission, refusalToHttp, toolBands } from './src/t2/toolResults';
-import { matchWeeklyActivities } from './src/t2/activityMatch';
+import { ageKeyOf, matchWeeklyActivities } from './src/t2/activityMatch';
 import type { WeeklyActivities } from './src/t2/activityMatch';
+import { isCalendarDate, weekEndOf, weekStartOf } from './src/t2/weeks';
 import { buildSmartGoals } from './src/t2/goals';
 import { generateProse } from './src/t2/report';
 import type { T2ReportInput } from './src/t2/report';
 import * as t2Store from './src/db/t2ToolResults';
 import * as t2FindingsStore from './src/db/t2Findings';
+import * as t2WeeklyStore from './src/db/t2WeeklyPlans';
 import { listActivityLibrary } from './src/db/t2Activities';
 import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
 import type { FindingsRecord } from './src/db/t2Findings';
-import type { Activity, DiagnosisDirection, T2Findings } from './src/t2/types';
+import type { WeeklyPlanRecord } from './src/db/t2WeeklyPlans';
+import type { Activity, DiagnosisDirection, DimensionCode } from './src/t2/types';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
@@ -1385,10 +1388,20 @@ tier2Only.post('/api/t2/findings', async (req, res) => {
 
     // 報告要的素材：這一週的四支（實足月齡）與最多三條目標。都是純函式算的，
     // 模型只負責把它們寫成句子（§6.2「AI 只寫字，不判斷」）。
+    //
+    // 「前四週派過的」要照實傳：報告的提示會逐支帶上活動標題，而家長在同一頁底下看到的是
+    // `/api/t2/weekly-plan` 存下來的那一份（票 #61 把兩者排在一起）。這裡傳空陣列的話，
+    // 「四週內派過 −2」不生效，兩邊就會對「這一週練什麼」給出兩個不一樣的答案。
     const childName = typeof context.child?.name === 'string' ? context.child.name : undefined;
+    const recentWeeks = await loadRecentWeeklyPlans(userId, weekStartOf(new Date()));
     const input: T2ReportInput = {
       findings,
-      activities: matchWeeklyActivities(findings, context.liveAgeMonth, [], await loadActivityLibrary()),
+      activities: matchWeeklyActivities(
+        findings,
+        context.liveAgeMonth,
+        recentWeeks.flatMap(p => p.activities.picks.map(x => x.id)),
+        await loadActivityLibrary(),
+      ),
       goals: buildSmartGoals(findings, { childName }),
       childName,
     };
@@ -1428,6 +1441,201 @@ tier2Only.get('/api/t2/findings/latest', async (req, res) => {
     res.status(500).json({ error: '暂时无法读取报告，请稍后重试。' });
   }
 });
+
+// ── T2 每週活動（票 #60，規格 §9.1、§9.2、§7.3）──
+//
+// `GET /api/t2/weekly-plan?week=`：查的那週有就回那一份；沒有就用最新的 `T2Findings` 快照
+// ＋當週實足月齡＋前四週派過的編號跑一次配對（#53），存起來再回。**一週一筆**：同一週查兩次
+// 回同一份，表裡仍是一筆。
+//
+// 【為什麼要存下來，不是每次算】
+// 配對對「前四週派過的」會扣 2 分（§7.3 第 2 條）。不存的話，家長在同一週裡重整兩次頁面，
+// 第二次算出來的四支可能與第一次不同 —— 昨天記下「這週要練 A017」的那位家長，今天打開找不到它。
+//
+// 【兩個月齡在畫面上要分得開】
+// 配對吃**實足月齡**（訓練是現在要做的事）；報告寫的是**測評月齡**（那時候看到什麼）。
+// 孩子跨段之後兩者會分岔，回應把兩個都帶上，畫面標出配對用的是哪一個（詞彙表的要求）。
+// 「當週實足月齡」取的是那一週**星期一**那天的月齡：一週裡過生日的孩子，整週用同一個數字，
+// 否則同一份已經存下來的活動，在畫面上會在生日那天突然變成「為另一個年齡段配的」。
+//
+// 【活動內容不存在這張表裡】
+// 存的是編號；標題、時長、器材、圖文步驟每次都從活動庫查（`listActivityLibrary`）。
+// 內容團隊今天補完一支活動的步驟，家長這一週打開就看得到 —— 存進來等於給每一週複製一份活動庫。
+// 編號在庫裡查不到（今天不會發生：活動只停用不刪除）就略過那一支，不讓整週的畫面壞掉。
+//
+// 記憶體模式：存 `offlineT2WeeklyPlans`；活動庫是空的，於是每個維度「準備中」（§7.4）。
+
+const offlineT2WeeklyPlans = new Map<UserId, WeeklyPlanRecord[]>();
+let offlineT2WeeklyPlanSeq = 0;
+
+/** 配對要看「前幾週派過的」（§7.3 第 2 條）。 */
+const RECENT_WEEKS = 4;
+
+/** 可以查到多未來的一週（見端點裡那一段註解）。 */
+const WEEK_LOOKAHEAD_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function loadWeeklyPlan(userId: UserId, weekStart: string): Promise<WeeklyPlanRecord | null> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2WeeklyStore.findWeeklyPlan(dbUserId, weekStart), 2000);
+  return (offlineT2WeeklyPlans.get(userId) ?? []).find(p => p.weekStart === weekStart) ?? null;
+}
+
+async function loadRecentWeeklyPlans(userId: UserId, weekStart: string): Promise<WeeklyPlanRecord[]> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    return withTimeout(t2WeeklyStore.recentWeeklyPlans(dbUserId, weekStart, RECENT_WEEKS), 2000);
+  }
+  return (offlineT2WeeklyPlans.get(userId) ?? [])
+    .filter(p => p.weekStart < weekStart)
+    .sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))
+    .slice(0, RECENT_WEEKS);
+}
+
+/**
+ * 存這一週的那一份。**兩個請求同時算完時，後到的那個讀回先到的那一份** ——
+ * 一週一筆是 `uniq_user_week` 保證的，撞到它代表別人剛剛寫好了，不是錯誤。
+ * 少了這一關，家長開兩個分頁（或連點兩下重整）時，第二個分頁會拿到 500。
+ */
+async function storeWeeklyPlan(
+  userId: UserId,
+  weekStart: string,
+  input: t2WeeklyStore.WeeklyPlanInsert,
+): Promise<WeeklyPlanRecord> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    try {
+      const id = await withTimeout(t2WeeklyStore.insertWeeklyPlan(dbUserId, input), 2000);
+      return { id, createdAt: new Date().toISOString(), ...input };
+    } catch (err: any) {
+      if (err?.code !== 'ER_DUP_ENTRY') throw err;
+      const winner = await loadWeeklyPlan(userId, weekStart);
+      if (winner) return winner;
+      throw err;
+    }
+  }
+  // 記憶體模式：沒有唯一索引，自己擋一次（兩個請求可以在 await 之間交錯）。
+  const existing = (offlineT2WeeklyPlans.get(userId) ?? []).find(p => p.weekStart === weekStart);
+  if (existing) return existing;
+  offlineT2WeeklyPlanSeq += 1;
+  const record: WeeklyPlanRecord = { id: offlineT2WeeklyPlanSeq, createdAt: new Date().toISOString(), ...input };
+  const list = offlineT2WeeklyPlans.get(userId) ?? [];
+  list.push(record);
+  offlineT2WeeklyPlans.set(userId, list);
+  return record;
+}
+
+/**
+ * 那一週星期一當天的實足月齡（檔頭「兩個月齡」）。
+ *
+ * 有出生日期就照它算；那一週在孩子出生之前時 `calculateAgeMonth` 回 `null`，這裡跟著回 `null`
+ * ——**不退回測評月齡**：那會讓 2019 年那一週的畫面寫著「按孩子现在 48 个月安排」，一個看起來
+ * 像真的、其實與那一週無關的數字，而且還會為那一週寫一列。
+ *
+ * 沒有出生日期的舊檔案才退回快照上的測評月齡：那是我們僅有的資訊，而配對對月齡是嚴格的
+ *（非負整數），不猜一個數字。
+ */
+function ageMonthForWeek(child: any, weekStart: string, fallback: number): number | null {
+  if (typeof child?.birthDate === 'string') {
+    return calculateAgeMonth(child.birthDate, new Date(`${weekStart}T00:00:00.000Z`));
+  }
+  return fallback;
+}
+
+tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
+  try {
+    const userId = await requireT2Parent(req, res);
+    if (!userId) return;
+
+    // `week=` 帶了就以它為準（那一天所在那一週），沒帶就是這一週。認不得的日期是 400：
+    // 安靜地當成「這一週」的話，家長看到的是一份與他選的日期無關的活動。
+    const queried = req.query.week;
+    if (queried !== undefined && (typeof queried !== 'string' || !isCalendarDate(queried))) {
+      res.status(400).json({ error: '日期格式不正确，请用 2026-09-07 这样的写法。', code: 'WEEK_INVALID' });
+      return;
+    }
+    const weekStart = weekStartOf(typeof queried === 'string' ? queried : new Date());
+
+    // 只服務「這一週與它之前」，外加一週的餘裕（家長的裝置時鐘比伺服器快幾分鐘時，週日深夜
+    // 送上來的「下一週」仍算得出來）。再往後的週次沒有意義，而每一個不同的週次都會寫一列——
+    // 不擋的話，一個帶著自己 token 的腳本可以無上限地寫進去。
+    if (weekStart > weekStartOf(new Date(Date.now() + WEEK_LOOKAHEAD_MS))) {
+      res.status(400).json({ error: '还看不到这么远的安排，请先看这一周。', code: 'WEEK_OUT_OF_RANGE' });
+      return;
+    }
+
+    const snapshot = await loadLatestT2Findings(userId);
+    if (!snapshot) {
+      res.status(404).json({
+        error: '请先生成深度评估报告，本周的活动会依报告安排。',
+        code: 'T2_FINDINGS_REQUIRED',
+      });
+      return;
+    }
+
+    const data = await loadParentData(userId);
+    const ageMonth = ageMonthForWeek(data?.child, weekStart, snapshot.findings.child.assessedAgeMonth);
+    if (ageMonth === null) {
+      res.status(400).json({ error: '这一周在孩子出生之前，请换一个日期。', code: 'WEEK_OUT_OF_RANGE' });
+      return;
+    }
+
+    // 活動庫一次請求讀一次：配對要它，把編號配回內容也要它。
+    const library = await loadActivityLibrary();
+    let record = await loadWeeklyPlan(userId, weekStart);
+    if (!record) {
+      const recent = await loadRecentWeeklyPlans(userId, weekStart);
+      const recentIds = recent.flatMap(p => p.activities.picks.map(x => x.id));
+      const matched = matchWeeklyActivities(snapshot.findings, ageMonth, recentIds, library);
+      record = await storeWeeklyPlan(userId, weekStart, {
+        weekStart,
+        findingsId: snapshot.id,
+        activities: {
+          picks: matched.picks.map(p => ({ id: p.activity.id, dimension: p.dimension, reason: p.reason })),
+          preparing: matched.preparing,
+        },
+      });
+    }
+
+    res.json(weeklyPlanResponse(record, ageMonth, snapshot, library));
+  } catch (err: any) {
+    console.error('[T2] weekly plan failed:', err.message);
+    res.status(500).json({ error: '暂时无法读取本周的活动，请稍后重试。' });
+  }
+});
+
+/** 把存下來的編號配回活動庫的內容。庫裡查不到的略過（檔頭）。`library` 由呼叫端讀好傳進來。 */
+function weeklyPlanResponse(
+  record: WeeklyPlanRecord,
+  ageMonth: number,
+  snapshot: FindingsRecord,
+  library: ReadonlyArray<Activity>,
+) {
+  const byId = new Map(library.map(a => [a.id, a] as const));
+  const activities = record.activities.picks
+    .map(pick => {
+      const activity = byId.get(pick.id);
+      if (!activity) {
+        console.warn(`[T2] 每週活動 ${record.weekStart} 的 ${pick.id} 不在活動庫裡，略過`);
+        return null;
+      }
+      return { activity, dimension: pick.dimension, reason: pick.reason };
+    })
+    .filter((x): x is { activity: Activity; dimension: DimensionCode; reason: WeeklyActivities['picks'][number]['reason'] } => x !== null);
+
+  return {
+    weekStart: record.weekStart,
+    weekEnd: weekEndOf(record.weekStart),
+    createdAt: record.createdAt,
+    findingsId: record.findingsId,
+    // 配對用的實足月齡與它落在哪一個年齡段（畫面上要標出來）
+    ageMonth,
+    ageKey: ageKeyOf(ageMonth),
+    // 報告用的測評月齡。兩者不同時畫面要說明（孩子跨段後會分岔）
+    reportAgeMonth: snapshot.findings.child.assessedAgeMonth,
+    activities,
+    preparing: record.activities.preparing,
+  };
+}
 
 /** Dimensions whose deep assessment is served by a fixed endpoint. */
 const LANGUAGE_DIMENSION_ID = 'language';

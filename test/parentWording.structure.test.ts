@@ -86,6 +86,9 @@ const PARENT_FACING_FILES = [
   // 2026-09-12（票 #58）：逐支作答的畫面與它的純函式層（填表人、加測提示那一句、ASR 的白話註解）。
   'src/components/T2Assessment.tsx',
   'src/t2/answering.ts',
+  // 2026-09-12（票 #60）：每週活動的畫面與它的句子層（「因為……所以練……」、年齡段、準備中）。
+  'src/components/T2WeeklyPlan.tsx',
+  'src/t2/weeklyCopy.ts',
 ];
 
 /**

@@ -525,7 +525,7 @@ describe('規則表登錄', () => {
   });
 
   it('還沒做的工具問 ruleFor 會丟錯，不會安靜地當成沒有判定', () => {
-    expect(() => ruleFor('sxk-ab')).toThrow(/sxk-ab/);
-    expect(TOOL_RULES['sxk-ab']).toBeUndefined();
+    expect(() => ruleFor('sxk-dev')).toThrow(/sxk-dev/);
+    expect(TOOL_RULES['sxk-dev']).toBeUndefined();
   });
 });

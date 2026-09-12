@@ -213,6 +213,23 @@ function chexiFactorStats(
   return out;
 }
 
+/**
+ * `sxk-att` 的 `native.hotSettings`：tier ≥ 2 的情境數（§5.9）。
+ *
+ * att 的五個面向是五個**情境**（課堂、作業、居家、人際、自我管理），報告要講「在幾個
+ * 情境裡看得到」—— 這是 ADHD 判斷裡「跨場合」那一條的材料。放在這一層而不是規則表，
+ * 是因為 `native` 是 `ToolResult` 的一部分、要存進資料庫；規則表（`rules/`）只讀
+ * `ToolResult`，不寫它。只數 `scored` 的面向，跟面向級標籤的觸發條件一致（att 在窗口內
+ * 五個情境都是 8 題、都 `scored`，所以這是一致性不是實際的分岔）。
+ */
+const HOT_SETTINGS_TOOL: ToolId = 'sxk-att';
+
+function hotSectionCount(stats: Record<string, SectionStat>): number {
+  let n = 0;
+  for (const s of Object.values(stats)) if (s.scored && s.tier !== null && s.tier >= 2) n += 1;
+  return n;
+}
+
 /** `pre` 的複本。值可能是陣列（複選題），所以陣列也要複製，不能只複製外層。 */
 function copyPre(pre: ScoreInput['pre']): ToolResult['pre'] {
   const out: ToolResult['pre'] = {};
@@ -350,6 +367,8 @@ export function scoreTool(input: ScoreInput): ScoreOutcome {
   if (spec.family === 'mean-chexi') {
     Object.assign(stats, chexiFactorStats(sections, valuesOf, bank.tiers));
   }
+
+  if (toolId === HOT_SETTINGS_TOOL) native.hotSettings = hotSectionCount(stats);
 
   const allValues = asked.map(a => input.answers[a.key]);
   const allItems = asked.map(a => a.item);

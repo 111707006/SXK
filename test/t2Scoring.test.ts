@@ -320,6 +320,15 @@ describe('關切率（concern）：另記答 ≥2 的題數', () => {
     expect(r.native.hi).toBe(4);
   });
 
+  it('att 另記 hotSettings（tier ≥2 的情境數，§5.9）；同族的 ab 沒有這一格', () => {
+    // CL 前兩題 3、第三題 1 → raw 7 ÷ 24 = 29% → tier 2；HW 同；其餘 0
+    const r = ok(run('sxk-att', 72, bySection('sxk-att', 72, { CL: 7, HW: 7 }, 0, 3)));
+    expect(r.sections.CL.tier).toBe(2);
+    expect(r.native.hotSettings).toBe(2);
+    expect(ok(run('sxk-att', 72, flat('sxk-att', 72, 0))).native.hotSettings).toBe(0);
+    expect(ok(run('sxk-ab', 72, flat('sxk-ab', 72, 3))).native.hotSettings).toBeUndefined();
+  });
+
   it('六支切分不一致是規格的決定：同樣 30% 在 att 是 tier 2、在 ab 是 tier 1', () => {
     expect(tierFor('concern', TOOLKIT['sxk-att'].tiers, 30)).toBe(2);
     expect(tierFor('concern', TOOLKIT['sxk-ab'].tiers, 30)).toBe(1);

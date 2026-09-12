@@ -534,8 +534,9 @@ describe('規則表登錄', () => {
     expect(Object.keys(ASD_RULES)).toEqual(['sxk-asb', 'sxk-asr']);
   });
 
-  it('目前登錄的是達成率族六支＋這兩支（#49–#51 各自再加）；toolId 對得上 key，版本是計分那一版', () => {
-    expect(Object.keys(TOOL_RULES)).toEqual([...ACHIEVEMENT_TOOL_IDS, ...ASD_TOOL_IDS]);
+  it('兩支都在登錄表裡、排在達成率族六支之後（完整的登錄清單由最新的那張票釘住）；toolId 對得上 key，版本是計分那一版', () => {
+    expect(Object.keys(TOOL_RULES).slice(0, ACHIEVEMENT_TOOL_IDS.length + ASD_TOOL_IDS.length))
+      .toEqual([...ACHIEVEMENT_TOOL_IDS, ...ASD_TOOL_IDS]);
     for (const toolId of ASD_TOOL_IDS) {
       const rule = ruleFor(toolId);
       expect(rule.toolId).toBe(toolId);

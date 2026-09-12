@@ -32,6 +32,10 @@ import { BRAIN_NODES, REHAB_SUGGESTIONS } from '../src/dimensionContent';
  * - `src/dimensionContent.ts` 整檔：`DIMENSION_DETAILS` 裡是量表的正式名稱
  *   （「物理治疗 PT」「CRRC 语言发育迟缓检查法」），而且沒有任何地方渲染它。
  *   真的會進報告的兩張表（`REHAB_SUGGESTIONS`、`BRAIN_NODES`）改成直接 import 檢查值。
+ * - `src/t2/diagnosisOptions.ts`（票 #56）：診斷方向的十個選項（「脑瘫」「自闭症」……）與問句
+ *   「医生是否已告知诊断方向」。它們是**醫師講出口的名稱**，家長從裡面挑出醫師講過的那一個；
+ *   主語是醫師，不是系統在說孩子。改寫成別的字，家長反而對不上醫師講的。這些字集中在那一檔，
+ *   畫面元件只 import 不手抄 —— `test/t2EntranceCopy.structure.test.ts` 釘住。
  */
 
 const ROOT = path.resolve(__dirname, '..');
@@ -70,6 +74,9 @@ const PARENT_FACING_FILES = [
   'src/utils/interventionPack.ts',
   'src/utils/specialists.ts',
   'src/utils/ageBandDrift.ts',
+  // 2026-09-12（票 #56）：T2 入口與它的題量句子。T2 重做的家長端從這裡開始納入護欄。
+  'src/components/T2Entrance.tsx',
+  'src/t2/entrance.ts',
 ];
 
 /**

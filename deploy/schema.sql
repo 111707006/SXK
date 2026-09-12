@@ -374,6 +374,26 @@ CREATE TABLE IF NOT EXISTS `activities` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- T2 入口的状态（票 #56，规格 v2 §4.3）
+-- ============================================================
+-- 家长这一轮第二层深度评估的状态，目前只有一个栏位：入口选的「医师是否已告知诊断方向」。
+-- 一位家长一列、改了就覆盖、没有历史 —— 历史在 t2_findings 的快照里（#59 生成报告时把它
+-- 带进 T2Findings.diagnosisDirection，写下后不改）。
+--
+-- 不放进 user_data：那一列是前端整包同步的（child／completed_scores／orders／report_history），
+-- T2 的东西混进去，每一次存档都可能把它盖掉。
+--
+-- diagnosis_direction 的十个值＝ src/t2/types.ts 的 DiagnosisDirection（规格 §4.3 十选一）。
+-- NULL ＝「未告知」，是正常答案，不是缺漏（§4.3：没填不得阻挡流程）。
+
+CREATE TABLE IF NOT EXISTS `t2_intake` (
+  `user_id` INT UNSIGNED NOT NULL PRIMARY KEY,
+  `diagnosis_direction` ENUM('cp','dd','id','ld','adhd','lang','emo','psych','tic','asd') DEFAULT NULL,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_t2_intake_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 扫码带走的报告连结（issue #22）
 -- ============================================================
 -- 家长在合作公司的 iPad 上看完报告，扫画面上的二维码就能在自己手机上打开

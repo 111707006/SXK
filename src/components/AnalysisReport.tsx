@@ -25,6 +25,8 @@ import {
 import { BUILTIN_SPECIALISTS } from '../builtinSpecialists';
 import { STATUS_WORDING } from '../utils/statusWording';
 import ReportBody from './ReportBody';
+import T2Entrance from './T2Entrance';
+import type { DimensionAccess } from '../utils/access';
 
 /** 沒有照片時的替代標記 —— 合作公司多半不會有每位治療師的沙龍照。 */
 function SpecialistAvatar({ spec, size }: { spec: ReportSpecialist; size: number }) {
@@ -190,6 +192,12 @@ interface AnalysisReportProps {
   onBack: () => void;
   onSaveReportToHistory: (record: AssessmentRecord) => void;
   onGoToLanguageSpecial?: () => void;
+  /**
+   * T2 深度評估入口（票 #56）。專案 B 不會收到（`features.tier2And3` 為 false）；
+   * 只在**即時**報告上出現（`historicalRecord` 為 null）—— plan 是伺服器依最新篩查算的，
+   * 掛在一份舊報告底下會對不上那份報告的判定。
+   */
+  t2?: { access: DimensionAccess; priceFen: number; onUnlock: () => void };
   historicalRecord?: AssessmentRecord | null;
   /**
    * 開啟後自動捲到專家預約區塊。專案 B 的維度卡片會走這條路 ——
@@ -198,7 +206,7 @@ interface AnalysisReportProps {
   focusBooking?: boolean;
 }
 
-export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, historicalRecord, focusBooking }: AnalysisReportProps) {
+export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, historicalRecord, focusBooking }: AnalysisReportProps) {
   const [loading, setLoading] = useState(false);
   const [aiReport, setAiReport] = useState<AssessmentRecord['aiReport'] | null>(null);
   // 三態：true = AI 生成、false = 本地模板兜底、null = 來源不明（舊的歷史紀錄沒存這個旗標）
@@ -421,6 +429,40 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   };
 
   /**
+   * 開預約表：捲到預約區塊、清掉上一次填的東西、預選一種服務。
+   *
+   * 沒指定就回到預設的那一種 —— 留著上一次的選擇，家長會在一個他沒有再選過的類型上
+   * 按下送出。T2 入口導向四種服務時會指定（票 #56：沒有工具的維度直接約專家）。
+   */
+  const openBookingModal = (type: ServiceType = DEFAULT_SERVICE_TYPE) => {
+    // 滚动到预约模块并居中
+    bookingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // 延迟打开弹窗，等待滚动完成
+    setTimeout(() => {
+      setParentName('');
+      setParentPhone('');
+      setBookingStatus('idle');
+      setBookingError('');
+      setSelectedSlot('');
+      setServiceType(type);
+      setShowBookingModal(true);
+    }, 400);
+  };
+
+  /**
+   * T2 深度評估的入口 —— **家長端專屬**，放進報告本體的 T2 插槽（票 #56）。
+   * 只掛在即時報告上（見 prop 的說明）。沒有工具的維度由它導向四種服務，走同一張預約表。
+   */
+  const t2Slot = t2 && !historicalRecord ? (
+    <T2Entrance
+      access={t2.access}
+      priceFen={t2.priceFen}
+      onUnlock={t2.onUnlock}
+      onBookService={openBookingModal}
+    />
+  ) : null;
+
+  /**
    * 語言專項評估的入口 —— **家長端專屬**，放進報告本體的語言插槽（ADR-0007）。
    *
    * 後台不放：它是一顆按下去會開始做一件事的按鈕，而後台的讀者是客服，
@@ -496,27 +538,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         </div>
 
         <button
-          onClick={() => {
-            // 滚动到预约模块并居中
-            if (bookingSectionRef.current) {
-              bookingSectionRef.current.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-              });
-            }
-            // 延迟打开弹窗，等待滚动完成
-            setTimeout(() => {
-              setParentName('');
-              setParentPhone('');
-              setBookingStatus('idle');
-              setBookingError('');
-              setSelectedSlot('');
-              // 每次重開都回到預設的那一種。留著上一次的選擇，家長會在
-              // 一個他沒有再選過的類型上按下送出。
-              setServiceType(DEFAULT_SERVICE_TYPE);
-              setShowBookingModal(true);
-            }, 400);
-          }}
+          onClick={() => openBookingModal()}
           className="px-6 py-3 bg-brand-sage text-brand-forest font-bold text-xs rounded-xl hover:bg-white transition duration-200 shadow-lg shrink-0 w-full md:w-auto text-center active:scale-95 cursor-pointer"
         >
           预约专家
@@ -736,6 +758,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           aiReport={aiReport}
           isAiGenerated={isAiGenerated}
           reportId={reportId}
+          t2Slot={t2Slot}
           languageSlot={languageSlot}
           takeawaySlot={<ReportTakeawayCard reportId={reportId} />}
           bookingSlot={bookingSlot}

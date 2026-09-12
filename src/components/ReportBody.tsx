@@ -129,6 +129,8 @@ export interface ReportBodyProps {
   isAiGenerated?: boolean | null;
   /** 報告編號由它算出。`null` 代表還沒存進歷史，此時整行不出現。 */
   reportId?: string | null;
+  /** 家長端專屬：T2 深度評估入口（票 #56）。放在雷達圖之後、語言專項入口之前。 */
+  t2Slot?: React.ReactNode;
   /** 家長端專屬：語言專項評估入口。放在雷達圖與發育進度對比之間。 */
   languageSlot?: React.ReactNode;
   /** 家長端專屬：掃碼把報告帶回家的二維碼卡。放在預後說明與每週課表之間。 */
@@ -143,6 +145,7 @@ export default function ReportBody({
   aiReport,
   isAiGenerated,
   reportId,
+  t2Slot,
   languageSlot,
   takeawaySlot,
   bookingSlot,
@@ -286,6 +289,9 @@ export default function ReportBody({
 
       {/* SECTION 3: 重点问题标注 KEY FINDINGS - 雷达图 */}
       <RadarSection scores={scores} />
+
+      {/* 家長端專屬：T2 深度評估入口。後台不放 —— 同語言專項，那是一顆按下去會開始做事的按鈕。 */}
+      {t2Slot}
 
       {/* 家長端專屬：語言專項評估入口。後台不放 —— 那是一顆按下去會開始做事的按鈕。 */}
       {languageSlot}

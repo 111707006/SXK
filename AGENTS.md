@@ -48,7 +48,9 @@
 │   │   ├── sectionTags.ts # §5.9 的面向→标签、chexi 因素、气质向度、前置题
 │   │   ├── itemTags.ts    # §5.9 的逐题标签表（asb／asr／adl／mchat 四支＋gm／asq／warn 几条）
 │   │   ├── act300.ts      # 旧原型 300 支活动的名称与适龄原文（脚本产出，勿手改）
-│   │   └── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
+│   │   ├── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
+│   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）
+│   │   └── diagnosisOptions.ts # 诊断方向十选一的名称与问句；刻意不进家长用字扫描（理由见档头）
 │   ├── db/
 │   │   ├── mysql.ts       # 连线池与家长端资料层
 │   │   └── activities.ts  # 一列 activities → Activity（后台与家长端共用，只认受控词汇里的标签）
@@ -124,6 +126,13 @@ npx tsx scripts/t2-activity-seed-sql.ts --check
 | `/api/report-link` | POST | 取得该份报告的扫码连结与二维码 | `reportId`；`Authorization: Bearer <token>` |
 | `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**） | 无 |
 | `/api/expert-booking` | POST | 送出专家预约（四种服务共用） | `specialistId`, `parentName`, `parentPhone`；`serviceType` 选填 |
+| `/api/t2/plan` | GET | T2 题量预估：依这位家长的孩子与最新筛查算 `planT2()`，附 `t1Flags`／`diagnosisDirection`／`entrance` | `Authorization: Bearer <token>`；`diagnosis` (query) 选填，带了就盖过存的 |
+| `/api/t2/diagnosis` | PUT | 存入口选的诊断方向（十选一或 null）；#59 生成报告时读它 | `diagnosis`；`Authorization: Bearer <token>` |
+
+> T2 的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
+> 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量，诊断方向会改题量。
+> 仍要登入。`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）。
+> ⚠️ `t2_intake` 表由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立，**必须先于新版程式码部署**。
 
 > 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／
 > `offline_training`／`offline_consult` 之一，定义在 `src/utils/serviceTypes.ts`。

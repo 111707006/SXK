@@ -21,6 +21,11 @@ import { readServiceType } from './src/utils/serviceTypes';
 import { isValidCompanySlug } from './src/utils/companySlug';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
 import { matchIntervention, resolveInterventionCell } from './src/utils/interventionMatch';
+import { calculateAgeMonth } from './src/utils/dateUtils';
+import { planT2 } from './src/t2/routing';
+import { entranceState, t1FlagsFromScores } from './src/t2/entrance';
+import { readDiagnosisDirection } from './src/t2/diagnosisOptions';
+import type { DiagnosisDirection } from './src/t2/types';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
@@ -950,16 +955,21 @@ async function denyIfT2Locked(req: express.Request): Promise<UnlockDenial | null
 /**
  * Paths under `/api/t2` that stay open to a parent who has not paid.
  *
- * Only one: the paywall must say how many questions the child will answer
- * BEFORE asking for money (spec §9.2). Gating it would leave a price tag and
- * nothing else on the screen.
+ * Two: the paywall must say how many questions the child will answer BEFORE
+ * asking for money (spec §9.2), and the diagnosis direction changes that
+ * number (§4.3), so a parent must be able to set it before paying too. Gating
+ * either would leave a price tag and nothing else on the screen.
+ *
+ * Both handlers still require a signed-in parent — "open" here means "not
+ * behind the purchase", not "anonymous". The plan is computed from THIS
+ * parent's child and screening; there is nothing to compute for nobody.
  *
  * Written as an allowlist, not as "remember to call the gate in each handler".
  * The 2026-07-31 bypass was exactly a per-handler check that one handler got
- * wrong; a guard on the prefix means the endpoints tickets #56/#57 add are
- * closed by default and opening one takes a deliberate line right here.
+ * wrong; a guard on the prefix means the endpoints ticket #57 adds are closed
+ * by default and opening one takes a deliberate line right here.
  */
-const T2_OPEN_PATHS = new Set(['/plan']);
+const T2_OPEN_PATHS = new Set(['/plan', '/diagnosis']);
 
 // Mounted on tier2Only rather than paidOnly: in project B these paths must not
 // exist at all (B has no T2), and a guard that answered 403 there would confirm
@@ -982,6 +992,132 @@ tier2Only.use('/api/t2', async (req: express.Request, res: express.Response, nex
     // as "the site is broken", not as "you have not paid".
     console.error('[Payment] T2 gate failed:', err.message);
     res.status(500).json({ error: '无法确认深度评估权益，请稍后重试。' });
+  }
+});
+
+// ── T2 入口：題量預估與診斷方向（票 #56，規格 §4.3–4.5、§9.2）──
+//
+// `GET /api/t2/plan`：依這位家長的孩子與最新篩查算 `planT2()`（純函式，`src/t2/routing.ts`），
+// 附上前端要的三樣：九碼標記、生效的診斷方向、入口要不要出現（`entranceState`）。
+// `PUT /api/t2/diagnosis`：存入口選的診斷方向。之後生成報告要帶（#59 讀同一張表）。
+//
+// 兩支都在 `T2_OPEN_PATHS` 上：付費前就要顯示題量，而診斷方向會改題量。
+//
+// 月齡用**實足月齡**（CONTEXT.md）：路由決定的是「現在該做哪一段」，出生日期對今天算；
+// 舊檔案沒有出生日期就退回檔案上的 `ageMonth`（與篩查那一側同一條退路）。
+//
+// 記憶體模式：孩子與篩查讀 `offlineUserData`（`/api/db/save` 的熱備份），診斷方向放
+// `offlineT2Intake` —— 展示站沒有資料庫也要看得到入口長什麼樣子。
+
+const offlineT2Intake = new Map<UserId, DiagnosisDirection | null>();
+
+/** 這位家長的孩子與篩查結果。資料庫模式讀 `user_data`，否則讀記憶體熱備份；都沒有回 `null`。 */
+async function loadParentData(userId: UserId): Promise<{ child: any; completedScores: any[] } | null> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    const row = await withTimeout(mysqlDb.getUserDataByUserId(dbUserId), 2000);
+    const parsed = row ? mysqlDb.parseUserDataRow(row) : null;
+    if (!parsed) return null;
+    return { child: parsed.child ?? null, completedScores: Array.isArray(parsed.completedScores) ? parsed.completedScores : [] };
+  }
+  const local = offlineUserData.get(userId);
+  if (!local) return null;
+  return { child: local.child ?? null, completedScores: Array.isArray(local.completedScores) ? local.completedScores : [] };
+}
+
+/**
+ * 孩子今天的實足月齡。出生日期算得出來就用它；算不出來（舊檔案沒有出生日期）退回檔案上的
+ * `ageMonth`。兩個都沒有回 `null` —— 不猜一個數字，`planT2` 對月齡是嚴格的。
+ */
+function liveAgeMonthOf(child: any): number | null {
+  if (!child || typeof child !== 'object') return null;
+  if (typeof child.birthDate === 'string') {
+    const fromBirth = calculateAgeMonth(child.birthDate);
+    if (fromBirth !== null) return fromBirth;
+  }
+  return Number.isInteger(child.ageMonth) && child.ageMonth >= 0 ? child.ageMonth : null;
+}
+
+async function loadT2Diagnosis(userId: UserId): Promise<DiagnosisDirection | null> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(mysqlDb.getT2Diagnosis(dbUserId), 2000);
+  return offlineT2Intake.get(userId) ?? null;
+}
+
+async function storeT2Diagnosis(userId: UserId, value: DiagnosisDirection | null): Promise<void> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    await withTimeout(mysqlDb.saveT2Diagnosis(dbUserId, value), 2000);
+    return;
+  }
+  offlineT2Intake.set(userId, value);
+}
+
+/** 兩支端點共用的登入檢查。回 `null` 代表已經回應（401），呼叫端直接 return。 */
+async function requireT2Parent(req: express.Request, res: express.Response): Promise<UserId | null> {
+  const userId = currentUserId(req);
+  if (!userId) {
+    res.status(401).json({ error: '请先登录后再查看深度评估。', code: 'UNAUTHENTICATED' });
+    return null;
+  }
+  if (await sessionAccountMissing(userId)) {
+    res.status(401).json({ error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' });
+    return null;
+  }
+  return userId;
+}
+
+tier2Only.get('/api/t2/plan', async (req, res) => {
+  try {
+    const userId = await requireT2Parent(req, res);
+    if (!userId) return;
+
+    // 查詢字串上帶了就以它為準（含空字串＝「未告知」）：畫面上家長換選項時即時重算，
+    // 還沒存也算得出來。沒帶才用存的那一個。不認得的值是 400，不能安靜地當成沒填。
+    const queried = req.query.diagnosis;
+    const override = queried !== undefined ? readDiagnosisDirection(queried) : null;
+    if (override && !override.ok) {
+      res.status(400).json({ error: '诊断方向不是可选的十种之一。', code: 'DIAGNOSIS_INVALID' });
+      return;
+    }
+
+    const data = await loadParentData(userId);
+    const t1Scores = (data?.completedScores ?? []).filter((s: any) => s && typeof s === 'object' && s.tierId === 'T1');
+    if (!data?.child || t1Scores.length === 0) {
+      res.status(404).json({ error: '请先完成筛查，再查看深度评估的安排。', code: 'T1_REQUIRED' });
+      return;
+    }
+    const ageMonth = liveAgeMonthOf(data.child);
+    if (ageMonth === null) {
+      res.status(400).json({ error: '孩子档案里没有可用的月龄，请先补齐出生日期。', code: 'CHILD_AGE_REQUIRED' });
+      return;
+    }
+
+    const diagnosis = override ? override.value : await loadT2Diagnosis(userId);
+    const t1Flags = t1FlagsFromScores(t1Scores);
+    const plan = planT2(t1Flags, ageMonth, diagnosis);
+    res.json({ ...plan, t1Flags, diagnosisDirection: diagnosis, entrance: entranceState(plan, t1Flags) });
+  } catch (err: any) {
+    console.error('[T2] plan failed:', err.message);
+    res.status(500).json({ error: '暂时无法读取深度评估的安排，请稍后重试。' });
+  }
+});
+
+tier2Only.put('/api/t2/diagnosis', async (req, res) => {
+  try {
+    const userId = await requireT2Parent(req, res);
+    if (!userId) return;
+
+    const parsed = readDiagnosisDirection(req.body?.diagnosis);
+    if (!parsed.ok) {
+      res.status(400).json({ error: '诊断方向不是可选的十种之一。', code: 'DIAGNOSIS_INVALID' });
+      return;
+    }
+    await storeT2Diagnosis(userId, parsed.value);
+    res.json({ diagnosisDirection: parsed.value });
+  } catch (err: any) {
+    console.error('[T2] save diagnosis failed:', err.message);
+    res.status(500).json({ error: '暂时无法保存，请稍后重试。' });
   }
 });
 

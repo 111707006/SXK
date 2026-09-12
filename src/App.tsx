@@ -142,7 +142,10 @@ export default function App() {
    * 而不是丟回總覽讓他自己再找一次。
    */
   const [paywallReturn, setPaywallReturn] = useState<
-    { dimensionId: string; target: 'assessment' | 'language_special' } | null
+    | { dimensionId: string; target: 'assessment' | 'language_special' }
+    // 整份 T2 的入口（票 #56）：買的是整份，沒有維度可回；解鎖後回到即時 T1 報告，入口就在那裡。
+    | { target: 't2' }
+    | null
   >(null);
 
   const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
@@ -434,6 +437,23 @@ export default function App() {
     }
     setSelectedDimensionId(dimensionId);
     setCurrentView('assessment');
+  };
+
+  /**
+   * T1 報告上的 T2 入口按「解鎖」（票 #56）。同一道存取檢查；解鎖之後沒有下一頁 ——
+   * 逐支作答是 #58 的事，入口本身（題量、診斷方向、清單）在報告上已經看得到。
+   */
+  const enterT2 = () => {
+    const access = getT2Access({
+      paywallEnabled: PRODUCT.features.paywall,
+      unlocksAvailable,
+      isLoggedIn: Boolean(userIdentity),
+      t2Unlocked,
+    });
+    if (access === 'locked' || access === 'demo') {
+      setPaywallReturn({ target: 't2' });
+      setCurrentView('paywall');
+    }
   };
 
   // Handler for successful authentication (registration or login)
@@ -1123,6 +1143,8 @@ export default function App() {
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
                     onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
+                    // T2 入口只掛在即時報告上（票 #56）；B 沒有 T2。
+                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, priceFen: unlockPriceFen, onUnlock: enterT2 } : undefined}
                     historicalRecord={null}
                     focusBooking={focusBooking}
                   />
@@ -1397,6 +1419,13 @@ export default function App() {
                       setT2Unlocked(true);
                       if (paywallReturn?.target === 'language_special') {
                         setCurrentView('language_special');
+                        return;
+                      }
+                      if (paywallReturn?.target === 't2') {
+                        // 從 T1 報告的 T2 入口過來的：送回那份報告，入口會以已解鎖的樣子重畫。
+                        setViewingLiveT1(true);
+                        setActiveT1Record(null);
+                        setCurrentView('report');
                         return;
                       }
                       if (paywallReturn) setSelectedDimensionId(paywallReturn.dimensionId);

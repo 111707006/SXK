@@ -26,11 +26,19 @@ import { planT2 } from './src/t2/routing';
 import { entranceState, t1FlagsFromScores } from './src/t2/entrance';
 import { readDiagnosisDirection } from './src/t2/diagnosisOptions';
 import { scoreTool } from './src/t2/scoring';
-import { latestCompleteResults } from './src/t2/findings';
+import { buildT2Findings, latestCompleteResults } from './src/t2/findings';
 import { readToolSubmission, refusalToHttp, toolBands } from './src/t2/toolResults';
+import { matchWeeklyActivities } from './src/t2/activityMatch';
+import type { WeeklyActivities } from './src/t2/activityMatch';
+import { buildSmartGoals } from './src/t2/goals';
+import { generateProse } from './src/t2/report';
+import type { T2ReportInput } from './src/t2/report';
 import * as t2Store from './src/db/t2ToolResults';
+import * as t2FindingsStore from './src/db/t2Findings';
+import { listActivityLibrary } from './src/db/t2Activities';
 import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
-import type { DiagnosisDirection } from './src/t2/types';
+import type { FindingsRecord } from './src/db/t2Findings';
+import type { Activity, DiagnosisDirection, T2Findings } from './src/t2/types';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
@@ -1240,6 +1248,187 @@ tier2Only.get('/api/t2/tool-results', async (req, res) => {
   }
 });
 
+
+// ── T2 生成報告（票 #59，規格 §9.1、§9.2、§6.4）──
+//
+// `POST /api/t2/findings`：家長按「生成」時的快照。撈這位家長每支**最新且完整**的 `ToolResult`
+// → 彙整成 `T2Findings`（#52）→ 配這一週的四支（#53）→ SMART 目標（#54）→ 組提示（#55）→
+// 走既有的三段備援（Qwen → Doubao → DashScope）→ 驗證 → 過就存 prose，不過或全掛就存模板。
+// `GET /api/t2/findings/latest`：最新一筆；一筆都沒有是 404。
+//
+// 【寫下後不改】
+// 與 T1 報告同一個哲學（§9.1）：一次生成一列，不覆蓋、不重算。門檻改版（`rulesVersion` 換了）
+// 之後回頭看半年前那份報告，讀到的仍是當時那一份 —— `GET /latest` 只是把那一列端出來，
+// 不會拿今天的規則表重跑一次。
+//
+// 【兩個月齡不是同一個】
+// - **測評月齡**（`findings.child.assessedAgeMonth`）：家長作答時用的那一個，從最新那筆結果來。
+//   報告講的是「那時候看到什麼」，用今天的月齡去描述半個月前的作答會對不上題目。
+// - **實足月齡**（今天算的）：活動配對用（訓練是現在要做的事，`activityMatch.ts` 檔頭）。
+// 孩子跨段之後兩者會分岔，畫面上要標出來（#60）。
+//
+// 【星號沒做完也允許生成】
+// §10.2 第 5 項。彙整層自己會把那個維度標成 `partial`，報告層自己會寫出來 —— 這裡不擋。
+//
+// 記憶體模式：存 `offlineT2Findings`；活動庫在沒有資料庫時是空的，於是每個維度「準備中」，
+// 那是 §7.4 寫好的行為，不是錯誤。
+
+const offlineT2Findings = new Map<UserId, FindingsRecord[]>();
+let offlineT2FindingsSeq = 0;
+
+/** 生成與每週活動共用的一組輸入：孩子、九碼、今天的實足月齡。缺哪一項就回哪一種 HTTP。 */
+interface T2Context {
+  child: any;
+  t1Flags: ReturnType<typeof t1FlagsFromScores>;
+  /** 今天算的實足月齡（活動配對用）。 */
+  liveAgeMonth: number;
+  diagnosis: DiagnosisDirection | null;
+}
+
+/**
+ * 讀齊生成報告要的東西。回 `null` 代表已經回應（404／400），呼叫端直接 return。
+ * 檢查與 `GET /api/t2/plan` 同一套 —— 同一位家長在入口看得到題量，在這裡就該生得出報告。
+ */
+async function loadT2Context(userId: UserId, res: express.Response): Promise<T2Context | null> {
+  const data = await loadParentData(userId);
+  const t1Scores = (data?.completedScores ?? []).filter((s: any) => s && typeof s === 'object' && s.tierId === 'T1');
+  if (!data?.child || t1Scores.length === 0) {
+    res.status(404).json({ error: '请先完成筛查，再生成深度评估报告。', code: 'T1_REQUIRED' });
+    return null;
+  }
+  const liveAgeMonth = liveAgeMonthOf(data.child);
+  if (liveAgeMonth === null) {
+    res.status(400).json({ error: '孩子档案里没有可用的月龄，请先补齐出生日期。', code: 'CHILD_AGE_REQUIRED' });
+    return null;
+  }
+  return {
+    child: data.child,
+    t1Flags: t1FlagsFromScores(t1Scores),
+    liveAgeMonth,
+    diagnosis: await loadT2Diagnosis(userId),
+  };
+}
+
+/** 活動庫。沒有資料庫（展示站）時是空的 —— 配不到就是「準備中」（§7.4）。 */
+async function loadActivityLibrary(): Promise<Activity[]> {
+  if (!mysqlDb.isConfigured()) return [];
+  try {
+    return await withTimeout(listActivityLibrary(), 2000);
+  } catch (err: any) {
+    // 活動庫讀不出來不該讓整份報告生不出來：報告的判定與目標都不靠它，
+    // 少的只是「本週四支」那一段，而那一段本來就有「準備中」這個出口。
+    console.error('[T2] 活動庫讀取失敗，本次以空庫配對:', err.message);
+    return [];
+  }
+}
+
+async function storeT2Findings(userId: UserId, input: t2FindingsStore.FindingsInsert): Promise<FindingsRecord> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    const id = await withTimeout(t2FindingsStore.insertFindings(dbUserId, input), 2000);
+    return { id, createdAt: new Date().toISOString(), ...input };
+  }
+  offlineT2FindingsSeq += 1;
+  const record: FindingsRecord = { id: offlineT2FindingsSeq, createdAt: new Date().toISOString(), ...input };
+  const list = offlineT2Findings.get(userId) ?? [];
+  list.push(record);
+  offlineT2Findings.set(userId, list);
+  return record;
+}
+
+async function loadLatestT2Findings(userId: UserId): Promise<FindingsRecord | null> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2FindingsStore.latestFindings(dbUserId), 2000);
+  const list = offlineT2Findings.get(userId) ?? [];
+  return list.length === 0 ? null : list[list.length - 1];
+}
+
+/**
+ * 這份快照講的是幾個月大時的作答（檔頭「兩個月齡不是同一個」）。
+ * 最新那筆完整結果的 `assessedAgeMonth`；一支都沒做過就用今天的實足月齡。
+ */
+function assessedAgeMonthOf(results: ReadonlyArray<ToolResultRecord['result']>, fallback: number): number {
+  const selected = latestCompleteResults(results);
+  if (selected.length === 0) return fallback;
+  return selected[selected.length - 1].assessedAgeMonth;
+}
+
+/** 兩支端點回的一份快照。`findings` 與 `prose` 原樣，不重算、不改寫。 */
+function findingsEntry(record: FindingsRecord) {
+  return {
+    id: record.id,
+    createdAt: record.createdAt,
+    findings: record.findings,
+    prose: record.prose,
+    isAiGenerated: record.isAiGenerated,
+    aiEngine: record.aiEngine,
+  };
+}
+
+tier2Only.post('/api/t2/findings', async (req, res) => {
+  try {
+    const userId = await requireT2Parent(req, res);
+    if (!userId) return;
+
+    const context = await loadT2Context(userId, res);
+    if (!context) return;
+
+    const records = await loadT2ToolResults(userId);
+    const results = records.map(r => r.result);
+    const findings = buildT2Findings({
+      results,
+      t1Flags: context.t1Flags,
+      assessedAgeMonth: assessedAgeMonthOf(results, context.liveAgeMonth),
+      sex: context.child?.gender === 'boy' || context.child?.gender === 'girl' ? context.child.gender : undefined,
+      diagnosisDirection: context.diagnosis,
+    });
+
+    // 報告要的素材：這一週的四支（實足月齡）與最多三條目標。都是純函式算的，
+    // 模型只負責把它們寫成句子（§6.2「AI 只寫字，不判斷」）。
+    const childName = typeof context.child?.name === 'string' ? context.child.name : undefined;
+    const input: T2ReportInput = {
+      findings,
+      activities: matchWeeklyActivities(findings, context.liveAgeMonth, [], await loadActivityLibrary()),
+      goals: buildSmartGoals(findings, { childName }),
+      childName,
+    };
+
+    const outcome = await generateProse(input, generateReportJSON);
+    if (!outcome.isAiGenerated) {
+      // 家長拿到的是模板，而模板讀起來比較平。日誌是唯一看得出「為什麼」的地方。
+      console.warn(`[T2] 報告退模板（${outcome.aiEngine}）：${outcome.errors.join(' | ')}`);
+    }
+
+    const record = await storeT2Findings(userId, {
+      findings,
+      prose: outcome.prose,
+      isAiGenerated: outcome.isAiGenerated,
+      aiEngine: outcome.aiEngine,
+    });
+    res.status(201).json(findingsEntry(record));
+  } catch (err: any) {
+    console.error('[T2] generate findings failed:', err.message);
+    res.status(500).json({ error: '暂时无法生成报告，请稍后重试。' });
+  }
+});
+
+tier2Only.get('/api/t2/findings/latest', async (req, res) => {
+  try {
+    const userId = await requireT2Parent(req, res);
+    if (!userId) return;
+
+    const record = await loadLatestT2Findings(userId);
+    if (!record) {
+      res.status(404).json({ error: '还没有生成过深度评估报告。', code: 'T2_FINDINGS_NONE' });
+      return;
+    }
+    res.json(findingsEntry(record));
+  } catch (err: any) {
+    console.error('[T2] latest findings failed:', err.message);
+    res.status(500).json({ error: '暂时无法读取报告，请稍后重试。' });
+  }
+});
+
 /** Dimensions whose deep assessment is served by a fixed endpoint. */
 const LANGUAGE_DIMENSION_ID = 'language';
 const MOTION_DIMENSION_ID = 'gross_motor';
@@ -1261,9 +1450,14 @@ tier2Only.post('/api/specialized-report', async (req: express.Request, res: expr
     // Same three labels the screens use (src/utils/statusWording.ts) — the model
     // echoes whatever we call the status, so feed it the parent-facing words.
     const statusText = status === 'delay' ? '需要较多支持' : status === 'borderline' ? '需要少量支持' : '发展稳定';
-    const systemInstruction = 'You are a compassionate pediatric neuro-rehabilitation expert. You strictly return output as a single, valid JSON block exactly matching the instructed schema, with no markdown codeblocks, no front/end spacing, in Chinese language.';
-    const prompt = `您是一位在儿童神经康复、脑科学发育及儿童成长心理学领域深耕20年的首席临床医学主任医生。
-请针对以下儿童在【${dimensionName}】这一单一发育维度的 T2（家属能力自评）与 T3（临床互动实测）深度评估结果，生成一份聚焦该维度的“脑发育深度专项评估报告”。
+    // 提示改写于 #59（规格 v2 §6）。原本这里要模型谈「脑神经突触偶联」「前庭反射」与
+    // 「森心康智能穿戴硬件」—— 前者是拿神经解剖的词包装一份筛查结果（§6.2「AI 只写字，
+    // 不判断」：它手上只有两个百分比，写不出神经传导的事），后者是把带货写进报告正文。
+    // 两者都与 §6 直接冲突，换成「这个能力由哪些小步骤搭起来、现在搭到哪里」。
+    // JSON 的栏位名一个都没动（`SpecializedReportView.tsx` 照它渲染），换的是要它写什么。
+    const systemInstruction = 'You are a warm, plain-spoken childhood development writer for parents. You strictly return output as a single, valid JSON block exactly matching the instructed schema, with no markdown codeblocks, no front/end spacing, in Chinese language.';
+    const prompt = `您是一位替儿童发展筛查机构写家长版报告的中文写手，读者是孩子的家长。
+请针对以下儿童在【${dimensionName}】这一单一发育维度的深度评估结果，生成一份聚焦该维度的“发展观察报告”。
 
 儿童档案:
 - 姓名: ${child.name}
@@ -1277,14 +1471,14 @@ tier2Only.post('/api/specialized-report', async (req: express.Request, res: expr
 
 请注意：
 1. 只聚焦【${dimensionName}】这一个维度，不要泛谈其他维度。
-2. neuralPathwayAnalysis 要用专业脑神经突触偶联、脑功能定位（如前额叶、小脑精细区、前庭反射、Broca/Wernicke 言语区等）与神经可塑性概念严密解析该维度，既透彻又充满对孩子的厚爱。
-3. 训练建议与家庭指导要有极强动作实操逻辑，可自然融入森心康智能穿戴硬件（脑电反馈带、精细OT手套、步态腰带等）。
+2. neuralPathwayAnalysis 写的是「这项能力是由哪些更小的步骤一层层搭起来的，孩子现在搭到哪一层、下一层是什么」。用家长听得懂的日常语言，举孩子生活里看得到的例子。只写观察得到的行为，不要转而描述身体内部的运作机制 —— 这份评估看的是孩子在日常里做得到什么，写别的就超出了它能说的范围。
+3. 训练建议与家庭指导要具体到「什么时候、用家里已经有的什么东西、做几分钟」，让家长今天就能开始。不要提任何品牌、产品，或需要另外购买的器材。
 4. criticalMetrics 的百分值（45-98 之间的整数）要与上面的得分率客观联动（得分越低指标越低）。
 5. ${PARENT_WORDING_CLAUSE}
 你必须严格返回以下JSON结构（字段齐全，不要任何额外文字或\`\`\`json标记）：
 {
-  "summary": "一句话总结该维度当前的核心脑成长特征（60-120字）",
-  "neuralPathwayAnalysis": "深入剖析该维度相关的脑网络/神经反射弧状态（120-250字）",
+  "summary": "一句话总结该维度目前的发展特点（60-120字）",
+  "neuralPathwayAnalysis": "这项能力由哪些小步骤搭起来、孩子现在到哪一步、下一步是什么（120-250字）",
   "rehabSuggestions": ["针对该维度的训练建议（共3至4条）"],
   "homeGuidance": ["可在家操演的场景化活动（共3条）"],
   "prognosisPrediction": "3-6个月针对性训练后的发展轨迹预判（100字左右）",

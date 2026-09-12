@@ -40,6 +40,16 @@ vi.mock('../src/db/t2ToolResults', () => ({
   listToolResults: async () => { throw new Error('專案 B 不該讀 T2 交卷'); },
 }));
 
+// #59 的報告快照與活動庫也一樣。
+vi.mock('../src/db/t2Findings', () => ({
+  insertFindings: async () => { throw new Error('專案 B 不該寫 T2 報告快照'); },
+  latestFindings: async () => { throw new Error('專案 B 不該讀 T2 報告快照'); },
+}));
+
+vi.mock('../src/db/t2Activities', () => ({
+  listActivityLibrary: async () => { throw new Error('專案 B 不該讀活動庫'); },
+}));
+
 vi.mock('../src/admin/adminStore', () => ({
   isAvailable: () => false,
   findAdminUserByEmail: async () => null,
@@ -80,6 +90,14 @@ describe('專案 B 沒有 T2 入口', () => {
 
   it('GET /api/t2/tool-results 在 B 根本不存在（#57）', async () => {
     expect((await client.get('/api/t2/tool-results', auth)).status).toBe(404);
+  });
+
+  it('POST /api/t2/findings 在 B 根本不存在（#59）', async () => {
+    expect((await client.postJson('/api/t2/findings', {}, auth)).status).toBe(404);
+  });
+
+  it('GET /api/t2/findings/latest 在 B 根本不存在（#59）', async () => {
+    expect((await client.get('/api/t2/findings/latest', auth)).status).toBe(404);
   });
 
   /** 對照組：少了這一條，上面的 404 也可能是整個伺服器沒起來。 */

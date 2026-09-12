@@ -51,6 +51,7 @@ import type {
   DimensionBand,
   DimensionCode,
   DimensionFinding,
+  RedoNote,
   T1Flag,
   T2Findings,
   ToolResult,
@@ -99,6 +100,46 @@ export function latestCompleteResults(results: ReadonlyArray<ToolResult>): ToolR
   return [...latest.values()]
     .sort((a, b) => a.t - b.t || a.i - b.i)
     .map(x => x.r);
+}
+
+/** 幾天之內的重做要標出來（§10.2 第 2 項）。 */
+export const REDO_WINDOW_DAYS = 30;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * 這一批結果裡，哪幾支是「`REDO_WINDOW_DAYS` 天內重做的」（§10.2 第 2 項）。
+ *
+ * 對每支工具取**最新且完整**的那一筆與它前一筆完整結果，相距 ≤ 30 天就記一條，天數無條件
+ * 捨去到整數天（同一天重做是 0）。順序照 `latestCompleteResults`（完成順序）。
+ *
+ * 【為什麼只比前一筆，不比更早的】
+ * 練習效應是「上一次答過同一份題目」帶來的。第三次答的時候，會影響它的是第二次，不是半年前
+ * 的第一次 —— 拿最舊的那筆來比，會在一支答過三次的工具上算出一個沒有人需要的大數字。
+ *
+ * 【沒做完的那幾筆不算「上一次」】
+ * 與 `latestCompleteResults` 同一條規則：半途離開的那一次，題目也只看了一半。
+ */
+export function redoNotes(results: ReadonlyArray<ToolResult>): RedoNote[] {
+  const byTool = new Map<ToolId, Array<{ t: number; i: number }>>();
+  results.forEach((r, i) => {
+    if (!isCompleteResult(r)) return;
+    const list = byTool.get(r.toolId) ?? [];
+    list.push({ t: timeOf(r), i });
+    byTool.set(r.toolId, list);
+  });
+
+  const notes: Array<{ note: RedoNote; t: number; i: number }> = [];
+  for (const [toolId, list] of byTool) {
+    if (list.length < 2) continue;
+    // 「最新」的挑法與 `latestCompleteResults` 一字不差：時間相同時輸入裡後面那筆算較新。
+    const sorted = [...list].sort((a, b) => a.t - b.t || a.i - b.i);
+    const latest = sorted[sorted.length - 1];
+    const previous = sorted[sorted.length - 2];
+    const days = Math.floor((latest.t - previous.t) / MS_PER_DAY);
+    if (days <= REDO_WINDOW_DAYS) notes.push({ note: { toolId, daysSinceLast: days }, t: latest.t, i: latest.i });
+  }
+  return notes.sort((a, b) => a.t - b.t || a.i - b.i).map(x => x.note);
 }
 
 /** 一支工具對一個維度貢獻的東西：規則表吐的，按維度切好。 */
@@ -224,7 +265,7 @@ export function buildT2Findings(input: T2FindingsInput): T2Findings {
   const child: T2Findings['child'] = { assessedAgeMonth: input.assessedAgeMonth };
   if (input.sex !== undefined) child.sex = input.sex;
 
-  return {
+  const findings: T2Findings = {
     version: T2_FINDINGS_VERSION,
     toolkitVersion: TOOLKIT_VERSION,
     rulesVersion: RULES_VERSION,
@@ -235,4 +276,8 @@ export function buildT2Findings(input: T2FindingsInput): T2Findings {
     toolResults,
     computedAt: input.computedAt ?? new Date().toISOString(),
   };
+  // 一支都沒有時整個欄位不在（`RedoNote` 的註解）。
+  const redos = redoNotes(input.results);
+  if (redos.length > 0) findings.redos = redos;
+  return findings;
 }

@@ -437,6 +437,38 @@ CREATE TABLE IF NOT EXISTS `t2_tool_results` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- T2 报告快照（票 #59，规格 v2 §9.1）
+-- ============================================================
+-- 家长按「生成」时的快照，与 T1 报告同一个哲学：**写下后不改**。一次生成一列，
+-- 不覆盖、不重算 —— 门槛改版（rules_version 换了）之后回头看半年前那份报告，
+-- 读到的仍是当时那一份。rules_version 与 toolkit_version 各自一栏，因为报告上要
+-- 写得出「这份是依哪一版的题库与门槛算的」，而那不该靠解开 findings 的 JSON 去翻。
+--
+-- findings ＝ 整份 T2Findings（§5.8）：九个维度、每支工具最新且完整的一笔、T1 九码、
+-- 诊断方向、30 天内重做的那几支（redos，§10.2 第 2 项）。
+-- prose ＝ 整份 T2ReportProse（§6.3）；可为 NULL，见迁移档档头。
+--
+-- ai_engine：is_ai_generated = 1 时是产出这份文字的模型代号；= 0 时记退路的来源
+--（'template:<引擎>' ＝ 那个引擎写了但没过验证器；'template:all_engines_failed' ＝ 三段全挂）。
+-- 排查「家长为什么拿到模板报告」时这一栏是唯一的线索。
+--
+-- 完整的迁移与验证语句见：deploy/migrations/2026-09-12-t2-findings.sql
+
+CREATE TABLE IF NOT EXISTS `t2_findings` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  `rules_version` VARCHAR(32) NOT NULL,
+  `toolkit_version` VARCHAR(32) NOT NULL,
+  `findings` JSON NOT NULL,
+  `prose` JSON NULL,
+  `is_ai_generated` TINYINT(1) NOT NULL DEFAULT 0,
+  `ai_engine` VARCHAR(64) NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_user_created` (`user_id`, `created_at`),
+  CONSTRAINT `fk_t2_findings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 扫码带走的报告连结（issue #22）
 -- ============================================================
 -- 家长在合作公司的 iPad 上看完报告，扫画面上的二维码就能在自己手机上打开

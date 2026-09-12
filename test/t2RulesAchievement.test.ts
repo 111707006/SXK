@@ -507,8 +507,8 @@ describe('規則表登錄', () => {
     expect(Object.keys(ACHIEVEMENT_RULES)).toEqual([...ACHIEVEMENT_TOOL_IDS]);
   });
 
-  it('目前登錄的只有這六支（#48–#51 各自再加）；toolId 對得上 key，版本是計分那一版', () => {
-    expect(Object.keys(TOOL_RULES)).toEqual([...ACHIEVEMENT_TOOL_IDS]);
+  it('六支都在登錄表裡（完整的登錄清單由最新的那張票釘住）；toolId 對得上 key，版本是計分那一版', () => {
+    for (const toolId of ACHIEVEMENT_TOOL_IDS) expect(TOOL_RULES[toolId]).toBeDefined();
     for (const [key, rule] of Object.entries(TOOL_RULES)) {
       expect(rule.toolId).toBe(key);
       expect(rule.rulesVersion).toBe(RULES_VERSION);
@@ -525,7 +525,7 @@ describe('規則表登錄', () => {
   });
 
   it('還沒做的工具問 ruleFor 會丟錯，不會安靜地當成沒有判定', () => {
-    expect(() => ruleFor('sxk-asb')).toThrow(/sxk-asb/);
-    expect(TOOL_RULES['sxk-asb']).toBeUndefined();
+    expect(() => ruleFor('sxk-ab')).toThrow(/sxk-ab/);
+    expect(TOOL_RULES['sxk-ab']).toBeUndefined();
   });
 });

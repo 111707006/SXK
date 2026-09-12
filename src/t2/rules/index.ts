@@ -1,7 +1,7 @@
 /**
  * 規則表的登錄：工具 → `ToolRule`（規格 §5.9）。
  *
- * 一支工具一張表，五張票分五族加進來：達成率族六支（#47，這裡）、asb／asr（#48）、
+ * 一支工具一張表，五張票分五族加進來：達成率族六支（#47）、asb／asr（#48）、
  * ab／att／spa／spb（#49）、dev／adl／ldp／lds（#50）、四支公開工具與氣質（#51）。
  * #52 的維度彙整只認這張表，不自己判。
  *
@@ -13,11 +13,13 @@
 import type { ToolId } from '../toolkit';
 import type { ToolRule } from '../types';
 import { ACHIEVEMENT_RULES } from './achievement';
+import { ASD_RULES } from './asd';
 
 export { bandOfTier, BAND_OF_TIER } from './shared';
 
 export const TOOL_RULES: Readonly<Partial<Record<ToolId, ToolRule>>> = {
   ...ACHIEVEMENT_RULES,
+  ...ASD_RULES,
 };
 
 export function ruleFor(toolId: ToolId): ToolRule {

@@ -232,18 +232,19 @@ export function noneValueOf(bank: ToolkitBank, preKey: string): string | undefin
 }
 
 /**
- * 前置題「倒退」有沒有勾。
+ * 前置題「倒退」有沒有勾。warn 在這一層用它改 tier；asb／asr 在規則表那一層
+ * （`rules/asd.ts`）用它把 band 直接推成 `refer` —— 同一個判斷，只寫一次。
  *
  * ⚠️ **「沒有倒退」不是空陣列。** warn 的前置題是複選，「未见异常」是一個真的選項值
- * `'none'`（題庫標成 `exclusive`），家長勾它送出來的是 `['none']`。早先這裡用「陣列
- * 非空」判斷，結果是每一個好好回答「沒有倒退」的孩子都被判初篩異常 —— 而那是最常
- * 走的一條路。
+ * `'none'`（題庫標成 `exclusive`），家長勾它送出來的是 `['none']`；asb／asr 是單選，
+ * 送出來的是 `'none'` 這個字串。早先這裡用「陣列非空」判斷，結果是每一個好好回答
+ * 「沒有倒退」的孩子都被判初篩異常 —— 而那是最常走的一條路。
  *
  * 認不出「沒有」的值時（題庫換了形狀）一律當成有勾。warn 是紅旗初篩，多轉診一個
  * 比漏掉一個好；而且那個狀況會讓每一份 warn 都變 tier 3，看得見。
  * `test/t2Scoring.test.ts` 另有一條直接釘住那個值是 `'none'`，題庫先動測試就會紅。
  */
-function regressionReported(bank: ToolkitBank, pre: ScoreInput['pre']): boolean {
+export function regressionReported(bank: ToolkitBank, pre: ScoreInput['pre']): boolean {
   const raw = pre?.regression;
   if (raw === undefined || raw === null) return false;
   if (typeof raw === 'boolean') return raw;

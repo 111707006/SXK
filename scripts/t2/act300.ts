@@ -27,7 +27,9 @@ export const ACT300_MODULE = 'src/t2/act300.ts';
 export const ACT300_COUNT = 300;
 
 export function readAct300(root: string): { entries: Act300Entry[]; sha256: string } {
-  const source = readFileSync(path.join(root, ACT300_SOURCE), 'utf8');
+  // 指紋算在折掉 CRLF 之後的內容上：這台機器 `core.autocrlf=true`，fresh clone 在 Windows 上
+  // 會把 LF 換成 CRLF，那是 git 的換行政策不是內容，指紋不該跟著變（同 `sameToolkitContent`）。
+  const source = readFileSync(path.join(root, ACT300_SOURCE), 'utf8').replace(/\r\n/g, '\n');
   const sha256 = createHash('sha256').update(source).digest('hex');
   const decl = collectDataDeclarations(source).get('ACT300');
   if (!decl) throw new Error(`${ACT300_SOURCE} 裡找不到純資料的 ACT300 宣告`);

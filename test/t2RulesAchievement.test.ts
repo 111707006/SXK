@@ -524,8 +524,8 @@ describe('規則表登錄', () => {
     }
   });
 
-  it('還沒做的工具問 ruleFor 會丟錯，不會安靜地當成沒有判定', () => {
-    expect(() => ruleFor('mchat-rf')).toThrow(/mchat-rf/);
-    expect(TOOL_RULES['mchat-rf']).toBeUndefined();
+  it('沒登錄的工具問 ruleFor 會丟錯，不會安靜地當成沒有判定（#51 之後 22 支都有了，拿一個不存在的 id 試）', () => {
+    expect(() => ruleFor('sxk-nope' as ToolId)).toThrow(/sxk-nope/);
+    expect(TOOL_RULES['sxk-nope' as ToolId]).toBeUndefined();
   });
 });

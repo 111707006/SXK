@@ -9,8 +9,13 @@
  *
  * 【只讀四個欄位】
  * 規則只讀 `ToolResult` 的 `sections[*].{pct,tier,scored}`、`overall.{tier,scored}`、
- * `answers`、`assessedAgeMonth`／`askedCount`／`answeredCount`。`raw`／`max`／`native`
- * 在這一層一個都不碰 —— 測試因此可以只換掉一個面向的 pct 與 tier 來踩邊界。
+ * `answers`、`assessedAgeMonth`／`askedCount`／`answeredCount`。`raw`／`max` 在這一層
+ * 一個都不碰 —— 測試因此可以只換掉一個面向的 pct 與 tier 來踩邊界。
+ *
+ * `native` 只有兩處讀：chexi 的副量表均分（`mean.pl`／`mean.rg`）與氣質的向度偏差
+ * （`dev.D1`……）。那兩條規則的門檻（§5.9「計劃力 mean ≥ 4」、§5.5「dev ≥ 1.0」）直接寫在
+ * §5.2 的 native 數上，tier 與 pct 都表達不了（tier 3 不知道 dev 的方向），從 `raw` 重算
+ * 等於把公式抄第二遍。見 `./publicTools.ts`、`./temperament.ts`。
  */
 
 import { TOOLKIT } from '../toolkit';

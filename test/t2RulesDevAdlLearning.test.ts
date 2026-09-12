@@ -677,10 +677,10 @@ describe('規則表登錄', () => {
     expect(Object.keys(DEV_ADL_LEARNING_RULES)).toEqual(['sxk-dev', 'sxk-adl', 'sxk-ldp', 'sxk-lds']);
   });
 
-  it('目前登錄的是達成率族六支＋asb／asr＋ab／att／spa／spb＋這四支（#51 再加四支公開工具與氣質）', () => {
-    expect(Object.keys(TOOL_RULES)).toEqual([
-      ...ACHIEVEMENT_TOOL_IDS, ...ASD_TOOL_IDS, ...ATTENTION_SENSORY_TOOL_IDS, ...DEV_ADL_LEARNING_TOOL_IDS,
-    ]);
+  it('四支都在登錄表裡、排在 ab／att／spa／spb 之後（完整的 22 支由 #51 的氣質那份測試釘住）', () => {
+    const before = [...ACHIEVEMENT_TOOL_IDS, ...ASD_TOOL_IDS, ...ATTENTION_SENSORY_TOOL_IDS];
+    expect(Object.keys(TOOL_RULES).slice(before.length, before.length + DEV_ADL_LEARNING_TOOL_IDS.length))
+      .toEqual([...DEV_ADL_LEARNING_TOOL_IDS]);
     for (const toolId of DEV_ADL_LEARNING_TOOL_IDS) {
       const rule = ruleFor(toolId);
       expect(rule.toolId).toBe(toolId);
@@ -698,8 +698,4 @@ describe('規則表登錄', () => {
     expect(ruleFor(DEV).source).not.toContain('domLevel()');
   });
 
-  it('還沒做的工具問 ruleFor 會丟錯，不會安靜地當成沒有判定', () => {
-    expect(() => ruleFor('sxk-tempa')).toThrow(/sxk-tempa/);
-    expect(TOOL_RULES['sxk-tempa']).toBeUndefined();
-  });
 });

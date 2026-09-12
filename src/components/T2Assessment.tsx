@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Layers, Loader2, RotateCcw, Send } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, FileText, Layers, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
 import { authFetch } from '../utils/api';
 import { formatAge } from '../utils/dateUtils';
 import { describePlanItem } from '../t2/entrance';
@@ -27,6 +27,11 @@ interface ToolResultsResponse {
 
 interface T2AssessmentProps {
   onBack: () => void;
+  /**
+   * 開報告頁（票 #61）。`generate` 為 true 是按了「生成报告」—— 報告頁一進去就打 POST；
+   * false 是「查看上次的报告」，只讀最新那一份。
+   */
+  onOpenReport: (generate: boolean) => void;
 }
 
 const EMPTY_DRAFT: Draft = { rater: null, pre: {}, answers: {} };
@@ -61,9 +66,11 @@ function formatDay(iso: string): string {
  * `assessedAgeMonth` 送回去，伺服器照它出題驗卷。表單開著跨了月，伺服器會退回（多題或缺題），
  * 畫面把伺服器的話原樣顯示。
  */
-export default function T2Assessment({ onBack }: T2AssessmentProps) {
+export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps) {
   const [plan, setPlan] = useState<T2Plan | null>(null);
   const [entries, setEntries] = useState<CompletedEntry[]>([]);
+  /** 有沒有生成過報告（`GET /api/t2/findings/latest` 是 200 還是 404）；讀不到就當沒有，只少一顆按鈕。 */
+  const [hasReport, setHasReport] = useState(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selected, setSelected] = useState<PlanItem | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -75,9 +82,10 @@ export default function T2Assessment({ onBack }: T2AssessmentProps) {
     let cancelled = false;
     (async () => {
       try {
-        const [planResp, resultsResp] = await Promise.all([
+        const [planResp, resultsResp, latestResp] = await Promise.all([
           authFetch('/api/t2/plan'),
           authFetch('/api/t2/tool-results'),
+          authFetch('/api/t2/findings/latest').catch(() => null),
         ]);
         if (!planResp.ok || !resultsResp.ok) throw new Error(`HTTP ${planResp.status}/${resultsResp.status}`);
         const planData = (await planResp.json()) as T2Plan;
@@ -85,6 +93,7 @@ export default function T2Assessment({ onBack }: T2AssessmentProps) {
         if (cancelled) return;
         setPlan(planData);
         setEntries(toEntries(resultsData));
+        setHasReport(latestResp?.ok === true);
         setStatus('ready');
       } catch (err) {
         if (cancelled) return;
@@ -489,6 +498,37 @@ export default function T2Assessment({ onBack }: T2AssessmentProps) {
           </ul>
         </section>
       ))}
+
+      {/* 生成報告（票 #61）：一支都沒做完也生得出來（勘誤 P4），所以不擋；做了幾份就照幾份整理。 */}
+      <div className="pt-5 border-t border-brand-stone/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+          {doneCount === 0
+            ? '还没有完成任何一份问卷；先答完必做的几份，报告会更完整。'
+            : `已完成的 ${doneCount} 份会整理成一份报告，并安排这一周的家庭活动。`}
+        </p>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          {hasReport && (
+            <button
+              type="button"
+              id="t2-view-report-btn"
+              onClick={() => onOpenReport(false)}
+              className="px-4 py-2.5 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <FileText size={13} />
+              查看上次的报告
+            </button>
+          )}
+          <button
+            type="button"
+            id="t2-generate-report-btn"
+            onClick={() => onOpenReport(true)}
+            className="px-5 py-2.5 rounded-xl bg-brand-forest hover:bg-brand-forest/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-forest/20 active:scale-[0.98] transition cursor-pointer"
+          >
+            <Sparkles size={13} />
+            生成报告
+          </button>
+        </div>
+      </div>
     </div>,
     backButton('返回报告', onBack),
   );

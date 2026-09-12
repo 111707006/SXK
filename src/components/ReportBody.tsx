@@ -6,6 +6,7 @@ import {
 import { DIMENSIONS_DATA } from '../data';
 import { PRODUCT } from '../productConfig';
 import { ALL_CLEAR_SUMMARY, SCREENING_DISCLAIMER, STATUS_WORDING } from '../utils/statusWording';
+import { reportSourceLabel } from '../utils/reportSource';
 import { reportNumber } from '../utils/reportNumber';
 import type { RenderableReport } from '../utils/reportHistory';
 import {
@@ -153,8 +154,7 @@ export default function ReportBody({
   const redNames = scores.filter(s => s.status === 'delay').map(s => s.dimensionName);
   const yellowNames = scores.filter(s => s.status === 'borderline').map(s => s.dimensionName);
 
-  const sourceLabel =
-    isAiGenerated === true ? 'AI 生成' : isAiGenerated === false ? '本地模板生成' : '来源未记录';
+  const sourceLabel = reportSourceLabel(isAiGenerated);
 
   return (
     <div className="space-y-8 animate-fade-in text-left bg-white rounded-3xl border border-brand-stone shadow-sm overflow-hidden p-6 md:p-8">

@@ -204,9 +204,14 @@ interface AnalysisReportProps {
    * 家長點了亮燈的維度，就直接把他帶到諮詢入口。
    */
   focusBooking?: boolean;
+  /**
+   * 與 `focusBooking` 一起用：不只捲到預約區塊，還直接開預約表並預選這一種服務。
+   * T2 報告頁（票 #61）導向四種服務時走這條路 —— 預約表在這一頁裡，那一頁帶著類型過來。
+   */
+  focusBookingService?: ServiceType | null;
 }
 
-export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, historicalRecord, focusBooking }: AnalysisReportProps) {
+export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, historicalRecord, focusBooking, focusBookingService }: AnalysisReportProps) {
   const [loading, setLoading] = useState(false);
   const [aiReport, setAiReport] = useState<AssessmentRecord['aiReport'] | null>(null);
   // 三態：true = AI 生成、false = 本地模板兜底、null = 來源不明（舊的歷史紀錄沒存這個旗標）
@@ -239,6 +244,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   }, [historicalRecord]);
 
   const [showBookingModal, setShowBookingModal] = useState(false);
+  /** `focusBookingService` 已經自動開過一次表；`focusBooking` 回到 false 時重置。 */
+  const bookingAutoOpenedRef = useRef(false);
   /**
    * 家長要約哪一種服務（issue #21）。
    *
@@ -294,9 +301,23 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   // 必須等 aiReport 就緒 —— 該區塊在 `{aiReport && ...}` 裡面，報告還在載入時
   // ref 是 null，掛載當下就捲會什麼事都沒發生。
   useEffect(() => {
-    if (!focusBooking || !aiReport) return;
+    if (!focusBooking) {
+      bookingAutoOpenedRef.current = false;
+      return;
+    }
+    if (!aiReport) return;
+    if (focusBookingService) {
+      // 帶著服務類型來的（T2 報告頁的四顆按鈕）：捲過去之外還把表打開。只開一次 ——
+      // 家長關掉表之後重新生成 T1 報告（aiReport 換了）不該再彈一次。
+      if (!bookingAutoOpenedRef.current) {
+        bookingAutoOpenedRef.current = true;
+        openBookingModal(focusBookingService);
+      }
+      return;
+    }
     bookingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [focusBooking, aiReport]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusBooking, focusBookingService, aiReport]);
 
   const delayList = completedScores.filter(s => s.status === 'delay');
   const borderlineList = completedScores.filter(s => s.status === 'borderline');

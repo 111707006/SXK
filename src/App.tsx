@@ -29,6 +29,7 @@ const LanguageSpecialAssessment = lazy(() => import('./components/LanguageSpecia
 const SpecializedReportView = lazy(() => import('./components/SpecializedReportView'));
 const Paywall = lazy(() => import('./components/Paywall'));
 const T2Assessment = lazy(() => import('./components/T2Assessment'));
+const T2Report = lazy(() => import('./components/T2Report'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
@@ -37,6 +38,7 @@ import { ageBandDrift, latestAssessedAgeMonth } from './utils/ageBandDrift';
 import { useToday } from './utils/useToday';
 import { authFetch, setUnauthorizedHandler } from './utils/api';
 import { getT2Access, isPaywallActive } from './utils/access';
+import type { ServiceType } from './utils/serviceTypes';
 import { DEFAULT_UNLOCK_PRICE_FEN } from './utils/price';
 import { BeianFooter } from './components/BeianFooter';
 import { BrandMark } from './components/BrandMark';
@@ -84,8 +86,10 @@ export default function App() {
     [childProfile, today]
   );
 
-  // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment'
-  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment'>('dashboard');
+  // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'
+  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'>('dashboard');
+  // T2 報告頁（票 #61）是從作答清單的「生成报告」還是「查看上次的报告」進來的：前者一進去就打 POST。
+  const [t2ReportGenerate, setT2ReportGenerate] = useState(false);
   
   const [selectedDimensionId, setSelectedDimensionId] = useState<string | null>(null);
   
@@ -105,6 +109,8 @@ export default function App() {
   // 專案 B 從維度卡片進報告時，要求報告頁捲到專家預約區塊。
   // 從導覽列或「查看報告」進來時為 false，維持原本停在頁首的行為。
   const [focusBooking, setFocusBooking] = useState(false);
+  // T2 報告頁（票 #61）導向四種服務時要預選那一種：預約表在 T1 報告頁裡，所以帶著類型過去開。
+  const [focusBookingService, setFocusBookingService] = useState<ServiceType | null>(null);
 
   // Dropdown visibility for customer info & order details
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
@@ -616,7 +622,7 @@ export default function App() {
    *
    * 一份都沒有時退回即時報告 —— 那時本來就沒有報告可看，這是誠實的去向。
    */
-  const goToExpertBooking = () => {
+  const goToExpertBooking = (service: ServiceType | null = null) => {
     // 時間讀不出來的當成空字串再比 —— 任何正常的時間都比空字串大，所以一筆
     // `createdAt` 壞掉的紀錄不會只因為排在前面就贏過所有正常的紀錄（同
     // `ageBandDrift.ts` 的 `latestBy`；雲端同步回來的歷史紀錄真的會缺這個欄位）。
@@ -631,6 +637,7 @@ export default function App() {
     setViewingLiveT1(!archived);
     setActiveT1Record(archived);
     setFocusBooking(true);
+    setFocusBookingService(service);
     setCurrentView('report');
   };
 
@@ -1151,6 +1158,7 @@ export default function App() {
                     t2={PRODUCT.features.tier2And3 ? { access: t2Access, priceFen: unlockPriceFen, onUnlock: enterT2, onStart: enterT2 } : undefined}
                     historicalRecord={null}
                     focusBooking={focusBooking}
+                    focusBookingService={focusBookingService}
                   />
                 </div>
               ) : activeT1Record ? (
@@ -1170,6 +1178,7 @@ export default function App() {
                     // aiReport，區塊當場就在）。少了這個 prop，捲動只在即時報告
                     // 那一支生效，而那一支正好是區塊還沒出現的那一支。
                     focusBooking={focusBooking}
+                    focusBookingService={focusBookingService}
                   />
                 </div>
               ) : (
@@ -1394,7 +1403,7 @@ export default function App() {
                       currentScores={completedScores}
                       // 素材還沒到位的格子要有一條**真的**出路，不是一顆把家長
                       // 丟到報告頁自己找的按鈕。見 `goToExpertBooking`。
-                      onContactExpert={goToExpertBooking}
+                      onContactExpert={() => goToExpertBooking()}
                     />
                   </LazyBoundary>
                 ) : (
@@ -1448,6 +1457,22 @@ export default function App() {
                       setActiveT1Record(null);
                       setCurrentView('report');
                     }}
+                    onOpenReport={generate => {
+                      setT2ReportGenerate(generate);
+                      setCurrentView('t2_report');
+                    }}
+                  />
+                </LazyBoundary>
+              </div>
+            ) : currentView === 't2_report' && PRODUCT.features.tier2And3 && !isRouteBlocked ? (
+              /* T2 深度評估的報告頁（票 #61）：從作答清單進來；沒有問卷／配不到活動的維度導向預約表（在 T1 報告頁裡） */
+              <div className="animate-fade-in">
+                <LazyBoundary>
+                  <T2Report
+                    childName={child?.name}
+                    generateOnOpen={t2ReportGenerate}
+                    onBack={() => setCurrentView('t2_assessment')}
+                    onBookService={type => goToExpertBooking(type)}
                   />
                 </LazyBoundary>
               </div>

@@ -89,6 +89,10 @@ const PARENT_FACING_FILES = [
   // 2026-09-12（票 #60）：每週活動的畫面與它的句子層（「因為……所以練……」、年齡段、準備中）。
   'src/components/T2WeeklyPlan.tsx',
   'src/t2/weeklyCopy.ts',
+  // 2026-09-13（票 #61）：報告頁、它的句子層（維度狀態句、作答回顧、「距上次 N 天」）與來源三態。
+  'src/components/T2Report.tsx',
+  'src/t2/reportCopy.ts',
+  'src/utils/reportSource.ts',
 ];
 
 /**

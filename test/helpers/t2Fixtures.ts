@@ -1,3 +1,5 @@
+import type { Caveat } from '../../src/t2/caveats';
+import type { FindingTag } from '../../src/t2/findingTags';
 import { RULES_VERSION } from '../../src/t2/scoring';
 import { TOOLKIT_VERSION } from '../../src/t2/toolkit';
 import type { ToolId } from '../../src/t2/toolkit';
@@ -18,19 +20,30 @@ import type {
  * 兩個以上的測試檔要同一份 fixture，所以放在這裡：`T2Findings` 再加一個欄位時
  * （`version` 有一天會變 4）只有這裡要改，不會有哪一個測試檔留在舊形狀上繼續跑。
  */
+export interface DimensionFixture {
+  band: DimensionBand;
+  t1Flag?: T1Flag;
+  drivenBy?: ToolId;
+  /** 報告層（#55）要的：標籤與 caveats 決定寫出哪幾句、幾條。 */
+  tags?: FindingTag[];
+  caveats?: Caveat[];
+  /** 這個維度做過哪幾支。沒給就從 `drivenBy` 推（有 drivenBy 就是那一支，沒有就空的）。 */
+  tools?: ToolId[];
+}
+
 export function t2FindingsFixture(
-  dims: Partial<Record<DimensionCode, { band: DimensionBand; t1Flag?: T1Flag; drivenBy?: ToolId }>>,
+  dims: Partial<Record<DimensionCode, DimensionFixture>>,
   over: Partial<T2Findings> = {},
 ): T2Findings {
   const dimensions: DimensionFinding[] = DIMENSION_CODES.map(d => {
-    const spec = dims[d] ?? { band: 'clear' as const };
+    const spec: DimensionFixture = dims[d] ?? { band: 'clear' as const };
     return {
       dimensionId: d,
       band: spec.band,
       drivenBy: spec.drivenBy ?? null,
-      tags: [],
-      caveats: [],
-      tools: [],
+      tags: spec.tags ?? [],
+      caveats: spec.caveats ?? [],
+      tools: spec.tools ?? (spec.drivenBy ? [spec.drivenBy] : []),
       // 沒指定就照 band 推：clear 的維度 T1 沒標記，其餘是紅的。
       t1Flag: spec.t1Flag ?? (spec.band === 'clear' ? 0 : 2),
     };

@@ -19,7 +19,7 @@ import { DEV_ADL_LEARNING_RULES } from './devAdlLearning';
 import { PUBLIC_TOOL_RULES } from './publicTools';
 import { TEMPERAMENT_RULES } from './temperament';
 
-export { bandOfTier, BAND_OF_TIER } from './shared';
+export { bandOfTier, BAND_OF_TIER, severeFor } from './shared';
 
 export const TOOL_RULES: Readonly<Partial<Record<ToolId, ToolRule>>> = {
   ...ACHIEVEMENT_RULES,

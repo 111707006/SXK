@@ -1,7 +1,7 @@
 /**
  * T2 規則引擎的型別（規格 v2 附錄 A）。
  *
- * 這一層只有「形狀」，沒有任何計算 —— 計分在 #46、判定在 #47、彙整在 #48。
+ * 這一層只有「形狀」，沒有任何計算 —— 計分在 #46、判定在 #47、彙整在 #52（`findings.ts`）。
  * 型別與資料分開放是刻意的：登錄表（`toolSpecs.ts`）、發現標籤（`findingTags.ts`）、
  * caveat（`caveats.ts`）、§5.9 的標籤來源（`sectionTags.ts`、`itemTags.ts`）
  * 都只依賴這一檔，彼此不互相 import。
@@ -179,6 +179,50 @@ export interface T2Plan {
    * 缺的維度怎麼補是報告那一層的事。
    */
   functionOrder: DimensionCode[] | null;
+}
+
+/**
+ * 一個維度的判定狀態（§5.7）：三級 band，或四種「沒有判定」的原因。
+ *
+ * 四個非 band 值各自是一件事：`partial` 星號工具沒做完（紅）、`not_assessed` 家長沒做選做（黃）、
+ * `no_tool` 這個月齡沒有任何會出 band 的工具（§4.5）。它們跟 `clear` 必須分得開 ——
+ * 塌成同一個值就是「沒做完」被讀成「沒事」。
+ */
+export type DimensionBand = Band | 'partial' | 'not_assessed' | 'no_tool';
+
+/** 一個維度彙整後的結果（§5.7）。九個維度各一筆，含 `clear` 的。 */
+export interface DimensionFinding {
+  dimensionId: DimensionCode;
+  band: DimensionBand;
+  /** 哪一支把 band 推到這裡；同 band 取先做完的。band 不是三級之一時為 `null`。 */
+  drivenBy: ToolId | null;
+  /** 各工具標籤的聯集，去重、保序：`severity.severe` 最前，其次 `drivenBy` 的，再依完成順序。每維度 ≤ 10。 */
+  tags: FindingTag[];
+  /** 這個維度用到的工具的 caveats 聯集，去重、保序（順序同 `tags`）。 */
+  caveats: Caveat[];
+  /** 這個維度做了哪幾支（含只出標籤的），依完成順序。 */
+  tools: ToolId[];
+  t1Flag: T1Flag;
+}
+
+/**
+ * T2 的唯一真相（§5.8）。報告、活動配對、SMART 目標都只讀它；任何下游不得回頭讀
+ * 原始答案自己再判一次。`version` 是這個形狀的版本（v1 規格是 2），`rulesVersion` 是
+ * 門檻的版本 —— 門檻改了就換，舊報告記著舊版本。
+ */
+export interface T2Findings {
+  version: 3;
+  toolkitVersion: 'kit-20260908';
+  rulesVersion: string;
+  child: { assessedAgeMonth: number; sex?: 'boy' | 'girl' };
+  t1: Record<DimensionCode, T1Flag>;
+  /** 家長沒填就是 `null`，不是 `undefined` —— 這筆要存進資料庫再讀回來。 */
+  diagnosisDirection: DiagnosisDirection | null;
+  /** 九個都在，含 `clear`；順序照 `DIMENSION_CODES`。 */
+  dimensions: DimensionFinding[];
+  /** 每支工具**最新且完整**的一筆，依完成順序。 */
+  toolResults: ToolResult[];
+  computedAt: string;
 }
 
 /** 客戶的 15 個活動模組（§7.2）。編號 001–020 是模組 1，以此類推：`ceil(編號 / 20)`。 */

@@ -131,12 +131,17 @@ export function triggeredItemRules(
  * 記在 `docs/specs/t2-v2-errata-2026-09-11.md` F1。
  */
 export function severityTags(r: ToolResult): FindingTag[] {
-  for (const feed of TOOL_SPECS[r.toolId].feeds) {
-    for (const stat of bandStats(r, feed.dimension)) {
-      if (stat.scored && stat.tier === SEVERITY_TIER) return [SEVERITY_TAG];
-    }
-  }
-  return [];
+  return TOOL_SPECS[r.toolId].feeds.some(feed => severeFor(r, feed.dimension)) ? [SEVERITY_TAG] : [];
+}
+
+/**
+ * 這支工具**對這個維度**出 band 的 tier 是不是 4。`severityTags` 是它對全部 feeds 的「任一」；
+ * 維度彙整（`../findings.ts`）用這一條決定 `severity.severe` 落在哪一格 —— 多維度工具
+ * （dev、asq）一個領域 tier 4、另一個 tier 3 時，兩個維度都是 `refer`，但只有前者「嚴重」。
+ * 不餵這個維度 → false。
+ */
+export function severeFor(r: ToolResult, dimension: DimensionCode): boolean {
+  return bandStats(r, dimension).some(stat => stat.scored && stat.tier === SEVERITY_TIER);
 }
 
 /** 去重、保序。gm 的 P1／P2／P3 都對 `mot.postural`，asq PE 後三項都對 `soc.social_initiation`。 */

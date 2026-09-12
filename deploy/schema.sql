@@ -394,6 +394,49 @@ CREATE TABLE IF NOT EXISTS `t2_intake` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- T2 交卷纪录（票 #57，规格 v2 §9.1）
+-- ============================================================
+-- 家长答完一支工具、按交卷时的一笔纪录。**每次交卷一笔，不覆盖**（§5.1「重做会是新的一笔」）：
+-- 同一支工具重做就多一列，「最新且完整的一笔」是读的时候挑的（src/t2/findings.ts 的
+-- latestCompleteResults），不是写的时候盖的。
+--
+-- 原始答案（pre、answers）与算出来的结果（result ＝ ToolResult）都存；**result 由伺服器算**
+--（src/t2/scoring），前端送上来的只有答案。pre／answers 与 result 里的是同一份，另外拆成
+-- 两栏只是为了不解开 result 也查得到原始作答 —— 读的一律以 result 为准。
+--
+-- child_snapshot 是交卷当下孩子档案的快照（名字、出生日期、性别、当天的实足月龄）：
+-- user_data 那一列会被前端整包覆盖，快照让「这笔是几个月大时答的」有据可查。
+-- assessed_age_month 是**作答用的**月龄（出题依它），快照里的 ageMonth 是交卷当天算的，
+-- 两者可以不同（表单开着跨了月）。
+--
+-- rater 的五个值 ＝ src/t2/types.ts 的 RATERS。没有治疗师（T2 没有治疗师在场）。
+
+CREATE TABLE IF NOT EXISTS `t2_tool_results` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  -- 交卷当下的孩子档案：{"name","birthDate","gender","ageMonth"}。
+  `child_snapshot` JSON NOT NULL,
+  -- 22 支工具的代号（src/t2/toolkit 的 ToolId）：'sxk-lang'、'mchat-rf'……
+  `tool_id` VARCHAR(16) NOT NULL,
+  -- 题库版本（ToolResult.toolkitVersion）。题库换版之后旧列记着旧版本。
+  `toolkit_version` VARCHAR(32) NOT NULL,
+  -- 作答用的实足月龄（整数月，不进位）。出题与计分都依它。
+  `assessed_age_month` SMALLINT UNSIGNED NOT NULL,
+  -- 填表人身份 ＝ src/t2/types.ts 的 RATERS。没有治疗师（T2 没有治疗师在场）。
+  `rater` ENUM('father','mother','caregiver','teacher','other') NOT NULL,
+  -- 前置题答案（ToolResult.pre），原样。
+  `pre` JSON NOT NULL,
+  -- 逐题答案（ToolResult.answers）：题 key → 值。
+  `answers` JSON NOT NULL,
+  -- 伺服器算出来的整份 ToolResult（含 sections／overall／native／computedAt）。读的以这栏为准。
+  `result` JSON NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- 读取永远是「这位家长的全部」：一位家长 22 支 × 重做几次，几十列而已。
+  INDEX `idx_user_created` (`user_id`, `created_at`),
+  CONSTRAINT `fk_t2_tool_results_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 扫码带走的报告连结（issue #22）
 -- ============================================================
 -- 家长在合作公司的 iPad 上看完报告，扫画面上的二维码就能在自己手机上打开

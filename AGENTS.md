@@ -128,11 +128,14 @@ npx tsx scripts/t2-activity-seed-sql.ts --check
 | `/api/expert-booking` | POST | 送出专家预约（四种服务共用） | `specialistId`, `parentName`, `parentPhone`；`serviceType` 选填 |
 | `/api/t2/plan` | GET | T2 题量预估：依这位家长的孩子与最新筛查算 `planT2()`，附 `t1Flags`／`diagnosisDirection`／`entrance` | `Authorization: Bearer <token>`；`diagnosis` (query) 选填，带了就盖过存的 |
 | `/api/t2/diagnosis` | PUT | 存入口选的诊断方向（十选一或 null）；#59 生成报告时读它 | `diagnosis`；`Authorization: Bearer <token>` |
+| `/api/t2/tool-results` | POST | 交一支工具的答案；**伺服器算分**（`scoreTool`），窗口外／缺答／多题／值域外 400 且不落表；每次交卷一笔不覆盖。回 `{id, createdAt, result, bands}` | `toolId`, `assessedAgeMonth`, `rater`, `pre`, `answers`；`Authorization: Bearer <token>` |
+| `/api/t2/tool-results` | GET | 这位家长每支工具**最新且完整**的一笔，各附该支对它喂的维度的 band（加测提示用） | `Authorization: Bearer <token>` |
 
-> T2 的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
+> T2 入口的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
 > 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量，诊断方向会改题量。
-> 仍要登入。`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）。
-> ⚠️ `t2_intake` 表由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立，**必须先于新版程式码部署**。
+> 仍要登入。`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）—— 交卷的两支（#57）就在后面。
+> ⚠️ `t2_intake` 表由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立、`t2_tool_results` 表由
+> `deploy/migrations/2026-09-12-t2-tool-results.sql` 建立，**都必须先于新版程式码部署**。
 
 > 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／
 > `offline_training`／`offline_consult` 之一，定义在 `src/utils/serviceTypes.ts`。

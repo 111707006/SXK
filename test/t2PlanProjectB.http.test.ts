@@ -9,7 +9,7 @@ import { bearer } from './helpers/session';
 process.env.APP_MODE = 't1only';
 
 /**
- * 專案 B 沒有 T2（票 #56 的驗收「B 模式 404」）。
+ * 專案 B 沒有 T2（票 #56、#57 的驗收「B 模式 404」）。
  *
  * 要驗的不是「B 的畫面上看不到入口」—— 那只是 bundle 裡的一個判斷 —— 而是**這兩條路徑
  * 在 B 的部署裡根本不存在**。`/api/t2` 前綴掛在 `tier2Only` 上，在 B 註冊到一個永遠不會
@@ -32,6 +32,12 @@ vi.mock('../src/db/mysql', () => ({
   saveUserData: async () => {},
   parseUserDataRow: () => null,
   listActiveSpecialists: async () => [],
+}));
+
+// #57 的兩支同樣不該在 B 被碰到。
+vi.mock('../src/db/t2ToolResults', () => ({
+  insertToolResult: async () => { throw new Error('專案 B 不該寫 T2 交卷'); },
+  listToolResults: async () => { throw new Error('專案 B 不該讀 T2 交卷'); },
 }));
 
 vi.mock('../src/admin/adminStore', () => ({
@@ -65,6 +71,15 @@ describe('專案 B 沒有 T2 入口', () => {
       body: JSON.stringify({ diagnosis: 'asd' }),
     });
     expect(resp.status).toBe(404);
+  });
+
+  it('POST /api/t2/tool-results 在 B 根本不存在（#57）', async () => {
+    const resp = await client.postJson('/api/t2/tool-results', { toolId: 'sxk-lang', assessedAgeMonth: 48, rater: 'mother', answers: {} }, auth);
+    expect(resp.status).toBe(404);
+  });
+
+  it('GET /api/t2/tool-results 在 B 根本不存在（#57）', async () => {
+    expect((await client.get('/api/t2/tool-results', auth)).status).toBe(404);
   });
 
   /** 對照組：少了這一條，上面的 404 也可能是整個伺服器沒起來。 */

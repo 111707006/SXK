@@ -25,6 +25,11 @@ import { calculateAgeMonth } from './src/utils/dateUtils';
 import { planT2 } from './src/t2/routing';
 import { entranceState, t1FlagsFromScores } from './src/t2/entrance';
 import { readDiagnosisDirection } from './src/t2/diagnosisOptions';
+import { scoreTool } from './src/t2/scoring';
+import { latestCompleteResults } from './src/t2/findings';
+import { readToolSubmission, refusalToHttp, toolBands } from './src/t2/toolResults';
+import * as t2Store from './src/db/t2ToolResults';
+import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
 import type { DiagnosisDirection } from './src/t2/types';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
@@ -1118,6 +1123,120 @@ tier2Only.put('/api/t2/diagnosis', async (req, res) => {
   } catch (err: any) {
     console.error('[T2] save diagnosis failed:', err.message);
     res.status(500).json({ error: '暂时无法保存，请稍后重试。' });
+  }
+});
+
+// ── T2 交卷與已完成清單（票 #57，規格 §9.1、§9.2）──
+//
+// `POST /api/t2/tool-results`：家長答完一支工具送上來。body 只有答案（`toolId`、`assessedAgeMonth`、
+// `rater`、`pre`、`answers`），**分數是伺服器算的**（`scoreTool`）：窗口外、缺答、多餘的題、值域外
+// 一律 400 且**不落表** —— 半套結果這種東西不存在（`scoring/index.ts` 檔頭）。算得出來就連同孩子
+// 快照存一筆，**每次交卷一筆、不覆蓋**（§5.1「重做會是新的一筆」）。
+// `GET /api/t2/tool-results`：這位家長每支工具**最新且完整**的一筆（挑法與 #52 的彙整同一個函式
+// `latestCompleteResults`），每筆附這支對它餵的維度的 band —— 加測提示「星號做完且判留意或關注
+// 才顯示」（#58）要的資料，前端不自己跑規則表。
+//
+// 兩支都在 T2 閘門後面（不在 `T2_OPEN_PATHS` 上）：未登入 401、沒買 403。B 模式整個前綴不存在。
+//
+// 回應的形狀兩支相同（`ToolResultEntry`：`id`、`createdAt`、`result`、`bands`），交卷成功後前端可以
+// 直接把回應接到清單上、當場判斷要不要顯示加測提示，不必再 GET 一次。§9.2 那一格寫「回 `ToolResult`」，
+// 這裡是它的超集（`result` 就是那份 `ToolResult`，一個欄位都沒動）。
+//
+// 記憶體模式：存 `offlineT2ToolResults` —— 展示站沒有資料庫也要走得完一支問卷。
+
+const offlineT2ToolResults = new Map<UserId, ToolResultRecord[]>();
+let offlineT2ToolResultSeq = 0;
+
+/** 兩支端點回的一筆。 */
+interface ToolResultEntry {
+  id: number;
+  createdAt: string;
+  result: ToolResultRecord['result'];
+  bands: ReturnType<typeof toolBands>;
+}
+
+function toolResultEntry(record: ToolResultRecord): ToolResultEntry {
+  return { id: record.id, createdAt: record.createdAt, result: record.result, bands: toolBands(record.result) };
+}
+
+async function storeT2ToolResult(userId: UserId, childSnapshot: ChildSnapshot, result: ToolResultRecord['result']): Promise<ToolResultRecord> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    const id = await withTimeout(t2Store.insertToolResult(dbUserId, childSnapshot, result), 2000);
+    return { id, createdAt: new Date().toISOString(), childSnapshot, result };
+  }
+  offlineT2ToolResultSeq += 1;
+  const record: ToolResultRecord = { id: offlineT2ToolResultSeq, createdAt: new Date().toISOString(), childSnapshot, result };
+  const list = offlineT2ToolResults.get(userId) ?? [];
+  list.push(record);
+  offlineT2ToolResults.set(userId, list);
+  return record;
+}
+
+async function loadT2ToolResults(userId: UserId): Promise<ToolResultRecord[]> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2Store.listToolResults(dbUserId), 2000);
+  return offlineT2ToolResults.get(userId) ?? [];
+}
+
+/** 交卷當下的孩子檔案。`ageMonth` 是今天算的實足月齡，可以與 body 的 `assessedAgeMonth` 不同（表單開著跨了月）。 */
+function childSnapshotOf(child: any): ChildSnapshot {
+  return {
+    name: typeof child?.name === 'string' ? child.name : '',
+    birthDate: typeof child?.birthDate === 'string' ? child.birthDate : null,
+    gender: typeof child?.gender === 'string' ? child.gender : null,
+    ageMonth: liveAgeMonthOf(child),
+  };
+}
+
+tier2Only.post('/api/t2/tool-results', async (req, res) => {
+  try {
+    const userId = await requireT2Parent(req, res);
+    if (!userId) return;
+
+    const parsed = readToolSubmission(req.body);
+    if (!parsed.ok) {
+      res.status(parsed.status).json(parsed.body);
+      return;
+    }
+
+    // 快照要有東西可照：沒有孩子檔案就沒有「這筆是誰的孩子答的」。T2 的入口本來就在 T1 報告上，
+    // 走到這裡而沒有檔案，是前端狀態壞了，不是正常路徑。
+    const data = await loadParentData(userId);
+    if (!data?.child) {
+      res.status(404).json({ error: '还没有孩子的档案，请先完成筛查。', code: 'CHILD_REQUIRED' });
+      return;
+    }
+
+    const outcome = scoreTool(parsed.value);
+    if (!outcome.ok) {
+      const http = refusalToHttp(outcome);
+      res.status(http.status).json(http.body);
+      return;
+    }
+
+    const record = await storeT2ToolResult(userId, childSnapshotOf(data.child), outcome.result);
+    res.status(201).json(toolResultEntry(record));
+  } catch (err: any) {
+    console.error('[T2] submit tool result failed:', err.message);
+    res.status(500).json({ error: '暂时无法保存这份问卷，请稍后重试。' });
+  }
+});
+
+tier2Only.get('/api/t2/tool-results', async (req, res) => {
+  try {
+    const userId = await requireT2Parent(req, res);
+    if (!userId) return;
+
+    const records = await loadT2ToolResults(userId);
+    // 每支最新且完整的一筆。`latestCompleteResults` 吃的是 `ToolResult`，挑完再對回那一列
+    // （同一個物件，不是複本，所以 Map 用物件當鍵對得回去）。
+    const byResult = new Map(records.map(r => [r.result, r] as const));
+    const latest = latestCompleteResults(records.map(r => r.result));
+    res.json({ results: latest.map(r => toolResultEntry(byResult.get(r)!)) });
+  } catch (err: any) {
+    console.error('[T2] list tool results failed:', err.message);
+    res.status(500).json({ error: '暂时无法读取已完成的问卷，请稍后重试。' });
   }
 });
 

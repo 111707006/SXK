@@ -46,6 +46,14 @@ export type DiagnosisDirection =
   | 'cp' | 'dd' | 'id' | 'ld' | 'adhd' | 'lang' | 'emo' | 'psych' | 'tic' | 'asd';
 //   腦癱  發展遲緩  智力障礙  學習障礙  多動症  語言障礙  情緒障礙  心理疾病  抽動症  自閉症
 
+/**
+ * 填表人身份 —— 工具包的「填表人身份」去掉治療師（§0：T2 沒有治療師在場）。
+ * 只用於 caveat 文案與日後建常模時分層，不擋流程。運行時常數而不只是型別：
+ * 交卷（#57）要驗 body、`t2_tool_results.rater` 的 ENUM 要對這五個值，兩處都不該手抄。
+ */
+export const RATERS = ['father', 'mother', 'caregiver', 'teacher', 'other'] as const;
+export type Rater = (typeof RATERS)[number];
+
 /** §5.2 的十個計分族。一支工具屬於且只屬於一族。 */
 export type ScoringFamily =
   | 'achievement' | 'pass' | 'independence' | 'concern' | 'total'
@@ -124,8 +132,8 @@ export interface ToolResult {
   toolId: ToolId;
   toolkitVersion: 'kit-20260908';
   assessedAgeMonth: number;
-  /** 工具包的「填表人身份」去掉治療師。只用於 caveat 文案與日後建常模時分層，不擋流程。 */
-  rater: 'father' | 'mother' | 'caregiver' | 'teacher' | 'other';
+  /** 見 `RATERS`。 */
+  rater: Rater;
   askedCount: number;
   answeredCount: number;
   pre: Record<string, string | string[] | boolean>;

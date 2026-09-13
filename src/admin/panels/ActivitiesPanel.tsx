@@ -4,7 +4,7 @@
  * 300 支活動的種子全部 `targetMonth = null`，沒填的活動**配不到** —— 上線當天每個維度都是
  * 「準備中」。這一頁就是讓內容團隊看見還差多少，然後一支一支填。
  *
- * 上方四個進度數字（總數／已填目標月齡／已填練什麼／已啟用）照舊素材庫分頁 `coverageOf`
+ * 上方四個進度數字（總數／已填目標月齡／已填練什麼／已啟用）沿用已退場的素材庫分頁
  * 的作法，各自代表一件事。列表可依模組、維度、「還沒填目標月齡」篩。存檔只送改過的欄位
  * （`changedFields`），伺服器回整支，直接換掉列表裡那一列 —— 進度數字跟著變，不必重抓 300 支。
  *
@@ -28,7 +28,7 @@ import {
   MAX_TARGET_MONTH,
   type ActivityFilter,
 } from '../../utils/activityAdmin';
-import { MAX_STEPS } from '../../utils/materialCells';
+import { MAX_STEPS } from '../../utils/activitySteps';
 import {
   Button,
   ErrorNote,

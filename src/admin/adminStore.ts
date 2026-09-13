@@ -14,12 +14,11 @@
  * 會擋住。它只能透過本模組取資料。
  */
 import type { Pool, ResultSetHeader } from 'mysql2/promise';
-import { getPool, isConfigured, materialFromRow } from '../db/mysql';
+import { getPool, isConfigured } from '../db/mysql';
 import { companyWhereSql, type CompanyCondition } from './companyScope';
 import type { AssessmentRecord, DimensionScore } from '../types';
 import { calculateAgeMonth } from '../utils/dateUtils';
 import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
-import type { MaterialInput, MaterialRecord } from '../utils/materialCells';
 import { activityFromRow } from '../db/activities';
 import type { ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
@@ -716,124 +715,19 @@ export async function setAdminUserActive(id: number, active: boolean): Promise<n
 }
 
 // ══════════════════════════════════════════════════════════════
-// 干預素材庫（issue #20）—— 不是家長資料，因此不吃公司條件
+// 活動庫（#44，ADR-0005）—— 不是家長資料，因此不吃公司條件
 // ══════════════════════════════════════════════════════════════
 //
-// 素材是森心康的干預內容，不屬於任何一家合作公司，也不含任何一位家長的資料，
-// 因此這幾支查詢**刻意沒有** `${scope.sql}`。這個豁免不是靠紀律維持的：
-// `test/adminScope.structure.test.ts` 有一份「這張表是全域的」的明列清單，
+// 活動是森心康的內容，不屬於任何一家合作公司，也不含任何一位家長的資料，因此
+// 這幾支查詢**刻意沒有** `${scope.sql}`。這個豁免不是靠紀律維持的：
+// `test/adminScope.structure.test.ts` 有一份「這張表是全域的」的明列清單（`GLOBAL_TABLES`），
 // 想讓一張新表不帶公司條件，必須先去改那個檔案 —— 那是一個看得見的動作。
 //
 // 它們仍然住在這裡而不是路由層：單一入口的規則對全域的表一樣適用，
 // 否則「路由裡沒有 SQL」這條護欄就會有第一個例外，而例外會長出第二個。
-
-// 列 → 素材的轉換與家長端共用一份：`src/db/mysql.ts` 的 `materialFromRow`。
-// 各寫一份的話，兩邊對「這一列的 JSON 壞掉了」會有兩種處置，於是維護的人看著
-// 一格「0 步」的素材、家長那邊卻是一句讀取失敗 —— 同一列資料，兩個畫面沒有
-// 一句話對得起來。壞掉的步驟退回空陣列（不拋例外）的理由見那邊的說明。
 //
-// 刻意**不**在模組層級取一個別名（`const rowToMaterial = materialFromRow`）：
-// 那會在 import 當下就讀取這個匯出，於是每一支替換掉 `src/db/mysql` 的測試
-// 都必須補上它，連完全碰不到素材的那些也不例外。
-
-/**
- * 整份素材庫，含已停用的。
- *
- * 後台要的是 90 格的全貌 —— 「未建立」與「已停用」在畫面上必須分得開，
- * 而只回啟用中的素材會讓後者變成前者。家長端取的是另一條路（issue #26），
- * 那裡才只認啟用中的。
- */
-export async function listMaterials(): Promise<MaterialRecord[]> {
-  const p = requirePool();
-  const [rows] = await p.execute(
-    `SELECT * FROM intervention_materials
-      ORDER BY dimension_id ASC, age_band_id ASC, severity ASC`,
-    []
-  );
-  return (rows as any[]).map(row => materialFromRow(row));
-}
-
-export async function findMaterialById(id: number): Promise<MaterialRecord | null> {
-  const p = requirePool();
-  const [rows] = await p.execute('SELECT * FROM intervention_materials WHERE id = ? LIMIT 1', [id]);
-  const row = (rows as any[])[0];
-  return row ? materialFromRow(row) : null;
-}
-
-/**
- * 建立一格素材。同一格已經有素材時會撞上 `uk_material_cell` 並拋出
- * `ER_DUP_ENTRY` —— 由路由層翻成「這一格已經建立過」，而不是靜靜多一筆。
- */
-export async function createMaterial(input: MaterialInput): Promise<MaterialRecord> {
-  const p = requirePool();
-  const [result] = await p.execute(
-    `INSERT INTO intervention_materials
-       (dimension_id, age_band_id, severity, title, steps, video_url, active)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      input.dimensionId,
-      input.ageBandId,
-      input.severity,
-      input.title,
-      JSON.stringify(input.steps),
-      input.videoUrl,
-      input.active ? 1 : 0,
-    ]
-  );
-  const created = await findMaterialById((result as ResultSetHeader).insertId);
-  if (!created) throw new Error('建立素材后读不回来');
-  return created;
-}
-
-/**
- * 覆寫一格素材，**格子本身也可以改**。
- *
- * 允許改格子是為了讓「建錯格」修得回來（把 C 段的步驟誤存到 B 段），而不必
- * 刪掉重建 —— 這張表沒有刪除。改到一個已經有素材的格子會撞上唯一鍵，
- * 與新增走同一條路。
- *
- * 回傳「這個 id 存在嗎」，**不是**受影響的列數。MySQL 的 affectedRows 算的是
- * 真的**變動過**的列：存下一份與現況一模一樣的內容（沒改任何欄位就按儲存、
- * 或儲存鍵被按了兩下）會拿到 0，而那與「這筆不存在」是同一個數字 ——
- * 維護的人會被告知他正看著的素材找不到。
- *
- * 所以 0 之後**才**去問這個 id 在不在，而不是每一次儲存都先問一遍：
- * 「改到了」本身就證明它存在，那是常見的那一條路，一次來回就夠。存下一份
- * 一模一樣的內容是罕見的那一條，多問一句無妨。
- *
- * **不改用連線層的 `CLIENT_FOUND_ROWS`**：`markPaymentSuccess` 與
- * `consumeSmsCode` 靠的正是 affectedRows 的現有語意（「只有真的完成那次
- * 轉換的呼叫回 1」），全域打開那個旗標會讓那兩道閘門對每一個併發的呼叫都回真。
- */
-export async function updateMaterial(id: number, input: MaterialInput): Promise<boolean> {
-  const p = requirePool();
-  const [result] = await p.execute(
-    `UPDATE intervention_materials
-        SET dimension_id = ?, age_band_id = ?, severity = ?, title = ?,
-            steps = ?, video_url = ?, active = ?
-      WHERE id = ?`,
-    [
-      input.dimensionId,
-      input.ageBandId,
-      input.severity,
-      input.title,
-      JSON.stringify(input.steps),
-      input.videoUrl,
-      input.active ? 1 : 0,
-      id,
-    ]
-  );
-  if ((result as ResultSetHeader).affectedRows > 0) return true;
-  return (await findMaterialById(id)) !== null;
-}
-
-// ══════════════════════════════════════════════════════════════
-// 活動庫（#44，ADR-0005）—— 同樣不是家長資料，不吃公司條件
-// ══════════════════════════════════════════════════════════════
-//
-// 與上面的素材庫同一個豁免、同一個理由：活動是森心康的內容，不屬於任何一家合作
-// 公司，`test/adminScope.structure.test.ts` 的 `GLOBAL_TABLES` 列了它。列 → 活動的
-// 轉換在 `src/db/activities.ts`，日後家長端的每週配對（#53／#60）讀的是同一支。
+// 列 → 活動的轉換在 `src/db/activities.ts`，家長端的每週配對（#53／#60）讀的是同一支。
+// （退場的素材庫在這裡也有過一段，2026-09 隨 ADR-0005 拿掉；#63。）
 //
 // 讀兩支、寫一支。寫的那一支是標記頁（#62）：局部更新，帶了才改。
 
@@ -884,7 +778,7 @@ const ACTIVITY_COLUMNS: Readonly<Record<keyof ActivityPatch, { column: string; e
  * **不是**請求裡的字 —— 值全部參數化。
  *
  * 更新後一律讀回：路由要把整支回給畫面（列表即時更新），而且這樣就不必依賴 `affectedRows`
- * 去判斷「找不到」—— 那個數字在「內容一模一樣」時也是 0（見 `updateMaterial`）。
+ * 去判斷「找不到」—— 那個數字在「內容一模一樣」時也是 0（退場的素材庫曾在這裡踩過一次）。
  */
 export async function updateActivity(id: string, patch: ActivityPatch): Promise<Activity | null> {
   const p = requirePool();

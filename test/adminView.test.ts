@@ -198,7 +198,7 @@ describe('分頁可見性', () => {
     expect(idsOf(member)).toEqual(['parents', 'specialists', 'company']);
   });
 
-  it('全域管理員多出合作公司、後台帳號、跨公司彙總與素材庫', () => {
+  it('全域管理員多出合作公司、後台帳號、跨公司彙總與活動庫', () => {
     expect(idsOf(globalOnCompany)).toEqual([
       'parents',
       'specialists',
@@ -206,7 +206,6 @@ describe('分頁可見性', () => {
       'companies',
       'adminUsers',
       'summary',
-      'materials',
       'activities',
     ]);
   });
@@ -214,7 +213,7 @@ describe('分頁可見性', () => {
   // 「後端會擋」不是不顯示的理由：選單上出現「跨公司彙總」本身就告訴合作公司
   // 有別家公司存在，而那是他們不該知道的事。
   it('全域管理員專屬的分頁不出現在公司成員的選單裡', () => {
-    const globalOnly: AdminTabId[] = ['companies', 'adminUsers', 'summary', 'materials', 'activities'];
+    const globalOnly: AdminTabId[] = ['companies', 'adminUsers', 'summary', 'activities'];
     for (const id of globalOnly) {
       expect(idsOf(member)).not.toContain(id);
     }
@@ -242,10 +241,10 @@ describe('單一機構模式下的分頁可見性', () => {
     }
   });
 
-  // 素材庫是專案 A **才有**的東西（深度評估的干預內容），後台帳號則是這個
+  // 活動庫是專案 A **才有**的東西（深度評估的干預內容），後台帳號則是這個
   // 部署唯一開得出帳號的地方。連它們一起收掉會把功能藏起來。
-  it('家長列表、專家名單、後台帳號與素材庫仍然在', () => {
-    expect(idsOf(globalUnselected)).toEqual(['parents', 'specialists', 'adminUsers', 'materials', 'activities']);
+  it('家長列表、專家名單、後台帳號與活動庫仍然在', () => {
+    expect(idsOf(globalUnselected)).toEqual(['parents', 'specialists', 'adminUsers', 'activities']);
   });
 
   it('對應的後端路由不掛載，所以留著分頁就是留著 404', () => {
@@ -283,12 +282,12 @@ describe('哪些分頁要先選定公司', () => {
   });
 
   /**
-   * 素材庫不需要。它不是家長資料，後端也不要求選定 —— 擋在「請先選定公司」
-   * 後面的話，維護素材的人得先隨便挑一家合作公司，而那一下會在切換紀錄裡
+   * 活動庫不需要。它不是家長資料，後端也不要求選定 —— 擋在「請先選定公司」
+   * 後面的話，維護活動的人得先隨便挑一家合作公司，而那一下會在切換紀錄裡
    * 留下一筆他其實沒有要看的公司。
    */
-  it('全域的五個分頁都不需要', () => {
-    for (const id of ['companies', 'adminUsers', 'summary', 'materials', 'activities'] as AdminTabId[]) {
+  it('全域的四個分頁都不需要', () => {
+    for (const id of ['companies', 'adminUsers', 'summary', 'activities'] as AdminTabId[]) {
       expect(tabNeedsCompany(id), id).toBe(false);
     }
   });

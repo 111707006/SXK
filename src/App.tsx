@@ -33,7 +33,7 @@ const T2Report = lazy(() => import('./components/T2Report'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
-import { calculateAgeMonth, formatAge, refreshChildAge } from './utils/dateUtils';
+import { formatAge, refreshChildAge } from './utils/dateUtils';
 import { ageBandDrift, latestAssessedAgeMonth } from './utils/ageBandDrift';
 import { useToday } from './utils/useToday';
 import { authFetch, setUnauthorizedHandler } from './utils/api';
@@ -68,23 +68,6 @@ export default function App() {
    * 是那一次篩查的事實記錄，永不重算。
    */
   const child = useMemo(() => refreshChildAge(childProfile, today), [childProfile, today]);
-
-  /**
-   * 今天真的算得出來的實足月齡；算不出來就是 `null`。
-   *
-   * 與 `child.ageMonth` 的差別是**誠實**，而不是數值：沒有出生日期時
-   * `refreshChildAge` 會把孩子原樣回傳（它沒有東西可以算），於是 `child.ageMonth`
-   * 是當初寫進檔案的那個數字，**放著就會過期而且看不出來**。用它來取干預包，
-   * 一個檔案裡寫著 23 個月、實際四歲的孩子會拿到 A 段的訓練 —— 而畫面上那個
-   * 年齡段標籤是照同一個數字算的，所以前後完全自洽，沒有一處看起來不對。
-   *
-   * 篩查那一側可以接受這個舊值（那是既有行為，且畫面上另有跨段提示）；
-   * 干預包不行 —— 它的全部價值就是「這組訓練配得上孩子今天的能力」。
-   */
-  const liveAgeMonth = useMemo(
-    () => (childProfile?.birthDate ? calculateAgeMonth(childProfile.birthDate, today) : null),
-    [childProfile, today]
-  );
 
   // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'
   const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'>('dashboard');
@@ -1394,16 +1377,6 @@ export default function App() {
                         setCurrentView('mall');
                         setActiveSpecializedRecordId(null);
                       } : undefined}
-                      /* 干預包照**今天**的實足月齡與**今天**的判定取，兩者都不是
-                         這份報告當時的快照：那是家長現在要在家做的訓練，難度要配
-                         得上孩子今天做得到什麼、強度要配得上他今天的結果。
-                         用 `liveAgeMonth` 而不是 `child.ageMonth` —— 後者在沒有
-                         出生日期時是一個過期而且看不出來的舊數字（見其定義）。 */
-                      currentAgeMonth={liveAgeMonth}
-                      currentScores={completedScores}
-                      // 素材還沒到位的格子要有一條**真的**出路，不是一顆把家長
-                      // 丟到報告頁自己找的按鈕。見 `goToExpertBooking`。
-                      onContactExpert={() => goToExpertBooking()}
                     />
                   </LazyBoundary>
                 ) : (

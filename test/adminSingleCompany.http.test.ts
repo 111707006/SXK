@@ -94,7 +94,7 @@ vi.mock('../src/admin/adminStore', async () => {
       // 是 builtin），未歸屬底下一位都沒有。這裡照實回空陣列。
       return [] as unknown[];
     },
-    async listMaterials() {
+    async listActivities() {
       return [];
     },
   };
@@ -212,10 +212,10 @@ describe('公司管理的路徑真的不存在', () => {
 });
 
 describe('留下來的路由照常運作', () => {
-  it('後台帳號與素材庫都還在 —— 收掉的只有公司那一塊', async () => {
+  it('後台帳號與活動庫都還在 —— 收掉的只有公司那一塊', async () => {
     const token = await loginGlobal();
     expect((await client.get('/api/admin/admin-users', h(token))).status).toBe(200);
-    expect((await client.get('/api/admin/materials', h(token))).status).toBe(200);
+    expect((await client.get('/api/admin/activities', h(token))).status).toBe(200);
   });
 
   it('專家名單仍在，未歸屬底下是空的', async () => {

@@ -68,16 +68,15 @@ const PARENT_FACING_FILES = [
   'src/components/ReportCharts.tsx',
   'src/App.tsx',
   // 2026-09-11 補上：家長在 T1 路徑上還會走到的其餘畫面。先前這份清單只涵蓋
-  // 「報告」那幾頁，於是 `InterventionPack` 的膠囊寫著「需关注」而報告寫著
+  // 「報告」那幾頁，於是舊干預包的膠囊寫著「需关注」而報告寫著
   // 「需要较多支持」—— 同一顆紅燈兩個名字，正是這條護欄要擋的事。
+  // （舊干預包 2026-09 退場，#63；那一課留著。）
   'src/components/AuthScreen.tsx',
   'src/components/ChildProfileForm.tsx',
   'src/components/EditProfileModal.tsx',
   'src/components/AgeBandDriftNotice.tsx',
-  'src/components/InterventionPack.tsx',
   'src/components/Paywall.tsx',
   'src/components/WearablesMall.tsx',
-  'src/utils/interventionPack.ts',
   'src/utils/specialists.ts',
   'src/utils/ageBandDrift.ts',
   // 2026-09-12（票 #56）：T2 入口與它的題量句子。T2 重做的家長端從這裡開始納入護欄。

@@ -9,7 +9,7 @@
  * 維度 → 模組（`DIM_MOD`）、年齡段鍵（`ageKeyOf`）、依判定往前取的偏移（`OFFSET`）三張表在下面。
  * 「活動要從孩子做得到的地方開始，不是從實際年齡開始。落後越多、往前取得越多。」窗口用的是
  * **實足月齡**（訓練是現在要做的事），不是 `findings.child.assessedAgeMonth` —— 沿用 v1 與
- * `interventionMatch.ts` 的那條註解。
+ * 已退場的 `interventionMatch.ts`（#63）留下的那條註解。
  *
  * 【演算法】（§7.3）
  * 1. 對每個 band ∈ {watch, refer} 的維度：窗口 = `[max(0, m + off[0]), max(0, m + off[1])]`；

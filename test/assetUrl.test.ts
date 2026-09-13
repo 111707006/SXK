@@ -4,7 +4,7 @@ import { isAllowedAssetUrl } from '../src/utils/assetUrl';
 /**
  * 「後台填進來、家長端原樣貼上去」的網址白名單。
  *
- * 兩個呼叫端共用這一份：干預素材的分解圖與影片（`materialCells.ts`），
+ * 兩個呼叫端共用這一份：活動的分解圖與示範連結（`activitySteps.ts`、`activityAdmin.ts`），
  * 以及合作公司的 LOGO（`companies.logo_url`）。原本只有前者有規則、寫在
  * 那個檔案裡，2026-09-10 加 LOGO 時抽出來共用 —— 兩套規則遲早會有一套
  * 少擋一種東西，而少擋的那一種正是它存在的理由。

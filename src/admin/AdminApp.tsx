@@ -41,7 +41,6 @@ import CompanySettingsPanel from './panels/CompanySettingsPanel';
 import CompaniesPanel from './panels/CompaniesPanel';
 import AdminUsersPanel from './panels/AdminUsersPanel';
 import SummaryPanel from './panels/SummaryPanel';
-import MaterialsPanel from './panels/MaterialsPanel';
 import ActivitiesPanel from './panels/ActivitiesPanel';
 
 /**
@@ -279,8 +278,8 @@ function AdminCenter() {
 
         {/*
           尚未選定公司時**選單照樣顯示**。全域的分頁（合作公司、後台帳號、
-          跨公司彙總、素材庫）一位家長的資料都不回，後端也不要求選定 ——
-          把它們一起藏起來，維護素材的人得先隨便挑一家合作公司才進得去，
+          跨公司彙總、活動庫）一位家長的資料都不回，後端也不要求選定 ——
+          把它們一起藏起來，維護活動的人得先隨便挑一家合作公司才進得去，
           而那一下會在切換紀錄裡留下一筆他其實沒有要看的公司。
         */}
         <nav className="mt-4 flex flex-wrap gap-1.5 border-t border-brand-stone pt-3">
@@ -327,7 +326,6 @@ function AdminCenter() {
           {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} />}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} />}
           {activeTab === 'summary' && <SummaryPanel onError={handleError} />}
-          {activeTab === 'materials' && <MaterialsPanel onError={handleError} />}
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}
         </div>
       )}

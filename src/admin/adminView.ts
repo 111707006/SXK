@@ -95,7 +95,6 @@ export type AdminTabId =
   | 'companies'
   | 'adminUsers'
   | 'summary'
-  | 'materials'
   | 'activities';
 
 export interface AdminTab {
@@ -115,9 +114,7 @@ const GLOBAL_TABS: AdminTab[] = [
   { id: 'companies', label: '合作公司' },
   { id: 'adminUsers', label: '后台帐号' },
   { id: 'summary', label: '跨公司汇总' },
-  // 素材庫是森心康的干預內容，合作公司不維護它（專案 B 也沒有深度評估）。
-  { id: 'materials', label: '素材库' },
-  // 活動庫（#62）取代素材庫的一庫多支，同樣是森心康的內容。
+  // 活動庫（#62，ADR-0005）是森心康的干預內容，合作公司不維護它（專案 B 也沒有深度評估）。
   { id: 'activities', label: '活动库' },
 ];
 
@@ -156,11 +153,11 @@ export function showCompanySwitcher(
  * 這個分頁要不要先選定一家合作公司。
  *
  * 需要的恰好是那三個看家長資料的分頁 —— 與後端 `withScope` 涵蓋的範圍相同。
- * 全域的分頁（合作公司名冊、後台帳號、跨公司彙總、素材庫）**不需要**：它們
+ * 全域的分頁（合作公司名冊、後台帳號、跨公司彙總、活動庫）**不需要**：它們
  * 一位家長的資料都不回，後端也不要求選定。
  *
- * 分錯的方向很安靜：把全域分頁也擋在「請先選定公司」後面，維護素材的人得先
- * 隨便選一家合作公司才進得去自己的素材庫，畫面上看起來只是多按一下 ——
+ * 分錯的方向很安靜：把全域分頁也擋在「請先選定公司」後面，維護活動的人得先
+ * 隨便選一家合作公司才進得去自己的活動庫，畫面上看起來只是多按一下 ——
  * 而那一下同時會在切換紀錄裡留下一筆他其實沒有要看的公司。
  */
 export function tabNeedsCompany(tab: AdminTabId): boolean {

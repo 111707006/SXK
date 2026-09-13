@@ -7,13 +7,13 @@
  * `targetMonth`、`targets`、`dimensions`、`avoidIf`、啟用，加上圖文步驟與示範連結。
  *
  * 【三件事】
- * - `activityCoverage`：四個進度數字（照素材庫 `coverageOf` 的作法）。總數／已填 targetMonth／
+ * - `activityCoverage`：四個進度數字（沿用退場的素材庫分頁的作法）。總數／已填 targetMonth／
  *   已填 targets／已啟用 —— 四個各自代表一件事，混在一起就沒有一個是可信的。
  * - `filterActivities`：模組、維度、「還沒填 targetMonth」三個篩選。第三個是這一頁存在的理由。
  * - `readActivityPatch`：把 PATCH 的內容讀成一筆局部更新，讀不出來就說是哪裡不對。
  *
  * 【為什麼是 PATCH 不是 PUT】
- * 素材庫一格是整筆覆寫（`readMaterialInput`）—— 一格素材是一次建好的。活動不是：300 支已經在
+ * 退場的素材庫一格是整筆覆寫 —— 一格素材是一次建好的。活動不是：300 支已經在
  * 表裡，內容團隊今天填 targetMonth、下週貼標籤、圖文可能永遠不補。整筆覆寫等於每次儲存都要把
  * 十個欄位一起送回來，前端漏送一個就悄悄清掉一個。局部更新：**帶了才改，沒帶不動**。
  *
@@ -28,7 +28,7 @@ import type { ActivityTag, FindingTag } from '../t2/findingTags';
 import { DIMENSION_CODES } from '../t2/types';
 import type { Activity, ActivityStep, DimensionCode, ModuleNo } from '../t2/types';
 import { isAllowedAssetUrl, assetUrlError } from './assetUrl';
-import { readSteps } from './materialCells';
+import { readSteps } from './activitySteps';
 
 // ══════════════════════════════════════════════
 // 進度與篩選
@@ -187,8 +187,8 @@ export function readActivityPatch(body: unknown): ActivityPatchResult {
   }
 
   if ('steps' in raw) {
-    // 沿用素材庫的規則（圖的網址、上限、每步有圖有字），但活動允許零步 —— 種子就是零步。
-    const r = readSteps(raw.steps, 0);
+    // 圖的網址、上限、每步有圖有字，見 `activitySteps.ts`；零步是合法的 —— 種子就是零步。
+    const r = readSteps(raw.steps);
     if (!r.ok) return fail(r.error);
     patch.steps = r.steps;
   }

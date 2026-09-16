@@ -89,6 +89,10 @@ export default function App() {
   const [activeSpecializedRecordId, setActiveSpecializedRecordId] = useState<string | null>(null);
   const [activeT1Record, setActiveT1Record] = useState<AssessmentRecord | null>(null);
   const [viewingLiveT1, setViewingLiveT1] = useState(false);
+  /** 即時 T1 報告一開就生成 —— 只有面板的「生成全维 AI 深度评估报告」會設成 true，其他入口一律 false。 */
+  const [t1ReportGenerate, setT1ReportGenerate] = useState(false);
+  /** 付費（或跳過付費）回到即時 T1 報告時捲到 T2 入口卡；其他入口一律 false。 */
+  const [focusT2, setFocusT2] = useState(false);
   // 專案 B 從維度卡片進報告時，要求報告頁捲到專家預約區塊。
   // 從導覽列或「查看報告」進來時為 false，維持原本停在頁首的行為。
   const [focusBooking, setFocusBooking] = useState(false);
@@ -588,6 +592,21 @@ export default function App() {
     }
   };
 
+  /**
+   * 即時報告要接續的那一份：歷史裡**分數與現在一模一樣**的最新一筆 T1 報告。
+   * 分數有任何一筆不同（重做過 T1）就是 null，報告頁照舊從「一键生成」開始。
+   * 見 `AnalysisReport` 的 `resumeFrom`。
+   */
+  const liveReportResume = useMemo(() => {
+    const sameScores = (a: DimensionScore[], b: DimensionScore[]) =>
+      a.length === b.length &&
+      a.every(s => b.some(t => t.dimensionId === s.dimensionId && t.tierId === s.tierId && t.completedAt === s.completedAt && t.score === s.score));
+    const timeOf = (r: AssessmentRecord) => (typeof r.createdAt === 'string' ? r.createdAt : '');
+    return reportHistory
+      .filter(r => r.type === 'T1_SCREENING' && r.aiReport && Array.isArray(r.scores) && sameScores(r.scores, completedScores))
+      .reduce<AssessmentRecord | null>((latest, r) => (!latest || timeOf(r) >= timeOf(latest) ? r : latest), null);
+  }, [reportHistory, completedScores]);
+
   const handleSaveReportToHistory = (record: AssessmentRecord) => {
     const updatedHistory = [...reportHistory.filter(r => r.id !== record.id), record];
     setReportHistory(updatedHistory);
@@ -617,8 +636,13 @@ export default function App() {
         null
       );
     setActiveSpecializedRecordId(null);
-    setViewingLiveT1(!archived);
-    setActiveT1Record(archived);
+    // 即時報告接得上上一份（`liveReportResume`）就走即時報告：預約區塊當場就在，
+    // 而且 T2 入口只有即時報告有 —— 從 T2 報告按預約過來的家長，回去才找得到路。
+    // 接不上（分數變過、還沒生成過）才退回歸檔那一份。
+    const useLive = liveReportResume !== null;
+    setViewingLiveT1(useLive || !archived);
+    setT1ReportGenerate(false);
+    setActiveT1Record(useLive ? null : archived);
     setFocusBooking(true);
     setFocusBookingService(service);
     setCurrentView('report');
@@ -735,7 +759,7 @@ export default function App() {
                     // 從導覽列進來是「我要看報告」，不是「帶我去預約」。這一行少了
                     // 的話，按過一次干預包的「联系专家」之後，此後每一份報告都會
                     // 自己捲到最底下的預約區塊 —— 而家長沒有要求過那件事。
-                    setFocusBooking(false);
+                    setFocusBooking(false); setFocusT2(false);
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
                     completedScores.length === 0 ? 'opacity-40 cursor-not-allowed' : ''
@@ -1063,24 +1087,27 @@ export default function App() {
                   completedScores={completedScores}
                   onSelectDimension={(dimId) => {
                     // 去向由 productConfig 決定，不在這裡判斷模式：
-                    // A → 該維度的深度評估；B → 報告頁的專家預約區塊。
-                    if (PRODUCT.nextStep.action === 'contact_expert') {
-                      setViewingLiveT1(true);
-                      setActiveT1Record(null);
-                      setActiveSpecializedRecordId(null);
-                      setFocusBooking(true);
-                      setCurrentView('report');
-                      return;
-                    }
-                    enterDimension(dimId);
+                    // A → 即時 T1 報告（T2 入口在那裡，票 #56）；B → 報告頁的專家預約區塊。
+                    //
+                    // 2026-09-13 起 A 不再進舊的逐維度 T3 面板（`AssessmentPanel`）：T2 v2 是整份作答、
+                    // 入口只掛在即時報告上，卡片再導去 T3 會讓家長在兩條互不相通的深測路之間迷路。
+                    // T3 面板與 `enterDimension` 都留著，語言專項仍走它；T3 何時回來、怎麼接 T2，另議。
+                    setViewingLiveT1(true);
+                    setT1ReportGenerate(false);
+                    setActiveT1Record(null);
+                    setActiveSpecializedRecordId(null);
+                    setFocusBooking(PRODUCT.nextStep.action === 'contact_expert');
+                    setCurrentView('report');
                   }}
                   deepAssessmentLocked={deepAssessmentLocked}
                   onViewReport={() => {
                     // Jump straight to the live T1 AI report page, skipping the archive/library page.
+                    // 按鈕寫的是「生成」：到了就生成，不再要家長按第二次（已有同分數的報告則直接顯示）。
                     setViewingLiveT1(true);
                     setActiveT1Record(null);
                     setActiveSpecializedRecordId(null);
-                    setFocusBooking(false);
+                    setFocusBooking(false); setFocusT2(false);
+                    setT1ReportGenerate(true);
                     setCurrentView('report');
                   }}
                   onStartT1Screening={() => setCurrentView('t1_screening')}
@@ -1102,6 +1129,7 @@ export default function App() {
                     // dashboard. The user still taps "一键启动 AI 突触分析" there, so
                     // finishing T1 never spends AI quota on its own.
                     setViewingLiveT1(true);
+                    setT1ReportGenerate(false);
                     setActiveT1Record(null);
                     setActiveSpecializedRecordId(null);
                     setCurrentView('report');
@@ -1133,13 +1161,16 @@ export default function App() {
                     completedScores={completedScores}
                     onBack={() => {
                       setViewingLiveT1(false);
-                      setFocusBooking(false);
+                      setFocusBooking(false); setFocusT2(false);
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
                     onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     // T2 入口只掛在即時報告上（票 #56）；B 沒有 T2。
                     t2={PRODUCT.features.tier2And3 ? { access: t2Access, priceFen: unlockPriceFen, onUnlock: enterT2, onStart: enterT2 } : undefined}
                     historicalRecord={null}
+                    resumeFrom={liveReportResume}
+                    generateOnOpen={t1ReportGenerate}
+                    focusT2={focusT2}
                     focusBooking={focusBooking}
                     focusBookingService={focusBookingService}
                   />
@@ -1151,7 +1182,7 @@ export default function App() {
                     completedScores={activeT1Record.scores}
                     onBack={() => {
                       setActiveT1Record(null);
-                      setFocusBooking(false);
+                      setFocusBooking(false); setFocusT2(false);
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
                     onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
@@ -1187,8 +1218,8 @@ export default function App() {
 
                   {/* 2-Column Grid */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    {/* Left side: T1 screening reports (5 cols) */}
-                    <div className="lg:col-span-5 bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-6 text-left">
+                    {/* Left side: T1 screening reports (full width) */}
+                    <div className="lg:col-span-12 bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-6 text-left">
                       <div className="flex items-center justify-between border-b border-brand-stone/60 pb-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 bg-brand-sage/60 rounded-lg flex items-center justify-center text-brand-forest">
@@ -1213,7 +1244,7 @@ export default function App() {
                           <span className="text-xs font-extrabold text-brand-forest">{completedScores.filter(s => s.tierId === 'T1').length}/9 维度</span>
                         </div>
                         <button
-                          onClick={() => setViewingLiveT1(true)}
+                          onClick={() => { setT1ReportGenerate(false); setViewingLiveT1(true); }}
                           className="w-full py-2 bg-brand-forest hover:bg-brand-forest-dark text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-brand-forest/10"
                         >
                           <Sparkles size={12} />
@@ -1242,7 +1273,7 @@ export default function App() {
                                       // 從歸檔清單點進來的報告要從頭看起。
                                       // `focusBooking` 是上一次「联系专家」留下的
                                       // 旗標，不清掉就會把這一份也捲到預約區塊。
-                                      setFocusBooking(false);
+                                      setFocusBooking(false); setFocusT2(false);
                                     }}
                                     className="border border-brand-stone/60 hover:border-brand-forest/60 hover:bg-brand-sage/5 rounded-2xl p-3.5 text-left cursor-pointer transition group"
                                   >
@@ -1271,94 +1302,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Right side: T2/T3 Specialized Reports (7 cols) — 專案 A only */}
-                    {PRODUCT.features.tier2And3 && (
-                    <div className="lg:col-span-7 bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-6 text-left">
-                      <div className="flex items-center justify-between border-b border-brand-stone/60 pb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center text-red-500">
-                            <ShieldCheck size={16} />
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-black text-brand-charcoal">T2/T3 神经网络深度专项评估成长报告</h3>
-                            <p className="text-[10px] text-brand-charcoal/50">针对需要更多支持的维度进行的高精度互动评估与脑科学数据分析</p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-bold bg-red-50 px-2 py-0.5 rounded text-red-600">评估层</span>
-                      </div>
-
-                      {/* Specialized reports list */}
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <h4 className="text-xs font-bold text-brand-charcoal/70">专项深度评估报告记录：</h4>
-                          <span className="text-[10px] bg-brand-stone px-2 py-0.5 rounded text-brand-charcoal/60 font-bold">
-                            共 {reportHistory.filter(r => r.type === 'T2_T3_SPECIALIZED').length} 份报告
-                          </span>
-                        </div>
-
-                        {reportHistory.filter(r => r.type === 'T2_T3_SPECIALIZED').length === 0 ? (
-                          <div className="border border-dashed border-brand-stone rounded-3xl py-16 px-4 text-center space-y-3">
-                            <div className="w-12 h-12 bg-brand-sage/30 rounded-full flex items-center justify-center mx-auto text-brand-forest/60">
-                              <BookOpen size={20} />
-                            </div>
-                            <div className="max-w-xs mx-auto space-y-1">
-                              <p className="text-xs font-bold text-brand-charcoal/60">暂无专项成长评估报告</p>
-                              <p className="text-[10px] text-brand-charcoal/40">当您对某个发育领域完成 T2（能力自评）及 T3（专项互动）评估并点击“生成 AI 专项深度报告”时，报告将自动录入此处。</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[440px] overflow-y-auto pr-1 pb-2">
-                            {reportHistory
-                              .filter(r => r.type === 'T2_T3_SPECIALIZED')
-                              .map(rec => {
-                                const t3Result = rec.scores.find(s => s.tierId === 'T3');
-                                const dimensionName = rec.dimensionName || t3Result?.dimensionName || '未知专项';
-                                return (
-                                  <div
-                                    key={rec.id}
-                                    onClick={() => {
-                                      setActiveSpecializedRecordId(rec.id);
-                                      setCurrentView('specialized_report');
-                                    }}
-                                    className="bg-brand-cream/40 border border-brand-stone/60 hover:border-red-400 hover:bg-red-50/5 rounded-2xl p-4 text-left cursor-pointer transition group relative overflow-hidden"
-                                  >
-                                    <div className="absolute top-0 right-0 w-16 h-16 bg-red-100/10 rounded-bl-full pointer-events-none transition group-hover:bg-red-100/20" />
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-[9px] bg-red-50 border border-red-100 text-red-600 px-1.5 py-0.5 rounded font-extrabold">
-                                        深度专项成长评估
-                                      </span>
-                                      <span className="text-[9px] text-brand-charcoal/40 font-bold">
-                                        {new Date(rec.createdAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
-                                      </span>
-                                    </div>
-
-                                    <h5 className="text-sm font-black text-brand-charcoal mt-2.5 flex items-center gap-1 group-hover:text-red-700">
-                                      {dimensionName} 专项评估
-                                      <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition" />
-                                    </h5>
-
-                                    <div className="space-y-1.5 mt-4 pt-3 border-t border-brand-stone/40">
-                                      <div className="flex justify-between text-[10px]">
-                                        <span className="text-brand-charcoal/60">表现特征:</span>
-                                        <span className={`font-bold ${t3Result?.status === 'delay' ? 'text-red-500' : 'text-amber-600'}`}>
-                                          {t3Result?.status === 'delay' ? STATUS_WORDING.delay.label : STATUS_WORDING.borderline.label}
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between text-[10px]">
-                                        <span className="text-brand-charcoal/60">实测精确得分:</span>
-                                        <span className="font-extrabold text-brand-charcoal/80">
-                                          {t3Result ? `${t3Result.score}/${t3Result.maxScore} 分` : 'N/A'}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    )}
+                    {/* 2026-09-16：右欄的「T2/T3 专项报告」區塊拿掉 —— T2 v2 的報告在作答清單那頁，舊 T3 已從家長端下架。 */}
                   </div>
                 </div>
               )
@@ -1408,9 +1352,11 @@ export default function App() {
                         return;
                       }
                       if (paywallReturn?.target === 't2') {
-                        // 從 T1 報告的 T2 入口過來的：送回那份報告，入口會以已解鎖的樣子重畫。
+                        // 從 T1 報告的 T2 入口過來的：送回那份報告，入口會以已解鎖的樣子重畫，並捲到那張卡。
                         setViewingLiveT1(true);
+                        setT1ReportGenerate(false);
                         setActiveT1Record(null);
+                        setFocusT2(true);
                         setCurrentView('report');
                         return;
                       }
@@ -1427,6 +1373,7 @@ export default function App() {
                   <T2Assessment
                     onBack={() => {
                       setViewingLiveT1(true);
+                      setT1ReportGenerate(false);
                       setActiveT1Record(null);
                       setCurrentView('report');
                     }}

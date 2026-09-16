@@ -116,14 +116,14 @@ function buildOverview(findings: T2Findings): string {
 
 /** 一個維度的開場：band 在這裡講，只講「落在哪一種處理方式」，不講數字也不講級別。 */
 const BAND_OPENING: Readonly<Record<ReportedBand, (area: string) => string>> = {
-  refer: area => `${area}这一项，这次的结果落在建议请专业人员再看一看的范围。`,
-  watch: area => `${area}这一项，这次的结果落在值得在日常里多留意的范围。`,
+  refer: area => `${area}这一项，这次的结果提示需要请专业人员进一步看看。`,
+  watch: area => `${area}这一项，这次的结果提示值得在日常里多留意。`,
   no_tool: area => `${area}这一项，这个月龄暂时没有适合的问卷可以做，所以这次没有它的结果。这既不代表没事，也不代表有事。`,
 };
 
 /** 一個維度的收尾：家裡這一週可以怎麼接。 */
 const BAND_ADVICE: Readonly<Record<ReportedBand, string>> = {
-  refer: '在专业人员看过之前，家里可以先从孩子做得到的那一步开始练，不必等排到号才动。',
+  refer: '在等专业人员看之前，家里可以先从孩子已经做得到的那一步开始练，不用等到预约那天。',
   watch: '这一项的进展多半靠日常里的机会累积，每天有固定的时间去用它，比额外加课有用。',
   no_tool: '这一项先照第一层的结果看，等孩子长到适用的月龄，我们会再提醒你补做。',
 };
@@ -133,8 +133,8 @@ const NO_TAG_SENTENCE = '这次的结果没有指向更细的方向，先从这�
 
 /** `whyItMatters` 的開場：band 一句，接 `DIMENSION_WHY`。 */
 const BAND_WHY: Readonly<Record<ReportedBand, string>> = {
-  refer: '这一项这次被标记出来，现在多花一点力气去练，回报通常最大。',
-  watch: '这一项这次被标记出来，现在多给一些机会，进展通常在几周内就看得见。',
+  refer: '这一项这次被标记出来，从现在开始多练，通常进步最快、也最省力。',
+  watch: '这一项这次被标记出来，现在多给一些机会，通常几周内就能看到进展。',
   no_tool: '这一项这次没有可以做的问卷，所以下面讲的是它平常撑着什么。',
 };
 

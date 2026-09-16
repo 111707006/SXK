@@ -43,9 +43,15 @@ body {
 }
 
 /* Animations */
+/*
+ * 只淡入，不位移。原本有 `translateY(6px) → 0`：`.animate-fade-in` 用 `forwards` 把動畫的最後一格
+ * 留在元素上，而被動畫算出來的 transform（連 `none` 都會變成單位矩陣）會讓底下 `position: fixed`
+ * 的東西改成相對這個容器定位——報告頁底部按「预约专家」，表單就跑到頁面最上方去（2026-09-16）。
+ * 每一頁的外框都是這個 class，所以付費牆、預約表這些彈窗全都受影響；拿掉 transform 一次解掉。
+ */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .animate-fade-in {

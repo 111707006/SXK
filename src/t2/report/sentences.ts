@@ -136,7 +136,7 @@ export const CAVEAT_SENTENCES: Readonly<Record<Caveat, string | null>> = {
   age_out_of_window: counted('age_out_of_window'),
   unsourced_threshold: '这份工具的分段是森心康依临床经验订定的参考带，还没有建立常模。',
   parent_report: null,
-  parent_administered_task: '这份是由家长陪着孩子实际做一做之后记录下来的。',
+  parent_administered_task: '这份是家长依孩子平常的表现勾选的，不是专业人员现场测出来的。',
   rater_not_credentialed: '协助程度由家长自己拿捏，不同的人来评分会有一些差异。',
   rater_role_parent: '这份原本设计由专业人员观察后填写，这次由家长依日常观察填答。',
   few_items: counted('few_items'),

@@ -110,6 +110,10 @@ export interface T2AccessInput extends Omit<AccessInput, 'unlockedDimensionIds'>
  * 兩者不共用程式碼是刻意的 —— 前端擋畫面、後端擋資料。
  */
 export function getT2Access(input: T2AccessInput): DimensionAccess {
+  // 展示模式下按過「跳过付费」（App 把 `t2Unlocked` 設成 true）就放行 ——
+  // 不然 `prelude` 每次都回 `demo`，入口按下去又是付費牆，永遠到不了作答頁。
+  // 正式站 `unlocksAvailable` 是 true，這一行不會生效。
+  if (input.paywallEnabled && input.unlocksAvailable === false && input.t2Unlocked === true) return 'open';
   const early = prelude(input);
   if (early) return early;
 

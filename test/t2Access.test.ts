@@ -37,6 +37,10 @@ describe('展示模式（後端未接資料庫，或示範開關開著）', () =
   it('未登入也是 demo', () => {
     expect(getT2Access({ ...base, unlocksAvailable: false, isLoggedIn: false })).toBe('demo');
   });
+
+  it('按過「跳过付费」之後放行 —— 不然展示模式的 T2 入口是死路', () => {
+    expect(getT2Access({ ...base, unlocksAvailable: false, t2Unlocked: true })).toBe('open');
+  });
 });
 
 describe('專案 A 且付費牆生效', () => {

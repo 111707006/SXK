@@ -149,7 +149,7 @@ describe('其餘句子', () => {
 
   it('距上次 N 天', () => {
     expect(redoSentence(3)).toBe('距上次填写 3 天');
-    expect(redoSentence(0)).toBe('距上次填写 0 天');
+    expect(redoSentence(0)).toBe('今天已经填过一次');
   });
 
   it('句子都過家長用字掃描', () => {

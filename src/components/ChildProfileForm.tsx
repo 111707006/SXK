@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Child, Gender } from '../types';
-import { User, Smile, AlertCircle, Sparkles } from 'lucide-react';
-import { calculateAgeMonth, formatAge, getBirthDateFromAgeMonth } from '../utils/dateUtils';
+import { User, AlertCircle, Sparkles } from 'lucide-react';
+import { calculateAgeMonth, formatAge } from '../utils/dateUtils';
 import { useToday } from '../utils/useToday';
 import { APPLICABLE_RANGE_TEXT } from '../utils/birthDateOptions';
 import { T1_AGE_RANGE } from '../t1Data';
@@ -11,12 +11,6 @@ interface ChildProfileFormProps {
   currentChild: Child | null;
   onSave: (child: Child) => void;
 }
-
-const SAMPLE_CHILDREN: { name: string; ageMonth: number; gender: Gender }[] = [
-  { name: '森森', ageMonth: 42, gender: 'boy' },
-  { name: '心心', ageMonth: 28, gender: 'girl' },
-  { name: '康康', ageMonth: 54, gender: 'boy' },
-];
 
 export default function ChildProfileForm({ currentChild, onSave }: ChildProfileFormProps) {
   const [name, setName] = useState(currentChild?.name || '');
@@ -61,19 +55,6 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
       birthDate,
       ageMonth: calculatedAgeMonth,
       gender
-    });
-  };
-
-  const handleSelectSample = (sample: { name: string; ageMonth: number; gender: Gender }) => {
-    const sampleBirthDate = getBirthDateFromAgeMonth(sample.ageMonth);
-    setName(sample.name);
-    setBirthDate(sampleBirthDate);
-    setGender(sample.gender);
-    onSave({
-      name: sample.name,
-      birthDate: sampleBirthDate,
-      ageMonth: sample.ageMonth,
-      gender: sample.gender
     });
   };
 
@@ -197,27 +178,6 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
         </button>
       </form>
 
-      <div className="mt-8 pt-6 border-t border-brand-stone/60">
-        <h3 className="text-xs font-semibold text-brand-charcoal/60 mb-3 flex items-center gap-1.5 justify-start">
-          <Smile size={14} className="text-brand-moss" /> 或者是选择一份精心准备的数据样例进行深度体验：
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {SAMPLE_CHILDREN.map((sc, idx) => (
-            <button
-              id={`sample-child-btn-${idx}`}
-              key={idx}
-              type="button"
-              onClick={() => handleSelectSample(sc)}
-              className="p-3 bg-brand-cream/20 hover:bg-brand-sage/30 hover:border-brand-moss border border-brand-stone/60 rounded-xl text-left transition cursor-pointer"
-            >
-              <div className="text-xs font-bold text-brand-forest">
-                {sc.name} ({sc.gender === 'boy' ? '男' : '女'})
-              </div>
-              <div className="text-[10px] text-brand-charcoal/60 mt-1">{formatAge(sc.ageMonth)} | {sc.ageMonth} 个月</div>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

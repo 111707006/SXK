@@ -84,9 +84,12 @@ export function stripSafetyPrefix(overview: string): string {
   return overview.startsWith(SAFETY_SENTENCE) ? overview.slice(SAFETY_SENTENCE.length) : overview;
 }
 
-/** 「距上次 N 天」（§10.2 第 2 項）。 */
+/**
+ * 「距上次 N 天」（§10.2 第 2 項）。同一天重做的（N＝0）不寫「0 天」——那不是家長會說的話。
+ * 畫面上這一句**不帶工具代號**（報告層不寫工具名，代號也是工具名）。
+ */
 export function redoSentence(daysSinceLast: number): string {
-  return `距上次填写 ${daysSinceLast} 天`;
+  return daysSinceLast === 0 ? '今天已经填过一次' : `距上次填写 ${daysSinceLast} 天`;
 }
 
 /** 回顧裡一題都沒有時說的話。 */

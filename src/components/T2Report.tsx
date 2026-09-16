@@ -274,7 +274,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
 
   /** 這個維度用到的工具裡，30 天內重做過的（§10.2 第 2 項）。 */
   const redoLines = (d: DimensionFinding) =>
-    d.tools.filter(t => redoByTool.has(t)).map(t => `${redoSentence(redoByTool.get(t)!)}（${t.toUpperCase()}）`);
+    [...new Set(d.tools.filter(t => redoByTool.has(t)).map(t => redoSentence(redoByTool.get(t)!)))];
 
   const sectionTitle = (icon: React.ReactNode, text: string) => (
     <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">

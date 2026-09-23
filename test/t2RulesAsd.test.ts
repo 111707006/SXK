@@ -29,7 +29,7 @@ import { TOOL_RULES, ruleFor } from '../src/t2/rules';
  */
 
 const AT = '2026-09-12T00:00:00.000Z';
-const AGE = 72;   // 兩支的窗口都涵蓋（asb 18–180、asr 24–180），且全部題目都出
+const AGE = 72;   // 兩支的窗口都涵蓋（asb 18–216、asr 24–180），且全部題目都出
 
 function score(toolId: ToolId, ageMonth: number, answers: Record<string, AnswerValue>, pre?: ScoreInput['pre']): ToolResult {
   const outcome = scoreTool({ toolId, assessedAgeMonth: ageMonth, rater: 'mother', answers, pre, computedAt: AT });
@@ -505,7 +505,9 @@ describe('caveats：固定值逐支相符', () => {
 
   it('舊紀錄被新窗口重讀：月齡在窗口外 → age_out_of_window；沒全答 → incomplete', () => {
     const asb = ruleFor('sxk-asb');
-    expect(asb.caveats({ ...quiet('sxk-asb'), assessedAgeMonth: 181 })).toContain('age_out_of_window');
+    // v2.1 S04：asb 上限 180 → 216，181 起不再是窗口外
+    expect(asb.caveats({ ...quiet('sxk-asb'), assessedAgeMonth: 217 })).toContain('age_out_of_window');
+    expect(asb.caveats({ ...quiet('sxk-asb'), assessedAgeMonth: 181 })).not.toContain('age_out_of_window');
     expect(asb.caveats({ ...quiet('sxk-asb'), assessedAgeMonth: 17 })).toContain('age_out_of_window');
     expect(asb.caveats(quiet('sxk-asb'))).not.toContain('age_out_of_window');
     const asr = ruleFor('sxk-asr');

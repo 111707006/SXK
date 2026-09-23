@@ -10,6 +10,8 @@ import { DIMENSION_CODES } from '../src/t2/types';
 import { NO_ACTIVITY_CONTENT } from '../src/t2/activitySeed';
 import type { Activity, DimensionCode, T2Findings } from '../src/t2/types';
 import { matchWeeklyActivities } from '../src/t2/activityMatch';
+import { buildT2Findings } from '../src/t2/findings';
+import { SITE_DIMENSION_NAME } from '../src/t2/dimensionMap';
 import { buildSmartGoals } from '../src/t2/goals';
 import {
   BLACKLIST,
@@ -707,6 +709,58 @@ describe('v2.1 S06：只能當加測的判定帶兩條 caveat，報告兩條路�
     const prose = templateProse(input);
     const lang = prose.perDimension.find(d => d.dimensionId === 'LANG')!;
     expect(reject(withDimension(prose, 'LANG', { caveats: lang.caveats.slice(1) }), input).join('\n')).toContain('facet_only');
+  });
+});
+
+describe('v2.1 S08：不篩的維度總覽不提、沒有段落，兩條路都一樣', () => {
+  // 10 個月、語言／學習／注意力／情緒紅、什麼都沒做：走真的 buildT2Findings →
+  // 語言 partial、情緒 no_tool（0–11 仍是「此年龄尚无适用工具」）、學習與注意力 not_screened
+  const findings = buildT2Findings({
+    results: [],
+    t1Flags: { COG: 0, LANG: 2, SOC: 0, EMO: 2, ATT: 2, MOT: 0, SEN: 0, ADL: 0, LEARN: 2 },
+    assessedAgeMonth: 10,
+    computedAt: '2026-09-24T00:00:00.000Z',
+  });
+  const input = inputFor(findings);
+  const hidden = [SITE_DIMENSION_NAME.LEARN, SITE_DIMENSION_NAME.ATT];
+
+  it('先確認形狀：學習、注意力是 not_screened，情緒 no_tool、語言 partial', () => {
+    const band = Object.fromEntries(findings.dimensions.map(d => [d.dimensionId, d.band]));
+    expect(band).toMatchObject({ LEARN: 'not_screened', ATT: 'not_screened', EMO: 'no_tool', LANG: 'partial' });
+  });
+
+  it('模板：段落只有情緒（no_tool）；總覽一個字都不提學習、注意力；過驗證器', () => {
+    const prose = templateProse(input);
+    expect(prose.perDimension.map(d => d.dimensionId)).toEqual(['EMO']);
+    for (const name of hidden) expect(prose.overview, name).not.toContain(name);
+    accept(prose, input);
+  });
+
+  it('不篩的維度帶著標籤也一樣（24 個月氣質落在學習的 learn.task_persistence）：模板不寫、驗證器不要它', () => {
+    const tagged = t2FindingsFixture(
+      { LEARN: { band: 'not_screened', t1Flag: 2, tags: ['learn.task_persistence'], tools: ['sxk-tempa'] } },
+      { child: { assessedAgeMonth: 24 } },
+    );
+    const taggedInput = inputFor(tagged);
+    const prose = templateProse(taggedInput);
+    expect(prose.perDimension).toEqual([]);
+    expect(prose.overview).not.toContain(SITE_DIMENSION_NAME.LEARN);
+    expect(JSON.stringify(prose)).not.toContain(TAG_SENTENCES['learn.task_persistence']);
+    accept(prose, taggedInput);
+  });
+
+  it('驗證器：AI 替不篩的維度寫了一段 → 拒（維度集合對不上）', () => {
+    const prose = templateProse(input);
+    const extra = { ...prose.perDimension[0], dimensionId: 'LEARN' as const };
+    expect(reject({ ...prose, perDimension: [...prose.perDimension, extra] }, input).join('\n')).toContain('LEARN(not_screened)');
+  });
+
+  it('提示：要寫段落的維度只列情緒；學習、注意力不在素材裡', () => {
+    const { user } = buildProsePrompt(input);
+    expect(user).toContain(`- EMO（家长看到的名称：${SITE_DIMENSION_NAME.EMO}）：判定 no_tool`);
+    for (const code of ['LEARN', 'ATT']) expect(user, code).not.toContain(`- ${code}（`);
+    for (const name of hidden) expect(user, name).not.toContain(name);
+    expect(user).not.toContain('not_screened');
   });
 });
 

@@ -20,6 +20,7 @@
  */
 
 import { SITE_DIMENSION_ID, SITE_DIMENSION_NAME } from './dimensionMap';
+import { notScreened } from './routing';
 import { DIMENSION_CODES } from './types';
 import type { DimensionCode, PlanItem, T1Flag, T2Plan } from './types';
 
@@ -53,9 +54,12 @@ export function t1FlagsFromScores(scores: ReadonlyArray<T1ScoreLike>): Record<Di
   return flags;
 }
 
-/** 被 T1 標記（紅或黃）的維度，順序照 `DIMENSION_CODES`。 */
-export function flaggedDimensions(t1Flags: Readonly<Record<DimensionCode, T1Flag>>): DimensionCode[] {
-  return DIMENSION_CODES.filter(d => t1Flags[d] !== 0);
+/**
+ * 被 T1 標記（紅或黃）、而且這個月齡 T2 會評的維度，順序照 `DIMENSION_CODES`。
+ * 不篩的段（v2.1 S08：學習 0–36、注意力 0–11）T1 標了也不算 —— 所以要吃月齡。
+ */
+export function flaggedDimensions(t1Flags: Readonly<Record<DimensionCode, T1Flag>>, ageMonth: number): DimensionCode[] {
+  return DIMENSION_CODES.filter(d => t1Flags[d] !== 0 && !notScreened(d, ageMonth));
 }
 
 /**
@@ -63,7 +67,9 @@ export function flaggedDimensions(t1Flags: Readonly<Record<DimensionCode, T1Flag
  * - `show`：有東西可答，顯示入口（題量、診斷方向、清單）。
  * - `expert_only`：被標記的維度**全部**在這個月齡沒有工具（§4.5）—— 不顯示入口，
  *   直接說「這個年齡目前沒有適用的深度評估工具，建議直接預約專家」並導向四種服務。
- * - `none`：全綠。沒有東西要做，也沒有專家好導，什麼都不顯示。
+ * - `none`：全綠。沒有東西要做，也沒有專家好導，什麼都不顯示。只有**不篩**的維度被標記（10 個月的
+ *   學習、注意力，v2.1 S08）也是這一種（暫採，v2.1 §9 第 3 題）：那不是「沒有工具、建議找專家」，
+ *   是這個月齡段 T2 不看這一項。
  *
  * 判斷看的是 plan 裡**有沒有必做或選做**，不是逐一比對 `noTool`：沒有診斷方向時兩者等價
  * （每個被標記的維度不是出一支星號，就是進 `noTool`）；有診斷方向時，被標記的維度全是
@@ -74,7 +80,7 @@ export type EntranceState = 'show' | 'expert_only' | 'none';
 
 export function entranceState(plan: T2Plan, t1Flags: Readonly<Record<DimensionCode, T1Flag>>): EntranceState {
   if (plan.required.length + plan.optional.length > 0) return 'show';
-  return flaggedDimensions(t1Flags).length > 0 ? 'expert_only' : 'none';
+  return flaggedDimensions(t1Flags, plan.ageMonth).length > 0 ? 'expert_only' : 'none';
 }
 
 export interface PlanDescription {

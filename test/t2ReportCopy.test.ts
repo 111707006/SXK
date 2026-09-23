@@ -10,11 +10,13 @@ import { SAFETY_SENTENCE } from '../src/t2/report/sentences';
 import { SITE_DIMENSION_NAME } from '../src/t2/dimensionMap';
 import { TOOL_SPECS } from '../src/t2/toolSpecs';
 import { toSimplified } from '../src/t2/answering';
+import { buildT2Findings } from '../src/t2/findings';
 import type { DimensionBand, ToolResult } from '../src/t2/types';
 import {
   DIMENSION_STATE_SENTENCE,
   REVIEW_EMPTY_SENTENCE,
   dimensionStatus,
+  gridDimensions,
   redoSentence,
   reviewGroups,
   stripSafetyPrefix,
@@ -158,6 +160,47 @@ describe('維度的狀態句', () => {
     expect(dimensionStatus('partial').tag).toContain('还没做完');
     expect(dimensionStatus('not_assessed').tag).toContain('没有做');
     expect(dimensionStatus('no_tool').tag).toContain('问卷');
+  });
+
+  // v2.1 S08：不篩的維度畫面上不出這一格，所以沒有句子；走到這裡是呼叫端沒先過 `gridDimensions`
+  it('not_screened 沒有句子：傳進來就丟錯，不安靜地印成某一種「沒有判定」', () => {
+    expect(() => dimensionStatus('not_screened')).toThrow(/not_screened/);
+  });
+});
+
+describe('九宮格出哪幾格（v2.1 S08）', () => {
+  /** 10 個月、學習與注意力紅、語言紅：走真的 `buildT2Findings`。 */
+  const tenMonths = buildT2Findings({
+    results: [],
+    t1Flags: { COG: 0, LANG: 2, SOC: 0, EMO: 0, ATT: 2, MOT: 0, SEN: 0, ADL: 0, LEARN: 2 },
+    assessedAgeMonth: 10,
+    computedAt: '2026-09-24T00:00:00.000Z',
+  });
+
+  it('10 個月的個案只有七格：學習、注意力不出（findings 本身仍是九筆）', () => {
+    expect(tenMonths.dimensions).toHaveLength(9);
+    const grid = gridDimensions(tenMonths);
+    expect(grid.map(d => d.dimensionId)).toEqual(['COG', 'LANG', 'SOC', 'EMO', 'MOT', 'SEN', 'ADL']);
+    for (const d of grid) expect(() => dimensionStatus(d.band)).not.toThrow();
+  });
+
+  it('學習 37 個月、注意力 12 個月起回到九格', () => {
+    const at = (m: number) => gridDimensions(buildT2Findings({
+      results: [], t1Flags: tenMonths.t1, assessedAgeMonth: m, computedAt: '2026-09-24T00:00:00.000Z',
+    })).map(d => d.dimensionId);
+    expect(at(12)).toHaveLength(8);
+    expect(at(12)).not.toContain('LEARN');
+    expect(at(37)).toHaveLength(9);
+  });
+
+  // v2.1 §10：舊快照不可變、照存的樣子顯示。那時 10 個月的學習、注意力是 no_tool，九格照舊
+  it('舊快照沒有 not_screened：九格照存的樣子出', () => {
+    const old = t2FindingsFixture(
+      { LEARN: { band: 'no_tool', t1Flag: 2 }, ATT: { band: 'no_tool', t1Flag: 2 } },
+      { child: { assessedAgeMonth: 10 }, rulesVersion: 'v2-2026-09-11' },
+    );
+    expect(gridDimensions(old).map(d => [d.dimensionId, d.band])).toEqual(old.dimensions.map(d => [d.dimensionId, d.band]));
+    for (const d of gridDimensions(old)) expect(() => dimensionStatus(d.band)).not.toThrow();
   });
 });
 

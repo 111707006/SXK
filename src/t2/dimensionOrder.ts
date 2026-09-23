@@ -24,7 +24,7 @@ export const FIXED_DIMENSION_ORDER: ReadonlyArray<DimensionCode> = [
 ];
 
 const BAND_WEIGHT: Readonly<Record<DimensionFinding['band'], number>> = {
-  refer: 2, watch: 1, clear: 0, partial: 0, not_assessed: 0, no_tool: 0,
+  refer: 2, watch: 1, clear: 0, partial: 0, not_assessed: 0, no_tool: 0, not_screened: 0,
 };
 
 /**

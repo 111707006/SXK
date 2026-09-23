@@ -19,6 +19,7 @@ import { DIMENSION_STATE_SENTENCE, DIMENSION_STATE_LABEL } from '../src/t2/repor
  * 5. **題目原文不手抄**：22 支的題目沒有一句出現在元件或句子層裡；回顧走 `reviewGroups`。
  * 6. **tier 內部名稱不出現**：元件不讀 `sections[*].tier`、不印 `tier`。
  * 7. **CONSEQ／PLAN 兩段**（v2.1 §6.3）：在逐維度卡片裡、規則輸出不經 AI、空的時候整段不出。
+ * 8. **不篩的維度整格不出**（v2.1 S08）：九宮格走 `gridDimensions`。
  */
 
 const ROOT = path.resolve(__dirname, '..');
@@ -90,6 +91,14 @@ describe('partial／not_assessed 與 clear 分得開（§5.7）', () => {
   it('總覽的九宮格每一格走 dimensionStatus，帶 data-band 讓三種狀態在畫面上可辨', () => {
     expect(view).toContain('dimensionStatus(d.band)');
     expect(view).toContain('data-band={d.band}');
+  });
+
+  // v2.1 S08：不篩的維度（學習 0–36、注意力 0–11）九宮格不出這一格。格子從 `gridDimensions` 取，
+  // 不直接走 `findings.dimensions`（那裡仍是九筆，dimensionStatus 對 not_screened 會丟錯）
+  it('九宮格的格子從 gridDimensions 取，不直接 map findings.dimensions', () => {
+    const grid = view.slice(view.indexOf('id="t2-dimension-grid"'), view.indexOf('</ul>', view.indexOf('id="t2-dimension-grid"')));
+    expect(grid).toContain('gridDimensions(findings).map(d =>');
+    expect(grid).not.toContain('findings.dimensions');
   });
 
   it('三種「沒有判定」的句子與標籤，沒有一個等於 clear 的三級標示', () => {

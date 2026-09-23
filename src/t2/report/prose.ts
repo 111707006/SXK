@@ -91,7 +91,11 @@ export const CHAR_RANGES = {
   closing: { min: 30, max: 150 },
 } as const;
 
-/** 報告會講到的 band：`watch`／`refer` 要一段，`no_tool` 也要一段（§6.4）。 */
+/**
+ * 報告會講到的 band：`watch`／`refer` 要一段，`no_tool` 也要一段（§6.4）。
+ * `not_screened`（v2.1 S08，不篩）刻意不在：這個月齡段 T2 不評那一項，沒有段落 —— AI 替它寫了一段，
+ * 一致性檢查就報「多了不該講的維度」；提示（`buildProsePrompt`）也只列這幾種，模型根本看不到它。
+ */
 export const REPORTED_BANDS: ReadonlyArray<DimensionFinding['band']> = ['watch', 'refer', 'no_tool'];
 
 /**

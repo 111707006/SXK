@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DIM_ROUTES, DIS_ROUTES, candidatesFor, extrasFor, diagnosisToolsFor, functionOrderOf, planT2, routeFor,
+  DIM_ROUTES, DIS_ROUTES, NOT_SCREENED, candidatesFor, extrasFor, diagnosisToolsFor, functionOrderOf, notScreened, planT2,
+  routeFor,
 } from '../src/t2/routing';
 import { TOOL_SPECS, inWindow, feedsDimension, bandFeed } from '../src/t2/toolSpecs';
 import { TOOL_IDS, askedCount } from '../src/t2/toolkit';
@@ -324,14 +325,14 @@ describe('§4.5：沒有工具的格', () => {
   });
 
   // 段的標籤是 12–36／37–72／0–72；逐月的事實是 sxk-ab 從 36、sxk-ldp 與 snap-iv 從 72
-  // 就在窗口內（見檔頭第 2 點）。0–11 的 ATT 客戶表寫「無路由」，也是 no_tool（「不篩」是票 4 的事）。
-  // v2.1 S07：ATT 12–35、EMO 12–71 由氣質接住，不再是 no_tool；EMO 0–11 維持（tempa 12 起，§4.4）。
-  it('ATT 0–11、LEARN 0–71、EMO 0–11，逐月 no_tool；ATT 12＋、EMO 12＋ 逐月都有星號', () => {
+  // 就在窗口內（見檔頭第 2 點）。
+  // v2.1 S07：ATT 12–35、EMO 12–71 由氣質接住，不再是 no_tool；EMO 0–11 維持（tempa 12 起，§4.4、§9 第 4 題）。
+  // v2.1 S08：ATT 0–11、LEARN 0–36 是「不篩」，不進 noTool（下面「v2.1 S08」那一組）；no_tool 只剩 LEARN 37–71。
+  it('LEARN 37–71、EMO 0–11，逐月 no_tool；ATT 12＋、EMO 12＋ 逐月都有星號', () => {
     for (const m of months(0, 11)) {
-      expect({ d: 'ATT', m, noTool: noToolFor('ATT', m) }).toEqual({ d: 'ATT', m, noTool: true });
       expect({ d: 'EMO', m, noTool: noToolFor('EMO', m) }).toEqual({ d: 'EMO', m, noTool: true });
     }
-    for (const m of months(0, 71)) {
+    for (const m of months(37, 71)) {
       expect({ d: 'LEARN', m, noTool: noToolFor('LEARN', m) }).toEqual({ d: 'LEARN', m, noTool: true });
     }
     for (const m of months(12, 216)) {
@@ -434,6 +435,16 @@ describe('星號隨月齡變', () => {
     for (const m of months(31, 35)) expect({ m, star: star('SOC', m) }).toEqual({ m, star: 'sxk-soc' });
     expect(star('SOC', 36)).toBe('sxk-asq');
     for (const m of months(37, 72)) expect({ m, star: star('SOC', m) }).toEqual({ m, star: 'sxk-asb' });
+  });
+
+  // v2.1 S04（客戶 9/21 工作單 #5）：asb 上限 180 → 216。v2 的社交 181–216 是 no_tool（勘誤 S1）
+  it('SOC 73–216：星號 sxk-asb；181 起 asr 出窗口，只剩 asb、沒有加測，不再是 no_tool', () => {
+    for (const m of months(73, 216)) expect({ m, star: star('SOC', m) }).toEqual({ m, star: 'sxk-asb' });
+    expect(planT2(flags({ SOC: 2 }), 180).followup.map(i => i.toolId)).toEqual(['sxk-asr']);
+    for (const m of months(181, 216)) {
+      const plan = planT2(flags({ SOC: 2 }), m);
+      expect({ m, followup: ids(plan.followup), noTool: plan.noTool }).toEqual({ m, followup: [], noTool: [] });
+    }
   });
 
   it('ADL：0–29 是 sxk-dev，30 起是 sxk-adl', () => {
@@ -767,20 +778,87 @@ describe('v2.1 S07：氣質在情緒 12–71、注意力 12–35 是星號', () 
 });
 
 // ---------------------------------------------------------------------------
-// v2.1 附錄 A：各維度逐月的候選（`›` 前是星號，後是加測）。只抄這張票動到的格 —— 情緒、注意力全段，
-// 語言、動作 73 起。其餘格（ASQ3 1–66、ASB／SPb／ADL／ASR 放寬到 216、不篩）是票 4、7 的事，
-// 那些窗口還沒放寬，這裡照現在的窗口寫：ADL 仍 ≤180，所以動作 181–216 連加測都沒有。
+// v2.1 §4.7（S08）：不篩 —— 學習 0–36、注意力 0–11 T2 不評這個維度
 // ---------------------------------------------------------------------------
 
-describe('v2.1 附錄 A：情緒、注意力逐月；語言、動作 73 起', () => {
-  const APPENDIX_A: Array<{ dimension: DimensionCode; lo: number; hi: number; star: ToolId | null; followups: ToolId[] }> = [
+describe('v2.1 S08：不篩（學習 0–36、注意力 0–11）', () => {
+  it('兩段，照規格 §4.7 的常數', () => {
+    expect(NOT_SCREENED).toEqual([
+      { dimension: 'LEARN', lo: 0, hi: 36 },
+      { dimension: 'ATT', lo: 0, hi: 11 },
+    ]);
+  });
+
+  it('notScreened：兩端都算在內，37 個月的學習、12 個月的注意力回到原本的行為', () => {
+    expect(notScreened('LEARN', 0)).toBe(true);
+    expect(notScreened('LEARN', 36)).toBe(true);
+    expect(notScreened('LEARN', 37)).toBe(false);
+    expect(notScreened('ATT', 11)).toBe(true);
+    expect(notScreened('ATT', 12)).toBe(false);
+    for (const d of DIMENSION_CODES.filter(x => x !== 'LEARN' && x !== 'ATT')) {
+      for (const m of months(0, 216)) expect({ d, m, ns: notScreened(d, m) }).toEqual({ d, m, ns: false });
+    }
+  });
+
+  it('不論 T1 紅黃，視同綠：不推、不進 noTool、沒有加測也沒有 extras', () => {
+    for (const flag of [1, 2] as const) {
+      for (const m of months(0, 36)) {
+        expect({ m, plan: planT2(flags({ LEARN: flag }), m) })
+          .toEqual({ m, plan: planT2(GREEN, m) });
+      }
+      for (const m of months(0, 11)) {
+        expect({ m, plan: planT2(flags({ ATT: flag }), m) })
+          .toEqual({ m, plan: planT2(GREEN, m) });
+      }
+    }
+  });
+
+  it('37 個月的學習紅 → no_tool（37–71 維持「此年龄尚无适用工具」）；12 個月的注意力紅 → 必做 tempa', () => {
+    expect(planT2(flags({ LEARN: 2 }), 37).noTool).toEqual(['LEARN']);
+    expect(ids(planT2(flags({ ATT: 2 }), 12).required)).toEqual(['sxk-tempa']);
+  });
+
+  it('10 個月九維全紅：學習、注意力不在 noTool；情緒 0–11 仍是 no_tool（§9 第 4 題）、感覺 0–23 仍是 no_tool', () => {
+    const all = Object.fromEntries(DIMENSION_CODES.map(d => [d, 2])) as Record<DimensionCode, T1Flag>;
+    const plan = planT2(all, 10);
+    expect(plan.noTool).toEqual(['EMO', 'SEN']);
+  });
+
+  // 診斷方向那條路靠 bandFeed 決定 forDimensions，所以只要這兩段沒有任何會出判定、或只出標籤的工具，
+  // 就不會把不篩的維度帶回來。新包（票 7）若有工具餵到這兩段，這條會紅 —— 那時要決定它算不算數。
+  it('這兩段本來就沒有任何工具餵：候選、extras 都是空的，診斷方向也帶不回來', () => {
+    for (const { dimension, lo, hi } of NOT_SCREENED) {
+      for (const m of months(lo, hi)) {
+        expect({ dimension, m, c: candidatesFor(dimension, m), x: extrasFor(dimension, m) })
+          .toEqual({ dimension, m, c: [], x: [] });
+        for (const dx of Object.keys(DIS_ROUTES) as DiagnosisDirection[]) {
+          const plan = planT2(GREEN, m, dx);
+          const reached = [...allBandItems(plan), ...plan.extras].filter(i => i.forDimensions.includes(dimension));
+          expect({ dimension, m, dx, reached: ids(reached) }).toEqual({ dimension, m, dx, reached: [] });
+        }
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v2.1 附錄 A：各維度逐月的候選（`›` 前是星號，後是加測）。只抄票 3、票 4 動到的格 —— 情緒、注意力、
+// 學習全段，語言、動作、社交 73 起。其餘格（ASQ3 1–66、SPb／ADL／ASR 放寬到 216）是票 7 的事，
+// 那些窗口還沒放寬，這裡照現在的窗口寫：ADL 仍 ≤180，所以動作 181–216 連加測都沒有；ASR 仍 ≤180，
+// 所以社交 181–216 只有 ASB。`notScreened` 的格是附錄 A 的「不篩」（S08）：沒有星號也不進 noTool。
+// ---------------------------------------------------------------------------
+
+describe('v2.1 附錄 A：情緒、注意力、學習逐月；語言、動作、社交 73 起', () => {
+  const APPENDIX_A: Array<{
+    dimension: DimensionCode; lo: number; hi: number; star: ToolId | null; followups: ToolId[]; notScreened?: true;
+  }> = [
     { dimension: 'EMO', lo: 0, hi: 11, star: null, followups: [] },
     { dimension: 'EMO', lo: 12, hi: 35, star: 'sxk-tempa', followups: [] },
     { dimension: 'EMO', lo: 36, hi: 36, star: 'sxk-tempa', followups: ['sxk-tempb'] },
     { dimension: 'EMO', lo: 37, hi: 71, star: 'sxk-tempb', followups: [] },
     { dimension: 'EMO', lo: 72, hi: 216, star: 'snap-iv', followups: [] },
 
-    { dimension: 'ATT', lo: 0, hi: 11, star: null, followups: [] },               // 附錄 A 是「不篩」（票 4）
+    { dimension: 'ATT', lo: 0, hi: 11, star: null, followups: [], notScreened: true },   // S08 不篩
     { dimension: 'ATT', lo: 12, hi: 35, star: 'sxk-tempa', followups: [] },
     { dimension: 'ATT', lo: 36, hi: 59, star: 'sxk-ab', followups: [] },
     { dimension: 'ATT', lo: 60, hi: 71, star: 'sxk-ab', followups: ['sxk-att'] },
@@ -796,7 +874,28 @@ describe('v2.1 附錄 A：情緒、注意力逐月；語言、動作 73 起', ()
 
     { dimension: 'MOT', lo: 73, hi: 180, star: null, followups: ['sxk-adl'] },
     { dimension: 'MOT', lo: 181, hi: 216, star: null, followups: [] },           // 附錄 A 是 ADL＊到 216（S19 放寬窗口後）
+
+    { dimension: 'SOC', lo: 73, hi: 180, star: 'sxk-asb', followups: ['sxk-asr'] },
+    { dimension: 'SOC', lo: 181, hi: 216, star: 'sxk-asb', followups: [] },       // S04：asb 到 216；附錄 A 是 ASB › ASR（ASR 放寬是 S19）
+
+    { dimension: 'LEARN', lo: 0, hi: 36, star: null, followups: [], notScreened: true },   // S08 不篩
+    { dimension: 'LEARN', lo: 37, hi: 71, star: null, followups: [] },           // 維持「此年龄尚无适用工具」
+    { dimension: 'LEARN', lo: 72, hi: 143, star: 'sxk-ldp', followups: [] },
+    { dimension: 'LEARN', lo: 144, hi: 144, star: 'sxk-ldp', followups: ['sxk-lds'] },
+    { dimension: 'LEARN', lo: 145, hi: 216, star: 'sxk-lds', followups: [] },
   ];
+
+  it('每一格恰好對上一個月、不重疊（情緒、注意力、學習 0–216；語言、動作、社交 73–216）', () => {
+    const covered: Array<[DimensionCode, number, number]> = [
+      ['EMO', 0, 216], ['ATT', 0, 216], ['LEARN', 0, 216], ['LANG', 73, 216], ['MOT', 73, 216], ['SOC', 73, 216],
+    ];
+    for (const [d, lo, hi] of covered) {
+      for (const m of months(lo, hi)) {
+        const hits = APPENDIX_A.filter(c => c.dimension === d && m >= c.lo && m <= c.hi).length;
+        expect({ d, m, hits }).toEqual({ d, m, hits: 1 });
+      }
+    }
+  });
 
   it('routeFor 逐月與附錄 A 相符', () => {
     for (const cell of APPENDIX_A) {
@@ -807,12 +906,21 @@ describe('v2.1 附錄 A：情緒、注意力逐月；語言、動作 73 起', ()
     }
   });
 
-  it('星號是 null 的格，T1 紅時維度進 noTool，加測照樣列著；有星號的格不進 noTool', () => {
+  it('星號是 null 的格，T1 紅時維度進 noTool，加測照樣列著；有星號的格、不篩的格不進 noTool', () => {
     for (const cell of APPENDIX_A) {
       for (const m of months(cell.lo, cell.hi)) {
         const plan = planT2(flags({ [cell.dimension]: 2 }), m);
-        expect({ cell: `${cell.dimension} ${m}`, noTool: plan.noTool.includes(cell.dimension), followup: ids(plan.followup) })
-          .toEqual({ cell: `${cell.dimension} ${m}`, noTool: cell.star === null, followup: cell.followups });
+        expect({
+          cell: `${cell.dimension} ${m}`,
+          noTool: plan.noTool.includes(cell.dimension),
+          followup: ids(plan.followup),
+          notScreened: notScreened(cell.dimension, m),
+        }).toEqual({
+          cell: `${cell.dimension} ${m}`,
+          noTool: cell.star === null && !cell.notScreened,
+          followup: cell.followups,
+          notScreened: cell.notScreened === true,
+        });
       }
     }
   });

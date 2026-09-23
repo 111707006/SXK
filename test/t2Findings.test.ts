@@ -4,7 +4,7 @@ import { DIMENSION_CODES } from '../src/t2/types';
 import type { DimensionCode, DimensionFinding, T1Flag, ToolResult } from '../src/t2/types';
 import { RULES_VERSION, askedItems, scoreTool } from '../src/t2/scoring';
 import type { AnswerValue } from '../src/t2/scoring';
-import { planT2 } from '../src/t2/routing';
+import { notScreened, planT2 } from '../src/t2/routing';
 import { ruleFor } from '../src/t2/rules';
 import {
   MAX_TAGS_PER_DIMENSION,
@@ -285,14 +285,67 @@ describe('no_tool：這個月齡沒有任何會出 band 的工具', () => {
     expect(f.LEARN.band).toBe('no_tool');
   });
 
-  it('掃全部月齡：紅的維度的 band 是 no_tool ⟺ planT2 說 noTool', () => {
+  it('掃全部月齡：紅的維度的 band 是 no_tool ⟺ planT2 說 noTool（不篩的段另是 not_screened）', () => {
     for (let m = 0; m <= 216; m += 6) {
       for (const d of DIMENSION_CODES) {
         const t1 = flags({ [d]: 2 });
-        const expected = planT2(t1, m).noTool.includes(d) ? 'no_tool' : 'partial';
+        const expected = notScreened(d, m) ? 'not_screened' : planT2(t1, m).noTool.includes(d) ? 'no_tool' : 'partial';
         expect(`${d}@${m}: ${byId(aggregateDimensions([], t1, m))[d].band}`).toBe(`${d}@${m}: ${expected}`);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 二之一、v2.1 §4.7（S08）：不篩 —— 學習 0–36、注意力 0–11
+// ---------------------------------------------------------------------------
+
+describe('v2.1 S08：不篩的維度是 not_screened', () => {
+  it('10 個月九維全紅、什麼都沒做 → 學習、注意力 not_screened；情緒、感覺仍是 no_tool；九筆都在', () => {
+    const all = flags(Object.fromEntries(DIMENSION_CODES.map(d => [d, 2])));
+    const findings = aggregateDimensions([], all, 10);
+    expect(findings.map(f => f.dimensionId)).toEqual([...DIMENSION_CODES]);
+    const f = byId(findings);
+    expect(f.LEARN).toEqual({
+      dimensionId: 'LEARN', band: 'not_screened', drivenBy: null, tags: [], caveats: [], tools: [], t1Flag: 2,
+    });
+    expect(f.ATT).toMatchObject({ band: 'not_screened', drivenBy: null, t1Flag: 2 });
+    expect(f.EMO.band).toBe('no_tool');
+    expect(f.SEN.band).toBe('no_tool');
+    expect(f.LANG.band).toBe('partial');
+  });
+
+  it('不論 T1：綠、黃、紅都是 not_screened', () => {
+    for (const flag of [0, 1, 2] as const) {
+      const f = byId(aggregateDimensions([], flags({ LEARN: flag, ATT: flag }), 10));
+      expect({ flag, learn: f.LEARN.band, att: f.ATT.band }).toEqual({ flag, learn: 'not_screened', att: 'not_screened' });
+    }
+  });
+
+  it('不論有沒有結果：24 個月做了 tempa、D7 堅持度偏低 → 學習仍是 not_screened，標籤照前綴收（活動的 avoidIf 看得到）', () => {
+    const tempa = score('sxk-tempa', 24, tempAnswers('sxk-tempa', 24, { D7: 12 }), { computedAt: at(1) });
+    const f = byId(aggregateDimensions([tempa], flags({ LEARN: 2 }), 24));
+    expect(f.LEARN).toMatchObject({
+      band: 'not_screened', drivenBy: null, tags: ['learn.task_persistence'], tools: ['sxk-tempa'], t1Flag: 2,
+    });
+  });
+
+  it('學習 37 個月、注意力 12 個月起回到原本的行為', () => {
+    expect(byId(aggregateDimensions([], flags({ LEARN: 2 }), 36)).LEARN.band).toBe('not_screened');
+    expect(byId(aggregateDimensions([], flags({ LEARN: 2 }), 37)).LEARN.band).toBe('no_tool');
+    expect(byId(aggregateDimensions([], flags({ ATT: 2 }), 11)).ATT.band).toBe('not_screened');
+    expect(byId(aggregateDimensions([], flags({ ATT: 2 }), 12)).ATT.band).toBe('partial');   // 星號 tempa 沒做
+    expect(byId(aggregateDimensions([], flags({ ATT: 1 }), 12)).ATT.band).toBe('not_assessed');
+    expect(byId(aggregateDimensions([], flags({}), 12)).ATT.band).toBe('clear');
+  });
+
+  it('buildT2Findings：10 個月仍是九筆（活動配對要九筆）；可以 JSON 來回', () => {
+    const findings = buildT2Findings({
+      results: [], t1Flags: flags({ LEARN: 2, ATT: 2, LANG: 2 }), assessedAgeMonth: 10, computedAt: at(5),
+    });
+    expect(findings.dimensions).toHaveLength(9);
+    expect(findings.dimensions.filter(d => d.band === 'not_screened').map(d => d.dimensionId)).toEqual(['ATT', 'LEARN']);
+    expect(JSON.parse(JSON.stringify(findings))).toEqual(findings);
   });
 });
 
@@ -469,7 +522,8 @@ describe('T1 綠', () => {
     const tempa = score('sxk-tempa', 24, tempAnswers('sxk-tempa', 24, { D7: 12 }), { computedAt: at(1) });
     expect(tempa.native['dev.D7']).toBe(-1);
     const f = byId(aggregateDimensions([tempa], flags({}), 24));
-    expect(f.LEARN).toMatchObject({ band: 'clear', drivenBy: null, tags: ['learn.task_persistence'], tools: ['sxk-tempa'] });
+    // 學習 24 個月是不篩（v2.1 S08）：band 是 not_screened，標籤照前綴收
+    expect(f.LEARN).toMatchObject({ band: 'not_screened', drivenBy: null, tags: ['learn.task_persistence'], tools: ['sxk-tempa'] });
     expect(f.EMO).toMatchObject({ band: 'clear', drivenBy: 'sxk-tempa', tags: [], tools: ['sxk-tempa'] });
     expect(f.ATT).toMatchObject({ band: 'watch', drivenBy: 'sxk-tempa', tags: [], tools: ['sxk-tempa'], t1Flag: 0 });
   });

@@ -13,6 +13,7 @@ import {
   describePlan,
   describePlanItem,
   entranceState,
+  flaggedDimensions,
   t1FlagsFromScores,
 } from '../src/t2/entrance';
 import { findBannedWords } from '../src/utils/parentWording';
@@ -134,6 +135,47 @@ describe('entranceState：入口要不要出現', () => {
     const flags = { ...GREEN, EMO: 2 } as const;
     expect(entranceState(planT2(flags, 24), flags)).toBe('show');
     expect(entranceState(planT2(flags, 8), flags)).toBe('expert_only');     // 情緒 0–11 仍沒有工具
+  });
+
+  // v2.1 S08：不篩的維度不算「被標記」。只有它們被標記 → 什麼都不顯示（暫採，§9 第 3 題）——
+  // 它們不是「沒有工具、建議找專家」，是這個月齡段 T2 不看這一項
+  it('只有不篩的維度被標記（10 個月學習、注意力紅）→ none，不是 expert_only', () => {
+    const flags = { ...GREEN, LEARN: 2, ATT: 1 } as const;
+    const plan = planT2(flags, 10);
+    expect(plan.noTool).toEqual([]);
+    expect(entranceState(plan, flags)).toBe('none');
+  });
+
+  it('學習 37 個月、注意力 12 個月起回到原本的行為', () => {
+    const learn = { ...GREEN, LEARN: 2 } as const;
+    expect(entranceState(planT2(learn, 36), learn)).toBe('none');
+    expect(entranceState(planT2(learn, 37), learn)).toBe('expert_only');   // 37–71 維持「此年龄尚无适用工具」
+    const att = { ...GREEN, ATT: 2 } as const;
+    expect(entranceState(planT2(att, 11), att)).toBe('none');
+    expect(entranceState(planT2(att, 12), att)).toBe('show');              // tempa 當星號
+  });
+
+  it('不篩的維度與沒有工具的維度一起被標記（10 個月學習、情緒紅）→ 只為情緒導專家', () => {
+    const flags = { ...GREEN, LEARN: 2, EMO: 2 } as const;
+    const plan = planT2(flags, 10);
+    expect(plan.noTool).toEqual(['EMO']);
+    expect(entranceState(plan, flags)).toBe('expert_only');
+  });
+
+  it('不篩的維度與有工具的維度一起被標記（10 個月學習、語言紅）→ 顯示，清單只為語言', () => {
+    const flags = { ...GREEN, LEARN: 2, LANG: 2 } as const;
+    const plan = planT2(flags, 10);
+    expect(entranceState(plan, flags)).toBe('show');
+    expect(plan.required.map(i => i.forDimensions)).toEqual([['LANG']]);
+  });
+});
+
+describe('flaggedDimensions：被標記、而且這個月齡 T2 會評的維度', () => {
+  it('紅黃都算、綠不算；不篩的段不算（要看月齡）', () => {
+    const flags = { ...GREEN, LEARN: 2, ATT: 1, LANG: 2 } as const;
+    expect(flaggedDimensions(flags, 10)).toEqual(['LANG']);
+    expect(flaggedDimensions(flags, 12)).toEqual(['LANG', 'ATT']);
+    expect(flaggedDimensions(flags, 37)).toEqual(['LANG', 'ATT', 'LEARN']);
   });
 });
 

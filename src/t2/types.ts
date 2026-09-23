@@ -214,8 +214,13 @@ export interface T2Plan {
  * 四個非 band 值各自是一件事：`partial` 星號工具沒做完（紅）、`not_assessed` 家長沒做選做（黃）、
  * `no_tool` 這個月齡沒有任何會出 band 的工具（§4.5）。它們跟 `clear` 必須分得開 ——
  * 塌成同一個值就是「沒做完」被讀成「沒事」。
+ *
+ * `not_screened`（v2.1 §4.7、S08）：這個月齡段 T2 **不評**這個維度（學習 0–36、注意力 0–11，
+ * `routing.ts` 的 `NOT_SCREENED`）。與 `no_tool` 不同 —— `no_tool` 是該評但沒工具，要講出來、導向專家；
+ * 不篩是畫面上**不出這一格**（九宮格、總覽、段落都沒有）。`T2Findings.dimensions` 仍是九筆。
+ * 規則版 `v2.1-2026-09-23` 之前存的快照沒有這個值（v2.1 §10），畫面照存的樣子讀。
  */
-export type DimensionBand = Band | 'partial' | 'not_assessed' | 'no_tool';
+export type DimensionBand = Band | 'partial' | 'not_assessed' | 'no_tool' | 'not_screened';
 
 /** 一個維度彙整後的結果（§5.7）。九個維度各一筆，含 `clear` 的。 */
 export interface DimensionFinding {

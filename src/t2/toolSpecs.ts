@@ -115,7 +115,12 @@ const FAMILY: Record<ToolId, ScoringFamily> = {
   'sxk-tempb': 'profile',
 };
 
-/** §3 的月齡窗口，閉區間，單位是實足月齡（整數月，不進位）。 */
+/**
+ * §3 的月齡窗口，閉區間，單位是實足月齡（整數月，不進位）。
+ *
+ * sxk-asb 上限 216（v2.1 S04，客戶 9/21 工作單 #5）：工具包只擋 `a.months<18`、沒有上限，v2 規格寫的 180
+ * 是自己加的，讓社交 181–216 成了沒有工具的洞（勘誤 S1）。sxk-asr 的 180 是工具包自己的上限，不動。
+ */
 const WINDOW: Record<ToolId, [number, number]> = {
   'sxk-dev': [0, 72],
   'sxk-warn': [3, 84],
@@ -126,7 +131,7 @@ const WINDOW: Record<ToolId, [number, number]> = {
   'sxk-adp': [18, 72],
   'sxk-voc': [12, 42],
   'sxk-asq': [36, 42],
-  'sxk-asb': [18, 180],
+  'sxk-asb': [18, 216],
   'sxk-asr': [24, 180],
   'sxk-ab': [36, 192],
   'sxk-att': [60, 180],

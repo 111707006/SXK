@@ -41,11 +41,14 @@ describe('登錄表：22 筆（§3）', () => {
 });
 
 describe('登錄表：月齡窗口與 §3 逐支相符', () => {
-  /** §3 表格的「月齡」欄，閉區間。 */
+  /**
+   * §3 表格的「月齡」欄，閉區間。sxk-asb 的上限照 v2.1 S04（客戶 9/21 工作單 #5）改成 216 ——
+   * 工具包本來就沒有上限，180 是 v2 規格自己加的（勘誤 S1）。
+   */
   const SPEC_WINDOW: Record<ToolId, [number, number]> = {
     'sxk-dev': [0, 72], 'sxk-warn': [3, 84], 'mchat-rf': [16, 30], 'sxk-gm': [6, 72],
     'sxk-soc': [12, 72], 'sxk-lang': [12, 72], 'sxk-adp': [18, 72], 'sxk-voc': [12, 42],
-    'sxk-asq': [36, 42], 'sxk-asb': [18, 180], 'sxk-asr': [24, 180], 'sxk-ab': [36, 192],
+    'sxk-asq': [36, 42], 'sxk-asb': [18, 216], 'sxk-asr': [24, 180], 'sxk-ab': [36, 192],
     'sxk-att': [60, 180], 'snap-iv': [72, 216], 'chexi': [48, 155], 'sxk-spa': [24, 71],
     'sxk-spb': [60, 180], 'sxk-adl': [30, 180], 'sxk-ldp': [72, 144], 'sxk-lds': [144, 216],
     'sxk-tempa': [12, 36], 'sxk-tempb': [36, 84],

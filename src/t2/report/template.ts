@@ -86,6 +86,7 @@ function nameList(dimensions: ReadonlyArray<DimensionCode>): string {
 
 const OVERVIEW_LEAD = '这份报告把这次填写的问卷结果整理成一份总览。';
 
+/** 總覽的幾句。不篩（`not_screened`，v2.1 S08）不進任何一句 —— 總覽不提、九宮格也不出那一格。 */
 function overviewClauses(findings: T2Findings): string[] {
   const by = (test: (d: DimensionFinding) => boolean) =>
     findings.dimensions.filter(test).map(d => d.dimensionId);

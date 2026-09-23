@@ -41,7 +41,8 @@
  * 【段界那一個月】
  * 客戶的段是 0–36／37–72（`months/12 <= 3` 取第一個命中的段），工具窗口卻從 36／72 起。
  * 所以 36 個月的 ATT 已經有 sxk-ab、72 個月的 LEARN 有 sxk-ldp、EMO 有 snap-iv —— 第 3 條
- * 補進來的。v2.1 起 ATT 12–35、EMO 12–71 由氣質接住，no_tool 只剩 ATT 0–11、EMO 0–11。
+ * 補進來的。v2.1 起 ATT 12–35、EMO 12–71 由氣質接住；ATT 0–11、LEARN 0–36 是「不篩」（`NOT_SCREENED`，
+ * 不進 `noTool`），no_tool 在這一頭只剩 EMO 0–11、LEARN 37–71。
  *
  * 【診斷方向】
  * 選了就把 `DIS[疾病][段]` 的工具過窗口後全部提為必做，`forDimensions` 只列**這個月齡**出判定的維度；
@@ -275,6 +276,26 @@ export function schoolAgeNoStar(dimension: DimensionCode, ageMonth: number): boo
 }
 
 /**
+ * 客戶 9/21 工作單 #8（v2.1 §4.7、S08）：這兩段 T2 **不評**這個維度（閉區間）。
+ *
+ * 「不篩」與「此年龄尚无适用工具」（`no_tool`）是兩件事：`no_tool` 是這個維度該評、只是這個月齡沒有
+ * 工具，入口與報告都要講出來並導向專家；不篩是這個月齡段根本不看這一項 —— 不論 T1 怎麼標，不推、
+ * 不進 `noTool`、報告不出這一格（`findings.ts` 判 `not_screened`、`reportCopy.ts` 的 `gridDimensions`）。
+ * 學習 37–71、感覺 0–23、情緒 0–11 仍是 `no_tool`（工作單原文「维持『此年龄尚无适用工具』」、§9 第 4 題）。
+ *
+ * 這兩段本來就沒有任何工具餵（`test/t2Routing.test.ts` 釘住），所以診斷方向那條路也帶不回來。
+ */
+export const NOT_SCREENED: ReadonlyArray<{ dimension: DimensionCode; lo: number; hi: number }> = [
+  { dimension: 'LEARN', lo: 0, hi: 36 },
+  { dimension: 'ATT', lo: 0, hi: 11 },
+];
+
+/** 這個維度在這個測評月齡是不是「不篩」（`NOT_SCREENED`）。 */
+export function notScreened(dimension: DimensionCode, ageMonth: number): boolean {
+  return NOT_SCREENED.some(s => s.dimension === dimension && inSegment(s, ageMonth));
+}
+
+/**
  * 只出標籤的工具（chexi、tempa、tempb）：客戶表在該段列了就列（**不過**第 2 條 —— 它們不出 band，
  * 附錄 F 的 feeds 對它們不決定任何事，客戶把氣質排進注意力、把 chexi 排進學習就是相關性的訊號），
  * 再補附錄 F 餵該維度的；都要在窗口內。
@@ -390,10 +411,10 @@ export function planT2(
   const extras = new ItemBag();
   const noTool: DimensionCode[] = [];
 
-  // 1–3：逐維度，紅黃才做
+  // 1–3：逐維度，紅黃才做；不篩的段（v2.1 S08）不論 T1 怎麼標都視同綠 —— 不推、不進 noTool
   for (const d of DIMENSION_CODES) {
     const flag = t1Flags[d];
-    if (flag === 0) continue;
+    if (flag === 0 || notScreened(d, ageMonth)) continue;
 
     for (const id of extrasFor(d, ageMonth)) extras.add(id, 'extra', [d]);
 

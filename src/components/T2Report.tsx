@@ -29,6 +29,7 @@ import {
   ADVICE_RANK_LABEL,
   REVIEW_EMPTY_SENTENCE,
   dimensionStatus,
+  gridDimensions,
   redoSentence,
   reviewGroups,
   stripSafetyPrefix,
@@ -97,6 +98,10 @@ const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', string> 
  * prose 對 `partial`／`not_assessed` 不出段落（勘誤 M1），所以它們只在「總覽」的九宮格上出現 ——
  * 那一格必須明寫「還沒做完／這次沒做」，膠囊是灰的、字是 `DIMENSION_STATE_SENTENCE`，
  * 與 clear 的綠色「目前发展稳定」分得開。`test/t2ReportView.structure.test.ts` 釘住。
+ *
+ * 【不篩的維度整格不出】（v2.1 §4.7、S08）
+ * 學習 0–36、注意力 0–11 是 `not_screened`：九宮格從 `gridDimensions` 取（10 個月的個案只有七格），
+ * 逐維度與 no_tool 兩段本來就只挑自己的 band，也不會有它。舊快照沒有這個值，照存的九格出。
  *
  * 【用字】
  * band 只走 `statusWording.ts`（經 `reportCopy.ts`）；tier 的內部名稱一個都不出現（快照裡有，
@@ -329,7 +334,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
           <p className="text-[11px] text-brand-charcoal/60">这份报告的文字读不出来，下面先看各方面的结果。</p>
         )}
         <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2" id="t2-dimension-grid">
-          {findings.dimensions.map(d => {
+          {gridDimensions(findings).map(d => {
             const s = dimensionStatus(d.band);
             const cls = STATUS_CLASS[s.kind === 'band' ? s.status : 'state'];
             return (

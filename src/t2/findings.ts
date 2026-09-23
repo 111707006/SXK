@@ -13,6 +13,9 @@
  * 整支工具一串，分不出來。
  *
  * 【一個維度的 band 怎麼定】（§5.7；順序就是優先順序）
+ * 0. 這個月齡段不篩（v2.1 §4.7、S08：學習 0–36、注意力 0–11）→ `not_screened`，不論 T1、不論有沒有結果。
+ *    標籤、caveats、`tools` 照下面的規則收（氣質 24 個月的 `learn.task_persistence` 仍落在學習那一格，
+ *    活動的 `avoidIf` 看得到）；畫面上不出這一格（`reportCopy.ts` 的 `gridDimensions`）。
  * 1. T1 紅或黃、而這個月齡沒有任何會出 band 的工具餵它 → `no_tool`（§4.5，跟 `planT2` 同一條）。
  *    v2.1 §3.5 第 2 條：星號位是空的、但做了「只能當加測」的（73 個月起 ldp／lds 的语言处理、adl 的
  *    移动与转位）→ 取它們最差的判定，帶 `facet_only`（規則層）與 `no_star_tool`（這一層）。最差的是
@@ -45,7 +48,7 @@ import { tagDimension } from './findingTags';
 import type { FindingTag } from './findingTags';
 import { feedAt } from './toolSpecs';
 import { RULES_VERSION } from './scoring';
-import { planT2, routeFor, schoolAgeNoStar } from './routing';
+import { notScreened, planT2, routeFor, schoolAgeNoStar } from './routing';
 import { caveatsFor, ruleFor, severeFor } from './rules';
 import { DIMENSION_CODES } from './types';
 import type {
@@ -183,7 +186,7 @@ function worstContribution(contributions: ReadonlyArray<Contribution>): Contribu
   return best;
 }
 
-/** 這個維度的 band 狀態（檔頭「一個維度的 band 怎麼定」的 1–3 條）與是誰推的。 */
+/** 這個維度的 band 狀態（檔頭「一個維度的 band 怎麼定」的 0–3 條）與是誰推的。 */
 function bandOf(
   dimension: DimensionCode,
   flag: T1Flag,
@@ -191,6 +194,8 @@ function bandOf(
   noTool: ReadonlyArray<DimensionCode>,
   contributions: ReadonlyArray<Contribution>,
 ): { band: DimensionBand; drivenBy: ToolId | null } {
+  // 0：不篩（v2.1 §3.5 第 1 條、S08）最先判，不論 T1、不論有沒有結果。標籤與 caveats 照收（`aggregateDimensions`）
+  if (notScreened(dimension, ageMonth)) return { band: 'not_screened', drivenBy: null };
   if (flag !== 0) {
     if (noTool.includes(dimension)) {
       // 沒有星號：只能當加測的做了，就取它們最差的判定（v2.1 §3.5 第 2 條）；沒做才是 no_tool。

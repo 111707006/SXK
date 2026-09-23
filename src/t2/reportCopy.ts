@@ -9,6 +9,7 @@
  * 三級 band 一律走 `src/utils/statusWording.ts`（全站唯一的一份）。四種「沒有判定」的值
  * （`partial`／`not_assessed`／`no_tool`）**各有自己的句子**，而且沒有一句長得像 clear ——
  * §5.7：「塌成同一個值就是『沒做完』被讀成『沒事』」。這裡是那條規則在畫面上的最後一道。
+ * `not_screened`（v2.1 S08，不篩）沒有句子：那一格整個不出（`gridDimensions`）。
  *
  * 【作答回顧列什麼】
  * §6.4：「逐支工具列出答成『偶爾會／還不會』『經常／總是』『≤4』的題目原文 —— 這是工具包報告的
@@ -37,7 +38,7 @@ import { TOOL_SPECS, feedAt } from './toolSpecs';
 import { SAFETY_SENTENCE } from './report/sentences';
 import type { AdviceRank } from './advice';
 import { DIMENSION_CODES } from './types';
-import type { DimensionBand, ScoringFamily, T2Findings, ToolResult } from './types';
+import type { DimensionBand, DimensionFinding, ScoringFamily, T2Findings, ToolResult } from './types';
 
 // ---------------------------------------------------------------------------
 // 維度的狀態
@@ -64,13 +65,30 @@ export type DimensionStatus =
   | { kind: 'band'; status: AssessmentStatus; label: string; tag: string }
   | { kind: 'state'; label: string; tag: string };
 
-/** 一個維度在總覽上怎麼標：三級 band 走 statusWording，其餘三種各自明寫。 */
+/**
+ * 一個維度在總覽上怎麼標：三級 band 走 statusWording，其餘三種各自明寫。
+ *
+ * `not_screened`（v2.1 S08）沒有句子：不篩的維度畫面上**不出這一格**，呼叫端要先過 `gridDimensions`。
+ * 走到這裡就丟錯，不挑一種「沒有判定」的句子頂上 —— 那會把「不評這一項」印成「沒做」或「沒有問卷」。
+ */
 export function dimensionStatus(band: DimensionBand): DimensionStatus {
   if (band === 'clear' || band === 'watch' || band === 'refer') {
     const status = STATUS_OF_BAND[band];
     return { kind: 'band', status, label: STATUS_WORDING[status].label, tag: STATUS_WORDING[status].tag };
   }
+  if (band === 'not_screened') {
+    throw new Error('reportCopy：not_screened 的維度不出這一格，先過 gridDimensions 再取狀態句');
+  }
   return { kind: 'state', label: DIMENSION_STATE_LABEL[band], tag: DIMENSION_STATE_SENTENCE[band] };
+}
+
+/**
+ * 總覽九宮格要出的維度，順序照快照（＝`DIMENSION_CODES`）。不篩的那幾格（v2.1 §4.7、S08：學習 0–36、
+ * 注意力 0–11）整格不出 —— 它們不是「沒事」、也不是「這個月齡沒有問卷」，是 T2 這個月齡段不評這一項。
+ * 10 個月的個案因此只有七格。舊快照（v2.1 §10）沒有 `not_screened`，照存的九格出。
+ */
+export function gridDimensions(findings: T2Findings): DimensionFinding[] {
+  return findings.dimensions.filter(d => d.band !== 'not_screened');
 }
 
 // ---------------------------------------------------------------------------

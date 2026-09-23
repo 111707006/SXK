@@ -143,6 +143,7 @@ function dimensionBlock(dimension: DimensionFinding): string {
 /** 這個孩子的素材。 */
 function buildUser(input: T2ReportInput): string {
   const { findings, activities, goals } = input;
+  // 只列要成段的維度（`REPORTED_BANDS`）。不篩的（v2.1 S08）不在素材裡：模型看不到就寫不出它
   const wanted = reportedDimensions(findings);
   const lines: string[] = [];
 

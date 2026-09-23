@@ -152,6 +152,25 @@ describe('latestFindings', () => {
     expect(record!.findings.dimensions.find(d => d.dimensionId === 'EMO')!.band).toBe('no_tool');
   });
 
+  it('不篩（v2.1 S08）：新快照帶 not_screened 仍是九筆、讀得回來；舊快照同月齡的 no_tool 照存的樣子讀', async () => {
+    const flags10 = { ...FLAGS, LEARN: 2 as T1Flag, ATT: 2 as T1Flag };
+    const fresh = buildT2Findings({ results: [], t1Flags: flags10, assessedAgeMonth: 10, computedAt: '2026-09-24T01:00:00.000Z' });
+    expect(fresh.dimensions.filter(d => d.band === 'not_screened').map(d => d.dimensionId)).toEqual(['ATT', 'LEARN']);
+    rows = [row({ findings: JSON.stringify(fresh) })];
+    expect((await store.latestFindings(7))!.findings).toEqual(fresh);
+
+    // v2 存的：那時 10 個月的學習、注意力是 no_tool，沒有 not_screened 這個值
+    const old: T2Findings = {
+      ...fresh,
+      rulesVersion: 'v2-2026-09-11',
+      dimensions: fresh.dimensions.map(d => (d.band === 'not_screened' ? { ...d, band: 'no_tool' as const } : d)),
+    };
+    rows = [row({ findings: JSON.stringify(old) })];
+    const record = await store.latestFindings(7);
+    expect(record!.findings).toEqual(old);
+    expect(record!.findings.dimensions.some(d => d.band === 'not_screened')).toBe(false);
+  });
+
   it('created_at 是 Date 也讀得出來', async () => {
     rows = [row({ created_at: new Date('2026-09-12T09:00:05.000Z') })];
     expect((await store.latestFindings(7))!.createdAt).toBe('2026-09-12T09:00:05.000Z');

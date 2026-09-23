@@ -18,7 +18,7 @@ import type { Activity, DimensionCode, ModuleNo } from '../../t2/types';
 import { DIMENSION_CODES, GUIDE_PREP_KEYS } from '../../t2/types';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { MODULE_TITLES, parseAgeRange } from '../../t2/activitySeed';
-import { ACTIVITY_TAGS, REPORT_ONLY_TAGS, TAG_DIMENSIONS, tagDimension } from '../../t2/findingTags';
+import { ACTIVITY_TAGS, FINDING_TAG_LABELS, REPORT_ONLY_TAGS, TAG_DIMENSIONS, tagDimension } from '../../t2/findingTags';
 import type { ActivityTag, FindingTag, TagDimension } from '../../t2/findingTags';
 import { TAG_SENTENCES } from '../../t2/report/sentences';
 import {
@@ -772,8 +772,11 @@ function RowList<K extends string>({
 }
 
 /**
- * 依維度分組的標籤勾選。標籤顯示原碼（`lang.expression`）—— 那是量表規則表與活動庫兩邊
- * 貼的同一組字，換成中文別名就又多一套名字；滑鼠停上去看得到報告裡那一句固定說法。
+ * 依維度分組的標籤勾選。每個標籤顯示「中文短名 · 英文碼」（v2.1 S15，客戶 9/21 工作單 #19）：
+ * 短名給內容團隊一眼認出是哪一個，英文碼照樣露出來 —— 存進活動庫的、量表規則表產出的都是它，
+ * 對帳時兩邊講的是同一組字。滑鼠停上去看得到報告裡那一句固定說法。
+ *
+ * 短名只在後台（`FINDING_TAG_LABELS` 檔頭）：「心情底色偏低」這種字不能進家長端。
  */
 function TagPicker<T extends FindingTag>({
   legend,
@@ -804,14 +807,15 @@ function TagPicker<T extends FindingTag>({
             <div key={g.dim} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="w-20 shrink-0 text-[10px] text-brand-charcoal/45">{tagGroupName(g.dim)}</span>
               {g.tags.map(tag => (
-                <label key={tag} title={TAG_SENTENCES[tag]} className="flex items-center gap-1 font-mono text-[11px] text-brand-charcoal/70">
+                <label key={tag} title={TAG_SENTENCES[tag]} className="flex items-center gap-1 text-[11px] text-brand-charcoal/70">
                   <input
                     type="checkbox"
                     className="accent-brand-forest"
                     checked={selected.includes(tag)}
                     onChange={e => onChange(e.target.checked ? [...selected, tag] : selected.filter(x => x !== tag))}
                   />
-                  {tag}
+                  {FINDING_TAG_LABELS[tag]}
+                  <span className="font-mono text-brand-charcoal/45">· {tag}</span>
                 </label>
               ))}
             </div>

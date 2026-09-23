@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import path from 'path';
 import {
-  ACTIVITY_TAGS, REPORT_ONLY_TAGS, FINDING_TAGS, TAG_DIMENSIONS,
+  ACTIVITY_TAGS, REPORT_ONLY_TAGS, FINDING_TAGS, FINDING_TAG_LABELS, TAG_DIMENSIONS,
   isActivityTag, isFindingTag, tagDimension, tagsOfDimension,
 } from '../src/t2/findingTags';
 import type { FindingTag, TagDimension } from '../src/t2/findingTags';
@@ -137,6 +139,104 @@ describe('發現標籤：受控詞彙（§5.5）', () => {
     for (const [dim, n] of Object.entries(expected)) {
       expect({ dim, n: tagsOfDimension(dim as TagDimension).length }).toEqual({ dim, n });
     }
+  });
+});
+
+/**
+ * 中文短名（v2.1 S15、附錄 B；客戶 9/21 工作單 #19）。
+ *
+ * 下面是附錄 B 的原文逐行重抄（44 個 ★ 九列、13 個只能貼 avoidIf 一列），從這段文字解析出
+ * 「標籤 → 短名」，不從程式碼讀 —— 兩邊獨立抄，對不上才有意義。
+ */
+const APPENDIX_B_STARRED = [
+  '`lang.comprehension` 听懂、`lang.expression` 表达、`lang.expression_below_comprehension` 听懂多于说出、`lang.vocabulary_size` 词汇量、`lang.articulation` 发音、`lang.pragmatics` 对话轮替',
+  '`soc.joint_attention` 共同注意、`soc.eye_contact` 眼神接触、`soc.imitation` 模仿、`soc.social_initiation` 主动发起、`soc.emotion_reciprocity` 情绪来回、`soc.pretend_play` 假装游戏',
+  '`att.inattention` 持续注意、`att.hyperactivity` 安坐、`att.impulsivity` 等待与轮流、`att.working_memory` 工作记忆、`att.inhibition` 抑制、`att.organization` 收拾与规划',
+  '`mot.postural` 姿势控制、`mot.locomotion` 移动、`mot.balance` 平衡、`mot.ball_skills` 球类、`mot.fine_motor` 精细动作',
+  '`sen.tactile` 触觉、`sen.vestibular` 前庭、`sen.body_awareness` 本体觉、`sen.auditory` 听觉、`sen.visual` 视觉、`sen.oral` 口腔、`sen.regulation` 感觉调节',
+  '`adl.feeding` 吃饭、`adl.dressing` 穿脱、`adl.toileting` 如厕、`adl.hygiene` 清洁、`adl.routines` 日常流程',
+  '`cog.visual_attention` 视觉专注、`cog.problem_solving` 解决问题、`cog.concepts` 概念',
+  '`learn.reading` 阅读、`learn.writing` 书写、`learn.number` 数学、`learn.phonological` 语音觉识、`learn.task_persistence` 持续完成',
+  '`emo.regulation` 情绪调节',
+];
+const APPENDIX_B_AVOID_ONLY = [
+  '`soc.response_to_name` 叫名字的反应、`soc.stereotyped_behavior` 重复行为、`emo.adaptability_low` 适应变化慢、`emo.intensity_high` 情绪强度大、`emo.mood_negative` 心情底色偏低、`emo.regularity_low` 作息不规律、`emo.slow_to_warm` 慢热、`emo.activity_high` 活动量大、`sen.threshold_low` 反应阈低、`sen.impact_adl` 已影响到日常、`sen.impact_group` 已影响到团体、`sen.impact_play` 已影响到游戏、`severity.severe` 最需要留意',
+];
+
+function parseAppendixB(lines: string[]): Array<[string, string]> {
+  return lines.flatMap(line => [...line.matchAll(/`([a-z_]+\.[a-z_]+)` ([^、`]+)/g)].map(m => [m[1], m[2]] as [string, string]));
+}
+
+describe('發現標籤的中文短名（v2.1 S15，只給後台）', () => {
+  const starred = parseAppendixB(APPENDIX_B_STARRED);
+  const avoidOnly = parseAppendixB(APPENDIX_B_AVOID_ONLY);
+
+  it('重抄的附錄 B 本身是 44 ＋ 13，而且分法與 ★／只進報告一致', () => {
+    expect(starred).toHaveLength(44);
+    expect(avoidOnly).toHaveLength(13);
+    expect(starred.map(([tag]) => tag).sort()).toEqual([...ACTIVITY_TAGS].sort());
+    expect(avoidOnly.map(([tag]) => tag).sort()).toEqual([...REPORT_ONLY_TAGS].sort());
+  });
+
+  it('57 個都有、都非空，與附錄 B 逐字相同', () => {
+    expect(Object.keys(FINDING_TAG_LABELS).sort()).toEqual([...FINDING_TAGS].sort());
+    for (const tag of FINDING_TAGS) {
+      expect(FINDING_TAG_LABELS[tag].trim(), tag).not.toBe('');
+    }
+    expect({ ...FINDING_TAG_LABELS }).toEqual(Object.fromEntries([...starred, ...avoidOnly]));
+  });
+});
+
+/**
+ * 短名只給後台（v2.1 §4.9）：「心情底色偏低」的「偏低」是《对照表》禁字，而家長端的禁字掃描
+ * （`test/parentWording.structure.test.ts`）只讀它列出的那幾檔的**字面**，擋不住 import 進來的常數。
+ * 所以這裡反過來掃**名字**：`src/`（含 `src/components/` 與家長端 import 的 `src/t2/` 文案檔）
+ * 與 `server.ts`，提到 `FINDING_TAG_LABELS` 的檔案只能是定義它的那一檔與後台活動庫分頁。
+ *
+ * 後台別的分頁要用：加進 `LABEL_USERS`。但 `src/admin/` 不等於「家長看不到」——
+ * `ParentReportPrint.tsx` 印的是家長的報告。
+ */
+const ROOT = path.resolve(__dirname, '..');
+
+const LABEL_USERS = [
+  'src/admin/panels/ActivitiesPanel.tsx',
+  'src/t2/findingTags.ts',
+];
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, out);
+    else if (/\.(ts|tsx)$/.test(entry.name)) out.push(full);
+  }
+  return out;
+}
+
+/** 註解裡提到名字（「這裡不要用 FINDING_TAG_LABELS」）不算用到。 */
+function stripComments(source: string): string {
+  return source
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^[ \t]*\/\/.*$/gm, '');
+}
+
+describe('中文短名不流到家長端（v2.1 §4.9）', () => {
+  const sources = [...walk(path.join(ROOT, 'src')), path.join(ROOT, 'server.ts')]
+    .map(full => ({ rel: path.relative(ROOT, full).replace(/\\/g, '/'), code: stripComments(fs.readFileSync(full, 'utf8')) }));
+
+  it('提到 FINDING_TAG_LABELS 的只有定義它的檔與後台活動庫分頁', () => {
+    const users = sources.filter(s => s.code.includes('FINDING_TAG_LABELS')).map(s => s.rel).sort();
+    expect(users).toEqual(LABEL_USERS);
+    // 掃描範圍真的涵蓋家長端：元件、每週活動與報告的句子層都在裡面
+    const scanned = new Set(sources.map(s => s.rel));
+    for (const rel of ['src/components/T2WeeklyPlan.tsx', 'src/components/T2Report.tsx', 'src/t2/weeklyCopy.ts', 'src/t2/reportCopy.ts']) {
+      expect(scanned.has(rel), rel).toBe(true);
+    }
+  });
+
+  it('沒有檔案整包轉出 findingTags（`export *` 會不提名字就把短名帶出去）', () => {
+    const offenders = sources.filter(s => /export\s*\*\s*(?:as\s+\w+\s*)?from\s*['"][^'"]*findingTags['"]/.test(s.code)).map(s => s.rel);
+    expect(offenders).toEqual([]);
   });
 });
 

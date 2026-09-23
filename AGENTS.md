@@ -47,7 +47,7 @@
 │   │   ├── toolkit/       # T2 题库：22 支工具的题目、选项、分段（脚本产出，勿手改）
 │   │   ├── types.ts       # 规则引擎的型别（规格 v2 附录 A）
 │   │   ├── toolSpecs.ts   # 工具登录表 22 笔：月龄窗口、计分族、喂哪个维度（v2.1：可带月龄段／只能当加测／最高留意）、固定 caveat
-│   │   ├── findingTags.ts # 发现标签的受控词汇 57 个（★ 配活动／只进报告）
+│   │   ├── findingTags.ts # 发现标签的受控词汇 57 个（★ 配活动／只进报告）；`FINDING_TAG_LABELS` 中文短名只给后台（v2.1 S15，含禁字，家长端不得用）
 │   │   ├── caveats.ts     # caveat 的受控值 19 个（v2 的 17 个＋v2.1 的 facet_only、no_star_tool）
 │   │   ├── sectionTags.ts # §5.9 的面向→标签、chexi 因素、气质向度、前置题
 │   │   ├── itemTags.ts    # §5.9 的逐题标签表（asb／asr／adl／mchat 四支＋gm／asq／warn 几条）
@@ -132,7 +132,8 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 > 输入检查在 `src/utils/activityAdmin.ts`（`targets` 只认 ★ 标签，链接沿用 `assetUrl.ts`，步骤走 `readSteps`：
 > 允许零步、**图选填**（ADR-0008）；`ageLabel` 改了伺服器连带改配对硬闸 `ageMonths`，`ageMonths` 不能直接送；
 > 手册文字清掉存空字串不存 NULL、`guide` 不能整份删掉 —— 内容迁移重跑只填 NULL）；画面
-> `src/admin/panels/ActivitiesPanel.tsx`，四个进度数字 `activityCoverage`。
+> `src/admin/panels/ActivitiesPanel.tsx`，四个进度数字 `activityCoverage`；`targets`／`avoidIf` 的勾选显示
+> 「中文短名 · 英文码」（v2.1 S15），存的仍是英文码。
 > 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`、`test/activityAdmin.test.ts`、
 > `test/activityGuide.test.ts`。
 >
@@ -151,7 +152,7 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 > `src/t2/` 其余几档是**手写的资料表**（#42）：`toolSpecs.ts` 的分段与前置题直接转出题库那一份，
 > 不另抄一次；`findingTags.ts`／`caveats.ts` 是受控词汇，量表规则表与活动库两边贴的必须是同一组字。
 > 护栏测试：`test/t2ToolSpecs.structure.test.ts`（登录表逐格对规格 §3／附录 F）、
-> `test/t2FindingTags.test.ts`（每个标签至少一个来源、每个维度的标签数）、
+> `test/t2FindingTags.test.ts`（每个标签至少一个来源、每个维度的标签数、中文短名逐字对 v2.1 附录 B 且只出现在后台）、
 > `test/t2ItemTags.test.ts`（逐题表的题号在该面向范围内）。
 
 ## API 接口清单

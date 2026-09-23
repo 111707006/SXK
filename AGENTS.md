@@ -167,7 +167,7 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 | `/api/t2/diagnosis` | PUT | 存入口选的诊断方向（十选一或 null）；#59 生成报告时读它 | `diagnosis`；`Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | POST | 交一支工具的答案；**伺服器算分**（`scoreTool`），窗口外／缺答／多题／值域外 400 且不落表；每次交卷一笔不覆盖。回 `{id, createdAt, result, bands}` | `toolId`, `assessedAgeMonth`, `rater`, `pre`, `answers`；`Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | GET | 这位家长每支工具**最新且完整**的一笔，各附该支对它喂的维度的 band（加测提示用） | `Authorization: Bearer <token>` |
-| `/api/t2/weekly-plan` | GET | 这一周的四支活动（#60，一周一笔：没有就用最新快照配一份存起来）。Keep K08／§5.1 起另回 `alternates`（换着玩：维度 → 最多 5 支备选的完整活动，只放有备选的维度；**K08 之前存的旧周次不回这一栏**）与 `plan: {weekIndex, totalWeeks: 12, firstWeekStart}`（第 1 周＝同一个 `findings_id` 最早的一周） | `Authorization: Bearer <token>`；`week` (query，`YYYY-MM-DD`) 选填 |
+| `/api/t2/weekly-plan` | GET | 这一周的四支活动（#60，一周一笔：没有就用最新快照配一份存起来）。Keep K08／§5.1 起另回 `alternates`（换着玩：维度 → 最多 5 支备选的完整活动，只放有备选的维度；**K08 之前存的旧周次不回这一栏**）与 `plan: {weekIndex, totalWeeks: 12, firstWeekStart}`（第 1 周＝同一个 `findings_id` 最早的一周）；报告生成之前、没存过的周次 400 `WEEK_OUT_OF_RANGE`，不补一列 | `Authorization: Bearer <token>`；`week` (query，`YYYY-MM-DD`) 选填 |
 | `/api/t2/library` | GET | 示范片库（Keep K09）：有示范片的**启用**活动，回 `{activities: [{id, title, moduleNo, ageLabel, ageMonths, posterUrl, videoSeconds}]}`，依编号排；还没有片子时是空阵列 | `Authorization: Bearer <token>` |
 | `/api/t2/activities/:id` | GET | 单支活动的完整内容（Keep K09；手册栏位、`guide`、步骤、示范片），回 `{activity}`；**停用或不存在都是 404** `ACTIVITY_NOT_FOUND` | `Authorization: Bearer <token>` |
 

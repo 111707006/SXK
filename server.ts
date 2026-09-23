@@ -1603,6 +1603,13 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
     const library = await loadActivityLibrary();
     let record = await loadWeeklyPlan(userId, weekStart);
     if (!record) {
+      // 報告生成之前的週次不補一列（Keep 規格 §4.5）：計劃的第 1 週是這份快照「最早的 week_start」，
+      // 家長往回翻到三個月前、替那一週存下一列，這一週就從第 1 週跳成第 15 週。那一列本身也不對 ——
+      // 報告還不存在的那一週，沒有「照這份報告配的活動」。已經存過的週次（上面讀到的）照讀。
+      if (weekStart < weekStartOf(new Date(snapshot.createdAt))) {
+        res.status(400).json({ error: '这一周在报告生成之前，还没有安排活动。', code: 'WEEK_OUT_OF_RANGE' });
+        return;
+      }
       const recent = await loadRecentWeeklyPlans(userId, weekStart);
       const recentIds = recent.flatMap(p => p.activities.picks.map(x => x.id));
       const matched = matchWeeklyActivities(snapshot.findings, ageMonth, recentIds, library);
@@ -1623,9 +1630,14 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
     }
 
     // 第幾週（§4.5）照**這一列**的快照算，不是最新的那份：已存的週次不回頭重配，它屬於哪個計劃也不變。
-    // 這一列自己就在那份快照的週次裡，第 1 週不會比它晚；讀不到（或讀到比它晚的）就以這一週為第 1 週，
-    // 不讓畫面拿到 0 或負數。
-    const stored = await loadFirstWeekStart(userId, record.findingsId);
+    // 這一列自己就在那份快照的週次裡，第 1 週不會比它晚；讀不到（查詢失敗、`null`、或讀到比它晚的）
+    // 就以這一週為第 1 週 —— 不讓畫面拿到 0 或負數，也不因為一個週次數字讓整週的四支變成 500。
+    let stored: string | null = null;
+    try {
+      stored = await loadFirstWeekStart(userId, record.findingsId);
+    } catch (err: any) {
+      console.error('[T2] 計劃第 1 週讀取失敗，本次以這一週為第 1 週:', err.message);
+    }
     const plan = planPosition(record.weekStart, stored !== null && stored < record.weekStart ? stored : record.weekStart);
 
     res.json({ ...weeklyPlanResponse(record, ageMonth, snapshot, library), plan });

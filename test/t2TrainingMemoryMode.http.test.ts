@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 import { bearer } from './helpers/session';
+import { weekStartOf } from '../src/t2/weeks';
 
 /**
  * 記憶體模式（沒有資料庫）下的家庭訓練端點（Keep 規格 K08、K09、§5.1）。
@@ -44,12 +45,16 @@ describe('記憶體模式：每週活動的 plan 與 alternates', () => {
     expect(save.status).toBe(200);
     expect((await client.postJson('/api/t2/findings', {}, bearer(PARENT))).status).toBe(201);
 
-    const first = await (await client.get('/api/t2/weekly-plan?week=2026-09-09', bearer(PARENT))).json();
-    expect(first.plan).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: '2026-09-07' });
+    // 報告是現在生成的；報告之前的週次不排（§4.5），所以查這一週與下一週（端點最遠給到下一週）
+    const thisWeek = weekStartOf(new Date());
+    const nextWeek = weekStartOf(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+
+    const first = await (await client.get(`/api/t2/weekly-plan?week=${thisWeek}`, bearer(PARENT))).json();
+    expect(first.plan).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: thisWeek });
     expect(first.alternates).toEqual({});
 
-    const second = await (await client.get('/api/t2/weekly-plan?week=2026-09-16', bearer(PARENT))).json();
-    expect(second.plan).toEqual({ weekIndex: 2, totalWeeks: 12, firstWeekStart: '2026-09-07' });
+    const second = await (await client.get(`/api/t2/weekly-plan?week=${nextWeek}`, bearer(PARENT))).json();
+    expect(second.plan).toEqual({ weekIndex: 2, totalWeeks: 12, firstWeekStart: thisWeek });
   });
 });
 

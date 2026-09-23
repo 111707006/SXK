@@ -85,6 +85,8 @@ let library: Activity[] = [];
 let findingsRow: FindingsRecord | null = null;
 const weeklyTable: Array<{ userId: number; record: WeeklyPlanRecord }> = [];
 let nextWeeklyId = 1;
+/** 「第 1 週」那一支查詢丟錯（逾時、資料庫錯）。 */
+let firstWeekFails = false;
 
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
@@ -134,11 +136,13 @@ vi.mock('../src/db/t2WeeklyPlans', () => ({
       .map(r => r.record)
       .sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))
       .slice(0, limit),
-  firstWeekStartOfFindings: async (userId: number, findingsId: number) =>
-    weeklyTable
+  firstWeekStartOfFindings: async (userId: number, findingsId: number) => {
+    if (firstWeekFails) throw new Error('connect ETIMEDOUT');
+    return weeklyTable
       .filter(r => r.userId === userId && r.record.findingsId === findingsId)
       .map(r => r.record.weekStart)
-      .sort()[0] ?? null,
+      .sort()[0] ?? null;
+  },
 }));
 
 let client: TestClient;
@@ -154,6 +158,7 @@ afterAll(async () => {
 beforeEach(() => {
   weeklyTable.length = 0;
   nextWeeklyId = 1;
+  firstWeekFails = false;
   findingsRow = {
     id: 77,
     createdAt: '2026-09-07T00:00:00.000Z',
@@ -458,13 +463,54 @@ describe('plan（第幾週）', () => {
     expect(old.plan).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: '2026-09-07' });
   });
 
-  it('超過 12 週照算：第 1 週是 14 週前 → 第 15 週', async () => {
-    weeklyTable.push({
-      userId: UNLOCKED,
-      record: { id: nextWeeklyId++, createdAt: null, weekStart: '2026-06-01', findingsId: 77, activities: { picks: [], preparing: [] } },
-    });
+  it('超過 12 週照算：報告是 14 週前生成的、那一週開過 → 第 15 週', async () => {
+    findingsRow = { ...findingsRow!, createdAt: '2026-06-02T02:00:00.000Z' };
+    await client.get(`${URL}?week=2026-06-03`, bearer(UNLOCKED));
     const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
     expect(body.plan).toEqual({ weekIndex: 15, totalWeeks: 12, firstWeekStart: '2026-06-01' });
+  });
+
+  /**
+   * 第 1 週是「最早的 week_start」，所以**不能替報告生成之前的週次補一列**：家長往回翻到三個月前，
+   * 那一列會帶著這份快照的編號存下來，這一週就從第 1 週跳成第 15 週、計劃頁說「已满 12 周」。
+   * 那一列本身也不對 —— 報告還不存在的那一週，沒有「照這份報告配的活動」。已經存過的舊週次照讀。
+   */
+  it('報告生成之前、沒存過的那一週 → 400 WEEK_OUT_OF_RANGE、零筆；往回翻不改這一週是第幾週', async () => {
+    const current = await (await client.get(`${URL}?week=${NEXT_WEEK}`, bearer(UNLOCKED))).json();
+    expect(current.plan.weekIndex).toBe(1);
+
+    // 快照是 2026-09-07（星期一）生成的；8/31 那一週在它之前
+    const resp = await client.get(`${URL}?week=2026-08-31`, bearer(UNLOCKED));
+    expect(resp.status).toBe(400);
+    expect((await resp.json()).code).toBe('WEEK_OUT_OF_RANGE');
+    expect(weeklyTable).toHaveLength(1);
+
+    const again = await (await client.get(`${URL}?week=${NEXT_WEEK}`, bearer(UNLOCKED))).json();
+    expect(again.plan).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: '2026-09-14' });
+  });
+
+  it('報告生成的那一週本身可以查（週中生成的，那一週一樣排活動）', async () => {
+    findingsRow = { ...findingsRow!, createdAt: '2026-09-12T14:00:00.000Z' }; // 9/12 星期六晚上（+08:00）
+    const resp = await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    expect(resp.status).toBe(200);
+    expect((await resp.json()).plan.weekIndex).toBe(1);
+  });
+
+  it('已經存過的舊週次照讀，即使在最新那份報告生成之前', async () => {
+    await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    findingsRow = { ...findingsRow!, id: 78, createdAt: '2026-09-20T00:00:00.000Z' };
+    const resp = await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    expect(resp.status).toBe(200);
+    expect((await resp.json()).findingsId).toBe(77);
+  });
+
+  it('第 1 週讀不出來（逾時、資料庫錯）→ 以這一週為第 1 週，四支照回，不是 500', async () => {
+    firstWeekFails = true;
+    const resp = await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.activities).toHaveLength(4);
+    expect(body.plan).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: '2026-09-07' });
   });
 
   it('別的家長同一個快照編號的週次不算進來', async () => {

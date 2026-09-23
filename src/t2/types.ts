@@ -218,7 +218,7 @@ export interface T2Plan {
  * `not_screened`（v2.1 §4.7、S08）：這個月齡段 T2 **不評**這個維度（學習 0–36、注意力 0–11，
  * `routing.ts` 的 `NOT_SCREENED`）。與 `no_tool` 不同 —— `no_tool` 是該評但沒工具，要講出來、導向專家；
  * 不篩是畫面上**不出這一格**（九宮格、總覽、段落都沒有）。`T2Findings.dimensions` 仍是九筆。
- * 規則版 `v2.1-2026-09-23` 之前存的快照沒有這個值（v2.1 §10），畫面照存的樣子讀。
+ * 規則版 `v2-2026-09-11` 的快照（v2.1 上線前存的）沒有這個值（v2.1 §10），畫面照存的樣子讀。
  */
 export type DimensionBand = Band | 'partial' | 'not_assessed' | 'no_tool' | 'not_screened';
 

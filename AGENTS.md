@@ -46,9 +46,9 @@
 │   ├── t2/
 │   │   ├── toolkit/       # T2 题库：22 支工具的题目、选项、分段（脚本产出，勿手改）
 │   │   ├── types.ts       # 规则引擎的型别（规格 v2 附录 A）
-│   │   ├── toolSpecs.ts   # 工具登录表 22 笔：月龄窗口、计分族、喂哪个维度、固定 caveat
+│   │   ├── toolSpecs.ts   # 工具登录表 22 笔：月龄窗口、计分族、喂哪个维度（v2.1：可带月龄段／只能当加测／最高留意）、固定 caveat
 │   │   ├── findingTags.ts # 发现标签的受控词汇 57 个（★ 配活动／只进报告）
-│   │   ├── caveats.ts     # caveat 的受控值 17 个
+│   │   ├── caveats.ts     # caveat 的受控值 19 个（v2 的 17 个＋v2.1 的 facet_only、no_star_tool）
 │   │   ├── sectionTags.ts # §5.9 的面向→标签、chexi 因素、气质向度、前置题
 │   │   ├── itemTags.ts    # §5.9 的逐题标签表（asb／asr／adl／mchat 四支＋gm／asq／warn 几条）
 │   │   ├── act300.ts      # 旧原型 300 支活动的名称与适龄原文（脚本产出，勿手改）

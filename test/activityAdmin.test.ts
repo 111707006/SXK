@@ -4,10 +4,26 @@ import {
   filterActivities,
   readActivityPatch,
   MAX_TARGET_MONTH,
+  MAX_VIDEO_SECONDS,
   changedFields,
 } from '../src/utils/activityAdmin';
 import { ACTIVITY_SEED } from '../src/t2/activitySeed';
-import type { Activity } from '../src/t2/types';
+import type { Activity, ActivityGuide } from '../src/t2/types';
+
+/** 一份完整的腳本（形狀照客戶模組一的腳本）。 */
+const GUIDE: ActivityGuide = {
+  length: '2 分钟',
+  intro: '今天这个活动叫「跟着音乐动」。',
+  principles: ['跟着节奏动，练协调。'],
+  prep: { 场地: '客厅', 器材: '手机放一首有节奏的歌' },
+  shots: [{ name: '放音乐', say: '我们来跳舞！' }],
+  reactions: [{ if: '孩子不想动', then: '大人先跳。' }],
+  mistakes: ['音乐太大声。'],
+  down: '只拍手。',
+  up: '音乐停就定住。',
+  progress: ['能跟上节拍。'],
+  outro: '每天动一动。',
+};
 
 /**
  * 活動庫標記頁的純函式（#62，規格 v2 §7.4）。
@@ -175,6 +191,64 @@ describe('readActivityPatch —— 收下一筆標記', () => {
   it('一次帶多個欄位；不認得的欄位被忽略而不是報錯', () => {
     expect(ok({ targetMonth: 24, active: true, id: 'A999', moduleNo: 3 })).toEqual({ targetMonth: 24, active: true });
   });
+
+  // ── Keep 規格 K04／K17：步驟圖選填、內容欄位 ──
+
+  it('只有文字的步驟存得進去；有圖時照舊驗網址', () => {
+    expect(ok({ steps: [{ instruction: '大人趴下来当示范。' }, { imageUrl: '/s/2.png', instruction: '让孩子爬过来拿。' }] })).toEqual({
+      steps: [
+        { imageUrl: null, instruction: '大人趴下来当示范。' },
+        { imageUrl: '/s/2.png', instruction: '让孩子爬过来拿。' },
+      ],
+    });
+    bad({ steps: [{ imageUrl: 'http://x/1.png', instruction: '有图但不是 https' }] });
+  });
+
+  it('手冊的文字欄位：修掉前後空白；空字串是清掉；null 也當清掉', () => {
+    expect(ok({ tip: '  选孩子喜欢的歌。 ' })).toEqual({ tip: '选孩子喜欢的歌。' });
+    expect(ok({ tip: '' })).toEqual({ tip: '' });
+    expect(ok({ tip: null })).toEqual({ tip: '' });
+    expect(ok({ people: '亲子', need: '一块垫子', trains: '练协调', easier: '慢一点', harder: '快一点', deeper: '物理治疗册 模组九' })).toEqual({
+      people: '亲子', need: '一块垫子', trains: '练协调', easier: '慢一点', harder: '快一点', deeper: '物理治疗册 模组九',
+    });
+    bad({ tip: 3 });
+    bad({ easier: ['慢一点'] });
+  });
+
+  it('手冊的文字欄位超過欄寬整筆退回，不默默截斷', () => {
+    expect(bad({ people: '亲'.repeat(17) })).toContain('16');
+    expect(bad({ trains: '练'.repeat(256) })).toContain('255');
+    expect(ok({ trains: '练'.repeat(255) })).toEqual({ trains: '练'.repeat(255) });
+  });
+
+  // 適齡是配對硬閘（ageMonths）的來源（規格 §4.1「age_min_month／age_max_month 照舊由它解析」）：
+  // 只改畫面上的字、不改硬閘，家長看到「适合 3–6岁」而 7 歲的孩子照樣配得到。
+  it('適齡：改了原文就連帶改硬閘；解析不了、空的整筆退回', () => {
+    expect(ok({ ageLabel: ' 3–6岁 ' })).toEqual({ ageLabel: '3–6岁', ageMonths: { min: 36, max: 72 } });
+    expect(ok({ ageLabel: '6个月–3岁' })).toEqual({ ageLabel: '6个月–3岁', ageMonths: { min: 6, max: 36 } });
+    expect(bad({ ageLabel: '三到六岁' })).toContain('三到六岁');
+    bad({ ageLabel: '' });
+    bad({ ageLabel: null });
+  });
+
+  it('ageMonths 不能直接送 —— 它只由適齡原文解析', () => {
+    expect(bad({ ageMonths: { min: 0, max: 1 } })).toContain('没有要更新');
+  });
+
+  it('封面沿用示範連結的網址規則；片長是 1 到上限的整數秒，或清掉', () => {
+    expect(ok({ posterUrl: '/media/activities/A001.jpg' })).toEqual({ posterUrl: '/media/activities/A001.jpg' });
+    expect(ok({ posterUrl: '' })).toEqual({ posterUrl: null });
+    bad({ posterUrl: 'http://x/1.jpg' });
+    expect(ok({ videoSeconds: 10 })).toEqual({ videoSeconds: 10 });
+    expect(ok({ videoSeconds: null })).toEqual({ videoSeconds: null });
+    for (const v of [0, -1, 1.5, '10', MAX_VIDEO_SECONDS + 1]) bad({ videoSeconds: v });
+  });
+
+  it('腳本：整份照 readGuide 驗；不能整份刪掉（遷移重跑只填 NULL，刪掉的會被填回來）', () => {
+    expect(ok({ guide: GUIDE })).toEqual({ guide: GUIDE });
+    expect(bad({ guide: { ...GUIDE, shots: [{ name: '示范' }] } })).toContain('分镜');
+    expect(bad({ guide: null })).toContain('脚本');
+  });
 });
 
 describe('changedFields —— 畫面只送改過的欄位', () => {
@@ -196,5 +270,19 @@ describe('changedFields —— 畫面只送改過的欄位', () => {
 
   it('id、moduleNo、ageMonths 不在可送的欄位裡', () => {
     expect(changedFields(base, { ...base, id: 'A999', moduleNo: 3, ageMonths: { min: 0, max: 1 } })).toEqual({});
+  });
+
+  it('內容欄位：改了小提醒只送小提醒；改了適齡只送原文（硬閘由伺服器解析）', () => {
+    const filled: Activity = { ...base, tip: '旧的', ageLabel: '1–8岁', guide: GUIDE };
+    expect(changedFields(filled, { ...filled, tip: '新的' })).toEqual({ tip: '新的' });
+    expect(changedFields(filled, { ...filled, ageLabel: '2–8岁' })).toEqual({ ageLabel: '2–8岁' });
+    expect(changedFields(filled, { ...filled, posterUrl: '/p.jpg', videoSeconds: 10 })).toEqual({ posterUrl: '/p.jpg', videoSeconds: 10 });
+  });
+
+  it('腳本比內容不比參照：沒改過的腳本不送，改了一個字就整份送', () => {
+    const filled: Activity = { ...base, guide: GUIDE };
+    expect(changedFields(filled, { ...filled, guide: JSON.parse(JSON.stringify(GUIDE)) })).toEqual({});
+    const edited = { ...GUIDE, outro: '改过的收尾。' };
+    expect(changedFields(filled, { ...filled, guide: edited })).toEqual({ guide: edited });
   });
 });

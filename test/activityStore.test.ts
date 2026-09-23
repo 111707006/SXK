@@ -30,23 +30,111 @@ const ROW = {
   active: 1,
 };
 
+/** 2026-09-23 的遷移填進去之後的那幾欄（Keep 規格 §4.1）。 */
+const GUIDE = {
+  length: '2–3 分钟',
+  intro: '今天这个活动叫「跟着音乐动」。',
+  principles: ['一', '二'],
+  prep: { 器材: '手机放一首有节奏的歌', 场地: '客厅' },
+  shots: [{ name: '放音乐', say: '我们来跳舞！' }],
+  reactions: [{ if: '孩子不想动', then: '大人先跳。' }],
+  mistakes: ['音乐太大声'],
+  down: '只拍手',
+  up: '加上停格',
+  progress: ['能跟上节拍'],
+  outro: '每天动一动。',
+};
+
+const CONTENT_ROW = {
+  ...ROW,
+  age_label: '1–8岁',
+  people: '亲子或全家',
+  need: '手机放一首有节奏的歌',
+  trains: '跟着节奏动，练协调。',
+  steps: '[{"imageUrl":null,"instruction":"放一首歌。"},{"imageUrl":"/s/a17-2.png","instruction":"一起动。"}]',
+  easier: '只拍手',
+  harder: '音乐停就定住',
+  tip: '选孩子喜欢的歌。',
+  deeper: '物理治疗册 模组九（跑步与变向）',
+  guide: JSON.stringify(GUIDE),
+  poster_url: '/media/activities/A017.jpg',
+  video_seconds: 10,
+};
+
 describe('activityFromRow', () => {
-  it('種子那一列讀成 §7.1 的形狀', () => {
+  it('種子那一列讀成 §7.1 的形狀；還沒有內容欄位的列（遷移前）讀成「沒有」，不是 undefined', () => {
     expect(activityFromRow(ROW)).toEqual({
       id: 'A017',
       title: '跟着音乐动',
       moduleNo: 1,
       targetMonth: null,
       ageMonths: { min: 12, max: 96 },
+      ageLabel: '',
+      people: '',
       dimensions: ['MOT'],
       targets: [],
       avoidIf: [],
       durationMin: 0,
       equipment: [],
+      need: '',
+      trains: '',
       steps: [],
+      easier: '',
+      harder: '',
+      tip: '',
+      deeper: '',
+      guide: null,
       videoUrl: null,
+      posterUrl: null,
+      videoSeconds: null,
       active: true,
     });
+  });
+
+  it('遷移填過內容的一列：手冊原文、腳本、封面與片長都讀得回來', () => {
+    const a = activityFromRow(CONTENT_ROW);
+    expect(a).toMatchObject({
+      ageLabel: '1–8岁',
+      people: '亲子或全家',
+      need: '手机放一首有节奏的歌',
+      trains: '跟着节奏动，练协调。',
+      easier: '只拍手',
+      harder: '音乐停就定住',
+      tip: '选孩子喜欢的歌。',
+      deeper: '物理治疗册 模组九（跑步与变向）',
+      posterUrl: '/media/activities/A017.jpg',
+      videoSeconds: 10,
+    });
+    expect(a.steps).toEqual([
+      { imageUrl: null, instruction: '放一首歌。' },
+      { imageUrl: '/s/a17-2.png', instruction: '一起动。' },
+    ]);
+    expect(a.guide?.shots).toEqual([{ name: '放音乐', say: '我们来跳舞！' }]);
+  });
+
+  it('資料庫的 NULL 與後台清掉的空字串，讀出來都是空字串', () => {
+    const a = activityFromRow({ ...CONTENT_ROW, tip: null, easier: '', people: undefined });
+    expect(a.tip).toBe('');
+    expect(a.easier).toBe('');
+    expect(a.people).toBe('');
+  });
+
+  // MySQL 的 JSON 物件不保留鍵的順序：存進去的「场地、器材……」讀回來是依鍵排序的。
+  it('腳本的「準備」照 场地／器材／安全检查／大人位置 的順序讀回來，不照資料庫給的順序', () => {
+    const a = activityFromRow(CONTENT_ROW);
+    expect(Object.keys(a.guide!.prep)).toEqual(['场地', '器材']);
+  });
+
+  it('mysql2 已經把 guide 解析成物件時照樣讀得出來；壞掉的腳本退成 null，不拋例外', () => {
+    expect(activityFromRow({ ...CONTENT_ROW, guide: GUIDE }).guide?.length).toBe('2–3 分钟');
+    expect(activityFromRow({ ...CONTENT_ROW, guide: '{not json' }).guide).toBeNull();
+    expect(activityFromRow({ ...CONTENT_ROW, guide: JSON.stringify({ ...GUIDE, principles: '一' }) }).guide).toBeNull();
+    expect(activityFromRow({ ...CONTENT_ROW, guide: JSON.stringify({ ...GUIDE, shots: [{ name: '缺旁白' }] }) }).guide).toBeNull();
+  });
+
+  it('片長不是數字就當沒有', () => {
+    expect(activityFromRow({ ...CONTENT_ROW, video_seconds: null }).videoSeconds).toBeNull();
+    expect(activityFromRow({ ...CONTENT_ROW, video_seconds: 'abc' }).videoSeconds).toBeNull();
   });
 
   it('內容團隊填過的一列：targetMonth 是數字、標籤與步驟都讀得回來', () => {
@@ -109,12 +197,28 @@ describe('activityFromRow', () => {
     expect(a.dimensions).toEqual(['MOT', 'SEN']);
   });
 
-  it('步驟全有或全無：混進一則讀不成步驟的，整份退成空', () => {
+  it('步驟全有或全無：混進一則讀不成步驟的（沒有指令、圖不是字串），整份退成空', () => {
+    for (const bad of [
+      '[{"imageUrl":"/1.png","instruction":"一"},{"imageUrl":"/2.png","instruction":""}]',
+      '[{"imageUrl":"/1.png","instruction":"一"},{"imageUrl":5,"instruction":"二"}]',
+      '[{"imageUrl":"/1.png","instruction":"一"},"二"]',
+    ]) {
+      expect(activityFromRow({ ...ROW, steps: bad }).steps, bad).toEqual([]);
+    }
+  });
+
+  // ADR-0008：圖選填。沒有圖（沒這個鍵、null、空字串）是一則正常的步驟，讀成 imageUrl: null。
+  it('沒有圖的步驟是正常的步驟，讀成 imageUrl: null', () => {
     const a = activityFromRow({
       ...ROW,
-      steps: '[{"imageUrl":"/1.png","instruction":"一"},{"imageUrl":"","instruction":"二"}]',
+      steps: '[{"imageUrl":"/1.png","instruction":"一"},{"imageUrl":"","instruction":"二"},{"instruction":"三"},{"imageUrl":null,"instruction":"四"}]',
     });
-    expect(a.steps).toEqual([]);
+    expect(a.steps).toEqual([
+      { imageUrl: '/1.png', instruction: '一' },
+      { imageUrl: null, instruction: '二' },
+      { imageUrl: null, instruction: '三' },
+      { imageUrl: null, instruction: '四' },
+    ]);
   });
 });
 
@@ -209,6 +313,39 @@ describe('adminStore.updateActivity（#62）', () => {
       '新标题', null, '["MOT","ADL"]', '[]', '["sen.threshold_low"]', 10, '["积木"]',
       '[{"imageUrl":"/1.png","instruction":"一"}]', 'https://v.example.com/x', 0, 'A017',
     ]);
+  });
+
+  it('內容欄位（Keep 規格 K17）：每一個都對得到欄位名；適齡連帶寫硬閘兩欄；腳本序列化；清掉的文字存空字串不是 NULL', async () => {
+    rows = [{ ...ROW }];
+    await store.updateActivity('A017', {
+      ageLabel: '3–6岁',
+      ageMonths: { min: 36, max: 72 },
+      people: '亲子',
+      need: '手机',
+      trains: '练协调',
+      easier: '',
+      harder: '音乐停就定住',
+      tip: '选孩子喜欢的歌。',
+      deeper: '物理治疗册 模组九',
+      guide: GUIDE,
+      posterUrl: '/media/activities/A017.jpg',
+      videoSeconds: 10,
+    });
+    expect(executed[0].sql).toBe(
+      'UPDATE activities SET age_label = ?, age_min_month = ?, age_max_month = ?, people = ?, need = ?, trains = ?, '
+        + 'easier = ?, harder = ?, tip = ?, deeper = ?, guide = ?, poster_url = ?, video_seconds = ? WHERE id = ?'
+    );
+    expect(executed[0].params).toEqual([
+      '3–6岁', 36, 72, '亲子', '手机', '练协调', '', '音乐停就定住', '选孩子喜欢的歌。', '物理治疗册 模组九',
+      JSON.stringify(GUIDE), '/media/activities/A017.jpg', 10, 'A017',
+    ]);
+  });
+
+  it('只帶 ageMonths 不帶適齡，一樣寫兩欄（它只由路由從適齡解析，這裡不擋）', async () => {
+    rows = [{ ...ROW }];
+    await store.updateActivity('A017', { ageMonths: { min: 12, max: 60 } });
+    expect(executed[0].sql).toBe('UPDATE activities SET age_min_month = ?, age_max_month = ? WHERE id = ?');
+    expect(executed[0].params).toEqual([12, 60, 'A017']);
   });
 
   it('找不到這支回 null；不存在的 id 一列都改不到，無害', async () => {

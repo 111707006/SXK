@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { RULES_VERSION } from '../src/t2/scoring';
 import { TOOLKIT_VERSION } from '../src/t2/toolkit';
 import { DIMENSION_CODES } from '../src/t2/types';
+import { NO_ACTIVITY_CONTENT } from '../src/t2/activitySeed';
 import type {
   Activity,
   Band,
@@ -61,6 +62,7 @@ function act(id: string, moduleNo: ModuleNo, targetMonth: number | null, over: P
     steps: [],
     videoUrl: null,
     active: true,
+    ...NO_ACTIVITY_CONTENT,
     ...over,
   };
 }

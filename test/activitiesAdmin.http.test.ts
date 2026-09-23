@@ -224,6 +224,40 @@ describe('PATCH 一支：帶了才改', () => {
     expect(row('A017').steps).toHaveLength(1);
   });
 
+  // ADR-0008／Keep 規格 K04：客戶的手冊只有文字步驟。
+  it('只有文字的步驟存得進去', async () => {
+    const resp = await patchJson('/api/admin/activities/A017', { steps: [{ instruction: '放一首歌。' }, { imageUrl: '', instruction: '一起动。' }] }, token);
+    expect(resp.status).toBe(200);
+    expect(row('A017').steps).toEqual([
+      { imageUrl: null, instruction: '放一首歌。' },
+      { imageUrl: null, instruction: '一起动。' },
+    ]);
+  });
+
+  // Keep 規格 K17 的驗收：「改一支的『小提醒』」。家長端讀的是同一張表（t2WeeklyPlan.http 那一條驗「立刻看到」）。
+  it('小提醒：帶了才改，別的內容欄位不動', async () => {
+    const resp = await patchJson('/api/admin/activities/A017', { tip: '选孩子喜欢的歌。' }, token);
+    expect(resp.status).toBe(200);
+    expect((await resp.json()).activity).toMatchObject({ id: 'A017', tip: '选孩子喜欢的歌。' });
+    expect(row('A017')).toMatchObject({ tip: '选孩子喜欢的歌。', need: '', guide: null });
+  });
+
+  it('適齡：改了原文連帶改硬閘；看不懂的 400，一個字都沒存', async () => {
+    const ok = await patchJson('/api/admin/activities/A017', { ageLabel: '2–6岁' }, token);
+    expect(ok.status).toBe(200);
+    expect(row('A017')).toMatchObject({ ageLabel: '2–6岁', ageMonths: { min: 24, max: 72 } });
+
+    const bad = await patchJson('/api/admin/activities/A017', { ageLabel: '两到六岁', tip: '不该存进去' }, token);
+    expect(bad.status).toBe(400);
+    expect(row('A017')).toMatchObject({ ageLabel: '2–6岁', tip: '' });
+  });
+
+  it('腳本不能整份刪掉 → 400', async () => {
+    const resp = await patchJson('/api/admin/activities/A001', { guide: null }, token);
+    expect(resp.status).toBe(400);
+    expect((await resp.json()).error).toContain('脚本');
+  });
+
   it('空的 patch → 400', async () => {
     const resp = await patchJson('/api/admin/activities/A017', {}, token);
     expect(resp.status).toBe(400);

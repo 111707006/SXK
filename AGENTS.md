@@ -53,6 +53,7 @@
 │   │   ├── itemTags.ts    # §5.9 的逐题标签表（asb／asr／adl／mchat 四支＋gm／asq／warn 几条）
 │   │   ├── act300.ts      # 旧原型 300 支活动的名称与适龄原文（脚本产出，勿手改）
 │   │   ├── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
+│   │   ├── activityContent.ts # 客户手册 300 张卡＋模组一 20 支脚本的原文（脚本产出，勿手改；Keep 规格 K03）
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）
 │   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
 │   │   ├── weeklyCopy.ts  # 每周活动画面的句子：「因为……所以练……」、年龄段、准备中（#60）
@@ -63,8 +64,11 @@
 │   │   └── activities.ts  # 一列 activities → Activity（后台与家长端共用，只认受控词汇里的标签）
 │   └── utils/
 │       ├── dateUtils.ts   # 日期工具函数
-│       └── reportUtils.ts # 报告生成工具
-├── NEWT2/                 # 客户 2026-09-08 评估工具包 zip 与 09-10 纸本版 zip（题库的来源）
+│       ├── reportUtils.ts # 报告生成工具
+│       ├── activitySteps.ts # 分解步骤怎么读：指令必填、图选填（ADR-0008）、最多 20 步
+│       └── activityGuide.ts # 模组一脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
+├── NEWT2/                 # 客户 2026-09-08 评估工具包 zip 与 09-10 纸本版 zip（题库的来源）；
+│                          # 09-23 活动内容包里的两份 docx（手册总册、模组一脚本，原封不动取出；zip 与 mp4 不进 git）
 └── assets/                # 静态资源
 ```
 
@@ -98,21 +102,37 @@ npx tsx scripts/t2-extract-act300.ts --check
 
 # 活动库种子 → 迁移档 deploy/migrations/2026-09-11-activities.sql 标记之间的 INSERT
 npx tsx scripts/t2-activity-seed-sql.ts --check
+
+# 活动内容（Keep 规格 K03）：NEWT2/ 的手册总册与模组一脚本 docx → src/t2/activityContent.ts
+# ＋ 迁移档 deploy/migrations/2026-09-23-activity-content.sql 标记之间的 UPDATE；顺便列出与 act300.ts 不一致的标题／适龄
+npx tsx scripts/t2-extract-activity-content.ts
+npx tsx scripts/t2-extract-activity-content.ts --check
 ```
 
 > 活动库（ADR-0005）的 300 支种子是**算**出来的，不是手抄的：`act300.ts` 由脚本抽自旧原型，
 > `activitySeed.ts` 算出模组、月龄区间与维度初值，迁移档里的 INSERT 由种子印出。三层都有
-> 护栏：`test/activitySeed.test.ts` 重跑脚本、重印 SQL、比对 `deploy/schema.sql` 与迁移档的
-> CREATE TABLE 一字不差。**种子全部 `target_month = NULL`**，没填的活动配不到（规格 v2 §7.4），
+> 护栏：`test/activitySeed.test.ts` 重跑脚本、重印 SQL、比对 `deploy/schema.sql` 的 CREATE TABLE ＝
+> 09-11 迁移建的表＋09-23 迁移加的栏位（定义与位置一字不差）。**种子全部 `target_month = NULL`**，没填的活动配不到（规格 v2 §7.4），
 > 由内容团队在后台「活动库」分页补（#62）。活动库不吃 `company_id`，列在 `test/adminScope.structure.test.ts`
 > 的 `GLOBAL_TABLES`。
 >
 > 后台标记页（#62）：`GET /api/admin/activities` 回 300 支、`PATCH /api/admin/activities/:id` 局部更新
 > （**带了才改**：`targetMonth`／`targets`／`dimensions`／`avoidIf`／`active`／`title`／`durationMin`／
-> `equipment`／`steps`／`videoUrl`），两支都在 `requireGlobal` 之下、不经过 `withScope`；没有新增、没有删除。
-> 输入检查在 `src/utils/activityAdmin.ts`（`targets` 只认 ★ 标签，链接沿用 `assetUrl.ts`，步骤沿用素材库的
-> `readSteps` 但允许零步）；画面 `src/admin/panels/ActivitiesPanel.tsx`，四个进度数字 `activityCoverage`。
-> 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`、`test/activityAdmin.test.ts`。
+> `equipment`／`steps`／`videoUrl`，Keep 规格 K17 加上 `ageLabel`／`people`／`need`／`trains`／`easier`／`harder`／
+> `tip`／`deeper`／`guide`／`posterUrl`／`videoSeconds`），两支都在 `requireGlobal` 之下、不经过 `withScope`；没有新增、没有删除。
+> 输入检查在 `src/utils/activityAdmin.ts`（`targets` 只认 ★ 标签，链接沿用 `assetUrl.ts`，步骤走 `readSteps`：
+> 允许零步、**图选填**（ADR-0008）；`ageLabel` 改了伺服器连带改配对硬闸 `ageMonths`，`ageMonths` 不能直接送；
+> 手册文字清掉存空字串不存 NULL、`guide` 不能整份删掉 —— 内容迁移重跑只填 NULL）；画面
+> `src/admin/panels/ActivitiesPanel.tsx`，四个进度数字 `activityCoverage`。
+> 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`、`test/activityAdmin.test.ts`、
+> `test/activityGuide.test.ts`。
+>
+> 活动内容（Keep 规格 K02／K03，2026-09-23）：手册每张卡的原文（`age_label` 到 `deeper`）、模组一的脚本（`guide`，
+> 形状见 `src/t2/types.ts` 的 `ActivityGuide`）与示范片封面／片长（`poster_url`／`video_seconds`，票 3 才填）
+> 由 `deploy/migrations/2026-09-23-activity-content.sql` 加栏位并写入；**可重跑**：文字与 `guide` 只填 NULL、
+> `steps` 只填还是空阵列的。`src/t2/activityContent.ts` 与那份迁移的 UPDATE 都由抽取脚本从 `NEWT2/` 的两份 docx
+> 产出，`test/activityContent.test.ts` 重跑比对（同 `toolkit.structure` 的护栏）。客户原文一个字都不改写，
+> 含《用语对照表》的禁字（规格 §7、§9 第 3 题）。⚠️ 这份迁移**先于新版程式码部署**。
 
 > `src/t2/toolkit/` 里的 22 份是脚本从 `NEWT2/森心康评估工具包_20260908.zip` 抽出来的常数，
 > **不要手改** —— `test/toolkit.structure.test.ts` 会重跑脚本比对。工具包的 HTML 一行都不执行：

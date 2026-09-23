@@ -48,7 +48,8 @@ interface T2WeeklyPlanProps {
  * 家長，今天打開要找得到它。
  *
  * 【每一支顯示什麼】
- * 標題、時長、器材、圖文步驟（**有幾則就顯示幾則**，不補、不截）、示範連結（有才顯示）、
+ * 標題、時長、器材、分解步驟（**有幾則就顯示幾則**，不補、不截；圖選填，沒圖的那一步放序號方塊，
+ * ADR-0008）、示範連結（有才顯示）、
  * 以及那句「因為……所以練……」（`src/t2/weeklyCopy.ts`，不在這裡手寫）。
  *
  * 【兩個月齡】
@@ -195,14 +196,24 @@ export default function T2WeeklyPlan({ onBookService, week }: T2WeeklyPlanProps)
                       <ol className="mt-2 space-y-2">
                         {activity.steps.map((step, i) => (
                           <li key={`${activity.id}-${i}`} className="flex items-start gap-2.5">
-                            <img
-                              src={step.imageUrl}
-                              alt=""
-                              loading="lazy"
-                              className="w-16 h-16 rounded-xl object-cover border border-brand-moss/15 shrink-0 bg-brand-sage/10"
-                            />
+                            {/* 圖選填（ADR-0008）：沒有圖的那一步放序號方塊，不放破圖、不留空白。 */}
+                            {step.imageUrl ? (
+                              <img
+                                src={step.imageUrl}
+                                alt=""
+                                loading="lazy"
+                                className="w-16 h-16 rounded-xl object-cover border border-brand-moss/15 shrink-0 bg-brand-sage/10"
+                              />
+                            ) : (
+                              <span
+                                aria-hidden="true"
+                                className="w-8 h-8 rounded-lg shrink-0 bg-brand-sage/30 border border-brand-moss/15 text-brand-forest text-xs font-extrabold flex items-center justify-center"
+                              >
+                                {i + 1}
+                              </span>
+                            )}
                             <p className="text-[11px] text-brand-charcoal/80 leading-relaxed pt-0.5">
-                              <span className="font-bold text-brand-moss mr-1">{i + 1}.</span>
+                              {step.imageUrl && <span className="font-bold text-brand-moss mr-1">{i + 1}.</span>}
                               {step.instruction}
                             </p>
                           </li>

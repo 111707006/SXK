@@ -339,6 +339,11 @@ CREATE TABLE IF NOT EXISTS `intervention_materials` (
 --
 -- 同样刻意**没有 company_id**：活动是森心康的内容，不是家长资料，
 -- 也不属于任何一家合作公司。取资料仍须经过 src/admin/adminStore.ts 这个单一入口。
+--
+-- 2026-09-23 加了内容栏位（Keep 规格 §4.1，deploy/migrations/2026-09-23-activity-content.sql）：
+-- 客户手册那张卡的原文（age_label 到 deeper）与模组一的脚本（guide），由那份迁移写入；
+-- 示范片的封面与片长（poster_url、video_seconds）另外补。文字栏位 NULL ＝ 迁移还没填，
+-- '' ＝ 后台清掉的 —— 迁移重跑只填 NULL，清掉的不会被填回来。
 
 CREATE TABLE IF NOT EXISTS `activities` (
   -- 沿用原型 ACT300 的编号：'A017'。之后新增的活动也照这个格式往后编。
@@ -351,6 +356,10 @@ CREATE TABLE IF NOT EXISTS `activities` (
   -- 从原型「3–8岁」解析出来的区间（月），只当硬闸。
   `age_min_month` INT NOT NULL,
   `age_max_month` INT NOT NULL,
+  -- 手册标题列的适龄原文「6个月–3岁」。画面显示它；上面两栏由它解析（parseAgeRange）。
+  `age_label` VARCHAR(32) DEFAULT NULL,
+  -- 手册的人物配置：「亲子」「亲子或全家」「全家」……
+  `people` VARCHAR(16) DEFAULT NULL,
   -- 九码阵列 ["MOT","ADL"]。附录 B.3 从模组推的初值，内容团队在后台改。
   `dimensions` JSON NOT NULL,
   -- 练什么。只认 ★ 发现标签（src/t2/findingTags.ts 的 ACTIVITY_TAGS）。
@@ -359,12 +368,27 @@ CREATE TABLE IF NOT EXISTS `activities` (
   `avoid_if` JSON NOT NULL,
   -- 分钟。0 = 还没填。
   `duration_min` INT NOT NULL DEFAULT 0,
-  -- 器材，字串阵列。
+  -- 器材，字串阵列。给配对与后台用；画面「要准备」显示的是下面 need 的原文。
   `equipment` JSON NOT NULL,
-  -- 分解步骤，有序阵列：[{"imageUrl":"…","instruction":"…"}, …]。图文是主体（ADR-0003／0005）。
+  -- 手册「需要什么」原文。
+  `need` VARCHAR(255) DEFAULT NULL,
+  -- 手册「练什么」。
+  `trains` VARCHAR(255) DEFAULT NULL,
+  -- 分解步骤，有序阵列：[{"imageUrl":"…"或 null,"instruction":"…"}, …]。
+  -- 文字是底、图选填（ADR-0008，取代 ADR-0003／0005 的「每步一张图」）。
   `steps` JSON NOT NULL,
-  -- 示范连结，选填。只收 https:// 或站内 /… 路径（ADR-0005）。
+  -- 手册「简单／难一点」的两半、「小提醒」、「想深入练」（不含「想深入练：」）。
+  `easier` TEXT NULL,
+  `harder` TEXT NULL,
+  `tip` TEXT NULL,
+  `deeper` VARCHAR(255) DEFAULT NULL,
+  -- 模组一的影片导引脚本（src/t2/types.ts 的 ActivityGuide）；没有脚本是 NULL。
+  `guide` JSON NULL,
+  -- 示范片，选填。只收 https:// 或站内 /… 路径（ADR-0005）。GO 之后的主画面，仍是选填（ADR-0008）。
   `video_url` VARCHAR(512) DEFAULT NULL,
+  -- 示范片的封面（同 video_url 的网址规则）与片长（秒）。Keep 规格 §6。
+  `poster_url` VARCHAR(512) DEFAULT NULL,
+  `video_seconds` INT DEFAULT NULL,
   -- 只有停用，没有删除（ADR-0005）。
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

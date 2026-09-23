@@ -6,6 +6,7 @@ import { TOOLKIT } from '../src/t2/toolkit';
 import { CAVEATS } from '../src/t2/caveats';
 import { FINDING_TAGS } from '../src/t2/findingTags';
 import { DIMENSION_CODES } from '../src/t2/types';
+import { NO_ACTIVITY_CONTENT } from '../src/t2/activitySeed';
 import type { Activity, DimensionCode, T2Findings } from '../src/t2/types';
 import { matchWeeklyActivities } from '../src/t2/activityMatch';
 import { buildSmartGoals } from '../src/t2/goals';
@@ -79,6 +80,7 @@ function activity(over: Partial<Activity> & Pick<Activity, 'id' | 'moduleNo' | '
     steps: [],
     videoUrl: null,
     active: true,
+    ...NO_ACTIVITY_CONTENT,
     ...over,
   };
 }

@@ -23,6 +23,7 @@ import {
   renderActivitySeedSql,
   extractCreateTable,
 } from '../scripts/t2/activitySql';
+import { CONTENT_MIGRATION } from '../scripts/t2/activityContentSql';
 
 /**
  * 活動種子的測試（#44，規格 v2 §7.1、§7.2、§9.1、附錄 B.3）。
@@ -195,6 +196,16 @@ describe('300 支種子（票 #44 驗收）', () => {
     }
   });
 
+  // 種子那一句 INSERT 寫的時候內容欄位還不存在；手冊與腳本由 2026-09-23 的遷移另外寫。
+  it('內容欄位在種子裡是空的：文字是空字串、腳本／封面／片長是 null', () => {
+    for (const a of ACTIVITY_SEED) {
+      for (const text of [a.ageLabel, a.people, a.need, a.trains, a.easier, a.harder, a.tip, a.deeper]) expect(text).toBe('');
+      expect(a.guide).toBeNull();
+      expect(a.posterUrl).toBeNull();
+      expect(a.videoSeconds).toBeNull();
+    }
+  });
+
   it('兩支「全龄」的活動（20、300）拿到的是 ALL_AGES，不是某個猜出來的數字', () => {
     expect(ACTIVITY_SEED[19].ageMonths).toEqual(ALL_AGES);
     expect(ACTIVITY_SEED[299].ageMonths).toEqual(ALL_AGES);
@@ -227,14 +238,39 @@ describe('地基：原文與 SQL 都是算出來的，沒有人手改', () => {
     expect(sql).toContain("('A017', '跟着音乐动'");
   });
 
-  it('deploy/schema.sql 與遷移檔的 CREATE TABLE `activities` 一字不差', () => {
+  /**
+   * schema.sql 是「現在的樣子」，遷移是「怎麼走到這裡」：2026-09-11 建表，2026-09-23 加內容欄位
+   * （Keep 規格 §4.1，`ALTER TABLE … ADD COLUMN … AFTER …`）。兩份遷移都不改寫（已經在正式站跑過），
+   * 所以比的是：schema.sql 那張表 = 09-11 建的表，在每一個 AFTER 的位置插進 09-23 加的那一欄。
+   * 只比欄位與索引的定義行，不比註解 —— 註解是說明，會跟著決定改（步驟那一欄的說明就因 ADR-0008 改了）。
+   */
+  it('deploy/schema.sql 的 CREATE TABLE `activities` = 2026-09-11 建的表＋2026-09-23 加的欄位（定義與位置都一字不差）', () => {
     const schema = fs.readFileSync(path.join(ROOT, 'deploy/schema.sql'), 'utf8');
-    const migration = fs.readFileSync(path.join(ROOT, ACTIVITIES_MIGRATION), 'utf8');
+    const created = fs.readFileSync(path.join(ROOT, ACTIVITIES_MIGRATION), 'utf8');
+    const content = fs.readFileSync(path.join(ROOT, CONTENT_MIGRATION), 'utf8');
     const fromSchema = extractCreateTable(schema, 'activities');
-    const fromMigration = extractCreateTable(migration, 'activities');
+    const fromMigration = extractCreateTable(created, 'activities');
     expect(fromSchema).not.toBeNull();
     expect(fromMigration).not.toBeNull();
-    expect(fromSchema).toBe(fromMigration);
+
+    const definitions = (create: string) =>
+      create.split('\n').map(l => l.trim()).filter(l => l !== '' && !l.startsWith('--'));
+    const schemaDefs = definitions(fromSchema!);
+    const added = [...content.matchAll(/'ALTER TABLE `activities` ADD COLUMN (`(\w+)` [^']+?) AFTER `(\w+)`'/g)].map(m => ({
+      definition: m[1],
+      name: m[2],
+      after: m[3],
+    }));
+    expect(added.map(a => a.name)).toEqual([
+      'age_label', 'people', 'need', 'trains', 'easier', 'harder', 'tip', 'deeper', 'guide', 'poster_url', 'video_seconds',
+    ]);
+    for (const a of added) {
+      const at = schemaDefs.indexOf(`${a.definition},`);
+      expect(at, `schema.sql 缺 ${a.definition}`).toBeGreaterThan(0);
+      expect(schemaDefs[at - 1], `${a.name} 應該緊接在 ${a.after} 後面`).toMatch(new RegExp(`^\`${a.after}\` `));
+    }
+    expect(schemaDefs.filter(l => !added.some(a => l === `${a.definition},`))).toEqual(definitions(fromMigration!));
+
     // 票 #44：ADR-0005 的欄位＋ module_no INT ＋ target_month INT NULL
     for (const col of [
       '`id`', '`title`', '`module_no` INT', '`target_month` INT', '`age_min_month`', '`age_max_month`',
@@ -243,6 +279,19 @@ describe('地基：原文與 SQL 都是算出來的，沒有人手改', () => {
     ]) {
       expect(fromSchema, `缺欄位 ${col}`).toContain(col);
     }
+    // 活動庫仍不吃 company_id（ADR-0005）：兩份遷移都一樣。
     expect(fromSchema).not.toContain('company_id');
+    const contentSql = content.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+    expect(contentSql).not.toContain('company_id');
+  });
+
+  it('新欄位全部可為 NULL —— 09-11 的種子 INSERT 不帶它們，schema.sql 建的新庫照樣插得進去', () => {
+    const content = fs.readFileSync(path.join(ROOT, CONTENT_MIGRATION), 'utf8');
+    const defs = [...content.matchAll(/ADD COLUMN (`\w+` [^']+?) AFTER/g)].map(m => m[1]);
+    expect(defs).toHaveLength(11);
+    for (const d of defs) {
+      expect(d, d).not.toMatch(/NOT NULL/);
+      expect(d, d).toMatch(/DEFAULT NULL|\bNULL$/);
+    }
   });
 });

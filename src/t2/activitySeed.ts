@@ -126,6 +126,29 @@ function toMonths(n: number, unit: string): number {
   return unit === '个月' ? n : n * 12;
 }
 
+type ContentField =
+  | 'ageLabel' | 'people' | 'need' | 'trains' | 'easier' | 'harder' | 'tip' | 'deeper'
+  | 'guide' | 'posterUrl' | 'videoSeconds';
+
+/**
+ * 內容欄位（Keep 規格 §4.1）**還沒寫進去**的樣子。種子（2026-09-11 那一句 INSERT）不帶這幾欄 ——
+ * 那時欄位還不存在；客戶手冊與腳本的原文由 2026-09-23 的遷移另外寫（`activityContent.ts`）。
+ * 測試要造一支「沒有內容」的活動時也從這裡取，不必每一支各抄一份十一個欄位。
+ */
+export const NO_ACTIVITY_CONTENT: Readonly<Pick<Activity, ContentField>> = {
+  ageLabel: '',
+  people: '',
+  need: '',
+  trains: '',
+  easier: '',
+  harder: '',
+  tip: '',
+  deeper: '',
+  guide: null,
+  posterUrl: null,
+  videoSeconds: null,
+};
+
 function seedFrom(entry: { no: number; name: string; age: string }): Activity {
   const moduleNo = moduleNoOf(entry.no);
   return {
@@ -142,6 +165,7 @@ function seedFrom(entry: { no: number; name: string; age: string }): Activity {
     steps: [],
     videoUrl: null,
     active: true,
+    ...NO_ACTIVITY_CONTENT,
   };
 }
 

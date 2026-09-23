@@ -5,8 +5,11 @@
  * 2026-09 退場（ADR-0005、#63）後只剩活動庫一個呼叫端，規則原封不動搬過來。
  * 這幾條當初是為了家長端那一頁定的，跟哪個庫在用它無關：
  *
- * - **圖文為主、影片為輔**：每一則步驟一張圖配一句指令，兩者都是必填。這個 repo
- *   沒有檔案上傳能力，圖是外部連結或站內路徑（見 `assetUrl.ts`）。
+ * - **文字步驟是底，圖選填**（ADR-0008，2026-09-23 取代 ADR-0003／0005 的「每則一張圖配
+ *   一句指令，兩者都必填」）：指令必填；圖可以沒有（空字串、只有空白、`null` 都算沒有），
+ *   存成 `null`。客戶的手冊「怎么玩」只有文字，照舊規則 300 支沒有一支存得進步驟。
+ * - **有圖時照舊驗網址**：只收 `https://` 或站內路徑（見 `assetUrl.ts`）。這個 repo 沒有檔案
+ *   上傳能力，圖是外部連結或站內路徑。
  * - **順序就是家長照著做的順序**，陣列順序是資料的一部分，不重新排。
  * - **超過上限整筆拒收**，不默默截斷。
  */
@@ -32,8 +35,8 @@ function readText(value: unknown, max: number): string | null {
 }
 
 /**
- * 讀一串分解步驟。**零步是合法的**：活動庫的 300 支種子全部是零步，內容團隊是
- * 先填 `targetMonth` 再慢慢補圖文的，零步必須存得下去。
+ * 讀一串分解步驟。**零步是合法的**：活動庫的種子是零步，內容團隊可以先填 `targetMonth`
+ * 再慢慢補步驟，零步必須存得下去。
  */
 export function readSteps(raw: unknown): StepsResult {
   if (!Array.isArray(raw)) {
@@ -47,13 +50,23 @@ export function readSteps(raw: unknown): StepsResult {
   }
   const steps: ActivityStep[] = [];
   for (const [index, item] of raw.entries()) {
-    const imageUrl = readText((item as any)?.imageUrl, MAX_URL);
-    const instruction = readText((item as any)?.instruction, MAX_INSTRUCTION);
-    if (!imageUrl || !instruction) {
-      return { ok: false, error: `第 ${index + 1} 步要同时填写分解图与指令文字。` };
+    const n = index + 1;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return { ok: false, error: `第 ${n} 步的格式不对。` };
     }
-    if (!isAllowedAssetUrl(imageUrl)) {
-      return { ok: false, error: `第 ${index + 1} 步的分解图网址必须是 https:// 开头，或站内的 / 路径。` };
+    const { imageUrl: rawImage, instruction: rawInstruction } = item as Record<string, unknown>;
+    const instruction = readText(rawInstruction, MAX_INSTRUCTION);
+    if (!instruction) {
+      return { ok: false, error: `第 ${n} 步要填写指令文字。` };
+    }
+    // 圖選填（ADR-0008）。不是字串的東西（數字、物件）不當成「沒有圖」放行 ——
+    // 那是送錯了東西，不是沒填。
+    if (rawImage !== undefined && rawImage !== null && typeof rawImage !== 'string') {
+      return { ok: false, error: `第 ${n} 步的分解图网址必须是 https:// 开头，或站内的 / 路径。` };
+    }
+    const imageUrl = readText(rawImage, MAX_URL);
+    if (imageUrl !== null && !isAllowedAssetUrl(imageUrl)) {
+      return { ok: false, error: `第 ${n} 步的分解图网址必须是 https:// 开头，或站内的 / 路径。` };
     }
     steps.push({ imageUrl, instruction });
   }

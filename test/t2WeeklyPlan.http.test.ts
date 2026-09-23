@@ -5,6 +5,7 @@ import { t2FindingsFixture } from './helpers/t2Fixtures';
 import { DIM_MOD } from '../src/t2/activityMatch';
 import { weekStartOf } from '../src/t2/weeks';
 import type { Activity, DimensionCode, ModuleNo, T2Findings } from '../src/t2/types';
+import { NO_ACTIVITY_CONTENT } from '../src/t2/activitySeed';
 import type { FindingsRecord } from '../src/db/t2Findings';
 import type { WeeklyPlanInsert, WeeklyPlanRecord } from '../src/db/t2WeeklyPlans';
 
@@ -65,6 +66,7 @@ function act(id: string, moduleNo: ModuleNo, targetMonth: number | null, over: P
     steps: [{ imageUrl: '/act/1.png', instruction: '先坐下来' }],
     videoUrl: null,
     active: true,
+    ...NO_ACTIVITY_CONTENT,
     ...over,
   };
 }
@@ -222,14 +224,21 @@ describe('GET /api/t2/weekly-plan', () => {
     expect(langIds.sort()).toEqual(['A005', 'A006']);
   });
 
-  it('活動內容每次從活動庫查：庫裡改了標題，同一週的同一支跟著改', async () => {
+  // Keep 規格 K17 的驗收「改一支的『小提醒』家長端立刻看到」：內容欄位同樣每次從活動庫查。
+  it('活動內容每次從活動庫查：庫裡改了標題與小提醒，同一週的同一支跟著改', async () => {
     await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
-    library = library.map(a => (a.id === 'A001' ? { ...a, title: '换过的名字', durationMin: 20 } : a));
+    library = library.map(a =>
+      a.id === 'A001'
+        ? { ...a, title: '换过的名字', durationMin: 20, tip: '后台刚改的小提醒', steps: [{ imageUrl: null, instruction: '只有文字的一步' }] }
+        : a,
+    );
 
     const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
     const a001 = body.activities.find((a: any) => a.activity.id === 'A001');
     expect(a001.activity.title).toBe('换过的名字');
     expect(a001.activity.durationMin).toBe(20);
+    expect(a001.activity.tip).toBe('后台刚改的小提醒');
+    expect(a001.activity.steps).toEqual([{ imageUrl: null, instruction: '只有文字的一步' }]);
     expect(weeklyTable).toHaveLength(1);
   });
 

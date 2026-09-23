@@ -59,7 +59,9 @@ describe('活動庫的 SQL 不帶公司條件', () => {
   it('SET 子句的欄位名來自常數表，不來自請求 —— UPDATE 裡不出現 req 或 patch 的字面鍵', () => {
     const fn = store.slice(store.indexOf('export async function updateActivity'));
     const body = fn.slice(0, fn.indexOf('\n}'));
-    expect(body).toContain('ACTIVITY_COLUMNS[k].column');
+    // 一個欄位可以對到好幾欄（適齡的硬閘是兩欄，Keep 規格 K17），但欄位名一律從常數表那一格取。
+    expect(body).toContain('ACTIVITY_COLUMNS[k].map(c => ({ column: c.column');
+    expect(body).toContain('columns.map(c => `${c.column} = ?`)');
     expect(body).not.toMatch(/Object\.keys\(req/);
   });
 });

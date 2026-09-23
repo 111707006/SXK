@@ -754,20 +754,41 @@ export async function findActivityById(id: string): Promise<Activity | null> {
 /**
  * `ActivityPatch` 的每個欄位 → 資料表欄位與序列化方式。
  *
- * 寫成一張表而不是十個 if：新增一個可填的欄位時，這裡少一列會在型別檢查就被抓到
+ * 寫成一張表而不是一串 if：新增一個可填的欄位時，這裡少一列會在型別檢查就被抓到
  * （`Record<keyof ActivityPatch, …>` 要求齊全），而不是某個欄位在畫面上存了、資料庫裡沒有。
+ * 一個欄位可以寫好幾欄：`ageMonths`（由適齡原文解析的硬閘）是 `age_min_month` 與 `age_max_month`。
+ *
+ * 手冊的文字欄位照原樣寫字串，**清掉就是空字串，不寫 `NULL`**：`NULL` 是「遷移還沒填」，
+ * 遷移重跑只填 `NULL`（`deploy/migrations/2026-09-23-activity-content.sql`），清掉的不會被填回來。
  */
-const ACTIVITY_COLUMNS: Readonly<Record<keyof ActivityPatch, { column: string; encode: (v: any) => unknown }>> = {
-  title: { column: 'title', encode: v => v },
-  targetMonth: { column: 'target_month', encode: v => v },
-  dimensions: { column: 'dimensions', encode: v => JSON.stringify(v) },
-  targets: { column: 'targets', encode: v => JSON.stringify(v) },
-  avoidIf: { column: 'avoid_if', encode: v => JSON.stringify(v) },
-  durationMin: { column: 'duration_min', encode: v => v },
-  equipment: { column: 'equipment', encode: v => JSON.stringify(v) },
-  steps: { column: 'steps', encode: v => JSON.stringify(v) },
-  videoUrl: { column: 'video_url', encode: v => v },
-  active: { column: 'active', encode: v => (v ? 1 : 0) },
+const plainColumn = (column: string) => [{ column, encode: (v: any) => v }];
+const jsonColumn = (column: string) => [{ column, encode: (v: any) => JSON.stringify(v) }];
+const ACTIVITY_COLUMNS: Readonly<Record<keyof ActivityPatch, ReadonlyArray<{ column: string; encode: (v: any) => unknown }>>> = {
+  title: plainColumn('title'),
+  targetMonth: plainColumn('target_month'),
+  ageLabel: plainColumn('age_label'),
+  ageMonths: [
+    { column: 'age_min_month', encode: v => v.min },
+    { column: 'age_max_month', encode: v => v.max },
+  ],
+  people: plainColumn('people'),
+  dimensions: jsonColumn('dimensions'),
+  targets: jsonColumn('targets'),
+  avoidIf: jsonColumn('avoid_if'),
+  durationMin: plainColumn('duration_min'),
+  equipment: jsonColumn('equipment'),
+  need: plainColumn('need'),
+  trains: plainColumn('trains'),
+  steps: jsonColumn('steps'),
+  easier: plainColumn('easier'),
+  harder: plainColumn('harder'),
+  tip: plainColumn('tip'),
+  deeper: plainColumn('deeper'),
+  guide: jsonColumn('guide'),
+  videoUrl: plainColumn('video_url'),
+  posterUrl: plainColumn('poster_url'),
+  videoSeconds: plainColumn('video_seconds'),
+  active: [{ column: 'active', encode: v => (v ? 1 : 0) }],
 };
 
 /**
@@ -784,8 +805,9 @@ export async function updateActivity(id: string, patch: ActivityPatch): Promise<
   const p = requirePool();
   const keys = (Object.keys(patch) as Array<keyof ActivityPatch>).filter(k => patch[k] !== undefined);
   if (keys.length > 0) {
-    const sets = keys.map(k => `${ACTIVITY_COLUMNS[k].column} = ?`).join(', ');
-    const params: any[] = keys.map(k => ACTIVITY_COLUMNS[k].encode(patch[k]));
+    const columns = keys.flatMap(k => ACTIVITY_COLUMNS[k].map(c => ({ column: c.column, value: c.encode(patch[k]) })));
+    const sets = columns.map(c => `${c.column} = ?`).join(', ');
+    const params: any[] = columns.map(c => c.value);
     await p.execute(`UPDATE activities SET ${sets} WHERE id = ?`, [...params, id]);
   }
   return findActivityById(id);

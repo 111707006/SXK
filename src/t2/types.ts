@@ -257,10 +257,55 @@ export interface RedoNote {
 /** 客戶的 15 個活動模組（§7.2）。編號 001–020 是模組 1，以此類推：`ceil(編號 / 20)`。 */
 export type ModuleNo = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
-/** 一則分解步驟：一張圖配一句指令，順序即照著做的順序（ADR-0003／0005）。 */
+/**
+ * 一則分解步驟：一句指令，圖選填，順序即照著做的順序。
+ *
+ * ADR-0008（2026-09-23）取代 ADR-0003／0005 的「每則一張圖、兩者都必填」：文字步驟是底，
+ * 圖是補充。沒有圖是 `null`（不是空字串）—— 畫面在那裡放序號方塊，不放破圖。
+ */
 export interface ActivityStep {
-  imageUrl: string;
+  imageUrl: string | null;
   instruction: string;
+}
+
+/**
+ * 腳本「開拍前的準備」的四項，**照這個順序顯示**（Keep 規格 §4.2）。
+ *
+ * 要有一份固定順序，是因為 MySQL 的 JSON 物件**不保留鍵的順序**（存進去會依鍵排序），
+ * 讀回來照 `Object.keys` 列，家長看到的就是資料庫的排序而不是腳本的。
+ */
+export const GUIDE_PREP_KEYS = ['场地', '器材', '安全检查', '大人位置'] as const;
+export type GuidePrepKey = (typeof GUIDE_PREP_KEYS)[number];
+
+/**
+ * 一支活動的影片導引腳本（Keep 規格 §4.2）。現在只有模組一（A001–A020）有。
+ *
+ * 腳本裡「畫面描述」「拍攝提示」是給拍片的人看的，**不在這裡**，也不上家長端。
+ * 內容是客戶原文（`src/t2/activityContent.ts` 由腳本從 docx 抽出），只拿掉段落的標籤
+ * （「旁白」「如果」「→」「✓」「1.」）與逐字稿外層的那一對「」。
+ */
+export interface ActivityGuide {
+  /** 「2–3 分钟」原文。 */
+  length: string;
+  /** 片頭旁白。 */
+  intro: string;
+  /** 原理，8 條上下。 */
+  principles: string[];
+  /** 準備：场地、器材、安全检查、大人位置（只認 `GUIDE_PREP_KEYS`，可以少，不能多）。 */
+  prep: Partial<Record<GuidePrepKey, string>>;
+  /** 分鏡：名稱與旁白（畫面描述不上家長端）。 */
+  shots: Array<{ name: string; say: string }>;
+  /** 孩子的反應：如果……就……，3 則。 */
+  reactions: Array<{ if: string; then: string }>;
+  /** 大人常做錯的，3 件。 */
+  mistakes: string[];
+  /** 降一階、升一階。 */
+  down: string;
+  up: string;
+  /** 怎麼看出有進步，3 條（打卡時勾）。 */
+  progress: string[];
+  /** 收尾旁白。 */
+  outro: string;
 }
 
 /**
@@ -274,6 +319,12 @@ export interface ActivityStep {
  * `targets` 的型別是 `ActivityTag` 不是 `FindingTag`：活動只認 ★ 標籤（§5.5），
  * 「慢熱型」這種只進報告的標籤不該出現在這裡。`avoidIf` 對的是孩子的全部標籤，
  * 所以是 `FindingTag`。
+ *
+ * 【內容欄位（Keep 規格 §4.1，2026-09-23）】
+ * `ageLabel` 到 `deeper` 是客戶手冊那張卡的原文，`guide` 是模組一的腳本。文字欄位**空字串
+ * 就是沒有**（新增的活動、或內容團隊在後台清掉的），畫面據此不顯示那一區；不用 `null`，
+ * 呼叫端不必分兩種「沒有」。資料庫那一側 `NULL`＝遷移還沒填、`''`＝後台清掉的，遷移重跑
+ * 只填 `NULL`，所以清掉的不會被填回來（`deploy/migrations/2026-09-23-activity-content.sql`）。
  */
 export interface Activity {
   /** 沿用原型 `ACT300` 的編號，`'A017'`。 */
@@ -281,15 +332,38 @@ export interface Activity {
   title: string;
   moduleNo: ModuleNo;
   targetMonth: number | null;
+  /** 從適齡原文解析出來的區間（`activitySeed.ts` 的 `parseAgeRange`），只當硬閘。 */
   ageMonths: { min: number; max: number };
+  /** 手冊標題列的適齡原文「6个月–3岁」。畫面顯示它；`ageMonths` 由它解析。 */
+  ageLabel: string;
+  /** 手冊的人物配置：「亲子」「亲子或全家」「全家」……。 */
+  people: string;
   /** 從模組推的初值（附錄 B.3），可多個；內容團隊在後台改。 */
   dimensions: DimensionCode[];
   targets: ActivityTag[];
   avoidIf: FindingTag[];
   /** 種子沒有這個值，先是 0，內容團隊在後台填。 */
   durationMin: number;
+  /** 器材的字串陣列，給配對與後台用；畫面「要准备」顯示的是 `need` 原文。 */
   equipment: string[];
+  /** 手冊「需要什么」原文。 */
+  need: string;
+  /** 手冊「练什么」。 */
+  trains: string;
   steps: ActivityStep[];
+  /** 手冊「简单／难一点」的前後兩半。 */
+  easier: string;
+  harder: string;
+  /** 手冊「💡 小提醒」。 */
+  tip: string;
+  /** 手冊「📖 想深入练」（不含「想深入练：」這幾個字）。 */
+  deeper: string;
+  /** 模組一的影片導引腳本；沒有腳本是 `null`。 */
+  guide: ActivityGuide | null;
   videoUrl: string | null;
+  /** 示範片的封面，網址規則同 `videoUrl`（Keep 規格 §6，票 3 才有資料）。 */
+  posterUrl: string | null;
+  /** 示範片長度（秒），畫面顯示「0:10」。 */
+  videoSeconds: number | null;
   active: boolean;
 }

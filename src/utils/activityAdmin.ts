@@ -21,14 +21,26 @@
  * `Activity.targets` 的型別是 `ActivityTag`（§5.5 的 ★）。貼一個只進報告的標籤（「慢熱型」）
  * 進去，型別擋不住 JSON，配對拿它去對孩子的 ★ 標籤永遠對不上，而畫面上看不出來。這裡整筆退回，
  * 錯誤訊息點名是哪個字。`avoidIf` 對的是孩子的全部標籤，所以認全部 57 個。
+ *
+ * 【內容欄位（Keep 規格 K17，2026-09-23）】
+ * 手冊那張卡的原文（適齡、人物配置、需要什么、练什么、简单／难一点、小提醒、想深入练）、
+ * 模組一的腳本、示範片的封面與片長，一樣「帶了才改」。三條不一樣的規則：
+ * - **適齡改了連帶改硬閘**：`ageMonths` 由適齡原文解析（規格 §4.1），不能直接送。只改字不改硬閘，
+ *   家長看到「适合 3–6岁」而七歲的孩子照樣配得到。
+ * - **文字清掉存空字串**，不是 `NULL`：遷移重跑只填 `NULL`（`2026-09-23-activity-content.sql`），
+ *   清掉的不會被客戶原文填回來。
+ * - **腳本不能整份刪掉**，同一個理由：刪掉就是 `NULL`，下一次跑遷移又回來了。要改哪一段就改哪一段。
  */
 
 import { ACTIVITY_TAGS, FINDING_TAGS } from '../t2/findingTags';
 import type { ActivityTag, FindingTag } from '../t2/findingTags';
 import { DIMENSION_CODES } from '../t2/types';
 import type { Activity, ActivityStep, DimensionCode, ModuleNo } from '../t2/types';
+import type { ActivityGuide } from '../t2/types';
+import { parseAgeRange } from '../t2/activitySeed';
 import { isAllowedAssetUrl, assetUrlError } from './assetUrl';
 import { readSteps } from './activitySteps';
+import { readGuide } from './activityGuide';
 
 // ══════════════════════════════════════════════
 // 進度與篩選
@@ -72,20 +84,33 @@ export function filterActivities(activities: ReadonlyArray<Activity>, filter: Ac
 // ══════════════════════════════════════════════
 
 /**
- * 可以填的欄位。`id`、`moduleNo`、`ageMonths` **不在其中**：編號是主鍵；模組由編號算出
- * （`ceil(編號 / 20)`，§7.2），改了它等於把活動搬到別的模組群而編號還留在原處；
- * `ageMonths` 是原型解析出來的硬閘，不是要人填的。
+ * 可以填的欄位。`id`、`moduleNo` **不在其中**：編號是主鍵；模組由編號算出
+ * （`ceil(編號 / 20)`，§7.2），改了它等於把活動搬到別的模組群而編號還留在原處。
+ * `ageMonths` 在這裡，但**不收請求送來的**：它是適齡原文解析出來的硬閘，只跟著 `ageLabel` 一起出現。
  */
 export interface ActivityPatch {
   title?: string;
   targetMonth?: number | null;
+  ageLabel?: string;
+  /** 只由 `ageLabel` 解析而來（檔頭）。 */
+  ageMonths?: { min: number; max: number };
+  people?: string;
   dimensions?: DimensionCode[];
   targets?: ActivityTag[];
   avoidIf?: FindingTag[];
   durationMin?: number;
   equipment?: string[];
+  need?: string;
+  trains?: string;
   steps?: ActivityStep[];
+  easier?: string;
+  harder?: string;
+  tip?: string;
+  deeper?: string;
+  guide?: ActivityGuide;
   videoUrl?: string | null;
+  posterUrl?: string | null;
+  videoSeconds?: number | null;
   active?: boolean;
 }
 
@@ -105,6 +130,30 @@ const MAX_EQUIPMENT_ITEM = 64;
 const MAX_EQUIPMENT_ITEMS = 20;
 /** 一支活動不會用到幾個小時；超過這個數多半是把秒打成分。 */
 const MAX_DURATION_MIN = 180;
+
+/** 示範片最長一小時。客戶的片子十秒、腳本寫的成片兩三分鐘；超過多半是把毫秒打成秒。 */
+export const MAX_VIDEO_SECONDS = 3600;
+
+/** 適齡原文的上限＝`age_label` 的欄寬。匯出給編輯畫面，兩邊說同一個數。 */
+export const MAX_AGE_LABEL = 32;
+
+/**
+ * 手冊文字欄位的上限，也是它在畫面上的名稱。上限＝資料表的欄寬（VARCHAR 以字元計；
+ * TEXT 那三欄給一千字，客戶最長的一段不到八十字）。**超過整筆退回，不截斷**：截掉的是客戶的原文。
+ */
+export const CONTENT_TEXT_FIELDS: ReadonlyArray<{
+  key: 'people' | 'need' | 'trains' | 'easier' | 'harder' | 'tip' | 'deeper';
+  name: string;
+  max: number;
+}> = [
+  { key: 'people', name: '人物配置', max: 16 },
+  { key: 'need', name: '需要什么', max: 255 },
+  { key: 'trains', name: '练什么', max: 255 },
+  { key: 'easier', name: '简单', max: 1000 },
+  { key: 'harder', name: '难一点', max: 1000 },
+  { key: 'tip', name: '小提醒', max: 1000 },
+  { key: 'deeper', name: '想深入练', max: 255 },
+];
 
 function fail(error: string): ActivityPatchResult {
   return { ok: false, error };
@@ -187,21 +236,57 @@ export function readActivityPatch(body: unknown): ActivityPatchResult {
   }
 
   if ('steps' in raw) {
-    // 圖的網址、上限、每步有圖有字，見 `activitySteps.ts`；零步是合法的 —— 種子就是零步。
+    // 指令必填、圖選填（ADR-0008）、有圖時驗網址、上限，見 `activitySteps.ts`；零步是合法的 —— 種子就是零步。
     const r = readSteps(raw.steps);
     if (!r.ok) return fail(r.error);
     patch.steps = r.steps;
   }
 
   if ('videoUrl' in raw) {
-    if (raw.videoUrl === null) patch.videoUrl = null;
-    else if (typeof raw.videoUrl !== 'string') return fail(assetUrlError('示范链接'));
-    else {
-      const url = raw.videoUrl.trim().slice(0, MAX_URL);
-      if (!url) patch.videoUrl = null;
-      else if (!isAllowedAssetUrl(url)) return fail(assetUrlError('示范链接'));
-      else patch.videoUrl = url;
+    const r = readUrl(raw.videoUrl, '示范链接');
+    if (!r.ok) return fail(r.error);
+    patch.videoUrl = r.url;
+  }
+
+  if ('posterUrl' in raw) {
+    const r = readUrl(raw.posterUrl, '示范片封面');
+    if (!r.ok) return fail(r.error);
+    patch.posterUrl = r.url;
+  }
+
+  if ('videoSeconds' in raw) {
+    if (raw.videoSeconds === null) patch.videoSeconds = null;
+    else if (isNonNegativeInt(raw.videoSeconds, MAX_VIDEO_SECONDS) && raw.videoSeconds > 0) patch.videoSeconds = raw.videoSeconds;
+    else return fail(`示范片长度必须是 1 到 ${MAX_VIDEO_SECONDS} 的整数（秒），或留空。`);
+  }
+
+  if ('ageLabel' in raw) {
+    const label = typeof raw.ageLabel === 'string' ? raw.ageLabel.trim() : '';
+    if (!label) return fail('请填写适龄（例：「3–8岁」「6个月–3岁」「全龄」）。');
+    if (label.length > MAX_AGE_LABEL) return fail(`适龄最多 ${MAX_AGE_LABEL} 字。`);
+    try {
+      patch.ageMonths = parseAgeRange(label);
+    } catch {
+      return fail(`看不懂适龄「${label}」。写法：「3–8岁」「6个月–3岁」「全龄」。`);
     }
+    patch.ageLabel = label;
+  }
+
+  for (const { key, name, max } of CONTENT_TEXT_FIELDS) {
+    if (!(key in raw)) continue;
+    const value = raw[key];
+    if (value !== null && typeof value !== 'string') return fail(`「${name}」必须是文字。`);
+    const text = (value ?? '').trim();
+    if (text.length > max) return fail(`「${name}」最多 ${max} 字，目前有 ${text.length} 字。`);
+    patch[key] = text;
+  }
+
+  if ('guide' in raw) {
+    // 不能整份刪掉：刪掉就是 NULL，而遷移重跑會把 NULL 的腳本填回客戶原文（檔頭）。
+    if (raw.guide === null) return fail('脚本不能整份删除；要改哪一段就改哪一段。');
+    const r = readGuide(raw.guide);
+    if (!r.ok) return fail(r.error);
+    patch.guide = r.guide;
   }
 
   if ('active' in raw) {
@@ -213,18 +298,31 @@ export function readActivityPatch(body: unknown): ActivityPatchResult {
   return { ok: true, patch };
 }
 
+/** 示範連結與封面共用：`null` 與空字串是清掉；其餘必須是 `https://` 或站內 `/…`。 */
+function readUrl(raw: unknown, what: string): { ok: true; url: string | null } | { ok: false; error: string } {
+  if (raw === null) return { ok: true, url: null };
+  if (typeof raw !== 'string') return { ok: false, error: assetUrlError(what) };
+  const url = raw.trim().slice(0, MAX_URL);
+  if (!url) return { ok: true, url: null };
+  if (!isAllowedAssetUrl(url)) return { ok: false, error: assetUrlError(what) };
+  return { ok: true, url };
+}
+
 // ══════════════════════════════════════════════
 // 畫面：只送改過的欄位
 // ══════════════════════════════════════════════
 
-const PATCH_KEYS: ReadonlyArray<keyof ActivityPatch> = [
-  'title', 'targetMonth', 'dimensions', 'targets', 'avoidIf',
-  'durationMin', 'equipment', 'steps', 'videoUrl', 'active',
+/** 畫面可以送的欄位。`ageMonths` 不在其中：它由伺服器從 `ageLabel` 解析（`readActivityPatch`）。 */
+const PATCH_KEYS: ReadonlyArray<Exclude<keyof ActivityPatch, 'ageMonths'>> = [
+  'title', 'targetMonth', 'ageLabel', 'people', 'dimensions', 'targets', 'avoidIf',
+  'durationMin', 'equipment', 'need', 'trains', 'steps', 'easier', 'harder', 'tip', 'deeper', 'guide',
+  'videoUrl', 'posterUrl', 'videoSeconds', 'active',
 ];
 
 /**
  * 編輯畫面存檔時，`edited` 與 `original` 之間**改過的欄位**。一個都沒改回空物件（畫面據此
- * 不送請求）。陣列與步驟用 JSON 比較 —— 順序也是資料的一部分（步驟的順序就是做的順序）。
+ * 不送請求）。陣列、步驟與腳本用 JSON 比較 —— 順序也是資料的一部分（步驟的順序就是做的順序）；
+ * 腳本兩邊都經過 `normalizeGuide`（讀進來時與畫面組回去時），鍵的順序相同才比得準。
  *
  * 為什麼不整筆送：PATCH 的意義是「帶了才改」，畫面若把十個欄位全送回去，那意義就只剩形式；
  * 而且 300 支裡多半只填一格月齡，送整筆等於每一次都把種子的空陣列再寫一遍。
@@ -234,7 +332,8 @@ export function changedFields(original: Activity, edited: Activity): ActivityPat
   for (const key of PATCH_KEYS) {
     const a = original[key];
     const b = edited[key];
-    const same = Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b;
+    const structured = (v: unknown) => v !== null && typeof v === 'object';
+    const same = structured(a) || structured(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b;
     if (!same) (patch as Record<string, unknown>)[key] = b;
   }
   return patch;

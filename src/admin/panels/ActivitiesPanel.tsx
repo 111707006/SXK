@@ -14,21 +14,32 @@ import { useCallback, useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Save, Trash2, X } from 'lucide-react';
 import { adminApi } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
-import type { Activity, ActivityStep, DimensionCode, ModuleNo } from '../../t2/types';
-import { DIMENSION_CODES } from '../../t2/types';
+import type { Activity, DimensionCode, ModuleNo } from '../../t2/types';
+import { DIMENSION_CODES, GUIDE_PREP_KEYS } from '../../t2/types';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
-import { MODULE_TITLES } from '../../t2/activitySeed';
+import { MODULE_TITLES, parseAgeRange } from '../../t2/activitySeed';
 import { ACTIVITY_TAGS, REPORT_ONLY_TAGS, TAG_DIMENSIONS, tagDimension } from '../../t2/findingTags';
 import type { ActivityTag, FindingTag, TagDimension } from '../../t2/findingTags';
 import { TAG_SENTENCES } from '../../t2/report/sentences';
 import {
   activityCoverage,
   changedFields,
+  CONTENT_TEXT_FIELDS,
   filterActivities,
+  MAX_AGE_LABEL,
   MAX_TARGET_MONTH,
+  MAX_VIDEO_SECONDS,
   type ActivityFilter,
 } from '../../utils/activityAdmin';
 import { MAX_STEPS } from '../../utils/activitySteps';
+import {
+  GUIDE_SECTION_NAMES,
+  MAX_GUIDE_ITEMS,
+  MAX_GUIDE_TEXT,
+  guideFromDraft,
+  guideToDraft,
+  type GuideDraft,
+} from '../../utils/activityGuide';
 import {
   Button,
   ErrorNote,
@@ -54,35 +65,72 @@ function tagGroupName(dim: TagDimension): string {
   return code ? SITE_DIMENSION_NAME[code] : '严重度（跨工具）';
 }
 
+/** 編輯畫面的一則步驟：圖選填（ADR-0008），沒有圖是空字串，存檔時轉回 `null`。 */
+interface StepDraft {
+  imageUrl: string;
+  instruction: string;
+}
+
+/** 手冊的文字欄位 —— 原文，照樣存（`readActivityPatch` 驗欄寬）。 */
+type ContentTextKey = (typeof CONTENT_TEXT_FIELDS)[number]['key'];
+
+/** 手冊裡一行就寫完的幾欄用單行輸入框；其餘（练什么、简单、难一点、小提醒）是句子，用多行。 */
+const SHORT_CONTENT_FIELDS: ReadonlySet<ContentTextKey> = new Set(['people', 'need', 'deeper']);
+
 /** 編輯畫面的草稿：數字與器材是字串，存檔時再轉回 Activity 的形狀。 */
-interface Draft {
+interface Draft extends Record<ContentTextKey, string> {
   title: string;
   targetMonth: string;
+  ageLabel: string;
   dimensions: DimensionCode[];
   targets: ActivityTag[];
   avoidIf: FindingTag[];
   durationMin: string;
   equipment: string;
-  steps: ActivityStep[];
+  steps: StepDraft[];
+  /** 沒有腳本的活動是 `null`：後台不新增、不整份刪掉腳本（`readActivityPatch` 檔頭）。 */
+  guide: GuideDraft | null;
   videoUrl: string;
+  posterUrl: string;
+  videoSeconds: string;
   active: boolean;
 }
 
-const EMPTY_STEP: ActivityStep = { imageUrl: '', instruction: '' };
+const EMPTY_STEP: StepDraft = { imageUrl: '', instruction: '' };
 
 function toDraft(a: Activity): Draft {
   return {
     title: a.title,
     targetMonth: a.targetMonth === null ? '' : String(a.targetMonth),
+    ageLabel: a.ageLabel,
+    people: a.people,
     dimensions: [...a.dimensions],
     targets: [...a.targets],
     avoidIf: [...a.avoidIf],
     durationMin: String(a.durationMin),
     equipment: a.equipment.join('、'),
-    steps: a.steps.map(s => ({ ...s })),
+    need: a.need,
+    trains: a.trains,
+    steps: a.steps.map(s => ({ imageUrl: s.imageUrl ?? '', instruction: s.instruction })),
+    easier: a.easier,
+    harder: a.harder,
+    tip: a.tip,
+    deeper: a.deeper,
+    guide: a.guide ? guideToDraft(a.guide) : null,
     videoUrl: a.videoUrl ?? '',
+    posterUrl: a.posterUrl ?? '',
+    videoSeconds: a.videoSeconds === null ? '' : String(a.videoSeconds),
     active: a.active,
   };
+}
+
+/** 適齡原文解析成硬閘的月齡區間；看不懂回 null（畫面提示，存檔時伺服器照樣擋）。 */
+function ageRangeOf(label: string): { min: number; max: number } | null {
+  try {
+    return parseAgeRange(label);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -97,18 +145,28 @@ function readIntField(text: string): number | null | undefined {
 }
 
 /** 草稿 → Activity 的形狀，好拿去跟原本的那支比（`changedFields`）。數字欄位已由 `readIntField` 驗過。 */
-function fromDraft(original: Activity, d: Draft, targetMonth: number | null, durationMin: number | null): Activity {
+function fromDraft(
+  original: Activity,
+  d: Draft,
+  numbers: { targetMonth: number | null; durationMin: number | null; videoSeconds: number | null },
+): Activity {
+  const content = Object.fromEntries(CONTENT_TEXT_FIELDS.map(({ key }) => [key, d[key].trim()])) as Record<ContentTextKey, string>;
   return {
     ...original,
+    ...content,
     title: d.title.trim(),
-    targetMonth,
+    targetMonth: numbers.targetMonth,
+    ageLabel: d.ageLabel.trim(),
     dimensions: d.dimensions,
     targets: d.targets,
     avoidIf: d.avoidIf,
-    durationMin: durationMin ?? 0,
+    durationMin: numbers.durationMin ?? 0,
     equipment: d.equipment.split(/[、,，;；\n]/).map(s => s.trim()).filter(Boolean),
-    steps: d.steps.map(s => ({ imageUrl: s.imageUrl.trim(), instruction: s.instruction.trim() })),
+    steps: d.steps.map(s => ({ imageUrl: s.imageUrl.trim() || null, instruction: s.instruction.trim() })),
+    guide: d.guide ? guideFromDraft(d.guide) : original.guide,
     videoUrl: d.videoUrl.trim() ? d.videoUrl.trim() : null,
+    posterUrl: d.posterUrl.trim() ? d.posterUrl.trim() : null,
+    videoSeconds: numbers.videoSeconds,
     active: d.active,
   };
 }
@@ -140,11 +198,21 @@ export default function ActivitiesPanel({ onError }: { onError: (view: AdminErro
     if (!editing) return;
     const targetMonth = readIntField(editing.draft.targetMonth);
     const durationMin = readIntField(editing.draft.durationMin);
-    if (targetMonth === undefined || durationMin === undefined) {
-      setSaveFailure(targetMonth === undefined ? '目标月龄只能填整数（单位是月），或留空。' : '时长只能填整数（分钟），或留空。');
+    const videoSeconds = readIntField(editing.draft.videoSeconds);
+    if (targetMonth === undefined || durationMin === undefined || videoSeconds === undefined) {
+      setSaveFailure(
+        targetMonth === undefined
+          ? '目标月龄只能填整数（单位是月），或留空。'
+          : durationMin === undefined
+            ? '时长只能填整数（分钟），或留空。'
+            : '示范片长度只能填整数（秒），或留空。'
+      );
       return;
     }
-    const diff = changedFields(editing.original, fromDraft(editing.original, editing.draft, targetMonth, durationMin));
+    const diff = changedFields(
+      editing.original,
+      fromDraft(editing.original, editing.draft, { targetMonth, durationMin, videoSeconds })
+    );
     if (Object.keys(diff).length === 0) {
       setEditing(null);
       return;
@@ -273,7 +341,11 @@ export default function ActivitiesPanel({ onError }: { onError: (view: AdminErro
                     )}
                     <span>{a.targets.length ? `练 ${a.targets.length} 项` : '未贴练什么'}</span>
                     {a.avoidIf.length > 0 && <span>回避 {a.avoidIf.length} 项</span>}
-                    <span>{a.steps.length} 步{a.videoUrl ? '·附示范' : ''}</span>
+                    <span>适龄 {a.ageLabel || `${a.ageMonths.min}–${a.ageMonths.max} 个月`}</span>
+                    <span>
+                      {a.steps.length} 步{a.videoUrl ? '·附示范' : ''}
+                      {a.guide ? '·有脚本' : ''}
+                    </span>
                   </p>
                 </div>
                 <Button variant="ghost" onClick={() => edit(a)} disabled={busy}>
@@ -328,7 +400,7 @@ function Editor({
     return on ? (list.includes(value) ? list : [...list, value]) : list.filter(x => x !== value);
   }
 
-  function patchStep(index: number, change: Partial<ActivityStep>) {
+  function patchStep(index: number, change: Partial<StepDraft>) {
     onPatch({ steps: draft.steps.map((s, i) => (i === index ? { ...s, ...change } : s)) });
   }
   function moveStep(index: number, delta: number) {
@@ -338,6 +410,20 @@ function Editor({
     [steps[index], steps[target]] = [steps[target], steps[index]];
     onPatch({ steps });
   }
+
+  // 適齡是配對硬閘的來源（readActivityPatch 由它解析 ageMonths）：打字的當下就說硬閘會變成什麼，
+  // 看不懂的寫法在這裡先講，存檔時伺服器照樣擋。
+  const ageLabel = draft.ageLabel.trim();
+  const ageRange = ageLabel ? ageRangeOf(ageLabel) : null;
+  const ageHint = !ageLabel
+    ? original.ageLabel
+      ? '适龄不能留空。'
+      : `还没写入手册原文（内容迁移还没跑）。配对硬闸 ${original.ageMonths.min}–${original.ageMonths.max} 个月。`
+    : !ageRange
+      ? '看不懂这个写法，存不进去。写法：「3–8岁」「6个月–3岁」「全龄」。'
+      : ageRange.min === original.ageMonths.min && ageRange.max === original.ageMonths.max
+        ? `配对硬闸 ${ageRange.min}–${ageRange.max} 个月（由适龄解析）。`
+        : `存档后配对硬闸跟着改成 ${ageRange.min}–${ageRange.max} 个月（现在是 ${original.ageMonths.min}–${original.ageMonths.max}）。`;
 
   return (
     <div className="mb-5 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4" data-testid="activity-editor">
@@ -349,7 +435,7 @@ function Editor({
           </p>
           {/* 編號與模組不可改：模組由編號算出（ceil(編號/20)），改了它活動會搬到別的模組群而編號還留在原處。 */}
           <p className="mt-1 text-[10px] text-brand-charcoal/50">
-            模组 {original.moduleNo}·{MODULE_TITLES[original.moduleNo]} · 原型适龄 {original.ageMonths.min}–{original.ageMonths.max} 个月
+            模组 {original.moduleNo}·{MODULE_TITLES[original.moduleNo]} · 配对硬闸 {original.ageMonths.min}–{original.ageMonths.max} 个月
           </p>
         </div>
         <button onClick={onCancel} aria-label="取消" className="rounded-lg p-1 text-brand-charcoal/50 transition hover:bg-white">
@@ -374,6 +460,14 @@ function Editor({
         </Field>
         <Field label="时长（分钟）" hint="0＝还没填">
           <TextInput inputMode="numeric" value={draft.durationMin} onChange={e => onPatch({ durationMin: e.target.value })} />
+        </Field>
+        <Field label="适龄（手册原文，家长端显示它）" hint={ageHint}>
+          <TextInput
+            value={draft.ageLabel}
+            maxLength={MAX_AGE_LABEL}
+            placeholder="例：6个月–3岁"
+            onChange={e => onPatch({ ageLabel: e.target.value })}
+          />
         </Field>
       </div>
 
@@ -410,14 +504,34 @@ function Editor({
       />
 
       <div className="mt-4">
-        <Field label="器材（用「、」分开）">
+        <Field label="器材（用「、」分开）" hint="给配对与后台用；家长端「要准备」显示的是下面「需要什么」的原文。">
           <TextInput value={draft.equipment} onChange={e => onPatch({ equipment: e.target.value })} />
         </Field>
       </div>
 
+      <fieldset className="mt-4">
+        <legend className="text-[11px] font-bold text-brand-charcoal/70">
+          手册内容
+          <span className="ml-1.5 font-medium text-brand-charcoal/45">
+            客户原文，照样存；清空＝家长端不显示这一区（内容迁移重跑不会把清掉的填回来）
+          </span>
+        </legend>
+        <div className="mt-1.5 grid gap-3 sm:grid-cols-2">
+          {CONTENT_TEXT_FIELDS.map(({ key, name, max }) => (
+            <Field key={key} label={name} hint={`最多 ${max} 字`}>
+              {SHORT_CONTENT_FIELDS.has(key) ? (
+                <TextInput value={draft[key]} maxLength={max} onChange={e => onPatch({ [key]: e.target.value })} />
+              ) : (
+                <TextArea rows={max > 255 ? 3 : 2} value={draft[key]} maxLength={max} onChange={e => onPatch({ [key]: e.target.value })} />
+              )}
+            </Field>
+          ))}
+        </div>
+      </fieldset>
+
       <div className="mt-4 space-y-3">
         <p className="text-[11px] font-bold text-brand-charcoal/70">
-          分解步骤（可为零步，最多 {MAX_STEPS} 步）
+          分解步骤（可为零步，最多 {MAX_STEPS} 步；图选填）
           <span className="ml-1.5 font-medium text-brand-charcoal/45">顺序就是家长照着做的顺序</span>
         </p>
         {draft.steps.map((step, index) => (
@@ -437,11 +551,14 @@ function Editor({
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <Field label="分解图网址" hint="https:// 开头，或站内的 / 路径。">
-                <TextInput value={step.imageUrl} maxLength={512} onChange={e => patchStep(index, { imageUrl: e.target.value })} />
-              </Field>
-              <Field label="指令文字">
+              <Field label="指令文字（必填）">
                 <TextArea rows={2} value={step.instruction} maxLength={500} onChange={e => patchStep(index, { instruction: e.target.value })} />
+              </Field>
+              <Field
+                label="分解图网址（选填）"
+                hint="留空＝这一步只有文字，家长端放序号方块。有图时 https:// 开头，或站内的 / 路径。"
+              >
+                <TextInput value={step.imageUrl} maxLength={512} onChange={e => patchStep(index, { imageUrl: e.target.value })} />
               </Field>
             </div>
           </div>
@@ -456,9 +573,22 @@ function Editor({
         </Button>
       </div>
 
-      <div className="mt-4">
+      {draft.guide ? (
+        <GuideEditor guide={draft.guide} onChange={guide => onPatch({ guide })} />
+      ) : (
+        // 後台不新增腳本：腳本是客戶交的（現在只有模組一），由抽取腳本寫進內容遷移。
+        <p className="mt-4 text-[11px] text-brand-charcoal/45">这支没有影片导引脚本（目前只有模组一的 20 支有）。</p>
+      )}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Field label="示范链接（选填）" hint="https:// 开头，或站内的 / 路径。http:// 会被家长的浏览器挡掉。">
           <TextInput value={draft.videoUrl} maxLength={512} onChange={e => onPatch({ videoUrl: e.target.value })} />
+        </Field>
+        <Field label="示范片封面（选填）" hint="网址规则同示范链接。">
+          <TextInput value={draft.posterUrl} maxLength={512} onChange={e => onPatch({ posterUrl: e.target.value })} />
+        </Field>
+        <Field label="示范片长度（秒）" hint={`选填，1–${MAX_VIDEO_SECONDS}。家长端显示成「0:10」。`}>
+          <TextInput inputMode="numeric" value={draft.videoSeconds} onChange={e => onPatch({ videoSeconds: e.target.value })} />
         </Field>
       </div>
 
@@ -482,6 +612,161 @@ function Editor({
           取消
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 模組一的影片導引腳本（Keep 規格 §4.2）。預設收起：二十支裡只有它們有，而且一份很長。
+ *
+ * 原理、常做錯、進步指標是「一行一條」；分鏡與孩子的反應是一列一列的，可以加減。
+ * 只能改、不能整份刪掉（`readActivityPatch`：刪掉就是 NULL，內容遷移重跑會把原文填回來）。
+ * 草稿與腳本的來回在 `activityGuide.ts`（`guideToDraft`／`guideFromDraft`，有測試）。
+ */
+function GuideEditor({ guide, onChange }: { guide: GuideDraft; onChange: (next: GuideDraft) => void }) {
+  const [open, setOpen] = useState(false);
+  const patch = (change: Partial<GuideDraft>) => onChange({ ...guide, ...change });
+  const name = GUIDE_SECTION_NAMES;
+  const linesHint = `一行一条，最多 ${MAX_GUIDE_ITEMS} 条`;
+
+  return (
+    <fieldset className="mt-4 rounded-xl border border-brand-stone bg-white p-3" data-testid="activity-guide-editor">
+      <legend className="px-1 text-[11px] font-bold text-brand-charcoal/70">
+        影片导引脚本（模组一）
+        <button type="button" onClick={() => setOpen(!open)} className="ml-2 font-medium text-brand-moss underline">
+          {open ? '收起' : '展开'}
+        </button>
+      </legend>
+      {!open ? (
+        <p className="text-[10px] text-brand-charcoal/45">
+          {guide.length || '片长未填'} · {guide.shots.length} 个分镜 · {guide.reactions.length} 则孩子的反应
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-[10px] leading-relaxed text-brand-charcoal/45">
+            客户原文。只能改，不能整份删掉；单段文字清空＝家长端不显示那一段。
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label={name.length}>
+              <TextInput value={guide.length} maxLength={MAX_GUIDE_TEXT} onChange={e => patch({ length: e.target.value })} />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label={name.intro}>
+                <TextArea rows={3} value={guide.intro} maxLength={MAX_GUIDE_TEXT} onChange={e => patch({ intro: e.target.value })} />
+              </Field>
+            </div>
+          </div>
+
+          <Field label={name.principles} hint={linesHint}>
+            <TextArea rows={9} value={guide.principles} onChange={e => patch({ principles: e.target.value })} />
+          </Field>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {GUIDE_PREP_KEYS.map(key => (
+              <Field key={key} label={`${name.prep}·${key}`}>
+                <TextArea
+                  rows={2}
+                  value={guide.prep[key]}
+                  maxLength={MAX_GUIDE_TEXT}
+                  onChange={e => patch({ prep: { ...guide.prep, [key]: e.target.value } })}
+                />
+              </Field>
+            ))}
+          </div>
+
+          <RowList
+            title={`${name.shots}（名称与旁白；画面描述不在这里）`}
+            rows={guide.shots}
+            empty={{ name: '', say: '' }}
+            onChange={shots => patch({ shots })}
+            fields={[
+              { key: 'name', label: '名称', rows: 1 },
+              { key: 'say', label: '旁白', rows: 2 },
+            ]}
+          />
+
+          <RowList
+            title={name.reactions}
+            rows={guide.reactions}
+            empty={{ if: '', then: '' }}
+            onChange={reactions => patch({ reactions })}
+            fields={[
+              { key: 'if', label: '如果', rows: 2 },
+              { key: 'then', label: '怎么做', rows: 2 },
+            ]}
+          />
+
+          <Field label={name.mistakes} hint={linesHint}>
+            <TextArea rows={3} value={guide.mistakes} onChange={e => patch({ mistakes: e.target.value })} />
+          </Field>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={name.down}>
+              <TextArea rows={2} value={guide.down} maxLength={MAX_GUIDE_TEXT} onChange={e => patch({ down: e.target.value })} />
+            </Field>
+            <Field label={name.up}>
+              <TextArea rows={2} value={guide.up} maxLength={MAX_GUIDE_TEXT} onChange={e => patch({ up: e.target.value })} />
+            </Field>
+          </div>
+
+          <Field label={name.progress} hint={`${linesHint}。打卡时家长勾的就是这几条。`}>
+            <TextArea rows={3} value={guide.progress} onChange={e => patch({ progress: e.target.value })} />
+          </Field>
+
+          <Field label={name.outro}>
+            <TextArea rows={2} value={guide.outro} maxLength={MAX_GUIDE_TEXT} onChange={e => patch({ outro: e.target.value })} />
+          </Field>
+        </div>
+      )}
+    </fieldset>
+  );
+}
+
+/**
+ * 腳本裡「一列好幾格」的清單（分鏡、孩子的反應）：可加一列、刪一列，上限 `MAX_GUIDE_ITEMS`。
+ * 整列空白的存檔時丟掉；只填一半的留著給伺服器說是第幾則（`guideFromDraft`）。
+ */
+function RowList<K extends string>({
+  title,
+  rows,
+  empty,
+  fields,
+  onChange,
+}: {
+  title: string;
+  rows: Array<Record<K, string>>;
+  empty: Record<K, string>;
+  fields: ReadonlyArray<{ key: K; label: string; rows: number }>;
+  onChange: (next: Array<Record<K, string>>) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-bold text-brand-charcoal/70">{title}</p>
+      {rows.map((row, index) => (
+        <div key={index} className="flex items-start gap-2">
+          <span className="w-5 shrink-0 pt-2 text-[10px] font-bold text-brand-charcoal/45">{index + 1}</span>
+          <div className="grid flex-1 gap-2 sm:grid-cols-2">
+            {fields.map(f => (
+              <TextArea
+                key={f.key}
+                rows={f.rows}
+                aria-label={`第 ${index + 1} 则·${f.label}`}
+                placeholder={f.label}
+                value={row[f.key]}
+                maxLength={MAX_GUIDE_TEXT}
+                onChange={e => onChange(rows.map((r, i) => (i === index ? { ...r, [f.key]: e.target.value } : r)))}
+              />
+            ))}
+          </div>
+          <IconButton label="删除这一则" onClick={() => onChange(rows.filter((_, i) => i !== index))}>
+            <Trash2 size={12} />
+          </IconButton>
+        </div>
+      ))}
+      <Button variant="ghost" onClick={() => onChange([...rows, { ...empty }])} disabled={rows.length >= MAX_GUIDE_ITEMS}>
+        <Plus size={12} />
+        加一则
+      </Button>
     </div>
   );
 }

@@ -67,9 +67,16 @@ function json(value: unknown): string {
   return str(JSON.stringify(value));
 }
 
-/** MySQL 字串字面量：反斜線與單引號要跳脫；分號不准出現（見檔頭）。 */
-function str(s: string): string {
-  if (s.includes(';')) throw new Error(`種子的字串裡不能有分號（migrate.mjs 會在那裡切句）：${s}`);
+/**
+ * MySQL 字串字面量：反斜線與單引號要跳脫；分號不准出現（見檔頭）。
+ * 換行也不准：`migrate.mjs` 會把以 `--` 開頭的整行當註解拿掉，字串裡一個換行接著 `--`，
+ * 那一句就被切壞了（JSON 裡的換行 `JSON.stringify` 寫成反斜線加 n，不受影響）。
+ *
+ * 活動內容的遷移（`activityContentSql.ts`）用同一份跳脫規則，所以匯出。
+ */
+export function str(s: string): string {
+  if (s.includes(';')) throw new Error(`遷移的字串裡不能有分號（migrate.mjs 會在那裡切句）：${s}`);
+  if (/[\r\n]/.test(s)) throw new Error(`遷移的字串裡不能有換行（migrate.mjs 會把「--」開頭的行當註解拿掉）：${s}`);
   return `'${s.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
 }
 

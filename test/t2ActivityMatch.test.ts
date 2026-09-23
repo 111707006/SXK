@@ -37,7 +37,8 @@ import {
  *    給孩子做不到的活動，家長會以為孩子又失敗了一次 —— 舊干預包測試「不退回鄰近年齡段、
  *    不退回通用方案」那幾條搬到這裡（下方「不跨維度、不跨模組群、不往上取」那一組），不刪。
  * 2. **`targetMonth` null 的活動配不到**，不是退回 `ageMonths`：退回會讓偏移規則失效而畫面上看不出來。
- * 3. **可重現**：同輸入兩次結果相同；同分取離窗口中點近的，再同取編號小的。
+ * 3. **可重現**：同輸入兩次結果相同；同分取 `targetMonth` 高的，再同取編號小的（v2.1 S13；
+ *    v2 原本是離窗口中點近的）。
  * 4. **配額**：refer 2、watch 1、剩的輪流、同維度 ≤ 2、總數 ≤ 4。
  *
  * 【固定輸入】
@@ -207,9 +208,9 @@ describe('打分（§7.3 第 2 條）', () => {
     expect(scoreActivity(a, stars, new Set()).matchedTags).toEqual(['lang.vocabulary_size', 'lang.expression']);
   });
 
-  it('兩個 ★ 對上（+6）贏過只維度對上（+1），即使後者更靠窗口中點', () => {
+  it('兩個 ★ 對上（+6）贏過只維度對上（+1），即使後者月齡更高', () => {
     const library = [
-      act('A160', 8, 30), // 正中點、沒標籤
+      act('A160', 8, 30), // 月齡較高、沒標籤
       act('A161', 8, 24, { targets: ['lang.expression', 'lang.vocabulary_size'] }), // 貼下限、兩個都對上
     ];
     const got = match(findings({ LANG: LANG_REFER }), library);
@@ -369,17 +370,23 @@ describe('可重現（§7.3 第 4 條）', () => {
     expect(a.picks).toHaveLength(4);
   });
 
-  it('同分取離窗口中點近的：[24, 36] 中點 30，30 贏 24 也贏 36', () => {
+  it('同分取 targetMonth 高的（v2.1 S13）：[24, 36] 裡 36 贏 30、30 贏 24', () => {
     const library = [act('A162', 8, 24), act('A161', 8, 36), act('A163', 8, 30)];
-    expect(idsFor(match(findings({ LANG: { band: 'refer' } }), library))[0]).toBe('A163');
+    expect(idsFor(match(findings({ LANG: { band: 'refer' } }), library))).toEqual(['A161', 'A163']);
   });
 
-  it('同分同距離取編號小者', () => {
+  it('同分兩支取月齡高的，不是離窗口中點近的（v2.1 S13 改掉的舊第二鍵）', () => {
+    // [24, 36] 中點 30：舊規則 30 贏 35；新規則 35 贏 30
+    const library = [act('A160', 8, 30), act('A161', 8, 35)];
+    expect(idsFor(match(findings({ LANG: { band: 'refer' } }), library))).toEqual(['A161', 'A160']);
+    // 編號大的月齡高也贏：月齡在編號前面
+    expect(idsFor(match(findings({ LANG: { band: 'refer' } }), [act('A170', 8, 36), act('A169', 8, 24)])))
+      .toEqual(['A170', 'A169']);
+  });
+
+  it('同分同月齡取編號小者', () => {
     const library = [act('A165', 8, 30), act('A162', 8, 30), act('A170', 8, 30)];
     expect(idsFor(match(findings({ LANG: { band: 'refer' } }), library))).toEqual(['A162', 'A165']);
-    // 兩側各一支：24 與 36 離 30 都是 6 → 編號小者
-    expect(idsFor(match(findings({ LANG: { band: 'refer' } }), [act('A170', 8, 24), act('A169', 8, 36)])))
-      .toEqual(['A169', 'A170']);
   });
 
   it('回傳的 reason 是新物件：改它不影響下一次', () => {
@@ -554,7 +561,8 @@ describe('停用與空活動庫（舊測試搬入）', () => {
  *    不能因為是「備選」就放寬 —— 放寬的那一支正是主配對刻意不給的。
  * 3. **不往下補、不往上取**：窗口內不夠 5 支就只有那幾支。主配對的退路（往下取一支）是「這個維度
  *    一支都沒有時」的最後手段，不是湊數用的。
- * 4. **排序與主配對一致**：分數 → 同分規則 → 編號，用的是同一個比較函式（A5 改同分規則時兩邊一起變）。
+ * 4. **排序與主配對一致**：分數 → `targetMonth` 高 → 編號小，用的是同一個比較函式（v2.1 S13 改同分
+ *    規則時兩邊一起變；「備選的同分規則跟主配對一起變」那一條釘住）。
  */
 describe('換著玩（K08）', () => {
   function alternateIds(result: ReturnType<typeof matchWeeklyActivities>, d: DimensionCode): string[] | undefined {
@@ -565,14 +573,22 @@ describe('換著玩（K08）', () => {
     expect(ALTERNATES_PER_DIMENSION).toBe(5);
   });
 
-  it('扣掉本週四支，照主配對的順序取前 5 支', () => {
-    // LANG refer 窗口 [24, 36]、中點 30：分數都一樣，離中點越近越前面
+  it('扣掉本週四支，照主配對的順序取前 5 支（同分也是月齡高的在前，v2.1 S13）', () => {
+    // LANG refer 窗口 [24, 36]：分數都一樣，targetMonth 越高越前面
     const library = [24, 25, 26, 27, 28, 29, 30, 31, 32].map((t, i) => act(`L${i}`, 8, t));
     const got = match(findings({ LANG: { band: 'refer' } }), library);
-    // 主配對拿走最靠中點的兩支：30（L6）、29（L5；與 31 同距離，編號小者）
-    expect(idsFor(got)).toEqual(['L6', 'L5']);
-    // 備選：31（L7）、28（L4）、32（L8；與 28 同距離，編號大）、27（L3）、26（L2）—— 第 6 支起不要
-    expect(alternateIds(got, 'LANG')).toEqual(['L7', 'L4', 'L8', 'L3', 'L2']);
+    // 主配對拿走月齡最高的兩支：32（L8）、31（L7）
+    expect(idsFor(got)).toEqual(['L8', 'L7']);
+    // 備選：30（L6）、29（L5）、28（L4）、27（L3）、26（L2）—— 第 6 支起不要
+    expect(alternateIds(got, 'LANG')).toEqual(['L6', 'L5', 'L4', 'L3', 'L2']);
+  });
+
+  it('備選的同分規則跟主配對一起變：同分月齡高的在前、同月齡編號小的在前（v2.1 S13）', () => {
+    // 分數都 +1。舊規則（離中點 30 近）會把 A162、A161 排進本週、A164／A165 墊底；新規則照月齡由高到低
+    const library = [act('A160', 8, 24), act('A161', 8, 29), act('A162', 8, 30), act('A163', 8, 33), act('A164', 8, 36), act('A165', 8, 36)];
+    const got = match(findings({ LANG: { band: 'refer' } }), library);
+    expect(idsFor(got)).toEqual(['A164', 'A165']);
+    expect(alternateIds(got, 'LANG')).toEqual(['A163', 'A162', 'A161', 'A160']);
   });
 
   it('本週四支不論是為哪個維度挑的，都不在任何一個維度的備選裡', () => {
@@ -599,15 +615,18 @@ describe('換著玩（K08）', () => {
       act('A166', 8, 31),
     ];
     const got = match(f, library);
-    expect(idsFor(got)).toEqual(['A160', 'A161']);
-    expect(alternateIds(got, 'LANG')).toEqual(['A166']);
+    // 月齡高的 A166（31）先進本週，剩下的 30 兩支取編號小者；備選只剩 A161
+    expect(idsFor(got)).toEqual(['A166', 'A160']);
+    expect(alternateIds(got, 'LANG')).toEqual(['A161']);
   });
 
   it('窗口內不夠 5 支就只有那幾支：不往下補、不往上取', () => {
     // [24, 36] 內 3 支；下方 20、上方 40 各一支
     const library = [act('A160', 8, 30), act('A161', 8, 30), act('A162', 8, 33), act('A163', 8, 20), act('A164', 8, 40)];
     const got = match(findings({ LANG: { band: 'refer' } }), library);
-    expect(alternateIds(got, 'LANG')).toEqual(['A162']);
+    // 本週拿 A162（33）與 A160（30，編號小）；窗口內剩 A161 一支
+    expect(idsFor(got)).toEqual(['A162', 'A160']);
+    expect(alternateIds(got, 'LANG')).toEqual(['A161']);
   });
 
   it('主配對走了退路（窗口內沒有）→ 這個維度沒有備選，不從下方湊', () => {
@@ -619,8 +638,8 @@ describe('換著玩（K08）', () => {
 
   it('窗口內扣完就沒了、或整個準備中 → 沒有這個鍵；clear 等沒標記的維度也沒有', () => {
     const f = findings({ LANG: { band: 'refer' }, ATT: ATT_WATCH, SOC: { band: 'watch' } });
-    // LANG 窗口內剛好兩支（都被主配對拿走）；ATT 準備中；SOC 窗口 [36, 42] 內三支，主配對拿兩支
-    //（第 4 個名額輪回給 SOC）；模組 2 是 SEN／LEARN 的，兩個都 clear
+    // LANG 窗口內剛好兩支（都被主配對拿走）；ATT 準備中；SOC 窗口 [36, 42] 內三支，主配對拿月齡高的
+    // 兩支（第 4 個名額輪回給 SOC）；模組 2 是 SEN／LEARN 的，兩個都 clear
     const library = [
       act('A160', 8, 30), act('A161', 8, 30),
       act('A230', 12, 40), act('A231', 12, 41), act('A232', 12, 42),
@@ -628,9 +647,9 @@ describe('換著玩（K08）', () => {
     ];
     const got = match(f, library);
     expect(got.preparing).toEqual(['ATT']);
-    expect(idsFor(got, 'SOC')).toEqual(['A230', 'A231']);
+    expect(idsFor(got, 'SOC')).toEqual(['A232', 'A231']);
     expect(Object.keys(got.alternates)).toEqual(['SOC']);
-    expect(alternateIds(got, 'SOC')).toEqual(['A232']);
+    expect(alternateIds(got, 'SOC')).toEqual(['A230']);
   });
 
   it('分數與主配對同一套：★ 對上的排前面、四週內派過的排後面', () => {
@@ -644,7 +663,7 @@ describe('換著玩（K08）', () => {
     ];
     const got = match(f, library, 48, ['A164']);
     expect(idsFor(got)).toEqual(['A160', 'A161']);
-    // A163（+3）> A162（+1，正中點）＝ A164（+3−2）→ 同分同距離取編號小者
+    // A163（+3，月齡最低）> A162（+1）＝ A164（+3−2）→ 同分同月齡取編號小者
     expect(alternateIds(got, 'LANG')).toEqual(['A163', 'A162', 'A164']);
   });
 

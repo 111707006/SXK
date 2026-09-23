@@ -349,12 +349,12 @@ describe('GET /api/t2/weekly-plan', () => {
  *    讀舊資料不能炸，也不回頭重配（一週一筆，那一列不改）。
  * 3. 內容照樣每次從活動庫查；庫裡查不到的略過，略過後空了的維度不出現。
  *
- * 預設活動庫之外再各加一支窗口內的：語言 A005（33，離中點 29 最遠）、注意力 A006（41）。
- * 主配對照舊拿 A001–A004，備選各一支。
+ * 預設活動庫之外再各加一支窗口內、月齡比預設幾支都低的：語言 A005（24，窗口 [23, 35]）、
+ * 注意力 A006（36，窗口 [35, 41]）。同分取月齡高的（v2.1 S13），主配對照舊拿 A001–A004，備選各一支。
  */
 describe('換著玩（alternates）', () => {
   beforeEach(() => {
-    library.push(act('A005', LANG_MODULE, 33), act('A006', ATT_MODULE, 41));
+    library.push(act('A005', LANG_MODULE, 24), act('A006', ATT_MODULE, 36));
   });
 
   it('備選存進同一筆、回應帶完整的活動內容，不含本週四支', async () => {
@@ -371,8 +371,8 @@ describe('換著玩（alternates）', () => {
 
   it('同一週查兩次一樣：第二次讀回存下的那一份，庫裡多了更合適的也不重配', async () => {
     const first = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
-    // 正中點（29）的一支：重配的話它會進本週四支、把別的擠進備選
-    library.push(act('A008', LANG_MODULE, 29));
+    // 窗口上限（35）的一支：同分月齡高的優先，重配的話它會進本週四支、把別的擠進備選
+    library.push(act('A008', LANG_MODULE, 35));
 
     const second = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
     expect(second.alternates).toEqual(first.alternates);

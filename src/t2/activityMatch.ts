@@ -23,7 +23,8 @@
  *    `not_assessed`／`no_tool` 沒有判定。名額的發法是**一輪一輪**：先每個維度一支、再 refer 的第二支、
  *    再剩的輪流 —— 名額夠時跟「refer 2、watch 1」完全一樣；超過 4 時（三個 refer）沒有哪個維度
  *    一支都拿不到（規格沒說超過 4 時砍誰；記在勘誤檔）。
- * 4. 每個名額取分數最高者；同分取 `|targetMonth − 窗口中點|` 小者；再同分取編號小者。
+ * 4. 每個名額取分數最高者；同分取 `targetMonth` 高者；再同分取編號小者（v2.1 S13，客戶 9/21 工作單
+ *    #16。v2 原本的第二鍵是 `|targetMonth − 窗口中點|` 小者）。已存的每週活動不回頭重配（v2.1 §10）。
  * 5. 每支附 reason：`{ band, window, matchedTags, belowWindow }`。
  * 6. 換著玩（Keep 規格 K08、§5.2）：每個有標記的維度，第 1 條的窗口內候選照第 4 條排好，
  *    扣掉本週四支取前 `ALTERNATES_PER_DIMENSION` 支。**跟主配對用同一份排好的清單**，不另排一次 ——
@@ -196,12 +197,13 @@ function byId(a: Scored, b: Scored): number {
   return a.activity.id < b.activity.id ? -1 : a.activity.id > b.activity.id ? 1 : 0;
 }
 
-/** §7.3 第 4 條：分數高 → 離中點近 → 編號小。 */
-function inWindowOrder(mid: number): (a: Scored, b: Scored) => number {
-  return (a, b) =>
-    b.score - a.score
-    || Math.abs(a.targetMonth - mid) - Math.abs(b.targetMonth - mid)
-    || byId(a, b);
+/**
+ * §7.3 第 4 條，v2.1 S13 版：分數高 → `targetMonth` 高 → 編號小。
+ * v2 原本的第二鍵是「離窗口中點近」，客戶 9/21 工作單 #16 改成月齡高者優先。
+ * 主配對與換著玩（K08）都用這一個比較函式排 `inWindow`，改這裡兩邊一起變。
+ */
+function inWindowOrder(a: Scored, b: Scored): number {
+  return b.score - a.score || b.targetMonth - a.targetMonth || byId(a, b);
 }
 
 /** 退路：最接近下限（`targetMonth` 大者）→ 分數高 → 編號小。 */
@@ -227,7 +229,7 @@ function stateFor(
     const scored = { activity, targetMonth, ...scoreActivity(activity, stars, recent) };
     (targetMonth >= window.lo ? inWindow : below).push(scored);
   }
-  inWindow.sort(inWindowOrder((window.lo + window.hi) / 2));
+  inWindow.sort(inWindowOrder);
   below.sort(belowOrder);
   return { dimension: finding.dimensionId, band, window, inWindow, below, count: 0 };
 }

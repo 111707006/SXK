@@ -30,6 +30,8 @@ import { readToolSubmission, refusalToHttp, toolBands } from './src/t2/toolResul
 import { ageKeyOf, matchWeeklyActivities } from './src/t2/activityMatch';
 import type { WeeklyActivities } from './src/t2/activityMatch';
 import { isCalendarDate, weekEndOf, weekStartOf } from './src/t2/weeks';
+import { planPosition } from './src/t2/trainingPlan';
+import { createT2LibraryRouter } from './src/t2/libraryRoutes';
 import { buildSmartGoals } from './src/t2/goals';
 import { generateProse } from './src/t2/report';
 import type { T2ReportInput } from './src/t2/report';
@@ -40,6 +42,7 @@ import { listActivityLibrary } from './src/db/t2Activities';
 import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
 import type { FindingsRecord } from './src/db/t2Findings';
 import type { WeeklyPlanRecord } from './src/db/t2WeeklyPlans';
+import { DIMENSION_CODES } from './src/t2/types';
 import type { Activity, DiagnosisDirection, DimensionCode } from './src/t2/types';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
@@ -1462,6 +1465,11 @@ tier2Only.get('/api/t2/findings/latest', async (req, res) => {
 // 內容團隊今天補完一支活動的步驟，家長這一週打開就看得到 —— 存進來等於給每一週複製一份活動庫。
 // 編號在庫裡查不到（今天不會發生：活動只停用不刪除）就略過那一支，不讓整週的畫面壞掉。
 //
+// 【Keep 規格 §5.1 多的兩樣】
+// - `alternates`（換著玩，K08）：配對順手排好的備選，與四支存在**同一列**，同樣只存編號。
+//   K08 之前存的週次沒有這一欄 → 回應不出 `alternates`，畫面就不出換著玩；不回頭重配。
+// - `plan`（第幾週，§4.5）：第 1 週＝這一列那份快照在表裡最早的一週，`src/t2/trainingPlan.ts` 做減法。
+//
 // 記憶體模式：存 `offlineT2WeeklyPlans`；活動庫是空的，於是每個維度「準備中」（§7.4）。
 
 const offlineT2WeeklyPlans = new Map<UserId, WeeklyPlanRecord[]>();
@@ -1477,6 +1485,19 @@ async function loadWeeklyPlan(userId: UserId, weekStart: string): Promise<Weekly
   const dbUserId = toDbUserId(userId);
   if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2WeeklyStore.findWeeklyPlan(dbUserId, weekStart), 2000);
   return (offlineT2WeeklyPlans.get(userId) ?? []).find(p => p.weekStart === weekStart) ?? null;
+}
+
+/**
+ * 這份快照的計劃第 1 週（Keep 規格 §4.5）：同一個 `findings_id` 最早的 `week_start`。
+ * 呼叫時這一週已經存好了，所以不會是 `null`；真的是 `null`（讀的瞬間資料不在）由呼叫端退回這一週。
+ */
+async function loadFirstWeekStart(userId: UserId, findingsId: number): Promise<string | null> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    return withTimeout(t2WeeklyStore.firstWeekStartOfFindings(dbUserId, findingsId), 2000);
+  }
+  const weeks = (offlineT2WeeklyPlans.get(userId) ?? []).filter(p => p.findingsId === findingsId).map(p => p.weekStart);
+  return weeks.length === 0 ? null : weeks.reduce((a, b) => (a < b ? a : b));
 }
 
 async function loadRecentWeeklyPlans(userId: UserId, weekStart: string): Promise<WeeklyPlanRecord[]> {
@@ -1585,17 +1606,29 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
       const recent = await loadRecentWeeklyPlans(userId, weekStart);
       const recentIds = recent.flatMap(p => p.activities.picks.map(x => x.id));
       const matched = matchWeeklyActivities(snapshot.findings, ageMonth, recentIds, library);
+      const alternates: Partial<Record<DimensionCode, string[]>> = {};
+      for (const [dimension, list] of Object.entries(matched.alternates) as Array<[DimensionCode, Activity[]]>) {
+        alternates[dimension] = list.map(a => a.id);
+      }
       record = await storeWeeklyPlan(userId, weekStart, {
         weekStart,
         findingsId: snapshot.id,
         activities: {
           picks: matched.picks.map(p => ({ id: p.activity.id, dimension: p.dimension, reason: p.reason })),
           preparing: matched.preparing,
+          // 換著玩（K08）與四支存同一筆：備選也吃「四週內派過 −2」，重算就可能換掉
+          alternates,
         },
       });
     }
 
-    res.json(weeklyPlanResponse(record, ageMonth, snapshot, library));
+    // 第幾週（§4.5）照**這一列**的快照算，不是最新的那份：已存的週次不回頭重配，它屬於哪個計劃也不變。
+    // 這一列自己就在那份快照的週次裡，第 1 週不會比它晚；讀不到（或讀到比它晚的）就以這一週為第 1 週，
+    // 不讓畫面拿到 0 或負數。
+    const stored = await loadFirstWeekStart(userId, record.findingsId);
+    const plan = planPosition(record.weekStart, stored !== null && stored < record.weekStart ? stored : record.weekStart);
+
+    res.json({ ...weeklyPlanResponse(record, ageMonth, snapshot, library), plan });
   } catch (err: any) {
     console.error('[T2] weekly plan failed:', err.message);
     res.status(500).json({ error: '暂时无法读取本周的活动，请稍后重试。' });
@@ -1621,6 +1654,19 @@ function weeklyPlanResponse(
     })
     .filter((x): x is { activity: Activity; dimension: DimensionCode; reason: WeeklyActivities['picks'][number]['reason'] } => x !== null);
 
+  // 換著玩（K08）：同樣存編號、每次從活動庫查內容；查不到的略過，略過後空了的維度不出鍵
+  //（「有鍵＝有備選」）。舊週次沒有這一欄 → 回應也沒有，畫面就不出換著玩（§5.2）。
+  let alternates: Partial<Record<DimensionCode, Activity[]>> | undefined;
+  if (record.activities.alternates) {
+    alternates = {};
+    for (const dimension of DIMENSION_CODES) {
+      const found = (record.activities.alternates[dimension] ?? [])
+        .map(id => byId.get(id))
+        .filter((a): a is Activity => a !== undefined);
+      if (found.length > 0) alternates[dimension] = found;
+    }
+  }
+
   return {
     weekStart: record.weekStart,
     weekEnd: weekEndOf(record.weekStart),
@@ -1633,8 +1679,18 @@ function weeklyPlanResponse(
     reportAgeMonth: snapshot.findings.child.assessedAgeMonth,
     activities,
     preparing: record.activities.preparing,
+    ...(alternates === undefined ? {} : { alternates }),
   };
 }
+
+// ── T2 示範片庫與單支活動（Keep 規格 K09、§5.3）──
+// 處理函式在 `src/t2/libraryRoutes.ts`。掛在 `tier2Only`、在上面 `/api/t2` 付費閘門之後（不在
+// `T2_OPEN_PATHS` 上）。活動庫讀不出來要丟錯（500），所以不用 `loadActivityLibrary` 那個吞錯的版本；
+// 記憶體模式照舊是空的活動庫 —— 片庫空陣列、單支 404。
+tier2Only.use(createT2LibraryRouter({
+  requireParent: requireT2Parent,
+  loadLibrary: async () => (mysqlDb.isConfigured() ? withTimeout(listActivityLibrary(), 2000) : []),
+}));
 
 /** Dimensions whose deep assessment is served by a fixed endpoint. */
 const LANGUAGE_DIMENSION_ID = 'language';

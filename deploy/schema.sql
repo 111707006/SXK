@@ -509,6 +509,10 @@ CREATE TABLE IF NOT EXISTS `t2_findings` (
 -- preparing 是「这个维度配不到活动」，从 picks 反推会把「有候选但没抢到名额」误判成准备中。
 -- 活动的内容（标题、时长、步骤）不存 —— 那是活动库的事，内容团队改完家长这周就该看到改好的。
 --
+-- Keep 规格 K08（2026-09-23）起多一个键 "alternates":{"LANG":["A005",…]}（换着玩，每个维度最多
+-- 5 支备选的编号，只放有备选的维度）。JSON 栏位，不必迁移；K08 之前存的周次没有这个键，
+-- 端点据此不出换着玩，旧周次不回头重配。
+--
 -- 完整的迁移与验证语句见：deploy/migrations/2026-09-12-t2-weekly-plans.sql
 
 CREATE TABLE IF NOT EXISTS `t2_weekly_plans` (

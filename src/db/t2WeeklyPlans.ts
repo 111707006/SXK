@@ -2,13 +2,15 @@
  * `t2_weekly_plans` 的資料層（票 #60，規格 v2 §9.1）。
  *
  * 【這張表的規矩】
- * **一週一筆**：查的那週沒有就算一份存起來，之後同一週回同一份。所以這裡只有三支
- * ——「這一週有沒有」、「存一份」、「前 N 週派過哪些編號」—— 沒有 UPDATE。
+ * **一週一筆**：查的那週沒有就算一份存起來，之後同一週回同一份。所以這裡只有讀與新增
+ * ——「這一週有沒有」、「存一份」、「前 N 週派過哪些編號」、「這份快照的計劃從哪一週開始」
+ *（Keep 規格 §4.5）—— 沒有 UPDATE。
  * 重算一次就可能換掉一支活動（配對對「前四週派過的」會扣分），而家長在同一週裡重整
  * 兩次頁面必須看到同一份。
  *
  * 【存的是編號，不是活動內容】
- * 那一列記的是 `{ picks: [{ id, dimension, reason }], preparing: [...] }`（見遷移檔檔頭）。
+ * 那一列記的是 `{ picks: [{ id, dimension, reason }], preparing: [...] }`（見遷移檔檔頭），
+ * Keep 規格 K08 之後多一欄 `alternates: { 維度: [編號…] }`（換著玩；舊週次沒有這一欄）。
  * 標題、時長、器材、圖文步驟都留在活動庫 —— 內容團隊改完一支活動的步驟，家長這一週打開
  * 看到的就該是改好的版本。存進來等於給每一週複製一份活動庫。
  *
@@ -43,6 +45,14 @@ export interface StoredWeeklyActivities {
   picks: StoredPick[];
   /** 有標記、但模組群裡連一支拿得到的活動都沒有的維度。畫面上是「準備中」。 */
   preparing: DimensionCode[];
+  /**
+   * 換著玩（Keep 規格 K08）：維度 → 備選的活動編號，照配對的順序。形狀同
+   * `WeeklyAlternates`（`src/t2/activityMatch.ts`），只是存編號：只放有備選的維度。
+   *
+   * **沒有這一欄＝K08 之前存的舊週次**，端點據此不出換著玩；舊週次不回頭重配。
+   * 空物件是新週次、每個維度都沒有可換的 —— 兩者要分得開，所以讀的時候不補空物件。
+   */
+  alternates?: Partial<Record<DimensionCode, string[]>>;
 }
 
 /** 表裡的一列，讀出來的形狀。 */
@@ -108,6 +118,23 @@ export async function recentWeeklyPlans(userId: number, weekStart: string, limit
   return (rows as any[]).map(weeklyPlanFromRow);
 }
 
+/**
+ * 這份報告快照的計劃從哪一週開始（Keep 規格 §4.5）：同一個 `findings_id` 最早的 `week_start`。
+ * 一週都還沒有回 `null`。重新生成報告是新的快照，於是從第 1 週重算。
+ */
+export async function firstWeekStartOfFindings(userId: number, findingsId: number): Promise<string | null> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL pool is not available');
+  const [rows] = await p.execute(
+    `SELECT MIN(week_start) AS first_week
+       FROM t2_weekly_plans
+      WHERE user_id = ? AND findings_id = ?`,
+    [userId, findingsId],
+  );
+  const first = (rows as any[])[0]?.first_week;
+  return first === null || first === undefined ? null : dateOnly(first);
+}
+
 /** mysql2 對 JSON 欄位會先解析成物件；手動下 SQL 或替身給的可能還是字串。兩種都收。 */
 function parseJson(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw;
@@ -159,6 +186,22 @@ function pickFrom(raw: unknown): StoredPick | null {
   return { id: raw.id, dimension: raw.dimension as DimensionCode, reason };
 }
 
+/**
+ * 換著玩那一欄。不是物件（沒有這一欄、或存壞了）→ `undefined`，與舊週次同一種處置：
+ * 不出換著玩，四支照讀 —— 換著玩是附帶的，不該連累本週四支。認不得的維度碼、不是字串的
+ * 編號只丟那一個；丟完是空的維度不留鍵（「有鍵＝有備選」）。
+ */
+function alternatesFrom(raw: unknown): StoredWeeklyActivities['alternates'] {
+  if (!isObject(raw)) return undefined;
+  const out: Partial<Record<DimensionCode, string[]>> = {};
+  for (const [dimension, ids] of Object.entries(raw)) {
+    if (!DIMENSION_SET.has(dimension) || !Array.isArray(ids)) continue;
+    const kept = ids.filter((id): id is string => typeof id === 'string' && id !== '');
+    if (kept.length > 0) out[dimension as DimensionCode] = kept;
+  }
+  return out;
+}
+
 function activitiesFrom(raw: unknown): StoredWeeklyActivities {
   const parsed = parseJson(raw);
   if (!isObject(parsed)) return { picks: [], preparing: [] };
@@ -168,7 +211,8 @@ function activitiesFrom(raw: unknown): StoredWeeklyActivities {
   const preparing = Array.isArray(parsed.preparing)
     ? parsed.preparing.filter((d): d is DimensionCode => typeof d === 'string' && DIMENSION_SET.has(d))
     : [];
-  return { picks, preparing };
+  const alternates = alternatesFrom(parsed.alternates);
+  return alternates === undefined ? { picks, preparing } : { picks, preparing, alternates };
 }
 
 /** `week_start` 是 DATE 欄位：mysql2 回 Date 或 `'2026-09-07'`。兩種都讀成 `YYYY-MM-DD`。 */

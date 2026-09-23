@@ -134,6 +134,11 @@ vi.mock('../src/db/t2WeeklyPlans', () => ({
       .map(r => r.record)
       .sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))
       .slice(0, limit),
+  firstWeekStartOfFindings: async (userId: number, findingsId: number) =>
+    weeklyTable
+      .filter(r => r.userId === userId && r.record.findingsId === findingsId)
+      .map(r => r.record.weekStart)
+      .sort()[0] ?? null,
 }));
 
 let client: TestClient;
@@ -326,6 +331,149 @@ describe('GET /api/t2/weekly-plan', () => {
   it('讀不到別人的那一週', async () => {
     await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
     expect(weeklyTable[0].userId).toBe(UNLOCKED);
+  });
+});
+
+/**
+ * 換著玩（Keep 規格 K08、§5.1、§5.2）。
+ *
+ * 【這裡在防什麼】
+ * 1. **備選與四支存在同一筆**：同一週查兩次要一樣，理由與四支相同 —— 備選也吃「四週內派過 −2」，
+ *    每次重算就可能換掉。
+ * 2. **舊的週次（K08 之前存的）沒有這一欄 → 回應不出 `alternates`**，畫面就不出換著玩；
+ *    讀舊資料不能炸，也不回頭重配（一週一筆，那一列不改）。
+ * 3. 內容照樣每次從活動庫查；庫裡查不到的略過，略過後空了的維度不出現。
+ *
+ * 預設活動庫之外再各加一支窗口內的：語言 A005（33，離中點 29 最遠）、注意力 A006（41）。
+ * 主配對照舊拿 A001–A004，備選各一支。
+ */
+describe('換著玩（alternates）', () => {
+  beforeEach(() => {
+    library.push(act('A005', LANG_MODULE, 33), act('A006', ATT_MODULE, 41));
+  });
+
+  it('備選存進同一筆、回應帶完整的活動內容，不含本週四支', async () => {
+    const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+
+    expect(body.activities.map((a: any) => a.activity.id).sort()).toEqual(['A001', 'A002', 'A003', 'A004']);
+    expect(weeklyTable).toHaveLength(1);
+    expect(weeklyTable[0].record.activities.alternates).toEqual({ LANG: ['A005'], ATT: ['A006'] });
+
+    expect(Object.keys(body.alternates).sort()).toEqual(['ATT', 'LANG']);
+    expect(body.alternates.LANG).toEqual([library.find(a => a.id === 'A005')]);
+    expect(body.alternates.ATT.map((a: Activity) => a.id)).toEqual(['A006']);
+  });
+
+  it('同一週查兩次一樣：第二次讀回存下的那一份，庫裡多了更合適的也不重配', async () => {
+    const first = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    // 正中點（29）的一支：重配的話它會進本週四支、把別的擠進備選
+    library.push(act('A008', LANG_MODULE, 29));
+
+    const second = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(second.alternates).toEqual(first.alternates);
+    expect(second.activities.map((a: any) => a.activity.id)).toEqual(first.activities.map((a: any) => a.activity.id));
+    expect(weeklyTable).toHaveLength(1);
+  });
+
+  it('舊的週次（沒有 alternates 這一欄）→ 200、回應不出 alternates，四支照回，不回頭重配', async () => {
+    weeklyTable.push({
+      userId: UNLOCKED,
+      record: {
+        id: nextWeeklyId++,
+        createdAt: '2026-09-07T01:00:00.000Z',
+        weekStart: '2026-09-07',
+        findingsId: 77,
+        activities: {
+          picks: [{ id: 'A001', dimension: 'LANG', reason: { band: 'refer', window: { lo: 23, hi: 35 }, matchedTags: [], belowWindow: false } }],
+          preparing: [],
+        },
+      },
+    });
+
+    const resp = await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body).not.toHaveProperty('alternates');
+    expect(body.activities.map((a: any) => a.activity.id)).toEqual(['A001']);
+    expect(weeklyTable).toHaveLength(1);
+    expect(weeklyTable[0].record.activities).not.toHaveProperty('alternates');
+  });
+
+  it('新週次、每個維度都沒有可換的 → alternates 是空物件（與舊週次分得開）', async () => {
+    library = library.filter(a => a.id !== 'A005' && a.id !== 'A006');
+    const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(body.alternates).toEqual({});
+  });
+
+  it('備選的編號在庫裡查不到 → 略過那一支；略過後空了的維度不出現', async () => {
+    await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    library = library.filter(a => a.id !== 'A006');
+
+    const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(Object.keys(body.alternates)).toEqual(['LANG']);
+  });
+
+  it('備選的內容每次從活動庫查：庫裡改了小提醒，同一週的備選跟著改', async () => {
+    await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    library = library.map(a => (a.id === 'A005' ? { ...a, tip: '后台刚改的小提醒' } : a));
+
+    const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(body.alternates.LANG[0].tip).toBe('后台刚改的小提醒');
+  });
+});
+
+/**
+ * 「第幾週」（Keep 規格 §4.5、§5.1）：第 1 週＝同一份報告快照在表裡最早的那一週；
+ * 重新生成報告是新的快照，從第 1 週重算。計劃 12 週（暫採），超過照算。
+ */
+describe('plan（第幾週）', () => {
+  it('第一次查 → 第 1 週，共 12 週，第 1 週就是這一週', async () => {
+    const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(body.plan).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: '2026-09-07' });
+  });
+
+  it('下一週 → 第 2 週；回頭查第一週仍是第 1 週', async () => {
+    await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    const next = await (await client.get(`${URL}?week=${NEXT_WEEK}`, bearer(UNLOCKED))).json();
+    expect(next.plan).toEqual({ weekIndex: 2, totalWeeks: 12, firstWeekStart: '2026-09-07' });
+
+    const again = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(again.plan.weekIndex).toBe(1);
+  });
+
+  it('重新生成報告（新快照）→ 從第 1 週重算；已存的舊週次仍照它自己那份快照算', async () => {
+    await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED));
+    findingsRow = { ...findingsRow!, id: 78, createdAt: '2026-09-12T00:00:00.000Z' };
+
+    const next = await (await client.get(`${URL}?week=${NEXT_WEEK}`, bearer(UNLOCKED))).json();
+    expect(next.findingsId).toBe(78);
+    expect(next.plan).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: '2026-09-14' });
+
+    const weekAfter = await (await client.get(`${URL}?week=2026-09-21`, bearer(UNLOCKED))).json();
+    expect(weekAfter.plan).toEqual({ weekIndex: 2, totalWeeks: 12, firstWeekStart: '2026-09-14' });
+
+    // 9/07 那一週是照 77 配的，不回頭改；它的第幾週照 77 的計劃算
+    const old = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(old.findingsId).toBe(77);
+    expect(old.plan).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: '2026-09-07' });
+  });
+
+  it('超過 12 週照算：第 1 週是 14 週前 → 第 15 週', async () => {
+    weeklyTable.push({
+      userId: UNLOCKED,
+      record: { id: nextWeeklyId++, createdAt: null, weekStart: '2026-06-01', findingsId: 77, activities: { picks: [], preparing: [] } },
+    });
+    const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(body.plan).toEqual({ weekIndex: 15, totalWeeks: 12, firstWeekStart: '2026-06-01' });
+  });
+
+  it('別的家長同一個快照編號的週次不算進來', async () => {
+    weeklyTable.push({
+      userId: LOCKED,
+      record: { id: nextWeeklyId++, createdAt: null, weekStart: '2026-06-01', findingsId: 77, activities: { picks: [], preparing: [] } },
+    });
+    const body = await (await client.get(`${URL}?week=${WEEK}`, bearer(UNLOCKED))).json();
+    expect(body.plan.firstWeekStart).toBe('2026-09-07');
   });
 });
 

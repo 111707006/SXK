@@ -25,6 +25,9 @@
  *    一支都拿不到（規格沒說超過 4 時砍誰；記在勘誤檔）。
  * 4. 每個名額取分數最高者；同分取 `|targetMonth − 窗口中點|` 小者；再同分取編號小者。
  * 5. 每支附 reason：`{ band, window, matchedTags, belowWindow }`。
+ * 6. 換著玩（Keep 規格 K08、§5.2）：每個有標記的維度，第 1 條的窗口內候選照第 4 條排好，
+ *    扣掉本週四支取前 `ALTERNATES_PER_DIMENSION` 支。**跟主配對用同一份排好的清單**，不另排一次 ——
+ *    同分規則改了（v2.1 S13），兩邊一起變。
  *
  * 【退路只有兩種、順序固定】
  * - 窗口內沒有拿得到的活動 → 同模組群裡 `targetMonth` **低於窗口下限、最接近**的一支（仍是往前取）。
@@ -82,6 +85,8 @@ export const MAX_PER_DIMENSION = 2;
 export const SLOTS_BY_BAND: Readonly<Record<'refer' | 'watch', number>> = { refer: 2, watch: 1 };
 /** 打分（§7.3 第 2 條）。 */
 export const SCORE = { perTag: 3, dimensionOnly: 1, recent: -2 } as const;
+/** 換著玩：每個維度最多幾支備選（Keep 規格 K08、§5.2）。 */
+export const ALTERNATES_PER_DIMENSION = 5;
 
 /** 閉區間，單位月。 */
 export interface MonthWindow { lo: number; hi: number }
@@ -109,6 +114,29 @@ export interface WeeklyActivities {
   picks: WeeklyPick[];
   /** 有標記、但模組群裡連一支拿得到的活動都沒有的維度（§8 排序）。畫面上是「準備中」。 */
   preparing: DimensionCode[];
+}
+
+/**
+ * 換著玩（Keep 規格 K08、§5.2）：維度 → 備選活動（活動庫裡的原物件），照主配對的順序。
+ *
+ * **只放有備選的維度**：有標記（watch／refer）、而且窗口內扣掉本週四支之後還有剩的。
+ * 沒有鍵＝這個維度沒有可換的（準備中、只拿得到退路那一支、或窗口內的全排進本週了）——
+ * 畫面照鍵畫一列，不必再濾掉空的。每個維度最多 `ALTERNATES_PER_DIMENSION` 支。
+ * 鍵的順序不是契約（存進 MySQL 的 JSON 物件會依鍵重排）；畫面要排序自己排。
+ *
+ * 同一支活動可以同時出現在兩個維度的備選裡（模組 7 同時屬於四個維度）：每一列回答的是
+ * 「這個維度還能換哪幾支」，不跨維度去重。
+ */
+export type WeeklyAlternates = Partial<Record<DimensionCode, Activity[]>>;
+
+/**
+ * `matchWeeklyActivities` 的回傳：本週四支＋換著玩。
+ *
+ * 與 `WeeklyActivities` 分成兩個型別：報告（`src/t2/report/`）只要本週四支與準備中，
+ * 換著玩是家庭訓練頁的事，不進報告的提示。
+ */
+export interface WeeklyMatch extends WeeklyActivities {
+  alternates: WeeklyAlternates;
 }
 
 function assertAge(ageMonth: number): void {
@@ -212,14 +240,14 @@ function stateFor(
  * - `recentIds`：過去 4 週派過的活動編號，只用來扣分（−2），不排除。
  * - `library`：活動庫全部（含停用的）；這裡自己過濾。
  *
- * 回傳的 `picks` 與 `reason` 都是新物件；`activity` 是活動庫裡的原物件。
+ * 回傳的 `picks` 與 `reason` 都是新物件；`activity` 與 `alternates` 裡的是活動庫裡的原物件。
  */
 export function matchWeeklyActivities(
   findings: T2Findings,
   ageMonth: number,
   recentIds: ReadonlyArray<string>,
   library: ReadonlyArray<Activity>,
-): WeeklyActivities {
+): WeeklyMatch {
   assertAge(ageMonth);
   // 九個、不多不少：同一個維度出現兩次會有兩個 state，那個維度就能拿到四支
   const seen = new Set(findings.dimensions.map(d => d.dimensionId));
@@ -282,8 +310,17 @@ export function matchWeeklyActivities(
     }
   }
 
+  // 換著玩（K08）：同一份排好的窗口內候選，扣掉本週四支（不論是為哪個維度挑的）取前 5 支。
+  // 只看 `inWindow`：不往下補、不往上取 —— 退路是「一支都沒有時」的最後手段，不是湊數用的。
+  const alternates: WeeklyAlternates = {};
+  for (const s of states) {
+    const rest = s.inWindow.filter(x => !picked.has(x.activity.id)).slice(0, ALTERNATES_PER_DIMENSION);
+    if (rest.length > 0) alternates[s.dimension] = rest.map(x => x.activity);
+  }
+
   return {
     picks,
     preparing: states.filter(s => s.inWindow.length === 0 && s.below.length === 0).map(s => s.dimension),
+    alternates,
   };
 }

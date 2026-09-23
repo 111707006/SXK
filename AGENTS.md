@@ -59,6 +59,8 @@
 │   │   ├── weeklyCopy.ts  # 每周活动画面的句子：「因为……所以练……」、年龄段、准备中（#60）
 │   │   ├── reportCopy.ts  # 报告页的句子与作答回顾：维度状态句（partial／not_assessed／no_tool 与 clear 分开）、逐族的「尚未稳定」题目、距上次 N 天（#61）
 │   │   ├── advice.ts      # CONSEQ／PLAN 的取句规则（v2.1 §6.3，S09）：从快照取题库 `advice` 原文，不经 AI；题库现在没有这一栏，报告上两段不出现（内容等 S23）
+│   │   ├── trainingPlan.ts # 家庭训练的「第几周」（Keep §4.5）：`PLAN_TOTAL_WEEKS = 12`（暂采）、`planPosition`
+│   │   ├── libraryRoutes.ts # 示范片库与单支活动的两支路由（Keep K09）；`server.ts` 只注册、注入登入检查与读活动库
 │   │   └── diagnosisOptions.ts # 诊断方向十选一的名称与问句；刻意不进家长用字扫描（理由见档头）
 │   ├── db/
 │   │   ├── mysql.ts       # 连线池与家长端资料层
@@ -165,10 +167,14 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 | `/api/t2/diagnosis` | PUT | 存入口选的诊断方向（十选一或 null）；#59 生成报告时读它 | `diagnosis`；`Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | POST | 交一支工具的答案；**伺服器算分**（`scoreTool`），窗口外／缺答／多题／值域外 400 且不落表；每次交卷一笔不覆盖。回 `{id, createdAt, result, bands}` | `toolId`, `assessedAgeMonth`, `rater`, `pre`, `answers`；`Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | GET | 这位家长每支工具**最新且完整**的一笔，各附该支对它喂的维度的 band（加测提示用） | `Authorization: Bearer <token>` |
+| `/api/t2/weekly-plan` | GET | 这一周的四支活动（#60，一周一笔：没有就用最新快照配一份存起来）。Keep K08／§5.1 起另回 `alternates`（换着玩：维度 → 最多 5 支备选的完整活动，只放有备选的维度；**K08 之前存的旧周次不回这一栏**）与 `plan: {weekIndex, totalWeeks: 12, firstWeekStart}`（第 1 周＝同一个 `findings_id` 最早的一周） | `Authorization: Bearer <token>`；`week` (query，`YYYY-MM-DD`) 选填 |
+| `/api/t2/library` | GET | 示范片库（Keep K09）：有示范片的**启用**活动，回 `{activities: [{id, title, moduleNo, ageLabel, ageMonths, posterUrl, videoSeconds}]}`，依编号排；还没有片子时是空阵列 | `Authorization: Bearer <token>` |
+| `/api/t2/activities/:id` | GET | 单支活动的完整内容（Keep K09；手册栏位、`guide`、步骤、示范片），回 `{activity}`；**停用或不存在都是 404** `ACTIVITY_NOT_FOUND` | `Authorization: Bearer <token>` |
 
 > T2 入口的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
 > 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量，诊断方向会改题量。
-> 仍要登入。`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）—— 交卷的两支（#57）就在后面。
+> 仍要登入。`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）—— 交卷的两支（#57）就在后面，
+> 片库与单支活动（Keep K09，处理函式在 `src/t2/libraryRoutes.ts`，`server.ts` 只注册）也在后面。
 > ⚠️ `t2_intake` 表由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立、`t2_tool_results` 表由
 > `deploy/migrations/2026-09-12-t2-tool-results.sql` 建立，**都必须先于新版程式码部署**。
 

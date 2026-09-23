@@ -162,6 +162,78 @@ describe('findWeeklyPlan', () => {
   });
 });
 
+/**
+ * 換著玩（Keep 規格 K08）與四支存在同一筆 JSON。**舊的週次沒有這一欄**（K08 之前存的）——
+ * 讀回來就是沒有 `alternates`，端點據此不出「換著玩」；不能當成壞資料把整份清空，也不能補一個空物件
+ *（那會讓舊週次與「新週次、沒有可換的」分不開，而舊週次是不回頭重配的）。
+ */
+describe('alternates（換著玩）', () => {
+  const WITH_ALTERNATES: StoredWeeklyActivities = { ...ACTIVITIES, alternates: { LANG: ['A018', 'A019'], ATT: ['A121'] } };
+
+  it('存進去的原樣讀回來', async () => {
+    rows = [row({ activities: JSON.stringify(WITH_ALTERNATES) })];
+    expect((await store.findWeeklyPlan(7, '2026-09-07'))!.activities).toEqual(WITH_ALTERNATES);
+  });
+
+  it('舊的週次沒有這一欄 → 讀回來也沒有（不是空物件），四支照讀', async () => {
+    rows = [row()];
+    const activities = (await store.findWeeklyPlan(7, '2026-09-07'))!.activities;
+    expect(activities).not.toHaveProperty('alternates');
+    expect(activities.picks.map(p => p.id)).toEqual(['A017']);
+  });
+
+  it.each([
+    ['是陣列', ['A018']],
+    ['是字串', 'A018'],
+    ['是 null', null],
+  ])('alternates %s → 當成沒有這一欄，四支照讀', async (_label, alternates) => {
+    rows = [row({ activities: JSON.stringify({ ...ACTIVITIES, alternates }) })];
+    const activities = (await store.findWeeklyPlan(7, '2026-09-07'))!.activities;
+    expect(activities).not.toHaveProperty('alternates');
+    expect(activities.picks.map(p => p.id)).toEqual(['A017']);
+  });
+
+  it('認不得的維度碼、不是字串的編號丟掉；丟完是空的那個維度整個不留', async () => {
+    rows = [row({
+      activities: JSON.stringify({
+        ...ACTIVITIES,
+        alternates: { LANG: ['A018', 7, '', 'A019'], NOPE: ['A020'], ATT: [null], SOC: 'A230', SEN: [] },
+      }),
+    })];
+    expect((await store.findWeeklyPlan(7, '2026-09-07'))!.activities.alternates).toEqual({ LANG: ['A018', 'A019'] });
+  });
+
+  it('每一個維度都沒有可換的 → 空物件（新週次），與舊週次的「沒有這一欄」分得開', async () => {
+    rows = [row({ activities: JSON.stringify({ ...ACTIVITIES, alternates: {} }) })];
+    expect((await store.findWeeklyPlan(7, '2026-09-07'))!.activities.alternates).toEqual({});
+  });
+});
+
+/**
+ * 計劃的第 1 週（Keep 規格 §4.5）：同一份報告快照在這張表裡最早的 `week_start`。
+ * 帶 `user_id`：`findings_id` 本來就只屬於一位家長，但每一支語句都帶 `user_id` 是這張表的規矩。
+ */
+describe('firstWeekStartOfFindings', () => {
+  it('MIN(week_start)，WHERE 是 user_id ＋ findings_id', async () => {
+    rows = [{ first_week: '2026-08-31' }];
+    expect(await store.firstWeekStartOfFindings(7, 77)).toBe('2026-08-31');
+    expect(executed[0].sql).toMatch(/^SELECT MIN\(week_start\) AS first_week FROM t2_weekly_plans WHERE user_id = \? AND findings_id = \?$/);
+    expect(executed[0].params).toEqual([7, 77]);
+  });
+
+  it('本地午夜的 Date 也讀成同一天（不經 UTC 退一天）', async () => {
+    rows = [{ first_week: new Date(2026, 7, 31) }];
+    expect(await store.firstWeekStartOfFindings(7, 77)).toBe('2026-08-31');
+  });
+
+  it('這份快照一週都還沒有 → null', async () => {
+    rows = [{ first_week: null }];
+    expect(await store.firstWeekStartOfFindings(7, 77)).toBeNull();
+    rows = [];
+    expect(await store.firstWeekStartOfFindings(7, 77)).toBeNull();
+  });
+});
+
 describe('recentWeeklyPlans', () => {
   it('嚴格小於這一週，新的在前，取 N 筆', async () => {
     rows = [row({ id: 4, week_start: '2026-08-31' }), row({ id: 3, week_start: '2026-08-24' })];

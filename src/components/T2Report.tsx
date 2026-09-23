@@ -22,7 +22,11 @@ import { buildSmartGoals } from '../t2/goals';
 import { hasSafetyConcern } from '../t2/report/prose';
 import type { T2ReportProse, ProseDimension } from '../t2/report/prose';
 import { SAFETY_SENTENCE } from '../t2/report/sentences';
+import { dimensionAdvice } from '../t2/advice';
 import {
+  ADVICE_HEADING,
+  ADVICE_LEAD_SENTENCE,
+  ADVICE_RANK_LABEL,
   REVIEW_EMPTY_SENTENCE,
   dimensionStatus,
   redoSentence,
@@ -84,6 +88,10 @@ const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', string> 
  * `safety_concern` 橫幅（有才有）→ 總覽（overview ＋ 九個維度的狀態）→ 逐維度（只有 watch／refer）
  * → 沒有問卷的維度（no_tool 的專屬段落，導向專家）→ 氣質（有標籤才有）→ 目標 → 本週活動
  * （票 #60 的畫面嵌進來）→ closing → 作答回顧（可摺疊）。
+ *
+ * 逐維度卡片裡、caveats 之前另有「若持续不处理」與「建议后续项目」兩段（規格 v2.1 §6.3，S09）：
+ * 規則從快照取題庫原文（`advice.ts`），不經 AI，所以 AI 與模板兩條路都一樣有。題庫現在沒有這份
+ * 內容，兩段連段名都不出現。
  *
  * 【四種非 band 值不能長得像 clear】（§5.7）
  * prose 對 `partial`／`not_assessed` 不出段落（勘誤 M1），所以它們只在「總覽」的九宮格上出現 ——
@@ -345,6 +353,8 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
             const d = byId.get(p.dimensionId)!;
             const s = dimensionStatus(d.band);
             const redos = redoLines(d);
+            // CONSEQ／PLAN（v2.1 §6.3）：規則從快照取、原樣顯示，不經 AI。題庫現在沒有內容 → null → 兩段都不出。
+            const advice = dimensionAdvice(findings, p.dimensionId);
             return (
               <article key={p.dimensionId} className="rounded-2xl border border-brand-moss/20 bg-white/70 p-4 space-y-2">
                 <div className="flex items-start justify-between gap-3">
@@ -355,6 +365,41 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
                 </div>
                 <p className="text-xs text-brand-charcoal leading-relaxed">{p.whatWeSaw}</p>
                 <p className="text-[11px] text-brand-charcoal/80 leading-relaxed">{p.whyItMatters}</p>
+                {advice && advice.consequences.length > 0 && (
+                  <div data-advice="consequences" className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-2.5 space-y-1.5">
+                    <p className="text-[11px] font-extrabold text-brand-forest">{ADVICE_HEADING.consequences}</p>
+                    <p className="text-[10px] text-brand-charcoal/65 leading-relaxed">{ADVICE_LEAD_SENTENCE}</p>
+                    <ul className="space-y-1">
+                      {advice.consequences.map(c => (
+                        <li key={c.sectionKey} className="text-[11px] text-brand-charcoal leading-relaxed">
+                          <span className="font-bold text-brand-forest mr-1.5">{c.sectionName}</span>
+                          {c.text}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {advice && advice.plans.length > 0 && (
+                  <div data-advice="plans" className="rounded-xl border border-brand-moss/20 bg-brand-sage/10 px-3 py-2.5 space-y-2">
+                    <p className="text-[11px] font-extrabold text-brand-forest">{ADVICE_HEADING.plans}</p>
+                    {advice.plans.map(plan => (
+                      <div key={plan.sectionKey} className="space-y-1">
+                        <p className="text-[11px] font-bold text-brand-charcoal leading-relaxed">
+                          {ADVICE_RANK_LABEL[plan.rank]} · {plan.title}
+                          <span className="ml-1.5 text-[10px] font-semibold text-brand-charcoal/55">{plan.sectionName}</span>
+                        </p>
+                        <ul className="space-y-0.5">
+                          {plan.focus.map((f, i) => (
+                            <li key={i} className="text-[11px] text-brand-charcoal/85 leading-relaxed flex gap-1.5">
+                              <span className="shrink-0">·</span>
+                              <span>{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {p.caveats.length > 0 && (
                   <ul className="space-y-1 pt-1 border-t border-brand-stone/40">
                     {p.caveats.map((c, i) => (

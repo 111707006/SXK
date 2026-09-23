@@ -6,9 +6,13 @@
  * 規格：`docs/specs/t2-v2-sxk-toolkit-rules-engine-report-and-activities.md` §3、§3.1、§5.1、§5.3。
  *
  * 這一層只有「題目與分段」，沒有計分、沒有判定、沒有路由 —— 那些是 #42 之後的票。
- * 工具包裡的建議文字（`PLAN`／`FREQ`／`CONSEQ`、面向的 `what`／`tips`、分段的
- * `head`／`txt`）**刻意不抽**：它們一個字都不能進家長端（#40），不抽進來就不會
- * 有人順手拿去用。
+ * 工具包裡的建議文字（`FREQ`、面向的 `what`／`tips`、分段的 `head`／`txt`）**刻意不抽**：
+ * 它們一個字都不能進家長端（#40），不抽進來就不會有人順手拿去用。
+ *
+ * `CONSEQ`／`PLAN` 是例外，客戶 9/21 工作單 #10 推翻了 #40 對這兩個的決定（規格 v2.1 §6）：
+ * 它們有位置了（`ToolkitBank.advice`），但**現在 22 份都沒有這一欄**。原文 243 句有 167 句踩
+ * 《家长报告用语对照表》的禁字，要等新工具包、而且每一句過得了 `BANNED_WORDS` 才抽（S23）；
+ * 在那之前報告上那兩段不出現（`src/t2/advice.ts`）。
  */
 
 /** §3 的 22 個工具代號。小寫、以工具包代號為準，不沿用中控台的舊名（`weefim`／`spm25`／`social`）。 */
@@ -105,4 +109,20 @@ export interface ToolkitBank {
   preQuestions: ToolkitPreQuestion[];
   /** 工具包的 `MIN_ITEMS`：適用題數少於此值的面向不單獨判讀（達成率族 3、adl 2）。 */
   minItems?: number;
+  /**
+   * 工具包的 `CONSEQ`／`PLAN`（規格 v2.1 §6.3）。**現在 22 份都沒有**：內容等新工具包、
+   * 過得了禁字掃描才抽（S23，見檔頭）。取句規則在 `src/t2/advice.ts`。
+   */
+  advice?: ToolkitAdvice;
+}
+
+/**
+ * 一支工具的「若持续不处理」與「建议后续项目」原文（工作單 #10）。兩張表都以**面向 key** 為鍵
+ * （與 `sections[].key` 同一組）；缺了某個面向就是那個面向不出句子，不是錯。
+ */
+export interface ToolkitAdvice {
+  /** 面向 key → 三句，依面向等級取：輕微、中度、明顯（＝面向 tier 2／3／4，工具包 `CONSEQ`）。 */
+  consequences: Record<string, [string, string, string]>;
+  /** 面向 key → 科別標題＋三條重點（工具包 `PLAN` 的 `[標題, [重點…]]`）。 */
+  plans: Record<string, { title: string; focus: string[] }>;
 }

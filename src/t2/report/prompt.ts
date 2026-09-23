@@ -48,6 +48,7 @@ import {
 } from './prose';
 import type { T2ReportInput } from './prose';
 import { CAVEAT_SENTENCES, SAFETY_SENTENCE, TAG_SENTENCES } from './sentences';
+import { ADVICE_HEADING } from '../reportCopy';
 
 export interface ProsePrompt {
   system: string;
@@ -57,6 +58,16 @@ export interface ProsePrompt {
 /** 系統提示裡那一句「不能改判定」。測試盯著它 —— 這是整段規則的地基。 */
 export const NO_VERDICT_CHANGE_RULE =
   '判定已经由规则引擎算好，你不得改变判定：不得把 watch 写成没事、不得把 clear 写成要留意、不得自己下任何结论。';
+
+/**
+ * 系統提示裡那一句「這兩段不歸你寫」（規格 v2.1 §6.3，S09）。「若持续不处理」與「建议后续项目」是
+ * 規則輸出，畫面從題庫原文取（`src/t2/advice.ts`），AI 與模板兩條路一樣。輸出格式本來就沒有這兩個
+ * 欄位、驗證器也會退多出來的欄位；這一句防的是模型把後果預測或後續建議改寫進 `whyItMatters` 裡 ——
+ * 那會跟畫面上的原文變成兩種說法。段名從 `reportCopy.ts` 取，與畫面同一份字。
+ */
+export const NO_ADVICE_SECTIONS_RULE =
+  `不写「${ADVICE_HEADING.consequences}」和「${ADVICE_HEADING.plans}」这两段，`
+  + '也不要把「不处理会怎样」的预测或后续该做什么项目的建议写进任何字段：这两段由系统从固定内容里原样取出，不归你写。';
 
 function list(values: ReadonlyArray<string>): string {
   return values.join('、');
@@ -85,6 +96,7 @@ function buildSystem(): string {
     '- 省略任何一条 caveat：素材里每个维度列了几条，你就写几条（固定句可以改写，不可以少）。',
     '- 引用问卷的题目原文。你拿到的素材里没有题目，也不要凭印象写出像题目的句子。',
     '- 提任何仪器、疗程、药物。',
+    `- ${NO_ADVICE_SECTIONS_RULE}`,
     '- 写出下面任何一类词。',
     '',
     '【禁止出现的词】',

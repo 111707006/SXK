@@ -18,6 +18,7 @@ import { DIMENSION_STATE_SENTENCE, DIMENSION_STATE_LABEL } from '../src/t2/repor
  * 4. **模板與 AI 走同一個畫面**：元件不看 `isAiGenerated` 分岔渲染，只拿它標來源（三態沿用 T1 的那一份）。
  * 5. **題目原文不手抄**：22 支的題目沒有一句出現在元件或句子層裡；回顧走 `reviewGroups`。
  * 6. **tier 內部名稱不出現**：元件不讀 `sections[*].tier`、不印 `tier`。
+ * 7. **CONSEQ／PLAN 兩段**（v2.1 §6.3）：在逐維度卡片裡、規則輸出不經 AI、空的時候整段不出。
  */
 
 const ROOT = path.resolve(__dirname, '..');
@@ -152,5 +153,48 @@ describe('tier 內部名稱不出現', () => {
       expect(view).not.toContain(w.tag);
       expect(view).not.toContain(w.describe);
     }
+  });
+});
+
+/**
+ * CONSEQ／PLAN 兩段的版位（規格 v2.1 §6.3，S09）。取句規則在 `src/t2/advice.ts`、用假資料測在
+ * `test/t2Advice.test.ts`；這裡釘畫面那一半：放在哪、從哪裡來、空的時候整段不出。
+ */
+describe('「若持续不处理」與「建议后续项目」（v2.1 §6.3）', () => {
+  const perDimension = view.slice(view.indexOf('id="t2-per-dimension"'), view.indexOf('id="t2-no-tool"'));
+
+  it('在逐維度卡片裡：whyItMatters 之後、caveats 之前，後果段在前、後續項目在後', () => {
+    const positions = [
+      'p.whyItMatters',
+      'data-advice="consequences"',
+      'data-advice="plans"',
+      'p.caveats.length > 0',
+    ].map(a => {
+      const at = perDimension.indexOf(a);
+      expect(at, `逐維度那一段找不到 ${a}`).toBeGreaterThanOrEqual(0);
+      return at;
+    });
+    for (let i = 1; i < positions.length; i++) expect(positions[i]).toBeGreaterThan(positions[i - 1]);
+  });
+
+  it('規則輸出、不經 AI：句子從快照經 dimensionAdvice（正式資料）取，不讀 prose', () => {
+    expect(view).toContain('dimensionAdvice(findings, p.dimensionId)');
+    expect(view).not.toMatch(/p\.(consequences|plans)\b/);
+    expect(view).not.toMatch(/prose[?!]?\.(consequences|plans|advice)\b/);
+  });
+
+  it('空的時候整段不出：沒有 advice、或那一段沒有句子，連段名都不渲染', () => {
+    expect(perDimension).toMatch(/advice && advice\.consequences\.length > 0 && \(/);
+    expect(perDimension).toMatch(/advice && advice\.plans\.length > 0 && \(/);
+  });
+
+  it('段名、段首句、主要／次要方向都從 reportCopy 來，元件裡不自己寫', () => {
+    expect(perDimension).toContain('{ADVICE_HEADING.consequences}');
+    expect(perDimension).toContain('{ADVICE_LEAD_SENTENCE}');
+    expect(perDimension).toContain('{ADVICE_HEADING.plans}');
+    expect(perDimension).toContain('ADVICE_RANK_LABEL[');
+    // 段首那一句只在後果段：「一般走向」講的是後果，不是後續項目。
+    const plansBlock = perDimension.slice(perDimension.indexOf('data-advice="plans"'));
+    expect(plansBlock).not.toContain('ADVICE_LEAD_SENTENCE');
   });
 });

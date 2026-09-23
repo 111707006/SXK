@@ -35,6 +35,7 @@ import { TOOLKIT } from './toolkit';
 import type { ToolId, ToolkitItem } from './toolkit';
 import { TOOL_SPECS } from './toolSpecs';
 import { SAFETY_SENTENCE } from './report/sentences';
+import type { AdviceRank } from './advice';
 import { DIMENSION_CODES } from './types';
 import type { DimensionBand, ScoringFamily, T2Findings, ToolResult } from './types';
 
@@ -94,6 +95,31 @@ export function redoSentence(daysSinceLast: number): string {
 
 /** 回顧裡一題都沒有時說的話。 */
 export const REVIEW_EMPTY_SENTENCE = '这次勾选的项目都已经稳定，没有需要特别列出来的';
+
+// ---------------------------------------------------------------------------
+// CONSEQ／PLAN 兩段（規格 v2.1 §6.3，S09）
+// ---------------------------------------------------------------------------
+
+/**
+ * 逐維度卡片裡那兩段的段名（暫採，規格 v2.1 §9 第 5 題）。句子本身是題庫原文、由 `advice.ts` 取，
+ * 現在題庫是空的，兩段不出現。
+ *
+ * 後者**不用**工具包的「建议治疗项目」：「治疗」是《用语对照表》的禁字。「建议后续项目」是客戶在
+ * LDP／LDS 自己用的段名。
+ */
+export const ADVICE_HEADING = {
+  consequences: '若持续不处理，一般会怎样',
+  plans: '建议后续项目',
+} as const;
+
+/** 「若持续不处理」的段首固定句（工作單 #10：措辭保留「一般走向，不是对这个孩子的预测」）。 */
+export const ADVICE_LEAD_SENTENCE = '以下是这一类情况的一般走向，不是对这个孩子的预测。';
+
+/** 「建议后续项目」每一項前面的標示（工具包原文）。 */
+export const ADVICE_RANK_LABEL: Readonly<Record<AdviceRank, string>> = {
+  primary: '主要方向',
+  secondary: '次要方向',
+};
 
 // ---------------------------------------------------------------------------
 // 作答回顧

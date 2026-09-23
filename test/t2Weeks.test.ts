@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calendarDateOf, isCalendarDate, weekEndOf, weekStartOf } from '../src/t2/weeks';
+import { addCalendarDays, calendarDateOf, isCalendarDate, weekEndOf, weekStartOf } from '../src/t2/weeks';
 
 /**
  * 「哪一週」（#60）。
@@ -61,6 +61,22 @@ describe('calendarDateOf', () => {
   it('UTC 的傍晚在上海已經是隔天', () => {
     expect(calendarDateOf(new Date('2026-09-12T16:00:00.000Z'))).toBe('2026-09-13');
     expect(calendarDateOf(new Date('2026-09-12T15:59:00.000Z'))).toBe('2026-09-12');
+  });
+});
+
+// Keep 規格 K10：打卡統計（連續天數、日期區間）一天一天往前推，沿用這一檔，不另寫一套日期運算。
+describe('addCalendarDays', () => {
+  it('往前、往後推幾天；跨月、跨年、閏日照算', () => {
+    expect(addCalendarDays('2026-09-07', 1)).toBe('2026-09-08');
+    expect(addCalendarDays('2026-09-07', -1)).toBe('2026-09-06');
+    expect(addCalendarDays('2026-03-01', -1)).toBe('2026-02-28');
+    expect(addCalendarDays('2024-03-01', -1)).toBe('2024-02-29');
+    expect(addCalendarDays('2026-12-31', 1)).toBe('2027-01-01');
+    expect(addCalendarDays('2026-09-07', 0)).toBe('2026-09-07');
+  });
+
+  it('認不得的日期 → 丟錯（不安靜地推出一個 NaN 日期）', () => {
+    expect(() => addCalendarDays('2026-02-31', 1)).toThrow(/YYYY-MM-DD/);
   });
 });
 

@@ -528,6 +528,49 @@ CREATE TABLE IF NOT EXISTS `t2_weekly_plans` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- T2 家庭活动的打卡与提醒（Keep 规格 K06、K07，§4.4）
+-- ============================================================
+-- t2_checkins：家长带孩子做完一次活动记一笔。同一支活动一天可以打好几次卡（没有唯一键）。
+-- 日期由伺服器照 Asia/Shanghai 算（src/t2/weeks.ts），不收前端送来的日期。
+-- findings_id 是打卡当下最新的报告快照，不设外键（见迁移档档头）。
+-- progress 存的是脚本「怎么看出有进步」的第几条（0 起）—— 后台改了那几条的顺序，旧打卡会对错条。
+-- 心情与进步现在只记录，配对不看。
+--
+-- t2_practice_prefs：提醒的星期几与时间，一位家长一列。提醒是手机日历发的（下载的 .ics），不是我们发的。
+--
+-- 两张都是家长资料：ON DELETE CASCADE（ADR-0006）。
+--
+-- 完整的迁移与验证语句见：deploy/migrations/2026-09-24-t2-checkins.sql
+
+CREATE TABLE IF NOT EXISTS `t2_checkins` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  `activity_id` VARCHAR(8) NOT NULL,
+  -- 打卡当下最新的报告快照；片库里的活动也记，算不算进计划由活动是否在那一周的四支里决定。
+  `findings_id` BIGINT UNSIGNED NULL,
+  -- Asia/Shanghai 的日历日与那一周的星期一（src/t2/weeks.ts）。
+  `checkin_date` DATE NOT NULL,
+  `week_start` DATE NOT NULL,
+  `mood` ENUM('engaged','ok','reluctant') NULL,
+  -- 勾了脚本「怎么看出有进步」的第几条（0 起）。
+  `progress` JSON NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_user_date` (`user_id`, `checkin_date`),
+  CONSTRAINT `fk_t2_checkins_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `t2_practice_prefs` (
+  `user_id` INT UNSIGNED NOT NULL PRIMARY KEY,
+  -- 0 = 星期一 … 6 = 星期日
+  `reminder_days` JSON NOT NULL,
+  -- 'HH:MM'，只收 08:30／12:30／19:30／20:30。
+  `reminder_time` CHAR(5) NULL,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_t2_practice_prefs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 扫码带走的报告连结（issue #22）
 -- ============================================================
 -- 家长在合作公司的 iPad 上看完报告，扫画面上的二维码就能在自己手机上打开

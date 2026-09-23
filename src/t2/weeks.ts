@@ -65,6 +65,19 @@ export function weekStartOf(day: Date | string): string {
 
 /** 這一週的星期日（`YYYY-MM-DD`）。畫面上寫「9 月 7 日 – 9 月 13 日」用的。 */
 export function weekEndOf(day: Date | string): string {
-  const start = weekStartOf(day);
-  return new Date(Date.parse(`${start}T00:00:00.000Z`) + 6 * MS_PER_DAY).toISOString().slice(0, 10);
+  return addCalendarDays(weekStartOf(day), 6);
+}
+
+/**
+ * 一個日曆日往後（負數往前）推幾天（`YYYY-MM-DD`）。
+ *
+ * 打卡統計（Keep 規格 K10，`practiceStats.ts`）的連續天數、日期區間都是一天一天推的，放在這裡
+ * 而不是各寫一份：日曆日在這一檔裡只有一種算法（當成 UTC 午夜推，不經本地時區），兩份算法
+ * 會在跨月、跨夏令時間的機器上各自推出不同的一天。認不得的日期丟錯，理由同 `weekStartOf`。
+ */
+export function addCalendarDays(date: string, days: number): string {
+  if (!isCalendarDate(date)) {
+    throw new Error(`weeks：要是 YYYY-MM-DD 的日期，拿到 ${JSON.stringify(date)}`);
+  }
+  return new Date(Date.parse(`${date}T00:00:00.000Z`) + days * MS_PER_DAY).toISOString().slice(0, 10);
 }

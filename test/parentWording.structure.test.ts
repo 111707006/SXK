@@ -92,6 +92,11 @@ const PARENT_FACING_FILES = [
   'src/components/T2Report.tsx',
   'src/t2/reportCopy.ts',
   'src/utils/reportSource.ts',
+  // 2026-09-24（Keep 票 4）：打卡與提醒的錯誤訊息（家長按「打卡」「加到打卡日历」時看得到）、
+  // 手機日曆上那個事件的標題與說明（`.ics`）。
+  'src/t2/practice.ts',
+  'src/t2/practiceRoutes.ts',
+  'src/t2/ics.ts',
 ];
 
 /**

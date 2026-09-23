@@ -33,6 +33,7 @@ import { isCalendarDate, weekEndOf, weekStartOf } from './src/t2/weeks';
 import { planPosition } from './src/t2/trainingPlan';
 import { createT2LibraryRouter } from './src/t2/libraryRoutes';
 import { buildSmartGoals } from './src/t2/goals';
+import { createPracticeRouter } from './src/t2/practiceRoutes';
 import { generateProse } from './src/t2/report';
 import type { T2ReportInput } from './src/t2/report';
 import * as t2Store from './src/db/t2ToolResults';
@@ -1443,6 +1444,18 @@ tier2Only.get('/api/t2/findings/latest', async (req, res) => {
     res.status(500).json({ error: '暂时无法读取报告，请稍后重试。' });
   }
 });
+
+// ── T2 打卡與提醒（Keep 規格 K06、K07，§5.3）──
+// 路由本身在 `src/t2/practiceRoutes.ts`。掛在 `tier2Only`、上面那道 T2 付費閘門之後（不在
+// `T2_OPEN_PATHS` 上）：B 整組 404、未付費 403、未登入 401。記憶體模式的退路在那一檔裡。
+tier2Only.use(
+  createPracticeRouter({
+    requireParent: requireT2Parent,
+    dbUserIdOf: userId => (mysqlDb.isConfigured() ? toDbUserId(userId) : null),
+    latestFindingsId: async userId => (await loadLatestT2Findings(userId))?.id ?? null,
+    withTimeout,
+  }),
+);
 
 // ── T2 每週活動（票 #60，規格 §9.1、§9.2、§7.3）──
 //

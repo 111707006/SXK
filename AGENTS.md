@@ -61,10 +61,16 @@
 │   │   ├── advice.ts      # CONSEQ／PLAN 的取句规则（v2.1 §6.3，S09）：从快照取题库 `advice` 原文，不经 AI；题库现在没有这一栏，报告上两段不出现（内容等 S23）
 │   │   ├── trainingPlan.ts # 家庭训练的「第几周」（Keep §4.5）：`PLAN_TOTAL_WEEKS = 12`（暂采）、`planPosition`
 │   │   ├── libraryRoutes.ts # 示范片库与单支活动的两支路由（Keep K09）；`server.ts` 只注册、注入登入检查与读活动库
+│   │   ├── practice.ts    # 打卡与提醒的形状、选项与输入检查：心情三选一、提醒四个时间、星期 0＝一…6＝日、62 天上限（Keep 票 4，伺服器与画面共用）
+│   │   ├── practiceStats.ts # 打卡统计纯函式：本周次数、本周练过的计划活动 x/4、连续天数、本月天数、完成率（§8 暂采，未接配对）
+│   │   ├── ics.ts         # 提醒的 .ics：每周重复、TZID=Asia/Shanghai＋VTIMEZONE、CRLF、按位元组折行（RFC 5545）
+│   │   ├── practiceRoutes.ts # 打卡与提醒的六支端点（Express Router，server.ts 只挂上去；含记忆体模式退路）
 │   │   └── diagnosisOptions.ts # 诊断方向十选一的名称与问句；刻意不进家长用字扫描（理由见档头）
 │   ├── db/
 │   │   ├── mysql.ts       # 连线池与家长端资料层
-│   │   └── activities.ts  # 一列 activities → Activity（后台与家长端共用，只认受控词汇里的标签）
+│   │   ├── activities.ts  # 一列 activities → Activity（后台与家长端共用，只认受控词汇里的标签）
+│   │   ├── t2Checkins.ts  # t2_checkins：打卡一笔一列，读改都带 user_id（Keep 票 4）
+│   │   └── t2PracticePrefs.ts # t2_practice_prefs：提醒的星期与时间，一位家长一列
 │   └── utils/
 │       ├── dateUtils.ts   # 日期工具函数
 │       ├── reportUtils.ts # 报告生成工具
@@ -170,6 +176,11 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 | `/api/t2/weekly-plan` | GET | 这一周的四支活动（#60，一周一笔：没有就用最新快照配一份存起来）。Keep K08／§5.1 起另回 `alternates`（换着玩：维度 → 最多 5 支备选的完整活动，只放有备选的维度；**K08 之前存的旧周次不回这一栏**）与 `plan: {weekIndex, totalWeeks: 12, firstWeekStart}`（第 1 周＝同一个 `findings_id` 最早的一周）；报告生成之前、没存过的周次 400 `WEEK_OUT_OF_RANGE`，不补一列 | `Authorization: Bearer <token>`；`week` (query，`YYYY-MM-DD`) 选填 |
 | `/api/t2/library` | GET | 示范片库（Keep K09）：有示范片的**启用**活动，回 `{activities: [{id, title, moduleNo, ageLabel, ageMonths, posterUrl, videoSeconds}]}`，依编号排；还没有片子时是空阵列 | `Authorization: Bearer <token>` |
 | `/api/t2/activities/:id` | GET | 单支活动的完整内容（Keep K09；手册栏位、`guide`、步骤、示范片），回 `{activity}`；**停用或不存在都是 404** `ACTIVITY_NOT_FOUND` | `Authorization: Bearer <token>` |
+| `/api/t2/checkins` | POST | 打一次卡（Keep 票 4）：活动要存在且启用；**日期由伺服器照 Asia/Shanghai 算**，不收前端的；记下当下最新的报告快照。回 `{id, checkinDate, timesForActivity, checkin}` | `activityId`；`Authorization: Bearer <token>` |
+| `/api/t2/checkins/:id` | PATCH | 改心情／勾进步，只能改自己的（别人的 404）。`progress` 每个数要小于该活动 `guide.progress` 的条数，没有脚本的活动只收 `[]` | `mood`（`engaged`／`ok`／`reluctant`／null）、`progress` 至少带一个；`Authorization: Bearer <token>` |
+| `/api/t2/checkins` | GET | 一段日期的打卡（头尾都含，**最多 62 天**），由早到晚 | `from`, `to`（`YYYY-MM-DD`，query）；`Authorization: Bearer <token>` |
+| `/api/t2/practice-prefs` | GET／PUT | 提醒的星期几（0＝星期一…6＝星期日，可复选）与时间（只收 08:30／12:30／19:30／20:30）；两样要嘛都有、要嘛清成 `[]` 与 null | PUT：`reminderDays`, `reminderTime`；`Authorization: Bearer <token>` |
+| `/api/t2/practice-prefs.ics` | GET | 依提醒产生每周重复的 `.ics`（`RRULE:FREQ=WEEKLY`、`TZID=Asia/Shanghai`、标题「陪孩子做家庭活动」）；没设提醒 404 | `Authorization: Bearer <token>` |
 
 > T2 入口的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
 > 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量，诊断方向会改题量。
@@ -177,6 +188,15 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 > 片库与单支活动（Keep K09，处理函式在 `src/t2/libraryRoutes.ts`，`server.ts` 只注册）也在后面。
 > ⚠️ `t2_intake` 表由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立、`t2_tool_results` 表由
 > `deploy/migrations/2026-09-12-t2-tool-results.sql` 建立，**都必须先于新版程式码部署**。
+
+> 打卡与提醒（Keep 票 4，K06、K07、K10）：六支都在 `src/t2/practiceRoutes.ts`，`server.ts` 只把 Router 挂在
+> `tier2Only` 上、T2 闸门之后（**不在** `T2_OPEN_PATHS`：未付费 403 `LOCKED`、未登入 401、B 是 404）。
+> 身分取自 token，body／query 里的 `userId` 不采信。心情与进步**现在只记录**，配对不看（规格 §9 第 6 题）；
+> 统计（x/4、连续天数、完成率）在 `src/t2/practiceStats.ts`，时区与周界照 `weeks.ts`。
+> ⚠️ `progress` 存的是脚本「怎么看出有进步」的**第几条**：后台改了那几条的顺序或删一条，旧打卡会对错条。
+> ⚠️ `t2_checkins`、`t2_practice_prefs` 由 `deploy/migrations/2026-09-24-t2-checkins.sql` 建立，**必须先于新版程式码部署**。
+> 护栏：`test/t2Practice.http.test.ts`、`test/t2PracticeProjectB.http.test.ts`、`test/t2PracticeStats.test.ts`、
+> `test/t2Ics.test.ts`、`test/t2CheckinStore.test.ts`、`test/t2Checkins.structure.test.ts`。
 
 > 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／
 > `offline_training`／`offline_consult` 之一，定义在 `src/utils/serviceTypes.ts`。

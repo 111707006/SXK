@@ -17,7 +17,7 @@ import {
   FEW_ITEMS_MAX,
   INDEPENDENCE_ITEM_MAX,
 } from '../src/t2/rules/devAdlLearning';
-import { TOOL_RULES, ruleFor } from '../src/t2/rules';
+import { TOOL_RULES, caveatsFor, ruleFor, severeFor } from '../src/t2/rules';
 
 /**
  * 分齡發展（dev）、生活自理（adl）、學習障礙（ldp／lds）的規則表
@@ -348,7 +348,7 @@ describe('adl 分界：總獨立率 → ADL', () => {
     expect(tagsOf(ADL, worst)).toContain('severity.severe');
   });
 
-  it('adl 只餵 ADL：其餘八個維度全 null，MO 的四項再差也不推 MOT', () => {
+  it('72 個月以下 adl 只推 ADL：其餘八個維度全 null，MO 的四項再差也不推 MOT（v2.1 S06 從 73 起）', () => {
     const r = adl({ 'MO.1': 1, 'MO.2': 1, 'MO.3': 1, 'MO.4': 1 });
     expect(bandsOf(ADL, r)).toEqual({
       COG: null, LANG: null, SOC: null, EMO: null, ATT: null, MOT: null, SEN: null, ADL: 'clear', LEARN: null,
@@ -530,10 +530,11 @@ describe.each(LEARNING)('%s 分界：總分 → LEARN', toolId => {
     expect(tagsOf(toolId, high)).not.toContain('severity.severe');
   });
 
-  it('只餵 LEARN：其餘八個維度全 null', () => {
+  it('總分只推 LEARN；LANG 只看语言处理那一面向（v2.1 S06），其餘七個維度全 null', () => {
+    // 语言处理方面 0 分 → LANG clear。總分再高也不牽動 LANG —— 那一條 feed 只看 `lang` 面向。
     const r = learn(toolId, { read: 18, attn: 18 });
     expect(bandsOf(toolId, r)).toEqual({
-      COG: null, LANG: null, SOC: null, EMO: null, ATT: null, MOT: null, SEN: null, ADL: null, LEARN: 'refer',
+      COG: null, LANG: 'clear', SOC: null, EMO: null, ATT: null, MOT: null, SEN: null, ADL: null, LEARN: 'refer',
     });
   });
 });
@@ -635,6 +636,90 @@ describe('ldp 與 lds 是同一張表的兩支', () => {
     expect(ruleFor('sxk-ldp').bandFor(p, 'LEARN')).toBe(ruleFor('sxk-lds').bandFor(s, 'LEARN'));
     expect(tagsOf('sxk-ldp', p)).toEqual(tagsOf('sxk-lds', s));
     expect(ruleFor('sxk-ldp').caveats(p)).toEqual(ruleFor('sxk-lds').caveats(s));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 十、之二：v2.1 S06 —— 只能當加測的面向（ldp／lds 的语言处理 → LANG、adl 的移动与转位 → MOT）
+// ---------------------------------------------------------------------------
+
+describe.each(LEARNING)('%s 的语言处理 → LANG（v2.1 S06）', toolId => {
+  /** [方面原始分, LANG 的 band, 帶不帶 severe]。用的是方面那張 0–18 的表：≤4 / 5–8 / 9–12 / ≥13。 */
+  const CASES: ReadonlyArray<[number, Band, boolean]> = [
+    [0, 'clear', false], [4, 'clear', false], [5, 'watch', false], [8, 'watch', false],
+    [9, 'refer', false], [12, 'refer', false], [13, 'refer', true], [18, 'refer', true],
+  ];
+
+  for (const [raw, band, severe] of CASES) {
+    it(`语言处理方面 ${raw} → LANG ${band}${severe ? '＋severe' : ''}；LEARN 照總分`, () => {
+      const r = learn(toolId, { lang: raw });
+      expect(ruleFor(toolId).bandFor(r, 'LANG')).toBe(band);
+      expect(ruleFor(toolId).bandFor(r, 'LEARN')).toBe(raw >= 10 ? 'watch' : 'clear');
+      expect(severeFor(r, 'LANG')).toBe(severe);
+    });
+  }
+
+  it('只看语言处理：其餘四個方面再高，LANG 仍是 clear', () => {
+    const r = learn(toolId, { read: 18, math: 18, write: 18, attn: 18 });
+    expect(ruleFor(toolId).bandFor(r, 'LANG')).toBe('clear');
+  });
+
+  it('caveatsFor：LANG 有判定時多帶 facet_only；LEARN 不帶；工具本身的 caveats 不變', () => {
+    const r = learn(toolId, { lang: 9 });
+    expect(caveatsFor(r, 'LANG')).toEqual(['parent_report', 'unsourced_threshold', 'facet_only']);
+    expect(caveatsFor(r, 'LEARN')).toEqual(['parent_report', 'unsourced_threshold']);
+    expect(ruleFor(toolId).caveats(r)).toEqual(['parent_report', 'unsourced_threshold']);
+  });
+});
+
+describe('ldp 的语言处理只在 73–144 算、lds 只在 144–216 算（看結果自己的測評月齡）', () => {
+  it('ldp 72 個月做的：LANG null、不帶 facet_only；LEARN 照算', () => {
+    const r = { ...learn('sxk-ldp', { lang: 13, read: 10 }), assessedAgeMonth: 72 };
+    expect(ruleFor('sxk-ldp').bandFor(r, 'LANG')).toBeNull();
+    expect(severeFor(r, 'LANG')).toBe(false);
+    expect(caveatsFor(r, 'LANG')).not.toContain('facet_only');
+    expect(ruleFor('sxk-ldp').bandFor(r, 'LEARN')).toBe('refer');
+  });
+
+  it('ldp 73 與 144 都算；lds 144 算、143 不算', () => {
+    const p = learn('sxk-ldp', { lang: 9 });
+    expect(ruleFor('sxk-ldp').bandFor({ ...p, assessedAgeMonth: 73 }, 'LANG')).toBe('refer');
+    expect(ruleFor('sxk-ldp').bandFor({ ...p, assessedAgeMonth: 144 }, 'LANG')).toBe('refer');
+    const s = learn('sxk-lds', { lang: 9 });
+    expect(ruleFor('sxk-lds').bandFor({ ...s, assessedAgeMonth: 144 }, 'LANG')).toBe('refer');
+    expect(ruleFor('sxk-lds').bandFor({ ...s, assessedAgeMonth: 143 }, 'LANG')).toBeNull();
+  });
+});
+
+describe('adl 的移动与转位 → MOT（v2.1 S06，73 個月起）', () => {
+  const AGE_73_PLUS = 96;
+
+  it('96 個月 MO 四項全「完全由大人做」→ MOT refer＋severe、facet_only；ADL 照總獨立率', () => {
+    const r = adl({ 'MO.1': 1, 'MO.2': 1, 'MO.3': 1, 'MO.4': 1 }, AGE_73_PLUS);
+    expect(r.sections.MO).toMatchObject({ n: 4, pct: 0, scored: true });
+    expect(bandsOf(ADL, r)).toEqual({
+      COG: null, LANG: null, SOC: null, EMO: null, ATT: null, MOT: 'refer', SEN: null, ADL: 'clear', LEARN: null,
+    });
+    expect(severeFor(r, 'MOT')).toBe(true);
+    expect(caveatsFor(r, 'MOT')).toContain('facet_only');
+    expect(caveatsFor(r, 'ADL')).not.toContain('facet_only');
+  });
+
+  it('MO 用的是 adl 自己的獨立率切分（72／58／45）：全 5 → 67% watch；全 4 → 50% refer；全 7 → clear', () => {
+    const at = (v: number) => adl({ 'MO.1': v, 'MO.2': v, 'MO.3': v, 'MO.4': v }, AGE_73_PLUS);
+    expect(at(5).sections.MO.pct).toBe(67);
+    expect(ruleFor(ADL).bandFor(at(5), 'MOT')).toBe('watch');
+    expect(at(4).sections.MO.pct).toBe(50);
+    expect(ruleFor(ADL).bandFor(at(4), 'MOT')).toBe('refer');
+    expect(ruleFor(ADL).bandFor(at(7), 'MOT')).toBe('clear');
+    expect(caveatsFor(at(7), 'MOT')).toContain('facet_only');
+  });
+
+  it('72 個月做的 → MOT null、不帶 facet_only；73 個月做的 → 算', () => {
+    const moAll1 = { 'MO.1': 1, 'MO.2': 1, 'MO.3': 1, 'MO.4': 1 };
+    expect(ruleFor(ADL).bandFor(adl(moAll1, 72), 'MOT')).toBeNull();
+    expect(caveatsFor(adl(moAll1, 72), 'MOT')).not.toContain('facet_only');
+    expect(ruleFor(ADL).bandFor(adl(moAll1, 73), 'MOT')).toBe('refer');
   });
 });
 

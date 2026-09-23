@@ -30,8 +30,14 @@ export { FAMILIES } from './families';
 export type { AnswerValue, FamilyScorer, RawStat } from './families';
 export type { TierInterval } from './tiers';
 
-/** 本次計分規則的版本。門檻或算法改了就要換 —— 舊報告記著舊版本，才知道是怎麼算出來的。 */
-export const RULES_VERSION = 'v2-2026-09-11' as const;
+/**
+ * 本次計分規則的版本。門檻或算法改了就要換 —— 舊報告記著舊版本，才知道是怎麼算出來的。
+ *
+ * 版本史：`v2-2026-09-11`（v2 規格）→ `v2.1-2026-09-23`（v2.1 §4.3–§4.5：氣質判留意、只能當加測的
+ * 貢獻、caveat 多 `facet_only`／`no_star_tool`）。v2.1 §10 說 S06–S08 上線時換一次；S08（不篩）
+ * 若與這一版一起上線就不必再換。舊快照（`t2_findings`）照存的樣子顯示，不拿新規則重跑。
+ */
+export const RULES_VERSION = 'v2.1-2026-09-23' as const;
 
 export interface ScoreInput {
   toolId: ToolId;

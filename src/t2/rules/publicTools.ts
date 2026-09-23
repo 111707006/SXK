@@ -29,7 +29,7 @@
  * 【四支都沒有 tier 4】
  * 分段表最多三段，`severity.severe` 在這裡永遠不出。mchat 與 snap 仍呼叫 `severityTags`：§5.5
  * 的規則是跨工具的，分段表哪天加了第四段不必回來改。warn 的 `feeds.sections` 是位置不是面向 key，
- * chexi 與氣質不出 band，這三支不呼叫。
+ * chexi 不出 band、氣質最高只到留意（v2.1 S07，severe 無從出起），這三支不呼叫。
  */
 
 import { TOOLKIT } from '../toolkit';

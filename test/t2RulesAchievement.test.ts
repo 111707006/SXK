@@ -512,7 +512,7 @@ describe('規則表登錄', () => {
     for (const [key, rule] of Object.entries(TOOL_RULES)) {
       expect(rule.toolId).toBe(key);
       expect(rule.rulesVersion).toBe(RULES_VERSION);
-      expect(rule.rulesVersion).toBe('v2-2026-09-11');
+      expect(rule.rulesVersion).toBe('v2.1-2026-09-23');
     }
   });
 

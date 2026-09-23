@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { TOOLKIT, TOOL_IDS } from '../src/t2/toolkit';
 import type { ToolId } from '../src/t2/toolkit';
-import { TOOL_SPECS, TOOL_FEEDS, inWindow, feedsDimension, sectionsFor } from '../src/t2/toolSpecs';
+import { TOOL_SPECS, TOOL_FEEDS, inWindow, feedAt, feedsDimension, sectionsFor } from '../src/t2/toolSpecs';
 import { isCaveat } from '../src/t2/caveats';
-import type { DimensionCode, ScoringFamily } from '../src/t2/types';
+import type { DimensionCode, ScoringFamily, ToolFeed } from '../src/t2/types';
 
 /**
  * 工具登錄表的結構測試（#42，規格 v2 §3、§5.2、§5.4、§5.9、附錄 F）。
@@ -123,8 +123,11 @@ describe('登錄表：計分族與最少題數（§5.2）', () => {
 });
 
 describe('登錄表：feeds 與附錄 F 逐支相符', () => {
-  /** 附錄 F 的機器可讀表，重抄一次。 */
-  const SPEC_FEEDS: Record<ToolId, Array<{ dimension: DimensionCode; sections: string[] | 'overall' }>> = {
+  /**
+   * 附錄 F 的機器可讀表，重抄一次。v2.1 §4.4、§4.5 的有條件貢獻（`months`／`followupOnly`／`maxBand`）
+   * 照 v2.1 那兩張表抄：adl／ldp／lds 各多一條只能當加測的，氣質兩支換成指定向度＋月齡段＋最高留意。
+   */
+  const SPEC_FEEDS: Record<ToolId, Array<ToolFeed>> = {
     'sxk-dev': [
       { dimension: 'MOT', sections: ['MOT'] }, { dimension: 'LANG', sections: ['LANG'] },
       { dimension: 'SOC', sections: ['SOC'] }, { dimension: 'ADL', sections: ['ADL'] },
@@ -152,12 +155,43 @@ describe('登錄表：feeds 與附錄 F 逐支相符', () => {
     'chexi': [{ dimension: 'ATT', sections: 'overall' }],
     'sxk-spa': [{ dimension: 'SEN', sections: 'overall' }],
     'sxk-spb': [{ dimension: 'SEN', sections: 'overall' }],
-    'sxk-adl': [{ dimension: 'ADL', sections: 'overall' }],
-    'sxk-ldp': [{ dimension: 'LEARN', sections: 'overall' }],
-    'sxk-lds': [{ dimension: 'LEARN', sections: 'overall' }],
-    'sxk-tempa': [{ dimension: 'EMO', sections: 'overall' }],
-    'sxk-tempb': [{ dimension: 'EMO', sections: 'overall' }],
+    'sxk-adl': [
+      { dimension: 'ADL', sections: 'overall' },
+      { dimension: 'MOT', sections: ['MO'], months: { lo: 73, hi: 216 }, followupOnly: true },
+    ],
+    'sxk-ldp': [
+      { dimension: 'LEARN', sections: 'overall' },
+      { dimension: 'LANG', sections: ['lang'], months: { lo: 73, hi: 144 }, followupOnly: true },
+    ],
+    'sxk-lds': [
+      { dimension: 'LEARN', sections: 'overall' },
+      { dimension: 'LANG', sections: ['lang'], months: { lo: 144, hi: 216 }, followupOnly: true },
+    ],
+    'sxk-tempa': [
+      { dimension: 'EMO', sections: ['D4', 'D5', 'D6'], months: { lo: 12, hi: 36 }, maxBand: 'watch' },
+      { dimension: 'ATT', sections: ['D7', 'D8'], months: { lo: 12, hi: 35 }, maxBand: 'watch' },
+    ],
+    'sxk-tempb': [
+      { dimension: 'EMO', sections: ['D4', 'D5', 'D6'], months: { lo: 36, hi: 71 }, maxBand: 'watch' },
+    ],
   };
+
+  it('一支工具對一個維度最多一條 feed（`feedAt`／`sectionsFor` 只取第一條）', () => {
+    for (const id of TOOL_IDS) {
+      const dims = TOOL_FEEDS[id].map(f => f.dimension);
+      expect({ id, dims }).toEqual({ id, dims: [...new Set(dims)] });
+    }
+  });
+
+  it('months 落在工具窗口的範圍內或之後（起點不早於窗口起點），lo ≤ hi', () => {
+    for (const id of TOOL_IDS) {
+      for (const f of TOOL_FEEDS[id]) {
+        if (!f.months) continue;
+        expect({ id, d: f.dimension, ok: f.months.lo <= f.months.hi && f.months.lo >= spec(id).windowMonths.lo })
+          .toEqual({ id, d: f.dimension, ok: true });
+      }
+    }
+  });
 
   it('逐支相符', () => {
     for (const id of TOOL_IDS) {
@@ -203,7 +237,10 @@ describe('登錄表：feeds 與附錄 F 逐支相符', () => {
     expect(feedsDimension('chexi', 'LEARN')).toBe(false);
     expect(feedsDimension('sxk-ldp', 'ATT')).toBe(false);
     expect(feedsDimension('sxk-asq', 'EMO')).toBe(false);
-    expect(feedsDimension('sxk-adl', 'MOT')).toBe(false);
+    // adl → 動作：v2 不採（勘誤 A2）；v2.1 客戶答「算，但只當加測」—— 只有 MO 那 4 題、73 個月起、followupOnly
+    expect(TOOL_FEEDS['sxk-adl'].find(f => f.dimension === 'MOT'))
+      .toEqual({ dimension: 'MOT', sections: ['MO'], months: { lo: 73, hi: 216 }, followupOnly: true });
+    expect(feedAt('sxk-adl', 'MOT', 72)).toBeNull();
     expect(feedsDimension('sxk-adl', 'EMO')).toBe(false);
     expect(feedsDimension('sxk-adl', 'SOC')).toBe(false);
     expect(feedsDimension('sxk-spa', 'COG')).toBe(false);

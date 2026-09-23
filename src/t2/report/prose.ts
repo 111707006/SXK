@@ -40,6 +40,7 @@ import type { Caveat } from '../caveats';
 import { REPORT_ONLY_TAGS } from '../findingTags';
 import type { FindingTag } from '../findingTags';
 import { TEMPERAMENT_TAGS } from '../sectionTags';
+import { TEMPERAMENT_TOOL_IDS } from '../rules/temperament';
 import { prioritizeDimensions } from '../dimensionOrder';
 import { DIMENSION_CODES } from '../types';
 import type { DimensionCode, DimensionFinding, T2Findings } from '../types';
@@ -128,6 +129,17 @@ export function caveatsToVoice(dimension: DimensionFinding): Caveat[] {
 export function temperamentTagsOf(findings: T2Findings): FindingTag[] {
   const present = new Set<FindingTag>(findings.dimensions.flatMap(d => d.tags));
   return TEMPERAMENT_REPORT_TAGS.filter(t => present.has(t));
+}
+
+/**
+ * 這個維度的段落**不再重複**的標籤（v2.1 §4.4）：判定是氣質推出來的（`drivenBy` 是 tempa／tempb）時，
+ * 氣質段會講的那幾個（`TEMPERAMENT_REPORT_TAGS`）已經在氣質段講過。只看 `drivenBy` —— 別的工具推的
+ * 段落（例如 spa 推的感覺、帶著 tempb 的 `sen.threshold_low`）照舊，判定不是從天生風格來的，
+ * 那一句是這一段的內容。回傳的標籤一定也在 `temperamentTagsOf` 裡，所以氣質段一定在。
+ */
+export function tagsVoicedInTemperament(dimension: DimensionFinding): FindingTag[] {
+  if (dimension.drivenBy === null || !TEMPERAMENT_TOOL_IDS.includes(dimension.drivenBy)) return [];
+  return dimension.tags.filter(t => TEMPERAMENT_REPORT_TAGS.includes(t));
 }
 
 /** 有沒有自我傷害的那一條（§5.6，報告置頂）。 */

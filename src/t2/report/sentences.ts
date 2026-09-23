@@ -102,6 +102,15 @@ export const TAG_SENTENCES: Readonly<Record<FindingTag, string>> = {
   'severity.severe': '这一项这次的结果落在最需要留意的那一段，建议请专业人员一起看。',
 };
 
+/**
+ * 客戶 9/21 工作單 #6 的固定句（v2.1 §4.6 S05），原樣、不帶句號。
+ *
+ * 對象：認知、語言、動作，測評月齡 ≥73，這個維度沒有星號。這一張票（v2.1 票 3）只拿它當
+ * `no_star_tool` 的句子；入口與報告 no_tool 段換成這一句是 S05（票 2）的事，屆時沿用這一個常數，
+ * 不另抄一份。
+ */
+export const SCHOOL_AGE_NO_TOOL_SENTENCE = '6 岁以上的认知、语言、动作目前没有家长自填工具，建议到院做专业评估';
+
 /** 帶 N 的三句，兩種寫法。 */
 const COUNTED_CAVEAT_SENTENCES: Readonly<Partial<Record<Caveat, (n: number | null) => string>>> = {
   incomplete: n => n === null
@@ -122,7 +131,7 @@ function counted(caveat: 'incomplete' | 'age_out_of_window' | 'few_items'): stri
 }
 
 /**
- * 17 個 caveat 各一句（§5.6 第三欄，改寫成過得了《對照表》的說法）。
+ * 19 個 caveat 各一句（§5.6 第三欄，改寫成過得了《對照表》的說法；v2.1 §4.5 加兩句）。
  * `parent_report` 是 `null`（不單獨成句）；帶 N 的三句在這裡放沒有數字的那種寫法。
  *
  * 改寫過的兩句與理由：
@@ -149,6 +158,10 @@ export const CAVEAT_SENTENCES: Readonly<Record<Caveat, string | null>> = {
   hearing_check_first: '建议先安排一次听力检查。',
   narrow_window: '这份只涵盖三岁前后，不适合跨年龄比较。',
   safety_concern: '孩子出现伤害自己的举动时，请今天就联系专业人员。',
+  // v2.1 §4.5：客戶字句「题数少，仅供参考」原樣保留
+  facet_only: '这一项只看了另一份问卷里的几题，题数少，仅供参考。',
+  // v2.1 §4.5：就是 S05 那句固定句（客戶 9/21 工作單 #6 原文），句尾補句號
+  no_star_tool: `${SCHOOL_AGE_NO_TOOL_SENTENCE}。`,
 };
 
 /** `safety_concern` 那一句。§5.6 說它**報告置頂**，所以 `overview` 開頭原樣照抄這一句。 */

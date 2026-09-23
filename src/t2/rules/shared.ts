@@ -26,7 +26,7 @@ import type { FindingTag } from '../findingTags';
 import { SECTION_TAGS, SEVERITY_TAG, SEVERITY_TIER } from '../sectionTags';
 import { itemRule } from '../itemTags';
 import type { ItemTagRule } from '../itemTags';
-import { TOOL_SPECS, inWindow, sectionsFor } from '../toolSpecs';
+import { TOOL_SPECS, feedAt, inWindow, sectionsFor } from '../toolSpecs';
 import { answerKey } from '../scoring';
 import type { AnswerValue } from '../scoring';
 import type { Band, DimensionCode, SectionStat, Tier, ToolResult } from '../types';
@@ -66,17 +66,40 @@ export function worstBand(bands: ReadonlyArray<Band | null>): Band | null {
  * 這個維度用哪些 `SectionStat` 出 band（附錄 F 的 `feeds`）：不餵回 `[]`，
  * `'overall'` 回總分，面向型回那幾個面向。多維度工具（asq、dev、snap）每個維度各自
  * 一組，這是「band 按該維度對應的面向分別算，不用總分」（§5.4）落地的地方。
+ *
+ * v2.1 §4.3：帶 `months` 的 feed 只在**這一筆結果的測評月齡**落在那一段時算 —— 60 個月做的
+ * adl 不因為 MO 那一條 feed 的存在而推動作（那一條 73 個月起）。段外回 `[]`，band 與 severe 都跟著沒有。
  */
 export function bandStats(r: ToolResult, dimension: DimensionCode): SectionStat[] {
-  const sections = sectionsFor(r.toolId, dimension);
+  const sections = sectionsFor(r.toolId, dimension, r.assessedAgeMonth);
   if (sections === null) return [];
   if (sections === 'overall') return [r.overall];
   return sections.map(key => r.sections[key]).filter((s): s is SectionStat => s !== undefined);
 }
 
-/** 照 `feeds` 算這個維度的 band；一個維度對到多個面向時取最差的。不餵 → null。 */
+/** 封頂（v2.1 §4.3 的 `maxBand`）：氣質最高只到 `watch`。沒有上限就原樣回。 */
+export function capBand(band: Band | null, max: Band | undefined): Band | null {
+  if (band === null || max === undefined) return band;
+  return BAND_RANK[band] > BAND_RANK[max] ? max : band;
+}
+
+/**
+ * 照 `feeds` 算這個維度的 band；一個維度對到多個面向時取最差的。不餵、或那條 feed 在這一筆的
+ * 測評月齡不生效 → null。feed 帶 `maxBand` 時封頂。
+ */
 export function bandFromFeeds(r: ToolResult, dimension: DimensionCode): Band | null {
-  return worstBand(bandStats(r, dimension).map(bandOfStat));
+  const band = worstBand(bandStats(r, dimension).map(bandOfStat));
+  return capBand(band, feedAt(r.toolId, dimension, r.assessedAgeMonth)?.maxBand);
+}
+
+/**
+ * 這一筆結果對這個維度的判定要多帶的 caveat（v2.1 §4.5）：判定來自只能當加測的那條 feed 時帶
+ * `facet_only`。只看**這個維度** —— 同一筆 ldp 對學習（總分）不帶，對語言（语言处理 6 題）才帶。
+ * 沒有判定（`band` 是 null）就不帶：沒有被讀的東西不需要打折。
+ */
+export function feedCaveats(r: ToolResult, dimension: DimensionCode, band: Band | null): Caveat[] {
+  if (band === null) return [];
+  return feedAt(r.toolId, dimension, r.assessedAgeMonth)?.followupOnly ? ['facet_only'] : [];
 }
 
 /**
@@ -141,6 +164,9 @@ export function severityTags(r: ToolResult): FindingTag[] {
  * 不餵這個維度 → false。
  */
 export function severeFor(r: ToolResult, dimension: DimensionCode): boolean {
+  // 封頂到 refer 以下的 feed（氣質）不會有「嚴重」：band 最多 watch，再掛 severe 就自相矛盾
+  const max = feedAt(r.toolId, dimension, r.assessedAgeMonth)?.maxBand;
+  if (max !== undefined && BAND_RANK[max] < BAND_RANK.refer) return false;
   return bandStats(r, dimension).some(stat => stat.scored && stat.tier === SEVERITY_TIER);
 }
 

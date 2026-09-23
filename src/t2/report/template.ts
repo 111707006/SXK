@@ -33,6 +33,7 @@ import { SITE_DIMENSION_NAME } from '../dimensionMap';
 import type { DimensionFinding, T2Findings } from '../types';
 import type { DimensionCode } from '../types';
 import type { Caveat } from '../caveats';
+import type { FindingTag } from '../findingTags';
 import type { ToolResult } from '../types';
 import { inWindow, sectionsFor } from '../toolSpecs';
 import {
@@ -42,6 +43,7 @@ import {
   charCount,
   hasSafetyConcern,
   reportedDimensions,
+  tagsVoicedInTemperament,
   temperamentTagsOf,
 } from './prose';
 import type { ProseDimension, T2ReportInput, T2ReportProse } from './prose';
@@ -52,19 +54,23 @@ type ReportedBand = 'watch' | 'refer' | 'no_tool';
 
 /**
  * 夾在 `head` 與 `tail` 之間、能塞幾句就塞幾句：由前往後取，取到整段的字數上限為止。
- * 回傳挑中的那幾句（可能一句都沒有）；`head` 與 `tail` 由呼叫端自己接上。
+ * 回傳挑中的那幾項（可能一項都沒有）；`head` 與 `tail` 由呼叫端自己接上。`textOf` 是那一項的句子。
  */
-function fitBetween(head: string, optional: ReadonlyArray<string>, tail: string, max: number): string[] {
+function fitItems<T>(head: string, optional: ReadonlyArray<T>, textOf: (item: T) => string, tail: string, max: number): T[] {
   const room = max - charCount(head) - charCount(tail);
-  const chosen: string[] = [];
+  const chosen: T[] = [];
   let used = 0;
-  for (const part of optional) {
-    const n = charCount(part);
+  for (const item of optional) {
+    const n = charCount(textOf(item));
     if (used + n > room) continue;
-    chosen.push(part);
+    chosen.push(item);
     used += n;
   }
   return chosen;
+}
+
+function fitBetween(head: string, optional: ReadonlyArray<string>, tail: string, max: number): string[] {
+  return fitItems(head, optional, s => s, tail, max);
 }
 
 /** 幾個維度名稱串成一句裡的主詞：最多列兩個，多的收成「等 N 项」。 */
@@ -131,6 +137,13 @@ const BAND_ADVICE: Readonly<Record<ReportedBand, string>> = {
 /** 一個標籤都沒有時替代標籤句的那一句（band 判出来了，但没有指向更细的方向）。 */
 const NO_TAG_SENTENCE = '这次的结果没有指向更细的方向，先从这一项日常里最常用到的场景开始留意。';
 
+/**
+ * 氣質推出的段落、標籤句全都在氣質段講過時，替代 `NO_TAG_SENTENCE` 的那一句（v2.1 §4.4）。
+ * 「没有指向更细的方向」在這裡不對 —— 方向有，只是寫在後面講天生風格的那一段（報告的段落順序
+ * 是逐維度 → 沒有問卷的維度 → 氣質，§6.3）。
+ */
+export const SEE_TEMPERAMENT_SENTENCE = '这一项这次看到的是孩子天生的风格，细节写在后面讲天生风格的那一段。';
+
 /** `whyItMatters` 的開場：band 一句，接 `DIMENSION_WHY`。 */
 const BAND_WHY: Readonly<Record<ReportedBand, string>> = {
   refer: '这一项这次被标记出来，从现在开始多练，通常进步最快、也最省力。',
@@ -171,7 +184,8 @@ function caveatNumber(
   if (caveat === 'few_items') {
     const counts: number[] = [];
     for (const r of used) {
-      const keys = sectionsFor(r.toolId, dimension.dimensionId);
+      // 看那一筆的測評月齡：有條件的 feed（v2.1 §4.3）只在自己的段裡算這個維度的題
+      const keys = sectionsFor(r.toolId, dimension.dimensionId, r.assessedAgeMonth);
       if (keys === null) continue;
       const stats = keys === 'overall'
         ? [r.overall]
@@ -183,19 +197,29 @@ function caveatNumber(
   return null;
 }
 
-function buildDimension(dimension: DimensionFinding, findings: T2Findings): ProseDimension {
+/**
+ * @param inTemperament 氣質段**真的寫進去**的標籤（`temperamentChosen`）。氣質推出的段落只讓出這幾個
+ *   （v2.1 §4.4）—— 氣質段有字數上限，塞不下的那一句要留在這裡，不然兩段都沒有它。
+ */
+function buildDimension(
+  dimension: DimensionFinding,
+  findings: T2Findings,
+  inTemperament: ReadonlySet<FindingTag>,
+): ProseDimension {
   const band = bandOf(dimension);
   const area = SITE_DIMENSION_NAME[dimension.dimensionId];
   const opening = BAND_OPENING[band](area);
   const advice = BAND_ADVICE[band];
 
+  // 氣質推出的段落不重複氣質段已經講的標籤句（v2.1 §4.4）
+  const voicedElsewhere = tagsVoicedInTemperament(dimension).filter(t => inTemperament.has(t));
   const chosen = fitBetween(
     opening,
-    dimension.tags.map(t => TAG_SENTENCES[t]),
+    dimension.tags.filter(t => !voicedElsewhere.includes(t)).map(t => TAG_SENTENCES[t]),
     advice,
     CHAR_RANGES.whatWeSaw.max,
   );
-  if (chosen.length === 0) chosen.push(NO_TAG_SENTENCE);
+  if (chosen.length === 0) chosen.push(voicedElsewhere.length > 0 ? SEE_TEMPERAMENT_SENTENCE : NO_TAG_SENTENCE);
 
   return {
     dimensionId: dimension.dimensionId,
@@ -214,16 +238,20 @@ function buildDimension(dimension: DimensionFinding, findings: T2Findings): Pros
 const TEMPERAMENT_LEAD = '下面这些是孩子的天生风格，不是要改掉的东西：';
 const TEMPERAMENT_TAIL = '顺着孩子的风格来安排，通常比硬要他配合省力得多，也少很多拉扯。';
 
-function buildTemperament(findings: T2Findings): string | undefined {
-  const tags = temperamentTagsOf(findings);
-  if (tags.length === 0) return undefined;
-  const chosen = fitBetween(
+/** 氣質段寫得進去的標籤：`temperamentTagsOf` 的順序，取到字數上限為止。 */
+function temperamentChosen(findings: T2Findings): FindingTag[] {
+  return fitItems(
     TEMPERAMENT_LEAD,
-    tags.map(t => TAG_SENTENCES[t]),
+    temperamentTagsOf(findings),
+    t => TAG_SENTENCES[t],
     TEMPERAMENT_TAIL,
     CHAR_RANGES.temperament.max,
   );
-  return `${TEMPERAMENT_LEAD}${chosen.join('')}${TEMPERAMENT_TAIL}`;
+}
+
+function buildTemperament(findings: T2Findings, chosen: ReadonlyArray<FindingTag>): string | undefined {
+  if (temperamentTagsOf(findings).length === 0) return undefined;
+  return `${TEMPERAMENT_LEAD}${chosen.map(t => TAG_SENTENCES[t]).join('')}${TEMPERAMENT_TAIL}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,13 +298,15 @@ const CLOSING_LEAD = '这份报告帮你看见孩子现在走到哪里、下一�
  * 產出一定過得了 `validateProse(…, input)`。回傳的每個物件與陣列都是新的。
  */
 export function templateProse(input: T2ReportInput): T2ReportProse {
+  const inTemperament = temperamentChosen(input.findings);
+  const inTemperamentSet = new Set(inTemperament);
   const prose: T2ReportProse = {
     overview: buildOverview(input.findings),
-    perDimension: reportedDimensions(input.findings).map(d => buildDimension(d, input.findings)),
+    perDimension: reportedDimensions(input.findings).map(d => buildDimension(d, input.findings, inTemperamentSet)),
     weeklyPlanIntro: buildWeeklyPlanIntro(input),
     closing: `${CLOSING_LEAD}${CLOSING_SENTENCE}。`,
   };
-  const temperament = buildTemperament(input.findings);
+  const temperament = buildTemperament(input.findings, inTemperament);
   if (temperament !== undefined) prose.temperament = temperament;
   return prose;
 }

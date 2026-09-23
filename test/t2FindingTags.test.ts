@@ -287,7 +287,7 @@ describe('發現標籤：反方向 —— 每一支工具都要出得了標籤�
 });
 
 describe('Caveats：受控值（§5.6）', () => {
-  it('17 個，與 §5.6 的表逐列相符', () => {
+  it('19 個：§5.6 的 17 個逐列相符，加 v2.1 §4.5 的 facet_only、no_star_tool', () => {
     expect([...CAVEATS]).toEqual([
       'incomplete',
       'age_out_of_window',
@@ -306,8 +306,10 @@ describe('Caveats：受控值（§5.6）', () => {
       'hearing_check_first',
       'narrow_window',
       'safety_concern',
+      'facet_only',
+      'no_star_tool',
     ]);
-    expect(CAVEATS).toHaveLength(17);
+    expect(CAVEATS).toHaveLength(19);
   });
 
   it('不含 v1 拿掉的三個', () => {

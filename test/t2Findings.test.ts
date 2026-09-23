@@ -279,9 +279,10 @@ describe('no_tool：這個月齡沒有任何會出 band 的工具', () => {
   });
 
   it('黃的也一樣是 no_tool，不是 not_assessed（§4.5 的判斷在前）', () => {
-    const f = byId(aggregateDimensions([], flags({ EMO: 1 }), FIXED_AGE));
-    expect(planT2(flags({ EMO: 1 }), FIXED_AGE).noTool).toEqual(['EMO']);
-    expect(f.EMO.band).toBe('no_tool');
+    // v2 用的是 EMO 48；v2.1 S07 起 EMO 48 有 tempb，換成 LEARN 48（37–71 沒有工具）
+    const f = byId(aggregateDimensions([], flags({ LEARN: 1 }), FIXED_AGE));
+    expect(planT2(flags({ LEARN: 1 }), FIXED_AGE).noTool).toEqual(['LEARN']);
+    expect(f.LEARN.band).toBe('no_tool');
   });
 
   it('掃全部月齡：紅的維度的 band 是 no_tool ⟺ planT2 說 noTool', () => {
@@ -295,13 +296,160 @@ describe('no_tool：這個月齡沒有任何會出 band 的工具', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// 二之二、v2.1 §3.5 第 2 條、§4.5（S06）：沒有星號、只有加測可答的維度
+// ---------------------------------------------------------------------------
+
+describe('v2.1 S06：只能當加測的結果', () => {
+  const AGE = 96;
+  const T1 = flags({ LANG: 2, MOT: 2 });
+
+  /** ldp@96：指定方面的原始分（每題 0–3），其餘 0。 */
+  function ldp(raws: Record<string, number>, computedAt = at(1)): ToolResult {
+    return score('sxk-ldp', AGE, bySection('sxk-ldp', AGE, 3, raws, 0), { computedAt });
+  }
+
+  it('沒做 → 語言、動作都是 no_tool（與 planT2 一致）', () => {
+    const f = byId(aggregateDimensions([], T1, AGE));
+    expect(f.LANG.band).toBe('no_tool');
+    expect(f.MOT.band).toBe('no_tool');
+    expect(planT2(T1, AGE).noTool).toEqual(['LANG', 'MOT']);
+  });
+
+  it('做了 ldp（语言处理 9 分）→ 語言 refer、drivenBy ldp，帶 facet_only 與 no_star_tool 兩條', () => {
+    const r = ldp({ lang: 9 });
+    const f = byId(aggregateDimensions([r], T1, AGE));
+    expect(f.LANG).toEqual({
+      dimensionId: 'LANG',
+      band: 'refer',
+      drivenBy: 'sxk-ldp',
+      tags: [],
+      caveats: ['parent_report', 'unsourced_threshold', 'facet_only', 'no_star_tool'],
+      tools: ['sxk-ldp'],
+      t1Flag: 2,
+    });
+    expect(f.MOT.band).toBe('no_tool');
+  });
+
+  // v2.1 §3.5 第 2 條字面是「取其中最差的判定」，可以是 clear。但 clear 的維度報告不出段落、九宮格是綠的，
+  // T1 紅的語言就從報告裡消失 —— 專家導向那一段沒了，no_star_tool 那一句也沒地方講（§4.5「不因為做了加測
+  // 就不講」）。「仅供参考」的六題只能加重、不能把被標記的維度說成沒事：clear 留在 no_tool。待使用者覆核。
+  it('語言處理沒事 → 仍是 no_tool（加測只能加重，不能把被標記的維度說成沒事）；ldp 記在 tools、facet_only 照帶', () => {
+    const f = byId(aggregateDimensions([ldp({ lang: 2 })], T1, AGE));
+    expect(f.LANG).toEqual({
+      dimensionId: 'LANG',
+      band: 'no_tool',
+      drivenBy: null,
+      tags: [],
+      caveats: ['parent_report', 'unsourced_threshold', 'facet_only'],
+      tools: ['sxk-ldp'],
+      t1Flag: 2,
+    });
+  });
+
+  it('T1 綠的語言、語言處理沒事 → clear（綠的本來就不推 T2，沒有專家導向可丟）', () => {
+    const f = byId(aggregateDimensions([ldp({ lang: 2 })], flags({ LEARN: 2 }), AGE));
+    expect(f.LANG).toMatchObject({ band: 'clear', drivenBy: 'sxk-ldp', t1Flag: 0 });
+  });
+
+  it('同一筆 ldp 對學習（T1 綠）照總分判，不帶這兩條', () => {
+    const f = byId(aggregateDimensions([ldp({ lang: 9, read: 6 })], T1, AGE));
+    expect(f.LEARN).toMatchObject({ band: 'watch', drivenBy: 'sxk-ldp', t1Flag: 0 });
+    expect(f.LEARN.caveats).toEqual(['parent_report', 'unsourced_threshold']);
+  });
+
+  it('T1 黃的語言也一樣：有加測的結果就照它判，不是 not_assessed', () => {
+    const f = byId(aggregateDimensions([ldp({ lang: 5 })], flags({ LANG: 1 }), AGE));
+    expect(f.LANG).toMatchObject({ band: 'watch', drivenBy: 'sxk-ldp', t1Flag: 1 });
+  });
+
+  it('T1 綠的語言也吃 ldp 的語言處理判定（v2 §5.7），帶同樣兩條', () => {
+    const f = byId(aggregateDimensions([ldp({ lang: 9 })], flags({ LEARN: 2 }), AGE));
+    expect(f.LANG).toMatchObject({ band: 'refer', drivenBy: 'sxk-ldp', t1Flag: 0 });
+    expect(f.LANG.caveats).toEqual(['parent_report', 'unsourced_threshold', 'facet_only', 'no_star_tool']);
+  });
+
+  it('做了 adl（MO 四項全「完全由大人做」）→ 動作 refer＋severe，帶兩條；日常生活照總獨立率', () => {
+    const answers = flat('sxk-adl', AGE, 7);
+    for (const k of ['MO.1', 'MO.2', 'MO.3', 'MO.4']) answers[k] = 1;
+    const adl = score('sxk-adl', AGE, answers, { computedAt: at(1) });
+    const f = byId(aggregateDimensions([adl], T1, AGE));
+    expect(f.MOT).toMatchObject({ band: 'refer', drivenBy: 'sxk-adl', tools: ['sxk-adl'] });
+    expect(f.MOT.tags).toEqual(['severity.severe', 'mot.locomotion']);
+    expect(f.MOT.caveats).toContain('facet_only');
+    expect(f.MOT.caveats[f.MOT.caveats.length - 1]).toBe('no_star_tool');
+    expect(f.ADL.caveats).not.toContain('facet_only');
+    expect(f.ADL.caveats).not.toContain('no_star_tool');
+  });
+
+  it('72 個月以下不適用：72 個月語言紅、做了 ldp → 星號 sxk-lang 沒做 → partial；ldp 不算語言做過', () => {
+    const r = score('sxk-ldp', 72, bySection('sxk-ldp', 72, 3, { lang: 9 }, 0), { computedAt: at(1) });
+    const f = byId(aggregateDimensions([r], flags({ LANG: 2 }), 72));
+    expect(f.LANG).toEqual({
+      dimensionId: 'LANG', band: 'partial', drivenBy: null, tags: [], caveats: [], tools: [], t1Flag: 2,
+    });
+  });
+
+  it('沒有判定就不帶 no_star_tool：96 個月認知綠、什麼都沒做 → clear、caveats 空', () => {
+    const f = byId(aggregateDimensions([], T1, AGE));
+    expect(f.COG).toEqual({ dimensionId: 'COG', band: 'clear', drivenBy: null, tags: [], caveats: [], tools: [], t1Flag: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 二之三、v2.1 §4.4（S07）：氣質判留意
+// ---------------------------------------------------------------------------
+
+describe('v2.1 S07：24 個月情緒紅，氣質是星號', () => {
+  const T1 = flags({ EMO: 2 });
+
+  it('D4 适应度偏（raw 28 → dev 1.0）→ 情緒 watch、drivenBy tempa；不帶 facet_only（氣質不是「只能當加測」）', () => {
+    const tempa = score('sxk-tempa', 24, tempAnswers('sxk-tempa', 24, { D4: 28 }), { computedAt: at(1) });
+    const f = byId(aggregateDimensions([tempa], T1, 24));
+    expect(f.EMO).toEqual({
+      dimensionId: 'EMO',
+      band: 'watch',
+      drivenBy: 'sxk-tempa',
+      tags: ['emo.adaptability_low'],
+      caveats: ['parent_report', 'unsourced_threshold'],
+      tools: ['sxk-tempa'],
+      t1Flag: 2,
+    });
+  });
+
+  it('都不偏（D4 raw 27 → dev 0.875）→ 情緒 clear', () => {
+    const tempa = score('sxk-tempa', 24, tempAnswers('sxk-tempa', 24, { D4: 27 }), { computedAt: at(1) });
+    expect(byId(aggregateDimensions([tempa], T1, 24)).EMO).toMatchObject({ band: 'clear', drivenBy: 'sxk-tempa', tags: [] });
+  });
+
+  it('再偏也只到留意：72 題全 5 → 情緒、注意力都是 watch，沒有 severity.severe', () => {
+    const tempa = score('sxk-tempa', 24, flat('sxk-tempa', 24, 5), { computedAt: at(1) });
+    const f = byId(aggregateDimensions([tempa], flags({ EMO: 2, ATT: 2 }), 24));
+    expect(f.EMO.band).toBe('watch');
+    expect(f.ATT.band).toBe('watch');
+    expect([...f.EMO.tags, ...f.ATT.tags]).not.toContain('severity.severe');
+  });
+
+  it('星號沒做 → partial（紅）／not_assessed（黃），不是 no_tool', () => {
+    expect(byId(aggregateDimensions([], T1, 24)).EMO.band).toBe('partial');
+    expect(byId(aggregateDimensions([], flags({ EMO: 1 }), 24)).EMO.band).toBe('not_assessed');
+  });
+
+  it('tempb 72 個月做的（段外）不推情緒：72 個月情緒紅、星號 snap-iv 沒做 → partial', () => {
+    const tempb = score('sxk-tempb', 72, tempAnswers('sxk-tempb', 72, { D4: 28 }), { computedAt: at(1) });
+    const f = byId(aggregateDimensions([tempb], T1, 72));
+    expect(f.EMO).toMatchObject({ band: 'partial', drivenBy: null, tags: ['emo.adaptability_low'], tools: ['sxk-tempb'] });
+  });
+});
+
 describe('T1 綠', () => {
   it('什麼都沒做 → clear、tools 空', () => {
     const f = byId(aggregateDimensions([], flags({}), FIXED_AGE));
     for (const d of DIMENSION_CODES) expect(f[d]).toMatchObject({ band: 'clear', drivenBy: null, tools: [] });
   });
 
-  it('只出標籤的工具：EMO 綠、tempa D3 偏 → EMO clear、tags 含 slow_to_warm、tools 含 tempa、drivenBy null', () => {
+  it('氣質的標籤：EMO 綠、tempa D3 偏（D3 不在情緒那條 feed 裡）→ EMO clear、tags 含 slow_to_warm、drivenBy tempa', () => {
+    // v2 這裡 drivenBy 是 null（氣質不出 band）；v2.1 S07 起 tempa 24 個月對情緒出判定（D4–D6 都沒偏 → clear）
     const tempa = score('sxk-tempa', 24, tempAnswers('sxk-tempa', 24, { D3: 28 }), { computedAt: at(1) });
     expect(tempa.native['dev.D3']).toBe(1);
     expect(tempa.native['dev.D1']).toBe(0);
@@ -309,7 +457,7 @@ describe('T1 綠', () => {
     expect(f.EMO).toEqual({
       dimensionId: 'EMO',
       band: 'clear',
-      drivenBy: null,
+      drivenBy: 'sxk-tempa',
       tags: ['emo.slow_to_warm'],
       caveats: ['parent_report', 'unsourced_threshold'],
       tools: ['sxk-tempa'],
@@ -317,12 +465,13 @@ describe('T1 綠', () => {
     });
   });
 
-  it('氣質的標籤照前綴落格：D7 堅持度偏低 → learn.task_persistence 進 LEARN，不進 EMO', () => {
+  it('氣質的標籤照前綴落格：D7 堅持度偏低 → learn.task_persistence 進 LEARN，不進 EMO；判定落在注意力（D7 看 − 那一邊）', () => {
     const tempa = score('sxk-tempa', 24, tempAnswers('sxk-tempa', 24, { D7: 12 }), { computedAt: at(1) });
     expect(tempa.native['dev.D7']).toBe(-1);
     const f = byId(aggregateDimensions([tempa], flags({}), 24));
     expect(f.LEARN).toMatchObject({ band: 'clear', drivenBy: null, tags: ['learn.task_persistence'], tools: ['sxk-tempa'] });
-    expect(f.EMO).toMatchObject({ band: 'clear', drivenBy: null, tags: [], tools: ['sxk-tempa'] });
+    expect(f.EMO).toMatchObject({ band: 'clear', drivenBy: 'sxk-tempa', tags: [], tools: ['sxk-tempa'] });
+    expect(f.ATT).toMatchObject({ band: 'watch', drivenBy: 'sxk-tempa', tags: [], tools: ['sxk-tempa'], t1Flag: 0 });
   });
 
   it('做了會出 band 的工具、餵到綠的維度 → 照工具的 band，不塌成 clear（漏掉比多看一次糟）', () => {
@@ -532,11 +681,11 @@ describe('buildT2Findings', () => {
     computedAt: at(9),
   });
 
-  it('version 3、toolkitVersion、rulesVersion v2-2026-09-11、計算時間', () => {
+  it('version 3、toolkitVersion、rulesVersion v2.1-2026-09-23、計算時間', () => {
     expect(findings.version).toBe(3);
     expect(T2_FINDINGS_VERSION).toBe(3);
     expect(findings.toolkitVersion).toBe('kit-20260908');
-    expect(findings.rulesVersion).toBe('v2-2026-09-11');
+    expect(findings.rulesVersion).toBe('v2.1-2026-09-23');
     expect(findings.rulesVersion).toBe(RULES_VERSION);
     expect(findings.computedAt).toBe(at(9));
   });

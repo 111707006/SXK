@@ -11,7 +11,9 @@
  */
 
 import type { ToolId } from '../toolkit';
-import type { ToolRule } from '../types';
+import type { Caveat } from '../caveats';
+import type { DimensionCode, ToolResult, ToolRule } from '../types';
+import { dedupe, feedCaveats } from './shared';
 import { ACHIEVEMENT_RULES } from './achievement';
 import { ASD_RULES } from './asd';
 import { ATTENTION_SENSORY_RULES } from './attentionSensory';
@@ -34,4 +36,14 @@ export function ruleFor(toolId: ToolId): ToolRule {
   const rule = TOOL_RULES[toolId];
   if (!rule) throw new Error(`規則表：${toolId} 還沒有規則（§5.9）`);
   return rule;
+}
+
+/**
+ * 這一筆結果**對這個維度**帶的 caveats：規則表的 `caveats(r)`（整支工具的），加上只屬於這個維度的
+ * （v2.1 §4.5 的 `facet_only`：判定來自只能當加測的那幾題）。維度彙整用這一條，不直接用 `caveats(r)`
+ * —— 後者是整支工具一串，分不出「ldp 對語言只看了 6 題」與「ldp 對學習看了 30 題」。
+ */
+export function caveatsFor(r: ToolResult, dimension: DimensionCode): Caveat[] {
+  const rule = ruleFor(r.toolId);
+  return dedupe([...rule.caveats(r), ...feedCaveats(r, dimension, rule.bandFor(r, dimension))]);
 }

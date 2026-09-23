@@ -33,7 +33,7 @@ import { displayItemText, displayPrompt } from './answering';
 import { askedItems } from './scoring';
 import { TOOLKIT } from './toolkit';
 import type { ToolId, ToolkitItem } from './toolkit';
-import { TOOL_SPECS } from './toolSpecs';
+import { TOOL_SPECS, feedAt } from './toolSpecs';
 import { SAFETY_SENTENCE } from './report/sentences';
 import type { AdviceRank } from './advice';
 import { DIMENSION_CODES } from './types';
@@ -191,10 +191,16 @@ export function unstableItems(result: ToolResult): ReviewItem[] {
   return out;
 }
 
-/** 「语言沟通 · SXK-LANG」—— 與作答清單同一種稱呼；餵多個維度時維度名並列（順序照 `DIMENSION_CODES`）。 */
-export function toolHeading(toolId: ToolId): string {
+/**
+ * 「语言沟通 · SXK-LANG」—— 與作答清單同一種稱呼；餵多個維度時維度名並列（順序照 `DIMENSION_CODES`）。
+ *
+ * 給了測評月齡就只列那個月齡生效的 feed（v2.1 §4.3 的有條件貢獻）：48 個月做的 adl 是「日常生活」，
+ * 不因為 73 個月起才算的移动与转位而多掛「动作」。一條都不生效（72 個月的 tempb，只出標籤）就照全部列。
+ */
+export function toolHeading(toolId: ToolId, ageMonth?: number): string {
   const spec = TOOL_SPECS[toolId];
-  const fed = new Set(spec.feeds.map(f => f.dimension));
+  const active = ageMonth === undefined ? spec.feeds : spec.feeds.filter(f => feedAt(toolId, f.dimension, ageMonth) !== null);
+  const fed = new Set((active.length > 0 ? active : spec.feeds).map(f => f.dimension));
   const names = DIMENSION_CODES.filter(d => fed.has(d)).map(d => SITE_DIMENSION_NAME[d]);
   return `${names.join('、')} · ${spec.code}`;
 }
@@ -205,7 +211,9 @@ export function reviewGroups(findings: T2Findings): ReviewGroup[] {
   for (const result of findings.toolResults) {
     const items = unstableItems(result);
     if (items.length === 0) continue;
-    groups.push({ toolId: result.toolId, heading: toolHeading(result.toolId), computedAt: result.computedAt, items });
+    groups.push({
+      toolId: result.toolId, heading: toolHeading(result.toolId, result.assessedAgeMonth), computedAt: result.computedAt, items,
+    });
   }
   return groups;
 }

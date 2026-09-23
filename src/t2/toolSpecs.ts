@@ -29,6 +29,14 @@ import type { DimensionCode, ScoringFamily, ToolFeed, ToolSpec } from './types';
  * 例外只有 `sxk-warn`：它的 `i1`–`i4` 是**每個時點內的第幾條**，不是面向 key
  * （warn 的面向是 `m3`、`m6`…… 十一個時點，每個時點四條的欄位相同）。
  * 逐條的位置對應寫在 `itemTags.ts` 的 `WARN_POSITION_FEEDS`。
+ *
+ * 【v2.1 加的有條件貢獻】（§4.3–§4.5，客戶 9/21 工作單 #6、#7）
+ * - 只能當加測：ldp／lds 的 `lang`（语言处理 6 題）→ 語言、adl 的 `MO`（移动与转位 4 題）→ 動作，
+ *   **73 個月起**（暫採：工作單把這條寫在「6 岁以上」那一段；72 個月以下語言、動作有專用工具，
+ *   不必用別的量表的幾題來湊）。排不到星號位；出判定時帶 `facet_only`。這推翻了勘誤檔 A2 的
+ *   「adl 只餵 ADL」—— 客戶答「算」，但只當加測。
+ * - 氣質：tempa 對情緒（D4–D6，12–36）與注意力（D7、D8，12–35）、tempb 對情緒（D4–D6，36–71）
+ *   出判定，最高留意。段外照舊只出標籤（extras）。
  */
 export const TOOL_FEEDS: Readonly<Record<ToolId, ReadonlyArray<ToolFeed>>> = {
   'sxk-dev': [
@@ -58,11 +66,27 @@ export const TOOL_FEEDS: Readonly<Record<ToolId, ReadonlyArray<ToolFeed>>> = {
   'chexi': [{ dimension: 'ATT', sections: 'overall' }],            // producesBand=false
   'sxk-spa': [{ dimension: 'SEN', sections: 'overall' }],
   'sxk-spb': [{ dimension: 'SEN', sections: 'overall' }],
-  'sxk-adl': [{ dimension: 'ADL', sections: 'overall' }],
-  'sxk-ldp': [{ dimension: 'LEARN', sections: 'overall' }],
-  'sxk-lds': [{ dimension: 'LEARN', sections: 'overall' }],
-  'sxk-tempa': [{ dimension: 'EMO', sections: 'overall' }],        // producesBand=false
-  'sxk-tempb': [{ dimension: 'EMO', sections: 'overall' }],        // producesBand=false
+  'sxk-adl': [
+    { dimension: 'ADL', sections: 'overall' },
+    { dimension: 'MOT', sections: ['MO'], months: { lo: 73, hi: 216 }, followupOnly: true },      // v2.1 S06：移动与转位
+  ],
+  'sxk-ldp': [
+    { dimension: 'LEARN', sections: 'overall' },
+    { dimension: 'LANG', sections: ['lang'], months: { lo: 73, hi: 144 }, followupOnly: true },   // v2.1 S06：语言处理
+  ],
+  'sxk-lds': [
+    { dimension: 'LEARN', sections: 'overall' },
+    { dimension: 'LANG', sections: ['lang'], months: { lo: 144, hi: 216 }, followupOnly: true },  // v2.1 S06：语言处理
+  ],
+  // producesBand=false；帶 months 的這幾段出判定、最高留意（v2.1 S07）。months 12–36 是 tempa 的整個窗口，
+  // 仍要寫：氣質靠「feed 有 months」才出判定（`bandFeed`），沒寫就回到只出標籤
+  'sxk-tempa': [
+    { dimension: 'EMO', sections: ['D4', 'D5', 'D6'], months: { lo: 12, hi: 36 }, maxBand: 'watch' },   // 适应度、反应强度、情绪本质
+    { dimension: 'ATT', sections: ['D7', 'D8'], months: { lo: 12, hi: 35 }, maxBand: 'watch' },         // 坚持度、注意分散度
+  ],
+  'sxk-tempb': [
+    { dimension: 'EMO', sections: ['D4', 'D5', 'D6'], months: { lo: 36, hi: 71 }, maxBand: 'watch' },   // 72–84 由 snap-iv 判，tempb 回到只出標籤
+  ],
 };
 
 /** §5.2 的十族。每支屬於且只屬於一族。 */
@@ -161,7 +185,10 @@ const FIXED_CAVEATS: Record<ToolId, Caveat[]> = {
   'sxk-tempb': ['unsourced_threshold'],
 };
 
-/** chexi、tempa、tempb 不出 band（§5.4）。其餘 19 支都出。 */
+/**
+ * chexi、tempa、tempb 不出 band（§5.4）。其餘 19 支都出。
+ * v2.1 §4.3：氣質兩支仍列在這裡，只在 feed 帶 `months` 的那幾段出判定（`bandFeed`）。
+ */
 const NO_BAND: ReadonlyArray<ToolId> = ['chexi', 'sxk-tempa', 'sxk-tempb'];
 
 /** sxk-warn 不進路由 —— 它在 A 裡的位置是 T1，在 T2 重做沒有意義（§4.6）。 */
@@ -172,6 +199,15 @@ function minItemsOf(family: ScoringFamily): number {
   if (family === 'achievement') return 3;
   if (family === 'independence') return 2;
   return 1;
+}
+
+/** 一條 feed 的深複本（`specOf` 的註解說為什麼不能共用）。選填欄位沒有就不放，不寫成 `undefined`。 */
+function copyFeed(f: ToolFeed): ToolFeed {
+  const out: ToolFeed = { dimension: f.dimension, sections: f.sections === 'overall' ? 'overall' : [...f.sections] };
+  if (f.months) out.months = { lo: f.months.lo, hi: f.months.hi };
+  if (f.followupOnly) out.followupOnly = true;
+  if (f.maxBand) out.maxBand = f.maxBand;
+  return out;
 }
 
 function specOf(id: ToolId): ToolSpec {
@@ -187,10 +223,7 @@ function specOf(id: ToolId): ToolSpec {
     // 複本，不是 `TOOL_FEEDS[id]` 本身 —— 兩個都是導出的常數，共用同一個陣列時，
     // 任何一個呼叫端就地 `sort()`／`filter()` 都會把另一個永久改掉，而型別層攔不到
     // 這種「在 process 裡慢慢腐爛」的改動，測試在乾淨的 import 下也照樣綠。
-    feeds: TOOL_FEEDS[id].map(f => ({
-      dimension: f.dimension,
-      sections: f.sections === 'overall' ? 'overall' : [...f.sections],
-    })),
+    feeds: TOOL_FEEDS[id].map(copyFeed),
     producesBand: !NO_BAND.includes(id),
     parentDoable: true,
     routed: !NOT_ROUTED.includes(id),
@@ -212,12 +245,51 @@ export function inWindow(id: ToolId, ageMonth: number): boolean {
   return ageMonth >= lo && ageMonth <= hi;
 }
 
-/** 這支工具餵這個維度嗎。不餵的維度不該收到它的 band（§5.7）。 */
+/**
+ * 這支工具餵這個維度嗎 —— **不看月齡**：只要有一條 feed 對到這個維度就是。
+ * 要問「這個月齡算不算」用 `feedAt`，要問「這個月齡出不出判定」用 `bandFeed`。
+ */
 export function feedsDimension(id: ToolId, dimension: DimensionCode): boolean {
   return TOOL_SPECS[id].feeds.some(f => f.dimension === dimension);
 }
 
-/** 這個維度在這支工具裡用哪些面向算 band；不餵這個維度時回 `null`。 */
-export function sectionsFor(id: ToolId, dimension: DimensionCode): ReadonlyArray<string> | 'overall' | null {
+/** 這條 feed 在這個測評月齡生效嗎（沒有 `months` ＝ 恆生效；閉區間）。 */
+function activeAt(feed: ToolFeed, ageMonth: number): boolean {
+  return !feed.months || (ageMonth >= feed.months.lo && ageMonth <= feed.months.hi);
+}
+
+/**
+ * 這支工具在這個測評月齡對這個維度的那一條 feed；不餵、或那條 feed 只在別段月齡生效，回 `null`。
+ * 不看工具窗口（那是路由與 `age_out_of_window` 的事），也不看出不出判定（那是 `bandFeed`）。
+ */
+export function feedAt(id: ToolId, dimension: DimensionCode, ageMonth: number): ToolFeed | null {
+  const feed = TOOL_SPECS[id].feeds.find(f => f.dimension === dimension);
+  return feed && activeAt(feed, ageMonth) ? feed : null;
+}
+
+/**
+ * 這支工具在這個測評月齡、對這個維度**會出判定**的那一條 feed（v2.1 §4.3）；沒有就 `null`。
+ *
+ * 會出判定＝工具本身 `producesBand`，或這條 feed 帶了 `months`（氣質靠這一條：`producesBand` 仍是
+ * false，只在指定的段出判定）。chexi 兩者都不是，恆為 `null`。路由的候選、規則表的 `bandFor`、
+ * extras 的「這段只出標籤」都看這一條，三處才不會各說各話。
+ */
+export function bandFeed(id: ToolId, dimension: DimensionCode, ageMonth: number): ToolFeed | null {
+  const feed = feedAt(id, dimension, ageMonth);
+  if (!feed) return null;
+  return TOOL_SPECS[id].producesBand || feed.months ? feed : null;
+}
+
+/**
+ * 這個維度在這支工具裡用哪些面向算 band；不餵這個維度時回 `null`。
+ * 給了 `ageMonth` 就只認那個月齡生效的 feed（規則表傳結果自己的 `assessedAgeMonth`）；
+ * 沒給就不看月齡（例如 SMART 目標找 `drivenBy` 那一支的起點 —— 能推判定就表示當時生效）。
+ */
+export function sectionsFor(
+  id: ToolId,
+  dimension: DimensionCode,
+  ageMonth?: number,
+): ReadonlyArray<string> | 'overall' | null {
+  if (ageMonth !== undefined) return feedAt(id, dimension, ageMonth)?.sections ?? null;
   return TOOL_SPECS[id].feeds.find(f => f.dimension === dimension)?.sections ?? null;
 }

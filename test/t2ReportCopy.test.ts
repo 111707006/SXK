@@ -7,6 +7,8 @@ import type { ToolId } from '../src/t2/toolkit';
 import { askedItems, scoreTool } from '../src/t2/scoring';
 import type { AnswerValue } from '../src/t2/scoring';
 import { SAFETY_SENTENCE } from '../src/t2/report/sentences';
+import { SITE_DIMENSION_NAME } from '../src/t2/dimensionMap';
+import { TOOL_SPECS } from '../src/t2/toolSpecs';
 import { toSimplified } from '../src/t2/answering';
 import type { DimensionBand, ToolResult } from '../src/t2/types';
 import {
@@ -109,6 +111,24 @@ describe('作答回顧：尚未穩定的項目', () => {
     expect(toolHeading('sxk-lang')).toBe('语言沟通 · SXK-LANG');
     expect(toolHeading('sxk-asq')).toBe('认知、语言沟通、社交互动、动作发展 · SXK-ASQ');
     for (const id of TOOL_IDS) expect(findBannedWords(toolHeading(id)), id).toEqual([]);
+  });
+
+  it('給了測評月齡只列那時生效的 feed（v2.1 §4.3）；一條都不生效就照全部列', () => {
+    const n = SITE_DIMENSION_NAME;
+    expect(toolHeading('sxk-adl', 48)).toBe(`${n.ADL} · SXK-ADL`);
+    expect(toolHeading('sxk-adl', 96)).toBe(`${n.MOT}、${n.ADL} · SXK-ADL`);          // 加上移动与转位 → 動作
+    expect(toolHeading('sxk-ldp', 72)).toBe(`${n.LEARN} · SXK-LDP`);                  // 语言处理 73 起
+    expect(toolHeading('sxk-ldp', 100)).toBe(`${n.LANG}、${n.LEARN} · SXK-LDP`);
+    expect(toolHeading('sxk-tempa', 24)).toBe(`${n.EMO}、${n.ATT} · ${TOOL_SPECS['sxk-tempa'].code}`);
+    expect(toolHeading('sxk-tempa', 36)).toBe(`${n.EMO} · ${TOOL_SPECS['sxk-tempa'].code}`);   // 注意力到 35
+    expect(toolHeading('sxk-tempb', 72)).toBe(toolHeading('sxk-tempb'));                  // 段外只出標籤，照全部列
+  });
+
+  it('reviewGroups 的標題看那一筆自己的測評月齡', () => {
+    const answers = flat('sxk-adl', 48, 7);
+    answers[askedItems('sxk-adl', 48)[0].key] = 1;
+    const groups = reviewGroups(t2FindingsFixture({}, { toolResults: [score('sxk-adl', 48, answers)] }));
+    expect(groups.map(g => g.heading)).toEqual([toolHeading('sxk-adl', 48)]);
   });
 });
 

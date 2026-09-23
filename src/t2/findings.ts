@@ -14,6 +14,9 @@
  *
  * 【一個維度的 band 怎麼定】（§5.7；順序就是優先順序）
  * 1. T1 紅或黃、而這個月齡沒有任何會出 band 的工具餵它 → `no_tool`（§4.5，跟 `planT2` 同一條）。
+ *    v2.1 §3.5 第 2 條：星號位是空的、但做了「只能當加測」的（73 個月起 ldp／lds 的语言处理、adl 的
+ *    移动与转位）→ 取它們最差的判定，帶 `facet_only`（規則層）與 `no_star_tool`（這一層）。最差的是
+ *    `clear` 時仍是 `no_tool`：六題「仅供参考」只能加重，不能把被標記的維度說成沒事（`bandOf` 的註解）。
  * 2. T1 紅、星號工具沒有完整的一筆 → `partial`；T1 黃 → `not_assessed`。星號做了、但對這個
  *    維度算不出 band（dev 一個領域全「不評」）也算沒做完 —— 塌成 `clear` 就是「沒做完」被讀成
  *    「沒事」。加測工具的結果**不代表整個維度**：標籤與 caveats 照收，band 不從它們算。
@@ -40,10 +43,10 @@ import type { Caveat } from './caveats';
 import { SEVERITY_TAG } from './sectionTags';
 import { tagDimension } from './findingTags';
 import type { FindingTag } from './findingTags';
-import { feedsDimension } from './toolSpecs';
+import { feedAt } from './toolSpecs';
 import { RULES_VERSION } from './scoring';
-import { candidatesFor, planT2 } from './routing';
-import { ruleFor, severeFor } from './rules';
+import { planT2, routeFor, schoolAgeNoStar } from './routing';
+import { caveatsFor, ruleFor, severeFor } from './rules';
 import { DIMENSION_CODES } from './types';
 import type {
   Band,
@@ -150,6 +153,8 @@ interface Contribution {
   /** 前綴是這個維度的標籤（不含 `severity.severe`）。 */
   tags: FindingTag[];
   caveats: Caveat[];
+  /** 這一筆對這個維度的 feed 只能當加測（v2.1 §4.5）。band 是 null 時沒有意義。 */
+  followupOnly: boolean;
 }
 
 function contributionFor(r: ToolResult, dimension: DimensionCode): Contribution | null {
@@ -158,12 +163,24 @@ function contributionFor(r: ToolResult, dimension: DimensionCode): Contribution 
   const tags = rule.tags(r).filter(t => tagDimension(t) === prefix);
   const severe = severeFor(r, dimension);
   const band = rule.bandFor(r, dimension);
-  if (band === null && tags.length === 0 && !severe && !feedsDimension(r.toolId, dimension)) return null;
-  return { toolId: r.toolId, band, severe, tags, caveats: rule.caveats(r) };
+  // 「登錄表說它餵」看的是這一筆的測評月齡：60 個月做的 adl 不因為 MO 那條 73 個月起的 feed
+  // 就算動作做過（否則它的 caveats 會混進動作那一段）
+  const feed = feedAt(r.toolId, dimension, r.assessedAgeMonth);
+  if (band === null && tags.length === 0 && !severe && feed === null) return null;
+  return { toolId: r.toolId, band, severe, tags, caveats: caveatsFor(r, dimension), followupOnly: feed?.followupOnly === true };
 }
 
 function dedupe<T>(values: ReadonlyArray<T>): T[] {
   return [...new Set(values)];
+}
+
+/** 有 band 的貢獻裡最差的那一支；同 band 取先做完的（`contributions` 已是完成順序）。都沒有 → null。 */
+function worstContribution(contributions: ReadonlyArray<Contribution>): Contribution | null {
+  let best: Contribution | null = null;
+  for (const c of contributions) {
+    if (c.band !== null && (best === null || BAND_RANK[c.band] > BAND_RANK[best.band as Band])) best = c;
+  }
+  return best;
 }
 
 /** 這個維度的 band 狀態（檔頭「一個維度的 band 怎麼定」的 1–3 條）與是誰推的。 */
@@ -175,15 +192,20 @@ function bandOf(
   contributions: ReadonlyArray<Contribution>,
 ): { band: DimensionBand; drivenBy: ToolId | null } {
   if (flag !== 0) {
-    if (noTool.includes(dimension)) return { band: 'no_tool', drivenBy: null };
-    const star = candidatesFor(dimension, ageMonth)[0];
+    if (noTool.includes(dimension)) {
+      // 沒有星號：只能當加測的做了，就取它們最差的判定（v2.1 §3.5 第 2 條）；沒做才是 no_tool。
+      // 最差的也是 clear → 仍是 no_tool：「仅供参考」的幾題只能加重、不能把 T1 標記的維度說成沒事 ——
+      // clear 的維度報告不出段落，專家導向與 no_star_tool 那一句就一起消失了（§4.5「不因為做了加測就不講」）
+      const facet = worstContribution(contributions.filter(c => c.followupOnly));
+      return facet === null || facet.band === 'clear'
+        ? { band: 'no_tool', drivenBy: null }
+        : { band: facet.band as Band, drivenBy: facet.toolId };
+    }
+    const star = routeFor(dimension, ageMonth).star;
     const starBand = contributions.find(c => c.toolId === star)?.band ?? null;
     if (starBand === null) return { band: flag === 2 ? 'partial' : 'not_assessed', drivenBy: null };
   }
-  let best: Contribution | null = null;
-  for (const c of contributions) {
-    if (c.band !== null && (best === null || BAND_RANK[c.band] > BAND_RANK[best.band as Band])) best = c;
-  }
+  const best = worstContribution(contributions);
   return best === null ? { band: 'clear', drivenBy: null } : { band: best.band as Band, drivenBy: best.toolId };
 }
 
@@ -223,12 +245,16 @@ export function aggregateDimensions(
       ...ordered.flatMap(c => c.tags),
     ]).slice(0, MAX_TAGS_PER_DIMENSION);
 
+    // 維度層的 caveat（v2.1 §4.5）：6 歲以上的認知、語言、動作有判定、但星號位是空的
+    const caveats = dedupe(ordered.flatMap(c => c.caveats));
+    if (drivenBy !== null && schoolAgeNoStar(dimension, ageMonth)) caveats.push('no_star_tool');
+
     return {
       dimensionId: dimension,
       band,
       drivenBy,
       tags,
-      caveats: dedupe(ordered.flatMap(c => c.caveats)),
+      caveats,
       tools: contributions.map(c => c.toolId),
       t1Flag: flag,
     };

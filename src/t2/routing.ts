@@ -26,23 +26,33 @@
  * 附錄 F 為準 —— 附錄 C 明寫 ADL 頂 PedsQL 的「動作 85–216」那格不採。後果是 **MOT 85–216 是
  * no_tool**（§4.5 的表寫「只剩 sxk-adl 的移動與轉位 4 項」，與附錄 C／F 矛盾），待使用者覆核。
  *
- * 「候選最多三支」（星號＋兩支加測）在過濾之後截。只出標籤的三支（chexi、tempa、tempb）
- * 不進候選、不佔名額、恆為 extra：客戶表在該段列了就列，附錄 F 餵該維度且在窗口內也列。
+ * 【v2.1 有條件的貢獻】（§4.3，客戶 9/21 工作單 #6、#7）
+ * 第 2 條看的是「這支工具對這個維度、在**這個月齡**有沒有會出判定的 feed」（`bandFeed`），不再只看
+ * 整支工具的 `producesBand`：
+ * - **只能當加測**（ldp／lds 的语言处理 → 語言、adl 的移动与转位 → 動作，73 個月起）：是候選，但排不到
+ *   星號位（`routeFor`）。維度沒有別的星號時照樣進 `noTool`，加測照樣列著可答 —— 上面那段的
+ *   「MOT 85–216 是 no_tool」仍成立，只是客戶答了「算，但只當加測」，多了一支加測。
+ * - **氣質**（tempa 情緒 12–36、注意力 12–35，tempb 情緒 36–71）：在這幾段是一般候選，可以當星號。
+ *
+ * 「候選最多三支」（星號＋兩支加測）在過濾之後截。只出標籤的（chexi 恆是；氣質在自己的段外）
+ * 不進候選、不佔名額、是 extra：客戶表在該段列了就列，附錄 F 餵該維度且在窗口內也列；
+ * 同一支已在必做／選做／加測的，不再列 extras。
  *
  * 【段界那一個月】
  * 客戶的段是 0–36／37–72（`months/12 <= 3` 取第一個命中的段），工具窗口卻從 36／72 起。
  * 所以 36 個月的 ATT 已經有 sxk-ab、72 個月的 LEARN 有 sxk-ldp、EMO 有 snap-iv —— 第 3 條
- * 補進來的。§4.5 寫的「ATT 12–36 no_tool」是段的標籤；逐月看，那一個月不是 no_tool。
+ * 補進來的。v2.1 起 ATT 12–35、EMO 12–71 由氣質接住，no_tool 只剩 ATT 0–11、EMO 0–11。
  *
  * 【診斷方向】
- * 選了就把 `DIS[疾病][段]` 的工具過窗口後全部提為必做，`forDimensions` 依附錄 F；不出 band 的
- * （dd／id 0–36 的 tempa、ld 系列的 chexi）落到 extras —— §4.2 說 extras「永遠是選做」，
- * 而 `estimatedItems` 也沒有 extra 那一格，讓一支不出判定的工具去擋報告說不過去。
+ * 選了就把 `DIS[疾病][段]` 的工具過窗口後全部提為必做，`forDimensions` 只列**這個月齡**出判定的維度；
+ * 一個都沒有的（ld 系列的 chexi；氣質在自己的段外）落到 extras —— §4.2 說 extras「永遠是選做」，
+ * 而 `estimatedItems` 也沒有 extra 那一格，讓一支不出判定的工具去擋報告說不過去。v2.1 起 dd／id
+ * 0–36 的 tempa 在 12–36 出判定，提為必做（72 題）。
  * 三格是空的（ld／adhd／tic 的 0–36）：選了等於沒選，`functionOrder` 也是 `null`。
  */
 
 import { askedCount } from './toolkit';
-import { TOOL_SPECS, TOOL_FEEDS, inWindow, feedsDimension } from './toolSpecs';
+import { TOOL_SPECS, TOOL_FEEDS, inWindow, feedsDimension, bandFeed } from './toolSpecs';
 import { DIMENSION_CODES } from './types';
 import type { DiagnosisDirection, DimensionCode, PlanItem, T1Flag, T2Plan, ToolId } from './types';
 
@@ -220,18 +230,63 @@ function pushUnique(out: ToolId[], ids: Iterable<ToolId>, keep: (id: ToolId) => 
 export function candidatesFor(dimension: DimensionCode, ageMonth: number): ToolId[] {
   const out: ToolId[] = [];
   pushUnique(out, [...dimListed(dimension, ageMonth), ...FEEDS_ORDER],
-    id => routable(id, ageMonth) && feedsDimension(id, dimension) && TOOL_SPECS[id].producesBand);
+    id => routable(id, ageMonth) && bandFeed(id, dimension, ageMonth) !== null);
   return [...out.filter(id => id !== 'sxk-dev'), ...out.filter(id => id === 'sxk-dev')];
+}
+
+/** 一個維度在一個月齡的星號與加測（§4.2 第 5 條、v2.1 §3.2 第 2、3 條）。 */
+export interface DimensionRoute {
+  /** 第一支**能當星號**的候選；只剩只能當加測的（或一支都沒有）時是 `null` —— 這個維度進 `noTool`。 */
+  star: ToolId | null;
+  /** 其餘候選依序，最多兩支。星號是 `null` 時，只能當加測的照樣列在這裡（v2.1 §4.3）。 */
+  followups: ToolId[];
+}
+
+/** 這支工具對這個維度在這個月齡只能當加測嗎（v2.1 §4.5）。 */
+function followupOnly(id: ToolId, dimension: DimensionCode, ageMonth: number): boolean {
+  return bandFeed(id, dimension, ageMonth)?.followupOnly === true;
+}
+
+/**
+ * 這個維度在這個月齡的星號與加測：候選（`candidatesFor`）裡第一支能當星號的是星號，其餘依序是
+ * 加測，合起來最多三支。只能當加測的排不到星號位，就算它在候選裡排第一。
+ */
+export function routeFor(dimension: DimensionCode, ageMonth: number): DimensionRoute {
+  const candidates = candidatesFor(dimension, ageMonth);
+  const star = candidates.find(id => !followupOnly(id, dimension, ageMonth)) ?? null;
+  const followups = candidates.filter(id => id !== star).slice(0, MAX_PER_DIMENSION - 1);
+  return { star, followups };
+}
+
+/**
+ * 客戶 9/21 工作單 #6（v2.1 §4.5、§4.6）：6 歲以上的認知、語言、動作沒有家長自填的星號工具。
+ * 這三個維度、73 個月起、而且這個月齡真的沒有星號（以路由為準，不只看月齡 —— 哪天新包補了工具，
+ * 這一條自己停）。維度層的 `no_star_tool` caveat（`findings.ts`）與 S05 的固定句都看這一條。
+ */
+export const SCHOOL_AGE_NO_STAR: { dimensions: ReadonlyArray<DimensionCode>; fromMonth: number } = {
+  dimensions: ['COG', 'LANG', 'MOT'],
+  fromMonth: 73,
+};
+
+export function schoolAgeNoStar(dimension: DimensionCode, ageMonth: number): boolean {
+  return SCHOOL_AGE_NO_STAR.dimensions.includes(dimension)
+    && ageMonth >= SCHOOL_AGE_NO_STAR.fromMonth
+    && routeFor(dimension, ageMonth).star === null;
 }
 
 /**
  * 只出標籤的工具（chexi、tempa、tempb）：客戶表在該段列了就列（**不過**第 2 條 —— 它們不出 band，
  * 附錄 F 的 feeds 對它們不決定任何事，客戶把氣質排進注意力、把 chexi 排進學習就是相關性的訊號），
  * 再補附錄 F 餵該維度的；都要在窗口內。
+ *
+ * v2.1 §4.3：「只出標籤」是**對這個維度、在這個月齡**說的 —— 氣質在自己的段裡對情緒、注意力出判定，
+ * 那時它是候選（可以當星號），不是 extra；段外（tempa 36 個月的注意力、tempb 72 起的情緒）照舊是 extra。
+ * 同一支已在必做／選做／加測時從 extras 拿掉，是 `planT2` 收尾的事（這裡只看一個維度）。
  */
 export function extrasFor(dimension: DimensionCode, ageMonth: number): ToolId[] {
   const out: ToolId[] = [];
-  const tagOnly = (id: ToolId) => routable(id, ageMonth) && !TOOL_SPECS[id].producesBand;
+  const tagOnly = (id: ToolId) => routable(id, ageMonth) && !TOOL_SPECS[id].producesBand
+    && bandFeed(id, dimension, ageMonth) === null;
   pushUnique(out, dimListed(dimension, ageMonth), tagOnly);
   pushUnique(out, FEEDS_ORDER, id => tagOnly(id) && feedsDimension(id, dimension));
   return out;
@@ -271,8 +326,8 @@ const ROLE_STRENGTH: Record<PlanItem['role'], number> = { required: 3, optional:
 
 /**
  * 同一支工具落在多個維度時合併成一筆：role 取最強、forDimensions 取聯集（保先到先得的順序）。
- * 一個收會出 band 的，另一個收 extras；兩邊不會有交集（producesBand 是二分的），
- * 所以 extra 永遠不會跟 required 撞在同一筆裡。
+ * 一個收會出 band 的，另一個收 extras。v2.1 起兩邊**會**有交集（36 個月的 tempa 對情緒是候選、
+ * 對注意力是 extra），`planT2` 收尾時把已在前一個袋子裡的從 extras 拿掉（§3.2 第 5 條）。
  */
 class ItemBag {
   private readonly items = new Map<ToolId, { role: PlanItem['role']; forDimensions: DimensionCode[] }>();
@@ -342,14 +397,11 @@ export function planT2(
 
     for (const id of extrasFor(d, ageMonth)) extras.add(id, 'extra', [d]);
 
-    const candidates = candidatesFor(d, ageMonth);
-    if (candidates.length === 0) {
-      noTool.push(d);
-      continue;
-    }
-    const [star, ...rest] = candidates.slice(0, MAX_PER_DIMENSION);
-    band.add(star, flag === 2 ? 'required' : 'optional', [d]);
-    for (const id of rest) band.add(id, 'followup', [d]);
+    // 沒有能當星號的 → noTool（入口與報告照 §4.5 講），但只能當加測的照樣列著可答（v2.1 §4.3）
+    const { star, followups } = routeFor(d, ageMonth);
+    if (star === null) noTool.push(d);
+    else band.add(star, flag === 2 ? 'required' : 'optional', [d]);
+    for (const id of followups) band.add(id, 'followup', [d]);
   }
 
   // 4：診斷方向 —— 客戶表那一格有東西才算「選了」；空字串是中控台「未定」的值，視同沒選
@@ -360,25 +412,28 @@ export function planT2(
       functionOrder = functionOrderOf(diagnosis);
       for (const id of listed) {
         if (!routable(id, ageMonth)) continue;
+        // 這個月齡出判定的維度（v2.1：有條件的 feed 只在自己那段算）；一個都沒有 → 只出標籤，落到 extras
         const dims = TOOL_FEEDS[id].map(f => f.dimension);
-        if (TOOL_SPECS[id].producesBand) band.add(id, 'required', dims);
+        const banded = dims.filter(d => bandFeed(id, d, ageMonth) !== null);
+        if (banded.length > 0) band.add(id, 'required', banded);
         else extras.add(id, 'extra', dims);
       }
     }
   }
 
-  // 5–6：去重已在 ItemBag 裡做完；分組、算題數
+  // 5–6：同袋去重已在 ItemBag 裡做完；已在必做／選做／加測的不再列 extras（v2.1 §3.2 第 5 條）；分組、算題數
   const items = band.toItems(ageMonth);
   const required = items.filter(i => i.role === 'required');
   const optional = items.filter(i => i.role === 'optional');
   const followup = items.filter(i => i.role === 'followup');
+  const inBand = new Set(items.map(i => i.toolId));
 
   return {
     ageMonth,
     required,
     optional,
     followup,
-    extras: extras.toItems(ageMonth),
+    extras: extras.toItems(ageMonth).filter(i => !inBand.has(i.toolId)),
     noTool,
     estimatedItems: { required: sumAsked(required), optional: sumAsked(optional), followup: sumAsked(followup) },
     functionOrder,

@@ -79,11 +79,26 @@ export interface PreQuestionSpec {
  * ldp（LEARN）出 `att.inattention`。**標籤的維度一律看標籤自己的前綴**
  * （`findingTags.ts` 的 `tagDimension()`），不看這一欄 —— 照附錄 F 那句做，
  * 氣質的「堅持不下去」會落到情緒那一格，而且標籤仍然合法，沒有一層會喊。
+ *
+ * 【有條件的貢獻】（規格 v2.1 §4.3，客戶 9/21 工作單 #6、#7）
+ * `producesBand` 是整支工具一個布林值，說不出「這支工具對**這個維度**、在**這段月齡**、以**這種身分**
+ * 出判定」。下面三個選填欄位補這件事；三個都沒有的 feed 與 v2 完全一樣。
+ * 一支工具對一個維度最多一條 feed（`test/t2ToolSpecs.structure.test.ts` 盯著）。
  */
 export interface ToolFeed {
   dimension: DimensionCode;
   /** 面向 key（題庫的 `sections[].key`）；`'overall'` 用總分。 */
   sections: ReadonlyArray<string> | 'overall';
+  /**
+   * 只在這段測評月齡生效（閉區間）；沒有＝整個工具窗口。規則表看的是**那一筆結果**的
+   * `assessedAgeMonth`，路由看的是這次的月齡。帶了這一欄的 feed 就算工具 `producesBand=false`
+   * 也出判定（氣質靠它）。
+   */
+  months?: { lo: number; hi: number };
+  /** 只能當加測（第 2、3 支），不能當星號（#6：另一份問卷裡的幾題，題數少）。 */
+  followupOnly?: true;
+  /** 這條貢獻最高只判到哪一級（#7：氣質最高留意）。 */
+  maxBand?: 'watch';
 }
 
 /**
@@ -101,7 +116,11 @@ export interface ToolSpec {
   minItems: number;
   /** 附錄 F。多維度工具每個維度用自己那組面向算 band。**只決定 band，不決定標籤歸哪個維度**（見 `ToolFeed`）。 */
   feeds: ReadonlyArray<ToolFeed>;
-  /** chexi、tempa、tempb 為 false —— 它們只出標籤，不推任何維度的判定（§5.4）。 */
+  /**
+   * chexi、tempa、tempb 為 false（§5.4）。chexi 只出標籤；氣質兩支仍是 false，但在 feed 帶
+   * `months` 的那幾段對情緒、注意力出判定（v2.1 §4.4，最高留意）—— 要問「這支在這個月齡對這個
+   * 維度出不出判定」，用 `toolSpecs.ts` 的 `bandFeed`，不要只看這一欄。
+   */
   producesBand: boolean;
   /** 22 支全為 true：T2 沒有治療師在場，全部由家長自行施測（§0）。 */
   parentDoable: true;

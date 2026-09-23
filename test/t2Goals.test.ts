@@ -264,18 +264,36 @@ describe('起點百分比用原生值（§8）', () => {
     expect(goals[0].measure).toContain(NO_BASELINE_NOTE);
   });
 
-  it('只有氣質標籤的 EMO 不會成為目標（氣質不出 band）', () => {
-    const tempb = uniform('sxk-tempb', 48, 5);
+  it('只有氣質標籤的 EMO 不會成為目標（72 個月的 tempb 在段外，只出標籤）', () => {
+    // v2 用的是 48 個月的 tempb；v2.1 S07 起它在 36–71 對情緒出判定（見下一條），段外才只出標籤
+    const tempb = uniform('sxk-tempb', 72, 5);
     const built = buildT2Findings({
-      results: [tempb, resultAtPct('sxk-lang', 48, 2, 78)],
+      results: [tempb, resultAtPct('sxk-lang', 72, 2, 78)],
       t1Flags: { ...ALL_GREEN, LANG: 2 },
-      assessedAgeMonth: 48,
+      assessedAgeMonth: 72,
     });
 
     const emo = built.dimensions.find(d => d.dimensionId === 'EMO');
     expect(emo?.tags.length, '氣質有餵標籤給 EMO').toBeGreaterThan(0);
     expect(emo?.band).toBe('clear');
     expect(dims(buildSmartGoals(built))).toEqual(['LANG']);
+  });
+
+  it('氣質推出的情緒留意（v2.1 S07）會成為目標；profile 族沒有百分比，走「以第一周家长记录为起点」', () => {
+    const tempb = uniform('sxk-tempb', 48, 5);
+    const built = buildT2Findings({
+      results: [tempb, resultAtPct('sxk-lang', 48, 2, 78)],
+      t1Flags: { ...ALL_GREEN, LANG: 2 },
+      assessedAgeMonth: 48,
+    });
+    const emo = built.dimensions.find(d => d.dimensionId === 'EMO')!;
+    expect(emo).toMatchObject({ band: 'watch', drivenBy: 'sxk-tempb' });
+
+    const goal = buildSmartGoals(built).find(g => g.dimensionId === 'EMO')!;
+    expect(goal.baseline).toBeNull();
+    expect(goal.milestones).toBeNull();
+    expect(goal.measure).toContain(NO_BASELINE_NOTE);
+    expect(`${goal.longTerm}${goal.shortTerm}${goal.measure}`).not.toMatch(/\d+%/);
   });
 });
 

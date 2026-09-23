@@ -12,14 +12,16 @@ import { ATTENTION_SENSORY_TOOL_IDS } from '../src/t2/rules/attentionSensory';
 import { DEV_ADL_LEARNING_TOOL_IDS } from '../src/t2/rules/devAdlLearning';
 import { PUBLIC_TOOL_IDS } from '../src/t2/rules/publicTools';
 import { TEMPERAMENT_RULES, TEMPERAMENT_TOOL_IDS } from '../src/t2/rules/temperament';
-import { TOOL_RULES, ruleFor } from '../src/t2/rules';
+import { TOOL_RULES, caveatsFor, ruleFor, severeFor } from '../src/t2/rules';
 
 /**
  * 氣質兩支（tempa 1–3 歲、tempb 3–7 歲）的規則表（#51，規格 v2 §5.4、§5.5、§5.9）。
  *
  * 【這裡在防什麼】
- * 1. **不出 band**：氣質描述的是特質不是缺口，任何維度、任何分數都回 `null`。這一條翻錯，
- *    一個活動量大的孩子會被判「情緒需關注」然後拿到情緒活動。
+ * 1. **最高只到留意、只在指定向度與月齡段**（v2.1 §4.4、S07；v2 原本是「完全不出 band」）：
+ *    tempa 情緒 D4–D6（12–36）、注意力 D7／D8（12–35），tempb 情緒 D4–D6（36–71），往要留意那一邊
+ *    偏 → `watch`，再偏也不會是 `refer`、不掛 severe。這一條翻錯，一個活動量大（D1）的孩子會被判
+ *    「情緒需關注」然後拿到情緒活動。
  * 2. 標籤看 `dev` 的**方向**，不只看 `|dev|`：八個向度貼在 hi 端（`dev ≥ 1.0`），只有 D7 堅持度
  *    貼在 lo 端（`dev ≤ −1.0`）—— 堅持不下去才是要留意的事。tier 3 只知道 |dev| ≥ 1.0，
  *    不知道方向，所以規則得讀 `native.dev.<D>`。
@@ -95,6 +97,23 @@ const ALL_NULL: Record<DimensionCode, Band | null> = {
 };
 
 /**
+ * v2.1 §4.4 的 feed 表重抄：維度 ← 哪幾個向度（看哪一邊）、在哪段測評月齡。
+ * 方向是暫採（§9 第 1 題）：沿用現有標籤的方向 —— D4、D5、D6、D8 看 `dev ≥ +1`，D7 坚持度看 `dev ≤ −1`
+ * （坚持度高＝「一直重试不放弃」，雙向判會把很能堅持的孩子標成注意力留意）。
+ */
+const BAND_FEEDS: Readonly<Record<string, ReadonlyArray<{
+  dimension: DimensionCode; sections: ReadonlyArray<[string, 'hi' | 'lo']>; lo: number; hi: number;
+}>>> = {
+  'sxk-tempa': [
+    { dimension: 'EMO', sections: [['D4', 'hi'], ['D5', 'hi'], ['D6', 'hi']], lo: 12, hi: 36 },   // 适应度、反应强度、情绪本质
+    { dimension: 'ATT', sections: [['D7', 'lo'], ['D8', 'hi']], lo: 12, hi: 35 },                 // 坚持度、注意分散度
+  ],
+  'sxk-tempb': [
+    { dimension: 'EMO', sections: [['D4', 'hi'], ['D5', 'hi'], ['D6', 'hi']], lo: 36, hi: 71 },
+  ],
+};
+
+/**
  * §5.9 氣質那一列，逐向度重抄：hi 端（dev ≥ 1.0）與 lo 端（dev ≤ −1.0）各出什麼。
  * 空陣列是「那一側不出標籤」。
  */
@@ -123,26 +142,85 @@ describe.each(TOOLS)('%s', (toolId, age) => {
     });
   });
 
-  describe('不出 band（§5.4）', () => {
-    it('登錄表 producesBand=false；feeds 是 EMO（只用來排 extras）', () => {
+  describe('判定：指定向度往要留意的那一邊偏 → 留意，最高就是留意（v2.1 §4.4、S07）', () => {
+    const feeds = BAND_FEEDS[toolId];
+    /** dev 0 的基準：feed 的維度 clear，其餘 null。 */
+    const baseline = { ...ALL_NULL, ...Object.fromEntries(feeds.map(f => [f.dimension, 'clear'])) };
+
+    it('登錄表 producesBand 仍是 false（chexi 那種只出標籤的旗子）；判定靠 feed 的 months', () => {
       expect(TOOL_SPECS[toolId].producesBand).toBe(false);
-      expect(TOOL_SPECS[toolId].feeds.map(f => f.dimension)).toEqual(['EMO']);
+      expect(TOOL_SPECS[toolId].feeds.map(f => [f.dimension, f.sections, f.months, f.maxBand])).toEqual(
+        feeds.map(f => [f.dimension, f.sections.map(([k]) => k), { lo: f.lo, hi: f.hi }, 'watch']),
+      );
     });
 
-    it('全 0、全 5、dev 0、每個向度 ±1.0 —— 九個維度全 null，連 EMO 也是', () => {
-      expect(bandsOf(toolId, score(toolId, age, flat(toolId, age, 0)))).toEqual(ALL_NULL);
-      expect(bandsOf(toolId, score(toolId, age, flat(toolId, age, 5)))).toEqual(ALL_NULL);
-      expect(bandsOf(toolId, byDim(toolId, age, {}))).toEqual(ALL_NULL);
-      let r = byDim(toolId, age, {});
-      for (const key of DIM_KEYS) r = withDev(r, key, key === 'D7' ? -1 : 1);
-      expect(bandsOf(toolId, r)).toEqual(ALL_NULL);
-    });
-
-    it('overall 那一格是「—」：tier null；就算硬塞一個 tier 3 進去也還是 null', () => {
+    it('dev 0 → feed 的維度 clear、其餘 null；overall 那一格硬塞 tier 3 也一樣', () => {
       const base = byDim(toolId, age, {});
+      expect(bandsOf(toolId, base)).toEqual(baseline);
       expect(base.overall.tier).toBeNull();
-      const forced = { ...base, overall: { ...base.overall, tier: 3 as const } };
-      expect(bandsOf(toolId, forced)).toEqual(ALL_NULL);
+      expect(bandsOf(toolId, { ...base, overall: { ...base.overall, tier: 3 as const } })).toEqual(baseline);
+    });
+
+    for (const feed of feeds) {
+      for (const [key, side] of feed.sections) {
+        const toward = side === 'hi' ? 1 : -1;
+        it(`${feed.dimension} ← ${key}（看 ${side === 'hi' ? '+' : '−'} 那一邊）：±1.0 → watch、±0.99 → clear、反方向 → clear、±2.5 仍是 watch`, () => {
+          const base = byDim(toolId, age, {});
+          const band = (dev: number) => ruleFor(toolId).bandFor(withDev(base, key, dev), feed.dimension);
+          expect(band(1.0 * toward)).toBe('watch');
+          expect(band(0.99 * toward)).toBe('clear');
+          expect(band(-1.0 * toward)).toBe('clear');
+          expect(band(-2.5 * toward)).toBe('clear');
+          expect(band(2.5 * toward)).toBe('watch');           // 封頂：最高就是留意
+          expect(severeFor(withDev(base, key, 2.5 * toward), feed.dimension)).toBe(false);
+        });
+      }
+    }
+
+    it('不在 feed 裡的向度再偏也不動任何判定', () => {
+      const inFeed = new Set(feeds.flatMap(f => f.sections.map(([k]) => k)));
+      for (const key of DIM_KEYS.filter(k => !inFeed.has(k))) {
+        const base = byDim(toolId, age, {});
+        expect({ key, bands: bandsOf(toolId, withDev(base, key, 2.5)) }).toEqual({ key, bands: baseline });
+        expect({ key, bands: bandsOf(toolId, withDev(base, key, -2.5)) }).toEqual({ key, bands: baseline });
+      }
+    });
+
+    it('全 5、全 0：留意封頂，severe 一個都沒有', () => {
+      const all5 = score(toolId, age, flat(toolId, age, 5));
+      const all0 = score(toolId, age, flat(toolId, age, 0));
+      for (const feed of feeds) {
+        const hiSide = feed.sections.some(([, side]) => side === 'hi');
+        const loSide = feed.sections.some(([, side]) => side === 'lo');
+        expect(ruleFor(toolId).bandFor(all5, feed.dimension)).toBe(hiSide ? 'watch' : 'clear');
+        expect(ruleFor(toolId).bandFor(all0, feed.dimension)).toBe(loSide ? 'watch' : 'clear');
+        expect(severeFor(all5, feed.dimension) || severeFor(all0, feed.dimension)).toBe(false);
+      }
+    });
+
+    it('算不出（native 沒有 dev、或 scored=false）→ null；但另一個向度已經偏了 → 照樣 watch', () => {
+      const [feed] = feeds;
+      const [[first], [second]] = feed.sections;
+      const base = byDim(toolId, age, {});
+      const native = { ...base.native };
+      delete native[`dev.${first}`];
+      expect(ruleFor(toolId).bandFor({ ...base, native }, feed.dimension)).toBeNull();
+      const notScored = { ...base, sections: { ...base.sections, [first]: { ...base.sections[first], scored: false } } };
+      expect(ruleFor(toolId).bandFor(notScored, feed.dimension)).toBeNull();
+      const leaning = withDev({ ...base, native }, second, 1.0);
+      expect(ruleFor(toolId).bandFor(leaning, feed.dimension)).toBe('watch');
+    });
+
+    it('caveatsFor 不帶 facet_only（氣質不是「只能當加測」）', () => {
+      const r = withDev(byDim(toolId, age, {}), 'D4', 1.0);
+      for (const feed of feeds) expect(caveatsFor(r, feed.dimension)).toEqual(['parent_report', 'unsourced_threshold']);
+    });
+  });
+
+  describe('端到端：D4 raw 28 → dev 1.0 → 情緒留意；raw 27 → 0.875 → 穩定', () => {
+    it('照八題真的作答', () => {
+      expect(ruleFor(toolId).bandFor(byDim(toolId, age, { D4: 28 }), 'EMO')).toBe('watch');
+      expect(ruleFor(toolId).bandFor(byDim(toolId, age, { D4: 27 }), 'EMO')).toBe('clear');
     });
   });
 
@@ -257,14 +335,41 @@ describe.each(TOOLS)('%s', (toolId, age) => {
   });
 });
 
-describe('tempa 與 tempb：同一份作答，三個輸出一模一樣', () => {
+describe('tempa 與 tempb：同一份作答，標籤與 caveats 一模一樣；判定只差在 tempa 多餵注意力', () => {
   it('D2 raw 32、D7 raw 8', () => {
     const a = byDim('sxk-tempa', 24, { D2: 32, D7: 8 });
     const b = byDim('sxk-tempb', 48, { D2: 32, D7: 8 });
     expect(ruleFor('sxk-tempa').tags(a)).toEqual(ruleFor('sxk-tempb').tags(b));
     expect(ruleFor('sxk-tempa').tags(a)).toEqual(['emo.regularity_low', 'learn.task_persistence']);
     expect(ruleFor('sxk-tempa').caveats(a)).toEqual(ruleFor('sxk-tempb').caveats(b));
-    expect(bandsOf('sxk-tempa', a)).toEqual(bandsOf('sxk-tempb', b));
+    // D7 −1.5（堅持不下去）：tempa 24 個月對注意力判留意；tempb 沒有注意力那條 feed
+    expect(bandsOf('sxk-tempa', a)).toEqual({ ...ALL_NULL, EMO: 'clear', ATT: 'watch' });
+    expect(bandsOf('sxk-tempb', b)).toEqual({ ...ALL_NULL, EMO: 'clear' });
+  });
+});
+
+describe('月齡段（v2.1 §4.4）：看的是這一筆的測評月齡，段外回 null', () => {
+  /** D4 與 D7 都偏到要留意那一邊的一份作答。 */
+  const leaning = (toolId: ToolId, age: number) => byDim(toolId, age, { D4: 28, D7: 12 });
+
+  it('tempa 12、35：情緒、注意力都判；36：情緒判、注意力 null（36 起注意力由 sxk-ab 判）', () => {
+    expect(bandsOf('sxk-tempa', leaning('sxk-tempa', 12))).toEqual({ ...ALL_NULL, EMO: 'watch', ATT: 'watch' });
+    expect(bandsOf('sxk-tempa', leaning('sxk-tempa', 35))).toEqual({ ...ALL_NULL, EMO: 'watch', ATT: 'watch' });
+    expect(bandsOf('sxk-tempa', leaning('sxk-tempa', 36))).toEqual({ ...ALL_NULL, EMO: 'watch' });
+  });
+
+  it('tempb 36、71：情緒判；72–84：null（72 起情緒由 snap-iv 判，tempb 回到只出標籤）', () => {
+    expect(bandsOf('sxk-tempb', leaning('sxk-tempb', 36))).toEqual({ ...ALL_NULL, EMO: 'watch' });
+    expect(bandsOf('sxk-tempb', leaning('sxk-tempb', 71))).toEqual({ ...ALL_NULL, EMO: 'watch' });
+    expect(bandsOf('sxk-tempb', leaning('sxk-tempb', 72))).toEqual(ALL_NULL);
+    expect(bandsOf('sxk-tempb', leaning('sxk-tempb', 84))).toEqual(ALL_NULL);
+    // 段外照樣出標籤
+    expect(ruleFor('sxk-tempb').tags(leaning('sxk-tempb', 72))).toEqual(['emo.adaptability_low', 'learn.task_persistence']);
+  });
+
+  it('舊紀錄月齡在窗口外（tempa 37）：兩條 feed 都不生效 → 全 null', () => {
+    const r = { ...leaning('sxk-tempa', 24), assessedAgeMonth: 37 };
+    expect(bandsOf('sxk-tempa', r)).toEqual(ALL_NULL);
   });
 });
 

@@ -137,6 +137,21 @@ describe('latestFindings', () => {
     expect((await store.latestFindings(7))!.findings).toEqual(FINDINGS);
   });
 
+  it('舊版規則的快照（v2，換版前存的）照存的樣子讀回，不拿今天的規則重跑（v2.1 §10）', async () => {
+    // 24 個月情緒紅、沒做氣質：v2 存的是 no_tool；今天的規則會判 partial（氣質是星號）。讀回的仍是 no_tool。
+    const oldFlags = { ...FLAGS, EMO: 2 as T1Flag };
+    const old: T2Findings = {
+      ...buildT2Findings({ results: [], t1Flags: oldFlags, assessedAgeMonth: 24, computedAt: '2026-09-12T01:00:00.000Z' }),
+      rulesVersion: 'v2-2026-09-11',
+    };
+    old.dimensions = old.dimensions.map(d => (d.dimensionId === 'EMO' ? { ...d, band: 'no_tool' as const } : d));
+    rows = [row({ findings: JSON.stringify(old) })];
+    const record = await store.latestFindings(7);
+    expect(record!.findings).toEqual(old);
+    expect(record!.findings.rulesVersion).toBe('v2-2026-09-11');
+    expect(record!.findings.dimensions.find(d => d.dimensionId === 'EMO')!.band).toBe('no_tool');
+  });
+
   it('created_at 是 Date 也讀得出來', async () => {
     rows = [row({ created_at: new Date('2026-09-12T09:00:05.000Z') })];
     expect((await store.latestFindings(7))!.createdAt).toBe('2026-09-12T09:00:05.000Z');

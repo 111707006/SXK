@@ -120,6 +120,21 @@ describe('entranceState：入口要不要出現', () => {
     expect(plan.noTool).toEqual(['LANG']);
     expect(entranceState(plan, flags)).toBe('show');
   });
+
+  // v2.1 §4.5「入口：不變」（暫採，§9 第 2 題）：只有「仅供参考」的加測可答時不收費、導專家
+  it('96 個月語言、動作紅 → 只有加測（ldp、adl）可答、沒有星號 → 仍只導向專家', () => {
+    const flags = { ...GREEN, LANG: 2, MOT: 2 } as const;
+    const plan = planT2(flags, 96);
+    expect(plan.followup.map(i => i.toolId)).toEqual(['sxk-ldp', 'sxk-adl']);
+    expect(plan.noTool).toEqual(['LANG', 'MOT']);
+    expect(entranceState(plan, flags)).toBe('expert_only');
+  });
+
+  it('24 個月只有情緒紅 → v2 只導專家；v2.1 S07 起有氣質當星號，顯示入口', () => {
+    const flags = { ...GREEN, EMO: 2 } as const;
+    expect(entranceState(planT2(flags, 24), flags)).toBe('show');
+    expect(entranceState(planT2(flags, 8), flags)).toBe('expert_only');     // 情緒 0–11 仍沒有工具
+  });
 });
 
 describe('describePlan：題量怎麼講', () => {

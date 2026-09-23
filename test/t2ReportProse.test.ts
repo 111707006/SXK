@@ -5,6 +5,7 @@ import type { DimensionFixture } from './helpers/t2Fixtures';
 import { TOOLKIT } from '../src/t2/toolkit';
 import { CAVEATS } from '../src/t2/caveats';
 import { FINDING_TAGS } from '../src/t2/findingTags';
+import type { FindingTag } from '../src/t2/findingTags';
 import { DIMENSION_CODES } from '../src/t2/types';
 import { NO_ACTIVITY_CONTENT } from '../src/t2/activitySeed';
 import type { Activity, DimensionCode, T2Findings } from '../src/t2/types';
@@ -26,8 +27,8 @@ import {
   validateProse,
 } from '../src/t2/report/prose';
 import type { T2ReportInput, T2ReportProse } from '../src/t2/report/prose';
-import { CAVEAT_SENTENCES, SAFETY_SENTENCE, TAG_SENTENCES } from '../src/t2/report/sentences';
-import { templateProse } from '../src/t2/report/template';
+import { CAVEAT_SENTENCES, SAFETY_SENTENCE, SCHOOL_AGE_NO_TOOL_SENTENCE, TAG_SENTENCES } from '../src/t2/report/sentences';
+import { SEE_TEMPERAMENT_SENTENCE, templateProse } from '../src/t2/report/template';
 
 /**
  * 報告文字：提示、schema、一致性、黑名單、模板退路（#55，規格 v2 §6）。
@@ -554,6 +555,162 @@ describe('模板：各種形狀都產得出合格的報告', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 五之二、v2.1：氣質推出的情緒段（§4.4）、只能當加測的兩條 caveat（§4.5）
+// ---------------------------------------------------------------------------
+
+describe('v2.1 S07：氣質推出的維度段落不重複氣質標籤句', () => {
+  /** 24 個月情緒紅、tempa D4 偏 → 情緒 watch（`t2Findings.test.ts` 的 S07 那組）。 */
+  const EMO_FROM_TEMPERAMENT: DimensionFixture = {
+    band: 'watch',
+    drivenBy: 'sxk-tempa',
+    tags: ['emo.adaptability_low'],
+    caveats: ['parent_report', 'unsourced_threshold'],
+  };
+  const findings = t2FindingsFixture({ EMO: EMO_FROM_TEMPERAMENT }, { child: { assessedAgeMonth: 24 } });
+  const input = inputFor(findings);
+
+  it('模板：情緒段不寫那一句標籤句，改一句指向氣質段；氣質段照寫；過驗證器', () => {
+    const prose = templateProse(input);
+    const emo = prose.perDimension.find(d => d.dimensionId === 'EMO')!;
+    expect(emo.whatWeSaw).not.toContain(TAG_SENTENCES['emo.adaptability_low']);
+    expect(emo.whatWeSaw).toContain(SEE_TEMPERAMENT_SENTENCE);
+    expect(prose.temperament).toContain(TAG_SENTENCES['emo.adaptability_low']);
+    accept(prose, input);
+    expect(findBannedWords(SEE_TEMPERAMENT_SENTENCE)).toEqual([]);
+  });
+
+  it('模板：同一段裡不是氣質段講的標籤照寫（att.inattention 是 ★，別的工具也出，不算氣質段的）', () => {
+    const mixed = t2FindingsFixture({
+      ATT: { band: 'watch', drivenBy: 'sxk-tempa', tags: ['att.inattention'], caveats: ['parent_report', 'unsourced_threshold'] },
+      EMO: { ...EMO_FROM_TEMPERAMENT, tags: ['emo.adaptability_low', 'emo.regulation'] },
+    }, { child: { assessedAgeMonth: 24 } });
+    const mixedInput = inputFor(mixed);
+    const prose = templateProse(mixedInput);
+    const att = prose.perDimension.find(d => d.dimensionId === 'ATT')!;
+    expect(att.whatWeSaw).toContain(TAG_SENTENCES['att.inattention']);
+    const emo = prose.perDimension.find(d => d.dimensionId === 'EMO')!;
+    expect(emo.whatWeSaw).toContain(TAG_SENTENCES['emo.regulation']);
+    expect(emo.whatWeSaw).not.toContain(TAG_SENTENCES['emo.adaptability_low']);
+    expect(emo.whatWeSaw).not.toContain(SEE_TEMPERAMENT_SENTENCE);
+    accept(prose, mixedInput);
+  });
+
+  it('模板：六個情緒的氣質段標籤各自單獨推出情緒 watch 時，段落字數都在範圍內', () => {
+    const emoTags = TEMPERAMENT_REPORT_TAGS.filter(t => t.startsWith('emo.'));
+    expect(emoTags).toHaveLength(6);
+    for (const tag of emoTags) {
+      for (const drivenBy of ['sxk-tempa', 'sxk-tempb'] as const) {
+        const one = t2FindingsFixture({ EMO: { band: 'watch', drivenBy, tags: [tag] } });
+        const oneInput = inputFor(one);
+        const prose = templateProse(oneInput);
+        expect(prose.perDimension[0].whatWeSaw, tag).toContain(SEE_TEMPERAMENT_SENTENCE);
+        accept(prose, oneInput);
+      }
+    }
+  });
+
+  it('氣質段塞不下的標籤句留在維度段落，不會兩邊都沒有（1–3 個情緒的氣質標籤，全部組合 × tempa／tempb）', () => {
+    // 氣質段扣掉開場與收尾只剩約 67 字（兩句），情緒段約 89 字（三句）—— 三個以內一定有一段講得到
+    const emoTags = TEMPERAMENT_REPORT_TAGS.filter(t => t.startsWith('emo.'));
+    const subsets: FindingTag[][] = [];
+    for (let mask = 1; mask < 1 << emoTags.length; mask++) {
+      const s = emoTags.filter((_, i) => mask & (1 << i));
+      if (s.length <= 3) subsets.push(s);
+    }
+    expect(subsets).toHaveLength(6 + 15 + 20);
+    for (const tags of subsets) {
+      for (const drivenBy of ['sxk-tempa', 'sxk-tempb'] as const) {
+        const one = t2FindingsFixture({ EMO: { band: 'watch', drivenBy, tags } });
+        const oneInput = inputFor(one);
+        const prose = templateProse(oneInput);
+        const emo = prose.perDimension.find(d => d.dimensionId === 'EMO')!;
+        for (const t of tags) {
+          const said = emo.whatWeSaw.includes(TAG_SENTENCES[t]) || prose.temperament!.includes(TAG_SENTENCES[t]);
+          expect({ tags, t, said }).toEqual({ tags, t, said: true });
+          // 兩段都講就是重複（§4.4）
+          const both = emo.whatWeSaw.includes(TAG_SENTENCES[t]) && prose.temperament!.includes(TAG_SENTENCES[t]);
+          expect({ tags, t, both }).toEqual({ tags, t, both: false });
+        }
+        accept(prose, oneInput);
+      }
+    }
+  });
+
+  it('審查找到的那一組：D1、D2 先佔滿氣質段，推出判定的 D4 那一句留在情緒段', () => {
+    const tags: FindingTag[] = ['emo.activity_high', 'emo.regularity_low', 'emo.adaptability_low'];
+    const one = t2FindingsFixture({ EMO: { band: 'watch', drivenBy: 'sxk-tempa', tags } });
+    const prose = templateProse(inputFor(one));
+    const emo = prose.perDimension.find(d => d.dimensionId === 'EMO')!;
+    expect(prose.temperament).not.toContain(TAG_SENTENCES['emo.adaptability_low']);
+    expect(emo.whatWeSaw).toContain(TAG_SENTENCES['emo.adaptability_low']);
+    expect(emo.whatWeSaw).not.toContain(SEE_TEMPERAMENT_SENTENCE);
+  });
+
+  it('不是氣質推出的段落不受影響：感覺 watch 由 spa 推、帶 tempb 的 sen.threshold_low → 那一句照寫', () => {
+    const sen = t2FindingsFixture({
+      SEN: { band: 'watch', drivenBy: 'sxk-spa', tags: ['sen.threshold_low'], tools: ['sxk-spa', 'sxk-tempb'] },
+    });
+    const senInput = inputFor(sen);
+    const prose = templateProse(senInput);
+    const entry = prose.perDimension.find(d => d.dimensionId === 'SEN')!;
+    expect(entry.whatWeSaw).toContain(TAG_SENTENCES['sen.threshold_low']);
+    expect(entry.whatWeSaw).not.toContain(SEE_TEMPERAMENT_SENTENCE);
+    const { user } = buildProsePrompt(senInput);
+    expect(user.slice(user.indexOf('- SEN'), user.indexOf('【气质标签】')))
+      .toContain(`sen.threshold_low＝${TAG_SENTENCES['sen.threshold_low']}`);
+    accept(prose, senInput);
+  });
+
+  it('提示：維度那一格的發現標籤不列氣質段的標籤，另說明它們寫在 temperament、這一段不要重複', () => {
+    const { user } = buildProsePrompt(input);
+    const block = user.slice(user.indexOf('- EMO'), user.indexOf('【气质标签】'));
+    expect(block).not.toContain(`emo.adaptability_low＝`);
+    expect(block).toContain('emo.adaptability_low');
+    expect(block).toContain('temperament');
+    expect(block).toContain('不要重复');
+    // 氣質那一格照列，並點名這幾個一定要講到（維度段落已經讓出來了）
+    const temperamentBlock = user.slice(user.indexOf('【气质标签】'));
+    expect(temperamentBlock).toContain(`emo.adaptability_low＝${TAG_SENTENCES['emo.adaptability_low']}`);
+    expect(temperamentBlock).toContain('一定要讲到');
+  });
+});
+
+describe('v2.1 S06：只能當加測的判定帶兩條 caveat，報告兩條路都講', () => {
+  // 96 個月語言紅、做了 ldp（语言处理 9 分）→ 語言 refer（`t2Findings.test.ts` 的 S06 那組）
+  const LANG_FROM_FACET: DimensionFixture = {
+    band: 'refer',
+    drivenBy: 'sxk-ldp',
+    caveats: ['parent_report', 'unsourced_threshold', 'facet_only', 'no_star_tool'],
+  };
+  const findings = t2FindingsFixture({ LANG: LANG_FROM_FACET }, { child: { assessedAgeMonth: 96 } });
+  const input = inputFor(findings);
+
+  it('模板：語言段 caveats 三條（unsourced_threshold、facet_only、no_star_tool），固定句原樣', () => {
+    const prose = templateProse(input);
+    const lang = prose.perDimension.find(d => d.dimensionId === 'LANG')!;
+    expect(lang.caveats).toEqual([
+      CAVEAT_SENTENCES.unsourced_threshold, CAVEAT_SENTENCES.facet_only, CAVEAT_SENTENCES.no_star_tool,
+    ]);
+    expect(CAVEAT_SENTENCES.facet_only).toContain('题数少，仅供参考');
+    expect(CAVEAT_SENTENCES.no_star_tool).toBe(`${SCHOOL_AGE_NO_TOOL_SENTENCE}。`);
+    accept(prose, input);
+  });
+
+  it('提示：兩條的代號與固定句都在，條數寫 3', () => {
+    const { user } = buildProsePrompt(input);
+    expect(user).toContain(`facet_only＝${CAVEAT_SENTENCES.facet_only}`);
+    expect(user).toContain(`no_star_tool＝${CAVEAT_SENTENCES.no_star_tool}`);
+    expect(user).toContain('caveats（3 条，一条都不能少）');
+  });
+
+  it('少寫一條 → 拒', () => {
+    const prose = templateProse(input);
+    const lang = prose.perDimension.find(d => d.dimensionId === 'LANG')!;
+    expect(reject(withDimension(prose, 'LANG', { caveats: lang.caveats.slice(1) }), input).join('\n')).toContain('facet_only');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 六、兩張字表本身
 // ---------------------------------------------------------------------------
 
@@ -562,7 +719,7 @@ describe('固定說法的字表', () => {
     expect(Object.keys(TAG_SENTENCES).sort()).toEqual([...FINDING_TAGS].sort());
   });
 
-  it('17 個 caveat 一個不漏；只有 parent_report 沒有句子（§5.6 不單獨成句）', () => {
+  it('19 個 caveat 一個不漏（v2.1 加 facet_only、no_star_tool）；只有 parent_report 沒有句子（§5.6 不單獨成句）', () => {
     expect(Object.keys(CAVEAT_SENTENCES).sort()).toEqual([...CAVEATS].sort());
     const empty = CAVEATS.filter(c => CAVEAT_SENTENCES[c] === null);
     expect(empty).toEqual(['parent_report']);

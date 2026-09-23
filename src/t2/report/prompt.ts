@@ -44,6 +44,7 @@ import {
   caveatsToVoice,
   hasSafetyConcern,
   reportedDimensions,
+  tagsVoicedInTemperament,
   temperamentTagsOf,
 } from './prose';
 import type { T2ReportInput } from './prose';
@@ -123,9 +124,15 @@ function buildSystem(): string {
 function dimensionBlock(dimension: DimensionFinding): string {
   const area = SITE_DIMENSION_NAME[dimension.dimensionId];
   const lines = [`- ${dimension.dimensionId}（家长看到的名称：${area}）：判定 ${dimension.band}`];
-  lines.push(`  发现标签：${dimension.tags.length === 0
-    ? '（这次没有更细的标签，只有判定）'
-    : dimension.tags.map(t => `${t}＝${TAG_SENTENCES[t]}`).join('；')}`);
+  // 氣質推出的維度：氣質段會講的標籤不列在這裡，只點名（v2.1 §4.4，與模板同一條 `tagsVoicedInTemperament`）
+  const voicedElsewhere = tagsVoicedInTemperament(dimension);
+  const own = dimension.tags.filter(t => !voicedElsewhere.includes(t));
+  lines.push(`  发现标签：${own.length === 0
+    ? (voicedElsewhere.length === 0 ? '（这次没有更细的标签，只有判定）' : '（除下面那几个气质标签外没有别的）')
+    : own.map(t => `${t}＝${TAG_SENTENCES[t]}`).join('；')}`);
+  if (voicedElsewhere.length > 0) {
+    lines.push(`  这一项的判定来自孩子的天生风格；${voicedElsewhere.join('、')} 写在 temperament 字段，这一段不要重复，可以说细节在后面讲天生风格的那一段。`);
+  }
   const caveats = caveatsToVoice(dimension);
   lines.push(`  caveats（${caveats.length} 条，一条都不能少）：${caveats.length === 0
     ? '（无）'
@@ -152,6 +159,11 @@ function buildUser(input: T2ReportInput): string {
   lines.push(temperament.length === 0
     ? '（没有。不要写 temperament 字段。）'
     : `${temperament.map(t => `${t}＝${TAG_SENTENCES[t]}`).join('；')}\n这些是天生风格，不是要练掉的东西。`);
+  // 維度段落讓出來的那幾個（v2.1 §4.4）：temperament 不講就兩段都沒有
+  const yielded = [...new Set(wanted.flatMap(tagsVoicedInTemperament))];
+  if (yielded.length > 0) {
+    lines.push(`其中 ${yielded.join('、')} 在维度段落里没有写，temperament 一定要讲到它们。`);
+  }
   lines.push('');
 
   lines.push('【这一周的活动，原样带入，不得换、不得加】');

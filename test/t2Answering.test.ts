@@ -3,7 +3,7 @@ import { RATER_OPTIONS, TRAD_TO_SIMP, asrItemNotes, canSubmit, completedAt, foll
 import { TOOLKIT } from '../src/t2/toolkit';
 import type { ToolId } from '../src/t2/toolkit';
 import { planT2 } from '../src/t2/routing';
-import type { Band, DimensionCode } from '../src/t2/types';
+import type { Band, DimensionCode, T1Flag } from '../src/t2/types';
 import { findBannedWords } from '../src/utils/parentWording';
 
 /**
@@ -215,6 +215,43 @@ describe('加測提示：星號做完、該維度 band 是 watch 或 refer 才�
   it('做的是別支、或那支對這個維度沒有 band → 不推', () => {
     expect(followupHints(plan, [entry('sxk-voc', 'refer')])).toEqual({});
     expect(followupHints(plan, [entry('sxk-lang', null)])).toEqual({});
+  });
+});
+
+/**
+ * 工作單 #3：「再花约 N 题」的 N 要是這支工具在孩子月齡**實際會出的題數**，不是題庫總數。
+ * N 由 `askedCount` 算、表單由 `formFor` 出，兩條路各自挑題；這裡抽三個月齡確認兩邊一樣，
+ * 並把數字釘死，免得兩邊一起算錯（規格 v2.1 S03）。
+ */
+describe('加測提示的題數＝那個月齡實際出的題數（v2.1 S03）', () => {
+  const hintsAt = (dimension: DimensionCode, ageMonth: number, starToolId: ToolId) => {
+    const flags: Record<DimensionCode, T1Flag> = { COG: 0, LANG: 0, SOC: 0, EMO: 0, ATT: 0, MOT: 0, SEN: 0, ADL: 0, LEARN: 0 };
+    flags[dimension] = 2;
+    const plan = planT2(flags, ageMonth);
+    expect(plan.required.map(i => i.toolId)).toEqual([starToolId]);
+    const done = { id: 1, createdAt: '2026-09-23T10:00:00.000Z', toolId: starToolId, bands: { [dimension]: 'watch' as Band } };
+    return followupHints(plan, [done]);
+  };
+  const hint = (n: number) => `再花约 ${n} 题可以更精确`;
+
+  it('12 個月 LANG 紅（星號 voc）：sxk-lang 60 題裡只出 8 題', () => {
+    const hints = hintsAt('LANG', 12, 'sxk-voc');
+    expect(itemCount('sxk-lang', 12)).toBe(8);
+    expect(hints['sxk-lang']).toBe(hint(8));
+    expect(hints['sxk-dev']).toBe(hint(itemCount('sxk-dev', 12)));
+  });
+
+  it('24 個月 LANG 紅（星號 voc）：sxk-lang 出 23 題', () => {
+    const hints = hintsAt('LANG', 24, 'sxk-voc');
+    expect(hints['sxk-lang']).toBe(hint(23));
+    expect(hints['sxk-dev']).toBe(hint(itemCount('sxk-dev', 24)));
+  });
+
+  it('48 個月 SOC 紅（星號 asb）：sxk-soc 40 題裡出 36 題；asr 沒有起始月齡，15 題全出', () => {
+    const hints = hintsAt('SOC', 48, 'sxk-asb');
+    expect(itemCount('sxk-soc', 48)).toBe(36);
+    expect(hints['sxk-soc']).toBe(hint(36));
+    expect(hints['sxk-asr']).toBe(hint(15));
   });
 });
 

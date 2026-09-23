@@ -57,6 +57,37 @@ describe('t1FlagsFromScores：篩查結果 → 九碼標記', () => {
   });
 });
 
+/**
+ * 客戶 9/21 工作單 #1 要「T1 四級各一條」（重度、中度 → 紅；輕度 → 黃；未見明顯 → 綠）。
+ * 那是原型的四級；A 的 T1 只有三級，所以這裡是三條（規格 v2.1 S01）：
+ * 客戶的重度與中度＝`delay`、輕度＝`borderline`、未見明顯＝`normal`。
+ * 從篩查結果一路走到入口，中間任何一層改了對應都會在這裡斷。
+ */
+describe('T1 三級 → T2 推不推（v2.1 S01）', () => {
+  const pushed = (status: 'normal' | 'borderline' | 'delay') => {
+    const flags = t1FlagsFromScores([score('language', status)]);
+    const plan = planT2(flags, 48);
+    return {
+      required: plan.required.map(i => i.toolId),
+      optional: plan.optional.map(i => i.toolId),
+      followup: plan.followup.map(i => i.toolId),
+      entrance: entranceState(plan, flags),
+    };
+  };
+
+  it('delay → 紅 → 星號必做', () => {
+    expect(pushed('delay')).toMatchObject({ required: ['sxk-lang'], optional: [], entrance: 'show' });
+  });
+
+  it('borderline → 黃 → 星號選做', () => {
+    expect(pushed('borderline')).toMatchObject({ required: [], optional: ['sxk-lang'], entrance: 'show' });
+  });
+
+  it('normal → 綠 → 不推：沒有必做、選做、加測，入口不出現', () => {
+    expect(pushed('normal')).toEqual({ required: [], optional: [], followup: [], entrance: 'none' });
+  });
+});
+
 describe('entranceState：入口要不要出現', () => {
   it('48 個月、LANG 紅、ATT 紅、SEN 黃 → 顯示', () => {
     const flags = { ...GREEN, LANG: 2, ATT: 2, SEN: 1 } as const;

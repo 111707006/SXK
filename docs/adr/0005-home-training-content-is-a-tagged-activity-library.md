@@ -1,9 +1,14 @@
 ---
-status: accepted
+status: accepted, partially superseded by ADR-0008
 date: 2026-09-06
 ---
 
 # 家庭訓練內容改為一庫多支的活動，依標籤配對
+
+> **2026-09-23：下文「圖文為主、影片為輔」那一條被 [ADR-0008](./0008-activity-steps-are-text-first-with-optional-demo-clip.md) 取代。**
+> 步驟改為文字為主、圖選填；示範片是跟著做的主畫面，仍然選填。觸發點是客戶交來的手冊
+> 步驟只有文字——照舊規則 300 支沒有一支存得進步驟。一庫多支、依標籤配對、不跨段退回，
+> 以及從 ADR-0003 搬來的其餘三條（網址白名單、只停用不刪除、不吃 `company_id`）不變。
 
 ADR-0003 把干預內容定成**一格一份**：（維度，年齡段，嚴重度）九十格，一格一份圖文步驟，由 `intervention_materials.uk_material_cell` 這個唯一鍵保證。本次改為**一庫多支**：一個活動庫，每支活動帶維度、發現標籤、適齡區間與難度，由配對演算法依孩子的 `T2Findings` 每週選出四支。九十格那套（`intervention_materials` 表與 `interventionMatch.ts` 一線程式）退場。
 

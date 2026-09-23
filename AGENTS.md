@@ -57,7 +57,7 @@
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）
 │   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
 │   │   ├── weeklyCopy.ts  # 每周活动画面的句子：「因为……所以练……」、年龄段、准备中（#60）
-│   │   ├── reportCopy.ts  # 报告页的句子与作答回顾：维度状态句（partial／not_assessed／no_tool 与 clear 分开）、逐族的「尚未稳定」题目、距上次 N 天（#61）
+│   │   ├── reportCopy.ts  # 报告页的句子与作答回顾：维度状态句（partial／not_assessed／no_tool 与 clear 分开）、九宫格不出「不筛」的维度（gridDimensions，v2.1 S08）、逐族的「尚未稳定」题目、距上次 N 天（#61）
 │   │   ├── advice.ts      # CONSEQ／PLAN 的取句规则（v2.1 §6.3，S09）：从快照取题库 `advice` 原文，不经 AI；题库现在没有这一栏，报告上两段不出现（内容等 S23）
 │   │   ├── trainingPlan.ts # 家庭训练的「第几周」（Keep §4.5）：`PLAN_TOTAL_WEEKS = 12`（暂采）、`planPosition`
 │   │   ├── libraryRoutes.ts # 示范片库与单支活动的两支路由（Keep K09）；`server.ts` 只注册、注入登入检查与读活动库

@@ -7,7 +7,15 @@
  *   GET   /api/t2/checkins?from=&to=  → { from, to, checkins }（頭尾含在內最多 62 天）
  *   GET   /api/t2/practice-prefs      → { reminderDays, reminderTime }（還沒設是 [] 與 null）
  *   PUT   /api/t2/practice-prefs      { reminderDays, reminderTime } → 同上
- *   GET   /api/t2/practice-prefs.ics  → text/calendar；沒設提醒 404
+ *   GET   /api/t2/practice-prefs.ics  → text/calendar；沒設提醒 404（Bearer，或 `?t=` 帶短時效連結）
+ *   POST  /api/t2/practice-prefs/ics-link → { url }：上面那一支的短時效連結（票 B7；沒設提醒 404）
+ *
+ * 【`.ics` 的兩種身分（票 B7）】
+ * 手機要「加入日曆」得由瀏覽器自己去開網址（`location.href`），那一次請求帶不了 Bearer。所以已登入的
+ * 家長先換一條短時效、不透明的連結（`icsLink.ts`），網址本身就是憑證。`.ics` 這一支的身分由
+ * `requireIcsParent` 認：帶了 `?t=` 就**只看連結**（壞的就 401，不退回標頭），沒帶才看 Bearer。
+ * 付費閘門在 `server.ts` 用同一個規則認人（`t2IcsRequestUserId`），所以連結上的那位家長沒買一樣 403。
+ * 連結只開這一支：別的端點仍只認 Bearer。
  *
  * 【掛在哪裡】
  * `server.ts` 把這個 Router 掛在 `tier2Only` 上、T2 付費閘門之後：專案 B 整組 404（B 沒有 T2），
@@ -34,6 +42,7 @@ import express from 'express';
 import * as checkinStore from '../db/t2Checkins';
 import * as prefsStore from '../db/t2PracticePrefs';
 import { buildPracticeIcs } from './ics';
+import { ICS_LINK_PARAM } from './icsLink';
 import {
   hasReminder,
   progressFitsActivity,
@@ -55,6 +64,13 @@ export interface PracticeRouteDeps {
   /** 這位家長最新的報告快照 id；還沒生成過報告回 `null`。 */
   latestFindingsId(userId: string): Promise<number | null>;
   withTimeout<T>(promise: Promise<T>, ms: number): Promise<T>;
+  /**
+   * `.ics` 那一支的登入檢查：帶了連結（`?t=`）只看連結，沒帶才看 Bearer（檔頭「兩種身分」）。
+   * 回 `null` 代表已經回應（401）。
+   */
+  requireIcsParent(req: express.Request, res: express.Response): Promise<string | null>;
+  /** 替這位家長簽一條 `.ics` 的短時效連結，回的是查詢參數的值（網址安全的字元）。 */
+  signIcsLink(userId: string): string;
 }
 
 /** 一位家長的打卡與提醒，資料庫或記憶體兩種實作，端點不必分。 */
@@ -250,9 +266,28 @@ export function createPracticeRouter(deps: PracticeRouteDeps): express.Router {
     }
   });
 
-  router.get('/api/t2/practice-prefs.ics', async (req, res) => {
+  router.post('/api/t2/practice-prefs/ics-link', async (req, res) => {
     try {
       const userId = await deps.requireParent(req, res);
+      if (!userId) return;
+
+      // 沒設提醒就不發連結：發了也是一條開了就 404 的網址
+      if (!hasReminder(await storeFor(userId).findPrefs())) {
+        res.status(404).json({ error: '还没有设提醒，先选好每周哪几天、几点。', code: 'REMINDER_NOT_SET' });
+        return;
+      }
+      // 連結本身就是憑證：不留在任何中間層
+      res.set('Cache-Control', 'no-store');
+      res.json({ url: `/api/t2/practice-prefs.ics?${ICS_LINK_PARAM}=${deps.signIcsLink(userId)}` });
+    } catch (err: any) {
+      console.error('[T2] practice ics link failed:', err.message);
+      res.status(500).json({ error: '暂时无法产生日历档，请稍后重试。' });
+    }
+  });
+
+  router.get('/api/t2/practice-prefs.ics', async (req, res) => {
+    try {
+      const userId = await deps.requireIcsParent(req, res);
       if (!userId) return;
 
       const prefs = await storeFor(userId).findPrefs();

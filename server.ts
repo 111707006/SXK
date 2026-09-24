@@ -34,6 +34,7 @@ import { planPosition } from './src/t2/trainingPlan';
 import { createT2LibraryRouter } from './src/t2/libraryRoutes';
 import { buildSmartGoals } from './src/t2/goals';
 import { createPracticeRouter } from './src/t2/practiceRoutes';
+import { ICS_LINK_PARAM, createIcsLinkToken, readIcsLinkToken } from './src/t2/icsLink';
 import { generateProse } from './src/t2/report';
 import type { T2ReportInput } from './src/t2/report';
 import * as t2Store from './src/db/t2ToolResults';
@@ -955,11 +956,10 @@ async function rejectIfLocked(req: express.Request, res: express.Response, dimen
 // Memory mode and the demo switch pass, same as the dimension gate — no durable
 // store means no purchase can exist, and the demo paywall's skip entry sends the
 // parent straight in.
-async function denyIfT2Locked(req: express.Request): Promise<UnlockDenial | null> {
+async function denyIfT2Locked(req: express.Request, userId: UserId | null = currentUserId(req)): Promise<UnlockDenial | null> {
   if (!mysqlDb.isConfigured()) return null;
   if (PAYWALL_DEMO_OPEN) return null;
 
-  const userId = currentUserId(req);
   if (!userId) return { status: 401, body: { error: '请先登录后再使用深度评估。', code: 'UNAUTHENTICATED' } };
 
   const user = await findSessionUser(userId);
@@ -990,6 +990,26 @@ async function denyIfT2Locked(req: express.Request): Promise<UnlockDenial | null
  */
 const T2_OPEN_PATHS = new Set(['/plan', '/diagnosis']);
 
+/**
+ * `.ics` 那一支（相對 `/api/t2`）。它是唯一一支除了 Bearer 之外還認短時效連結的（票 B7，
+ * `src/t2/icsLink.ts`）：手機「加入日曆」是瀏覽器自己去開網址，那一次請求帶不了 `Authorization`。
+ *
+ * 這**不是**第三條免付費的路徑：閘門照樣檢查，只是「這位家長是誰」改從連結上讀。比對的是整段路徑
+ *（Express 的路由不分大小寫、容許結尾斜線，那幾種寫法到這裡比不上 → 只認 Bearer → 帶連結的請求 401，
+ * 關著的方向）。別的路徑上帶了 `?t=` 一律不看。
+ */
+const T2_ICS_PATH = '/practice-prefs.ics';
+
+/**
+ * `.ics` 請求的家長是誰：帶了連結（`?t=`）就**只看連結** —— 壞的、過期的就是沒有人，不退回 Bearer；
+ * 沒帶連結才看 Bearer。閘門與路由（`requireIcsParent`）用同一個規則，兩邊不會各認一個人。
+ */
+function t2IcsRequestUserId(req: express.Request): UserId | null {
+  const link = req.query[ICS_LINK_PARAM];
+  if (link === undefined) return currentUserId(req);
+  return typeof link === 'string' ? readIcsLinkToken(link, SESSION_SECRET) : null;
+}
+
 // Mounted on tier2Only rather than paidOnly: in project B these paths must not
 // exist at all (B has no T2), and a guard that answered 403 there would confirm
 // the endpoint exists. Same never-mounted-Router trick as the rest of tier 2.
@@ -999,7 +1019,8 @@ tier2Only.use('/api/t2', async (req: express.Request, res: express.Response, nex
       next();
       return;
     }
-    const denial = await denyIfT2Locked(req);
+    const userId = req.path === T2_ICS_PATH ? t2IcsRequestUserId(req) : currentUserId(req);
+    const denial = await denyIfT2Locked(req, userId);
     if (denial) {
       res.status(denial.status).json(denial.body);
       return;
@@ -1448,9 +1469,24 @@ tier2Only.get('/api/t2/findings/latest', async (req, res) => {
 // ── T2 打卡與提醒（Keep 規格 K06、K07，§5.3）──
 // 路由本身在 `src/t2/practiceRoutes.ts`。掛在 `tier2Only`、上面那道 T2 付費閘門之後（不在
 // `T2_OPEN_PATHS` 上）：B 整組 404、未付費 403、未登入 401。記憶體模式的退路在那一檔裡。
+//
+// `.ics` 另外認短時效連結（票 B7）：`requireIcsParent` 與上面的閘門用同一個 `t2IcsRequestUserId`。
 tier2Only.use(
   createPracticeRouter({
     requireParent: requireT2Parent,
+    requireIcsParent: async (req, res) => {
+      const userId = t2IcsRequestUserId(req);
+      if (!userId) {
+        res.status(401).json({ error: '日历链接已经失效，请回到页面重新加一次。', code: 'UNAUTHENTICATED' });
+        return null;
+      }
+      if (await sessionAccountMissing(userId)) {
+        res.status(401).json({ error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' });
+        return null;
+      }
+      return userId;
+    },
+    signIcsLink: userId => createIcsLinkToken(userId, SESSION_SECRET),
     dbUserIdOf: userId => (mysqlDb.isConfigured() ? toDbUserId(userId) : null),
     latestFindingsId: async userId => (await loadLatestT2Findings(userId))?.id ?? null,
     withTimeout,

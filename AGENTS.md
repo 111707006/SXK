@@ -188,7 +188,8 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 | `/api/t2/checkins/:id` | PATCH | 改心情／勾进步，只能改自己的（别人的 404）。`progress` 每个数要小于该活动 `guide.progress` 的条数，没有脚本的活动只收 `[]` | `mood`（`engaged`／`ok`／`reluctant`／null）、`progress` 至少带一个；`Authorization: Bearer <token>` |
 | `/api/t2/checkins` | GET | 一段日期的打卡（头尾都含，**最多 62 天**），由早到晚 | `from`, `to`（`YYYY-MM-DD`，query）；`Authorization: Bearer <token>` |
 | `/api/t2/practice-prefs` | GET／PUT | 提醒的星期几（0＝星期一…6＝星期日，可复选）与时间（只收 08:30／12:30／19:30／20:30）；两样要嘛都有、要嘛清成 `[]` 与 null | PUT：`reminderDays`, `reminderTime`；`Authorization: Bearer <token>` |
-| `/api/t2/practice-prefs.ics` | GET | 依提醒产生每周重复的 `.ics`（`RRULE:FREQ=WEEKLY`、`TZID=Asia/Shanghai`、标题「陪孩子做家庭活动」）；没设提醒 404 | `Authorization: Bearer <token>` |
+| `/api/t2/practice-prefs.ics` | GET | 依提醒产生每周重复的 `.ics`（`RRULE:FREQ=WEEKLY`、`TZID=Asia/Shanghai`、标题「陪孩子做家庭活动」）；没设提醒 404。**两种身分**：Bearer，或 `?t=` 带下一支发的短时效连结（带了 `t` 就只看连结，坏的／过期的 401，不退回 Bearer） | `Authorization: Bearer <token>` 或 `t` (query) |
+| `/api/t2/practice-prefs/ics-link` | POST | 换一条上面那一支的短时效连结（Keep 票 7）：回 `{url: "/api/t2/practice-prefs.ics?t=…"}`，10 分钟内有效、`Cache-Control: no-store`；没设提醒 404 `REMINDER_NOT_SET`。前端拿到用 `location.href` 开（手机「加入日历」那一次请求带不了 Bearer） | `Authorization: Bearer <token>` |
 
 > T2 入口的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
 > 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量，诊断方向会改题量。
@@ -205,6 +206,14 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 > ⚠️ `t2_checkins`、`t2_practice_prefs` 由 `deploy/migrations/2026-09-24-t2-checkins.sql` 建立，**必须先于新版程式码部署**。
 > 护栏：`test/t2Practice.http.test.ts`、`test/t2PracticeProjectB.http.test.ts`、`test/t2PracticeStats.test.ts`、
 > `test/t2Ics.test.ts`、`test/t2CheckinStore.test.ts`、`test/t2Checkins.structure.test.ts`。
+>
+> `.ics` 的短时效连结（Keep 票 7，`src/t2/icsLink.ts`）：AES-256-GCM 加密 `{使用者 id, 到期}`，钥匙由
+> `SESSION_SECRET` 以 HMAC 导出（另一个用途字串，与通行证分开）——同时是签章（改一个位元就解不开）与不透明
+> （网址里看不出是谁，同一位家长签两次也不一样）。只有时效（10 分钟），不是一次性。**只开 `.ics` 这一支**：
+> 闸门（`server.ts` 的 `t2IcsRequestUserId`）只在路径恰为 `/practice-prefs.ics` 时从连结认人，照样检查付费
+> （连结上的家长没买 403）；别的端点带 `?t=` 不算登入。`SESSION_SECRET` 换了旧连结全部作废。
+> 护栏：`test/t2IcsLink.test.ts`、`test/t2IcsLink.http.test.ts`（Bearer 可、连结可、过期／窜改 401、别人的连结
+> 拿不到自己的、未付费 403、只开这一支）、`test/t2PracticeProjectB.http.test.ts`（B 是 404）。
 
 > 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／
 > `offline_training`／`offline_consult` 之一，定义在 `src/utils/serviceTypes.ts`。

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 import { bearer } from './helpers/session';
+import { createIcsLinkToken } from '../src/t2/icsLink';
 
 /**
  * ⚠️ **必須在載入 `server.ts` 之前設定。** 少了這一行，整支測試會在專案 A 的伺服器上跑，
@@ -87,6 +88,13 @@ describe('專案 B 沒有打卡與提醒', () => {
     expect((await client.get('/api/t2/practice-prefs', auth)).status).toBe(404);
     expect((await client.request('/api/t2/practice-prefs', json('PUT', { reminderDays: [1], reminderTime: '08:30' }))).status).toBe(404);
     expect((await client.get('/api/t2/practice-prefs.ics', auth)).status).toBe(404);
+  });
+
+  it('POST /api/t2/practice-prefs/ics-link 與帶連結的 .ics（票 B7）', async () => {
+    expect((await client.request('/api/t2/practice-prefs/ics-link', { method: 'POST', headers: auth })).status).toBe(404);
+    // 用伺服器同一把秘密簽的真連結：B 也不認，因為那一支在 B 根本不存在
+    const token = createIcsLinkToken(String(PARENT_ID), process.env.SESSION_SECRET!);
+    expect((await client.get(`/api/t2/practice-prefs.ics?t=${token}`)).status).toBe(404);
   });
 
   /** 對照組：少了這一條，上面的 404 也可能是整個伺服器沒起來。 */

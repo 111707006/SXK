@@ -252,7 +252,8 @@ function statementsOf(sql: string): string[] {
 }
 
 describe('地基：遷移檔的 UPDATE 是 ACTIVITY_MEDIA 印出來的（CI 跑得了，不需要 zip）', () => {
-  const migration = fs.readFileSync(path.join(ROOT, MEDIA_MIGRATION), 'utf8');
+  // Windows 上 git 的 autocrlf 會把遷移檔換成 CRLF；migrate.mjs 照 '\n' 切，句尾多一個 \r 對 MySQL 無害，這裡先折掉再比。
+  const migration = fs.readFileSync(path.join(ROOT, MEDIA_MIGRATION), 'utf8').replace(/\r\n/g, '\n');
   const block = mediaBlockOf(migration);
 
   it('兩個標記之間 = renderActivityMediaSql(ACTIVITY_MEDIA)', () => {

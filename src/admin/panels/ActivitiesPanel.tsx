@@ -18,8 +18,9 @@ import type { Activity, DimensionCode, ModuleNo } from '../../t2/types';
 import { DIMENSION_CODES, GUIDE_PREP_KEYS } from '../../t2/types';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { MODULE_TITLES, parseAgeRange } from '../../t2/activitySeed';
-import { ACTIVITY_TAGS, FINDING_TAG_LABELS, REPORT_ONLY_TAGS, TAG_DIMENSIONS, tagDimension } from '../../t2/findingTags';
+import { ACTIVITY_TAGS, REPORT_ONLY_TAGS, TAG_DIMENSIONS, tagDimension } from '../../t2/findingTags';
 import type { ActivityTag, FindingTag, TagDimension } from '../../t2/findingTags';
+import { FINDING_TAG_LABELS } from '../findingTagLabels';
 import { TAG_SENTENCES } from '../../t2/report/sentences';
 import {
   activityCoverage,

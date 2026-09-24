@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import {
-  ACTIVITY_TAGS, REPORT_ONLY_TAGS, FINDING_TAGS, FINDING_TAG_LABELS, TAG_DIMENSIONS,
+  ACTIVITY_TAGS, REPORT_ONLY_TAGS, FINDING_TAGS, TAG_DIMENSIONS,
   isActivityTag, isFindingTag, tagDimension, tagsOfDimension,
 } from '../src/t2/findingTags';
 import type { FindingTag, TagDimension } from '../src/t2/findingTags';
+import { FINDING_TAG_LABELS } from '../src/admin/findingTagLabels';
 import { CAVEATS, RETIRED_CAVEATS, UNIVERSAL_CAVEATS, isCaveat } from '../src/t2/caveats';
 import {
   SECTION_TAGS, CHEXI_FACTORS, TEMPERAMENT_TAGS, PRE_QUESTION_TAGS,
@@ -191,7 +192,9 @@ describe('發現標籤的中文短名（v2.1 S15，只給後台）', () => {
  * 短名只給後台（v2.1 §4.9）：「心情底色偏低」的「偏低」是《对照表》禁字，而家長端的禁字掃描
  * （`test/parentWording.structure.test.ts`）只讀它列出的那幾檔的**字面**，擋不住 import 進來的常數。
  * 所以這裡反過來掃**名字**：`src/`（含 `src/components/` 與家長端 import 的 `src/t2/` 文案檔）
- * 與 `server.ts`，提到 `FINDING_TAG_LABELS` 的檔案只能是定義它的那一檔與後台活動庫分頁。
+ * 與 `server.ts`，提到 `FINDING_TAG_LABELS` 或 import `findingTagLabels` 的檔案只能是定義它的那一檔與後台活動庫分頁。
+ * 常數本身放在 `src/admin/`（後台是 lazy chunk），不放家長端也 import 的 `src/t2/findingTags.ts`，
+ * 否則畫面不顯示也會跟著家長端的 bundle 下載。
  *
  * 後台別的分頁要用：加進 `LABEL_USERS`。但 `src/admin/` 不等於「家長看不到」——
  * `ParentReportPrint.tsx` 印的是家長的報告。
@@ -199,8 +202,8 @@ describe('發現標籤的中文短名（v2.1 S15，只給後台）', () => {
 const ROOT = path.resolve(__dirname, '..');
 
 const LABEL_USERS = [
+  'src/admin/findingTagLabels.ts',
   'src/admin/panels/ActivitiesPanel.tsx',
-  'src/t2/findingTags.ts',
 ];
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -241,8 +244,15 @@ describe('中文短名不流到家長端（v2.1 §4.9）', () => {
     }
   });
 
-  it('沒有檔案整包轉出 findingTags（`export *` 會不提名字就把短名帶出去）', () => {
-    const offenders = sources.filter(s => /export\s*\*\s*(?:as\s+\w+\s*)?from\s*['"][^'"]*findingTags['"]/.test(s.code)).map(s => s.rel);
+  it('import `findingTagLabels` 的只有後台活動庫分頁；家長端也 import 的 findingTags.ts 不含短名', () => {
+    const importers = sources.filter(s => /from\s*['"][^'"]*findingTagLabels['"]/.test(s.code)).map(s => s.rel).sort();
+    expect(importers).toEqual(['src/admin/panels/ActivitiesPanel.tsx']);
+    const tagsFile = sources.find(s => s.rel === 'src/t2/findingTags.ts')!;
+    expect(tagsFile.code).not.toContain('心情底色偏低');
+  });
+
+  it('沒有檔案整包轉出 findingTagLabels（`export *` 會不提名字就把短名帶出去）', () => {
+    const offenders = sources.filter(s => /export\s*\*\s*(?:as\s+\w+\s*)?from\s*['"][^'"]*findingTagLabels['"]/.test(s.code)).map(s => s.rel);
     expect(offenders).toEqual([]);
   });
 });

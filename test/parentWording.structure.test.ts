@@ -42,6 +42,11 @@ import { BRAIN_NODES, REHAB_SUGGESTIONS } from '../src/dimensionContent';
  *   「医生是否已告知诊断方向」。它們是**醫師講出口的名稱**，家長從裡面挑出醫師講過的那一個；
  *   主語是醫師，不是系統在說孩子。改寫成別的字，家長反而對不上醫師講的。這些字集中在那一檔，
  *   畫面元件只 import 不手抄 —— `test/t2EntranceCopy.structure.test.ts` 釘住。
+ * - 客戶的活動內容（手冊的「练什么」「需要什么」「小提醒」、模組一腳本；`src/t2/activityContent.ts`
+ *   由腳本產出、活動庫裡存的是同一份）：Keep 規格 §7「客戶的內容照原文」，要不要改是客戶的決定
+ *  （§9 第 3 題）。其中含《用语对照表》禁字的句子多數不是在講孩子（「障碍」是障礙物），另有一些
+ *   「一定要／必须」的指令語氣，清單交給客戶。線上干預的畫面（`src/components/training/`）只從
+ *   API 讀到這些欄位再原樣顯示，原始碼裡沒有任何一句，所以畫面檔照常掃；豁免只到內容本身為止。
  */
 
 const ROOT = path.resolve(__dirname, '..');
@@ -85,8 +90,8 @@ const PARENT_FACING_FILES = [
   // 2026-09-12（票 #58）：逐支作答的畫面與它的純函式層（填表人、加測提示那一句、ASR 的白話註解）。
   'src/components/T2Assessment.tsx',
   'src/t2/answering.ts',
-  // 2026-09-12（票 #60）：每週活動的畫面與它的句子層（「因為……所以練……」、年齡段、準備中）。
-  'src/components/T2WeeklyPlan.tsx',
+  // 2026-09-12（票 #60）：每週活動的句子層（「因為……所以練……」、年齡段、準備中）。
+  // 畫面 `T2WeeklyPlan.tsx` 2026-09-24 由 `src/components/training/` 取代（Keep 票 6，見下）。
   'src/t2/weeklyCopy.ts',
   // 2026-09-13（票 #61）：報告頁、它的句子層（維度狀態句、作答回顧、「距上次 N 天」）與來源三態。
   'src/components/T2Report.tsx',
@@ -97,6 +102,13 @@ const PARENT_FACING_FILES = [
   'src/t2/practice.ts',
   'src/t2/practiceRoutes.ts',
   'src/t2/ics.ts',
+  // 2026-09-24（Keep 票 6，K16 的一部分）：線上干預的新畫面與它的句子層。畫面那一整個資料夾都掃，
+  // 票 7、8 加的頁不必再回來登記；句子集中在 `trainingCopy.ts`。
+  'src/t2/trainingCopy.ts',
+  ...fs
+    .readdirSync(path.join(ROOT, 'src/components/training'))
+    .filter(f => /\.tsx?$/.test(f))
+    .map(f => `src/components/training/${f}`),
 ];
 
 /**

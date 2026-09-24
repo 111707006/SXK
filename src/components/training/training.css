@@ -1,0 +1,34 @@
+/*
+ * 家庭訓練那幾層的動畫與捲動列（照 Keep 式樣品 `proto.css` 搬來，改名 `training-*`）。
+ * 樣品的外框（手機殼、狀態列、深色頁面底色）不搬：正式站的這幾層直接蓋在報告上。
+ */
+
+.training-no-scrollbar {
+  scrollbar-width: none;
+}
+.training-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes trainingFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes trainingUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes trainingPush {
+  from { transform: translateX(24%); opacity: 0.5; }
+  to { transform: none; opacity: 1; }
+}
+
+.training-fade { animation: trainingFade 0.2s ease-out both; }
+.training-up { animation: trainingUp 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.training-push { animation: trainingPush 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .training-fade,
+  .training-up,
+  .training-push { animation: none; }
+}

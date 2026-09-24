@@ -227,9 +227,16 @@ describe('中文短名不流到家長端（v2.1 §4.9）', () => {
   it('提到 FINDING_TAG_LABELS 的只有定義它的檔與後台活動庫分頁', () => {
     const users = sources.filter(s => s.code.includes('FINDING_TAG_LABELS')).map(s => s.rel).sort();
     expect(users).toEqual(LABEL_USERS);
-    // 掃描範圍真的涵蓋家長端：元件、每週活動與報告的句子層都在裡面
+    // 掃描範圍真的涵蓋家長端：元件、每週活動與報告的句子層都在裡面（每週活動的畫面 2026-09-24 起是
+    // `src/components/training/`，Keep 票 6）
     const scanned = new Set(sources.map(s => s.rel));
-    for (const rel of ['src/components/T2WeeklyPlan.tsx', 'src/components/T2Report.tsx', 'src/t2/weeklyCopy.ts', 'src/t2/reportCopy.ts']) {
+    for (const rel of [
+      'src/components/training/ReportEntry.tsx',
+      'src/components/T2Report.tsx',
+      'src/t2/weeklyCopy.ts',
+      'src/t2/trainingCopy.ts',
+      'src/t2/reportCopy.ts',
+    ]) {
       expect(scanned.has(rel), rel).toBe(true);
     }
   });

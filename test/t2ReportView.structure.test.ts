@@ -80,9 +80,11 @@ describe('段落順序（§6.3）', () => {
     expect(view).not.toContain(RETEST_SENTENCE);
   });
 
-  it('本週活動嵌的是票 #60 的元件，weeklyPlanIntro 在它上面', () => {
-    expect(view).toMatch(/<T2WeeklyPlan onBookService=\{onBookService\} \/>/);
-    expect(view.indexOf('prose.weeklyPlanIntro')).toBeLessThan(view.indexOf('<T2WeeklyPlan'));
+  it('第六段嵌的是線上干預（Keep 規格 K11，取代票 #60 的清單），weeklyPlanIntro 在它上面', () => {
+    const weekly = view.slice(view.indexOf('id="t2-weekly"'), view.indexOf('</section>', view.indexOf('id="t2-weekly"')));
+    expect(weekly).toMatch(/<TrainingSection findings=\{findings\} childName=\{childName\} onBookService=\{onBookService\}/);
+    expect(weekly.indexOf('prose.weeklyPlanIntro')).toBeLessThan(weekly.indexOf('<TrainingSection'));
+    expect(view).not.toContain('T2WeeklyPlan');
   });
 });
 

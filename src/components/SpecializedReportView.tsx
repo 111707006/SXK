@@ -667,7 +667,7 @@ export default function SpecializedReportView({
       </div>
 
       {/* 6. 每週活動 —— 原本這裡是一格一份的干預包（issue #26）；2026-09 隨 ADR-0005 退場（#63），
-          家長現在要在家做的訓練改由 T2 報告頁的每週活動承接（`T2WeeklyPlan`，票 #60）。
+          家長現在要在家做的訓練改由 T2 報告頁的每週活動承接（票 #60；2026-09 起是 Keep 式的 `training/TrainingSection`）。
           這份專項報告因此只剩快照：上下每一段都是產出當下的內容。 */}
 
       {/* 7. FLATTENED LAYOUT: SECTION IV - 7日居家特调方案 (7-Day OT/PT Schedule) */}

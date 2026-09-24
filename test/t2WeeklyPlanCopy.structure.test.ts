@@ -18,9 +18,10 @@ import {
 import type { PickReason } from '../src/t2/activityMatch';
 
 /**
- * 每週活動畫面的句子與結構（票 #60）。專案沒有 jsdom，畫面上出現什麼字只能讀原始碼。
+ * 每週活動畫面的句子與結構（票 #60；2026-09-24 起畫面是 Keep 式的 `src/components/training/`，
+ * 報告入口＋計劃頁＋詳情，Keep 規格 K11、K12）。專案沒有 jsdom，畫面上出現什麼字只能讀原始碼。
  *
- * 釘四件事：
+ * 票 #60 那一塊的每一件事，換了畫面之後都還在（下面四條逐條對新元件驗）：
  * 1. **「因為……所以練……」真的展得開**：規格 §7.3 的 `reason` 是四個欄位，畫面上要是一句話。
  * 2. **band 的說法來自全站唯一的那一份**（`statusWording.ts`）：元件與句子層都不自己寫
  *    「需要多練習」這種話 —— 那就是「同一顆紅燈五個名字」的下一次。
@@ -39,7 +40,18 @@ function stripComments(source: string): string {
     .replace(/^[ \t]*\/\/.*$/gm, '');
 }
 
-const view = stripComments(read('src/components/T2WeeklyPlan.tsx'));
+/** 新畫面：入口、詳情（簡單版）、資料層。四支、準備中、兩個月齡、理由句分散在這幾檔。 */
+const TRAINING_FILES = [
+  'src/components/training/ReportEntry.tsx',
+  'src/components/training/SimpleDetailScreen.tsx',
+  'src/components/training/PlanScreen.tsx',
+  'src/components/training/useTrainingData.ts',
+  'src/components/training/trainingData.ts',
+];
+const entry = stripComments(read('src/components/training/ReportEntry.tsx'));
+const detail = stripComments(read('src/components/training/SimpleDetailScreen.tsx'));
+const view = TRAINING_FILES.map(f => stripComments(read(f))).join('\n');
+const trainingCopy = stripComments(read('src/t2/trainingCopy.ts'));
 const copy = stripComments(read('src/t2/weeklyCopy.ts'));
 
 function reason(over: Partial<PickReason> = {}): PickReason {
@@ -104,9 +116,11 @@ describe('年齡段與週次', () => {
   });
 
   it('畫面標出配對用的年齡段，兩個月齡不同時多一句說明', () => {
-    expect(view).toContain('ageBandLabel');
-    expect(view).toContain('AGE_SPLIT_NOTE');
-    expect(view).toMatch(/plan\.ageMonth !== plan\.reportAgeMonth/);
+    expect(entry).toContain('ageBandLabel(plan.ageKey)');
+    expect(entry).toContain('weekAgeLine(plan.ageMonth, ageBandLabel(plan.ageKey), plan.reportAgeMonth)');
+    // 那一句在句子層接 AGE_SPLIT_NOTE（兩個月齡不同時）
+    expect(trainingCopy).toContain('AGE_SPLIT_NOTE');
+    expect(trainingCopy).toMatch(/ageMonth === reportAgeMonth/);
     expect(AGE_SPLIT_NOTE).toContain('现在的月龄');
     expect(AGE_SPLIT_NOTE).toContain('答题');
   });
@@ -115,14 +129,14 @@ describe('年齡段與週次', () => {
 describe('配不到活動時', () => {
   it('說「準備中」並導向專家（四種服務），不是往上取一支', () => {
     expect(PREPARING_SENTENCE).toContain('准备中');
-    expect(view).toContain('PREPARING_SENTENCE');
-    expect(view).toContain('serviceTypeDescriptors');
-    expect(view).toContain('onBookService');
+    expect(entry).toContain('PREPARING_SENTENCE');
+    expect(entry).toContain('serviceTypeDescriptors');
+    expect(entry).toContain('onBookService');
   });
 
   it('往前取的那一支會多說一句（不是安靜地給一支更早的）', () => {
-    expect(view).toContain('BELOW_WINDOW_NOTE');
-    expect(view).toMatch(/reason\.belowWindow/);
+    expect(detail).toContain('BELOW_WINDOW_NOTE');
+    expect(detail).toMatch(/reason\.belowWindow/);
     expect(BELOW_WINDOW_NOTE).toContain('往前');
   });
 });
@@ -139,18 +153,18 @@ describe('畫面只排版，不自己算', () => {
   });
 
   it('句子在 weeklyCopy.ts，元件只 import', () => {
-    expect(view).toMatch(/from '\.\.\/t2\/weeklyCopy'/);
-    expect(view).toContain('reasonSentence');
+    expect(detail).toMatch(/from '\.\.\/\.\.\/t2\/weeklyCopy'/);
+    expect(detail).toContain('reasonSentence');
     expect(view).not.toContain('因为');
   });
 
-  it('步驟有幾則顯示幾則：沒有 slice、沒有補空的', () => {
-    expect(view).toMatch(/activity\.steps\.map/);
-    expect(view).not.toMatch(/steps\.slice/);
+  it('詳情的步驟有幾則顯示幾則：沒有 slice、沒有補空的', () => {
+    expect(detail).toMatch(/activity\.steps\.map/);
+    expect(detail).not.toMatch(/steps\.slice/);
   });
 
   it('示範連結有才顯示', () => {
-    expect(view).toMatch(/activity\.videoUrl &&/);
+    expect(detail).toMatch(/\{clip && \(/);
   });
 });
 

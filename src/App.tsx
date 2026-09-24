@@ -645,6 +645,8 @@ export default function App() {
     setActiveT1Record(useLive ? null : archived);
     setFocusBooking(true);
     setFocusBookingService(service);
+    // 上一次「重新评估」或付費回來留下的 focusT2 會讓報告同時捲去 T2 入口與預約區塊，這裡要的是後者。
+    setFocusT2(false);
     setCurrentView('report');
   };
 
@@ -1393,6 +1395,15 @@ export default function App() {
                     generateOnOpen={t2ReportGenerate}
                     onBack={() => setCurrentView('t2_assessment')}
                     onBookService={type => goToExpertBooking(type)}
+                    onReassess={() => {
+                      // 計劃頁「重新评估」→ T2 入口：入口只掛在即時 T1 報告上（票 #56），回去並捲到那張卡
+                      setViewingLiveT1(true);
+                      setT1ReportGenerate(false);
+                      setActiveT1Record(null);
+                      setFocusBooking(false);
+                      setFocusT2(true);
+                      setCurrentView('report');
+                    }}
                   />
                 </LazyBoundary>
               </div>

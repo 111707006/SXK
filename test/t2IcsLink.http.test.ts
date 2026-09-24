@@ -189,6 +189,20 @@ describe('GET /api/t2/practice-prefs.ics 的兩種身分', () => {
     expect((await resp.json()).code).toBe('LOCKED');
   });
 
+  it('Express 也認的寫法（大小寫不同、結尾斜線）：閘門與路由認的是同一個人', async () => {
+    // Express 的路由不分大小寫、容許結尾斜線，這幾種寫法都會進 .ics 那一支。閘門若只比對一模一樣的
+    // 路徑，會改看 Bearer：付費的 OTHER 帶著自己的 Bearer 就能替沒付費的 LOCKED 拿到他的日曆檔。
+    const lockedToken = createIcsLinkToken(String(LOCKED), process.env.SESSION_SECRET!);
+    for (const path of ['/api/t2/PRACTICE-PREFS.ics', '/api/t2/practice-prefs.ics/', '/api/t2/Practice-Prefs.ICS/']) {
+      const withPaidBearer = await client.get(`${path}?t=${lockedToken}`, bearer(OTHER));
+      expect(withPaidBearer.status, path).toBe(403);
+      // 付費家長自己的連結在這幾種寫法上照樣能用
+      const mine = await client.get(`${path}?t=${(await linkFor(PARENT)).split('?t=')[1]}`);
+      expect(mine.status, path).toBe(200);
+      expect(bydayOf(await mine.text()), path).toBe('MO,WE,FR');
+    }
+  });
+
   it('連結對應的帳號已經刪了 → 401', async () => {
     const ghost = createIcsLinkToken('999', process.env.SESSION_SECRET!);
     expect((await client.get(`/api/t2/practice-prefs.ics?t=${ghost}`)).status).toBe(401);

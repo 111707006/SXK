@@ -994,11 +994,19 @@ const T2_OPEN_PATHS = new Set(['/plan', '/diagnosis']);
  * `.ics` 那一支（相對 `/api/t2`）。它是唯一一支除了 Bearer 之外還認短時效連結的（票 B7，
  * `src/t2/icsLink.ts`）：手機「加入日曆」是瀏覽器自己去開網址，那一次請求帶不了 `Authorization`。
  *
- * 這**不是**第三條免付費的路徑：閘門照樣檢查，只是「這位家長是誰」改從連結上讀。比對的是整段路徑
- *（Express 的路由不分大小寫、容許結尾斜線，那幾種寫法到這裡比不上 → 只認 Bearer → 帶連結的請求 401，
- * 關著的方向）。別的路徑上帶了 `?t=` 一律不看。
+ * 這**不是**第三條免付費的路徑：閘門照樣檢查，只是「這位家長是誰」改從連結上讀。別的路徑上帶了 `?t=`
+ * 一律不看。
+ *
+ * 比對時照 Express 的路由規則正規化（`isT2IcsPath`）：路由不分大小寫、容許結尾斜線，所以
+ * `/PRACTICE-PREFS.ics`、`/practice-prefs.ics/` 也會進 `.ics` 那一支。閘門若只比一模一樣的字串，
+ * 那幾種寫法會改看 Bearer，而路由看的是連結 —— 兩邊認的不是同一個人（付費的 B 帶著自己的 Bearer，
+ * 就能替沒付費的 A 拿到 A 的日曆檔）。正規化之後，只要進得了那一支，閘門就照連結上的人檢查。
  */
 const T2_ICS_PATH = '/practice-prefs.ics';
+
+function isT2IcsPath(path: string): boolean {
+  return path.toLowerCase().replace(/\/+$/, '') === T2_ICS_PATH;
+}
 
 /**
  * `.ics` 請求的家長是誰：帶了連結（`?t=`）就**只看連結** —— 壞的、過期的就是沒有人，不退回 Bearer；
@@ -1019,7 +1027,7 @@ tier2Only.use('/api/t2', async (req: express.Request, res: express.Response, nex
       next();
       return;
     }
-    const userId = req.path === T2_ICS_PATH ? t2IcsRequestUserId(req) : currentUserId(req);
+    const userId = isT2IcsPath(req.path) ? t2IcsRequestUserId(req) : currentUserId(req);
     const denial = await denyIfT2Locked(req, userId);
     if (denial) {
       res.status(denial.status).json(denial.body);

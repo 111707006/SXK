@@ -1761,6 +1761,27 @@ tier2Only.use(createT2LibraryRouter({
   loadLibrary: async () => (mysqlDb.isConfigured() ? withTimeout(listActivityLibrary(), 2000) : []),
 }));
 
+// ── 示範片與封面的靜態目錄 `/media`（Keep 規格 K05、§6.2 甲，使用者 2026-09-24 定）──
+// 片子放在主機上 `dist/` 以外的目錄（`dist/` 每次部署整個換掉），預設 `<cwd>/media`，
+// `MEDIA_DIR` 可覆寫；活動庫存的網址是 `/media/activities/A001.mp4`。日後搬物件儲存只改資料
+// （`video_url`／`poster_url` 換成 `https://…`），這幾行可以留著也可以拿掉。
+//
+// - 只在專案 A 掛（`tier2Only`）：B 沒有 T2，也就沒有活動與片子。
+// - 公開、不驗登入：網址只出現在付費閘門後面的活動資料裡；`<video>`／`<img>` 帶不了 Bearer token。
+// - Range 由 `express.static` 的 send 處理（206），iOS 播 mp4 一定要。
+// - 快取一小時＋ETag：檔名固定、內容可能換（客戶補拍），所以不是 immutable。
+// - 目錄不在也起得來：`express.static` 不在啟動時檢查目錄，找不到就是 404。
+// - 找不到一律在這裡回 404，不落到 `startServer()` 的 SPA 兜底 —— 那會對任何路徑回
+//   `index.html`＋200，`<video>` 拿到一頁 HTML 不報錯、只是播不動。
+const MEDIA_DIR = process.env.MEDIA_DIR?.trim() || path.join(process.cwd(), 'media');
+tier2Only.use(
+  '/media',
+  express.static(MEDIA_DIR, { index: false, redirect: false, maxAge: '1h' }),
+  (_req: express.Request, res: express.Response) => {
+    res.status(404).end();
+  },
+);
+
 /** Dimensions whose deep assessment is served by a fixed endpoint. */
 const LANGUAGE_DIMENSION_ID = 'language';
 const MOTION_DIMENSION_ID = 'gross_motor';

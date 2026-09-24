@@ -27,3 +27,7 @@ Thumbs.db
 
 # 部署暫存：A 與 B 兩份產物分開放，避免共用 dist/ 時一邊傳一邊重建
 deploy-out/
+
+# 示範片與封面（Keep 規格 K05）：scripts/t2-prepare-media.ts 從客戶的 zip 產出，部署時另外傳到主機的
+# /var/www/sxk/media/。只擋根目錄這一個 —— 樣品的 src/prototype/…/media/ 要收進拋棄分支（Keep 票 9）。
+/media/

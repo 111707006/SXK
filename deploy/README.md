@@ -123,6 +123,35 @@ VITE_ICP_BEIAN="沪ICP备2026009790号-3" VITE_APP_MODE=t1only pnpm run build \
 > 因为本专案是在本机构建再 scp 上去的，产物离开本机之后就改不动了。
 > 漏掉 `ICP_BEIAN` 的症状：家长端页脚有备案号，扫码打开的报告页没有。
 
+### 示范片与封面（只有专案 A；Keep 规格 K05）
+
+片子与封面**不在 `dist/` 里、也不进 git**：`dist/` 每次部署整个换掉。它们放在主机的
+`/var/www/sxk/media/activities/`，由 `server.ts` 挂在 `/media`（网址 `/media/activities/A001.mp4`）。
+目录可以用 `.env` 的 `MEDIA_DIR` 改，预设就是 `<进程目录>/media` ＝ `/var/www/sxk/media`，不用设。
+专案 B 没有这条路，不用传。
+
+第一次上线，或客户补了片子：
+
+```bash
+# ① 本机：从客户的 zip 产出 media/activities/（要 ffmpeg／ffprobe）；--check 确认要传的就是清单上那几支
+npx tsx scripts/t2-prepare-media.ts --zip <T2视频_20260923.zip 的路径>
+npx tsx scripts/t2-prepare-media.ts --check --zip <T2视频_20260923.zip 的路径>
+
+# ② 本机 → 主机（2026-09-24 那一批：17 支片＋17 张封面，约 24 MB）
+ssh root@你的IP mkdir -p /var/www/sxk/media
+scp -r media/activities root@你的IP:/var/www/sxk/media/
+```
+
+③ 跑迁移（`2026-09-24-activity-media.sql` 把十七支的网址、封面、片长写进活动库），④ 部署程式码。
+
+> **片子先传、迁移后跑。** 反过来，片库会列出十七支打不开的片。③ 跑完到 ④ 部署完之间，旧版程式码
+> 没有 `/media`（会回 `index.html`），封面与片子是破的 —— 两步接着做。
+>
+> scp 只会覆盖、不会删：清单拿掉的片（例如客户要换掉某一支）要到主机上手动删那两个档。
+>
+> 部署完验：`curl -I https://sxkscreen.com/media/activities/A001.mp4` 回 200、`Content-Type: video/mp4`；
+> 加 `-H 'Range: bytes=0-1'` 回 206（iPhone 播 mp4 靠它）。
+
 主机上各跑一次（脚本会检查 `.env` 与 `dist/` 在不在，缺了就地停下）：
 
 ```bash

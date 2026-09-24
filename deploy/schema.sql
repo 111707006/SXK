@@ -342,8 +342,9 @@ CREATE TABLE IF NOT EXISTS `intervention_materials` (
 --
 -- 2026-09-23 加了内容栏位（Keep 规格 §4.1，deploy/migrations/2026-09-23-activity-content.sql）：
 -- 客户手册那张卡的原文（age_label 到 deeper）与模组一的脚本（guide），由那份迁移写入；
--- 示范片的封面与片长（poster_url、video_seconds）另外补。文字栏位 NULL ＝ 迁移还没填，
--- '' ＝ 后台清掉的 —— 迁移重跑只填 NULL，清掉的不会被填回来。
+-- 示范片的网址、封面与片长（video_url、poster_url、video_seconds）由
+-- deploy/migrations/2026-09-24-activity-media.sql 填（十七支，片子放主机的 /media/activities/）。
+-- 文字栏位 NULL ＝ 迁移还没填，'' ＝ 后台清掉的 —— 迁移重跑只填 NULL，清掉的不会被填回来。
 
 CREATE TABLE IF NOT EXISTS `activities` (
   -- 沿用原型 ACT300 的编号：'A017'。之后新增的活动也照这个格式往后编。

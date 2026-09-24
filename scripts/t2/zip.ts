@@ -9,6 +9,10 @@
  * 支援的範圍刻意很窄：central directory 找得到、壓縮方式是 0（stored）或
  * 8（deflate）、檔名是 UTF-8（兩個 zip 的 general purpose flag 都設了
  * bit 11）。其他情況直接丟錯，不猜。
+ *
+ * 唯一的放寬是呼叫端明說的 `unflaggedUtf8Names`：Mac 的「壓縮」把中文檔名直接寫成
+ * UTF-8、卻不設 bit 11（客戶 2026-09-23 的 `T2视频_20260923.zip` 就是這樣）。開了它，
+ * 沒設旗標的檔名只要**嚴格**解得開 UTF-8 就收；解不開（GBK、CP437……）照樣丟錯。
  */
 
 import { inflateRawSync } from 'node:zlib';
@@ -23,8 +27,24 @@ export interface ZipEntry {
   data: Buffer;
 }
 
+export interface ReadZipOptions {
+  /** 沒設 UTF-8 旗標的非 ASCII 檔名，嚴格解得開 UTF-8 就收（見檔頭，Mac 壓的 zip）。預設不收。 */
+  unflaggedUtf8Names?: boolean;
+}
+
+const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true });
+
+function isStrictUtf8(bytes: Uint8Array): boolean {
+  try {
+    STRICT_UTF8.decode(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** 把整個 zip 讀成 `路徑 → 內容`。目錄項（以 `/` 結尾）略過。 */
-export function readZip(buf: Buffer): Map<string, Buffer> {
+export function readZip(buf: Buffer, options: ReadZipOptions = {}): Map<string, Buffer> {
   const eocd = findEndOfCentralDirectory(buf);
   const entryCount = buf.readUInt16LE(eocd + 10);
   const centralOffset = buf.readUInt32LE(eocd + 16);
@@ -49,7 +69,9 @@ export function readZip(buf: Buffer): Map<string, Buffer> {
     const nameBytes = buf.subarray(p + 46, p + 46 + nameLen);
     // 沒設 UTF-8 旗標的檔名（docx 內部的 `word/document.xml` 那種）只接受純 ASCII，
     // 否則就是 CP437 或 GBK 之類我們不猜的東西。
-    if (!(flags & 0x0800) && nameBytes.some(b => b >= 0x80)) {
+    // 呼叫端明說收 Mac 那種的，再多給一條路：嚴格的 UTF-8。
+    const unflaggedUtf8 = options.unflaggedUtf8Names === true && isStrictUtf8(nameBytes);
+    if (!(flags & 0x0800) && nameBytes.some(b => b >= 0x80) && !unflaggedUtf8) {
       throw new Error('zip：檔名既不是 UTF-8（general purpose flag bit 11 未設）也不是純 ASCII，本讀取器不處理其他編碼');
     }
     const name = nameBytes.toString('utf8');

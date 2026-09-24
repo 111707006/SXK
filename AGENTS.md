@@ -67,6 +67,7 @@
 │   │   ├── act300.ts      # 旧原型 300 支活动的名称与适龄原文（脚本产出，勿手改）
 │   │   ├── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
 │   │   ├── activityContent.ts # 客户手册 300 张卡＋模组一 20 支脚本的原文（脚本产出，勿手改；Keep 规格 K03）
+│   │   ├── activityMedia.ts # 示范片清单 17 支：网址、封面、片长、sha256（脚本产出，勿手改；Keep 规格 K05）
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）、没有工具的维度怎么讲（6 岁以上认知／语言／动作用客户固定句，v2.1 S05）
 │   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
 │   │   ├── weeklyCopy.ts  # 每周活动画面的句子：「因为……所以练……」、年龄段、准备中（#60）
@@ -93,6 +94,7 @@
 │       └── activityGuide.ts # 模组一脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
 ├── NEWT2/                 # 客户 2026-09-08 评估工具包 zip 与 09-10 纸本版 zip（题库的来源）；
 │                          # 09-23 活动内容包里的两份 docx（手册总册、模组一脚本，原封不动取出；zip 与 mp4 不进 git）
+├── media/                 # 示范片与封面（scripts/t2-prepare-media.ts 产出，不进 git；部署时另传到主机，server.ts 挂在 /media）
 └── assets/                # 静态资源
 ```
 
@@ -131,6 +133,11 @@ npx tsx scripts/t2-activity-seed-sql.ts --check
 # ＋ 迁移档 deploy/migrations/2026-09-23-activity-content.sql 标记之间的 UPDATE；顺便列出与 act300.ts 不一致的标题／适龄
 npx tsx scripts/t2-extract-activity-content.ts
 npx tsx scripts/t2-extract-activity-content.ts --check
+
+# 示范片与封面（Keep 规格 K05）：客户的 NEWT2/T2视频_20260923.zip（不进 git）→ media/activities/（不进 git，部署时传上主机）
+# ＋ src/t2/activityMedia.ts ＋ 迁移档 deploy/migrations/2026-09-24-activity-media.sql 标记之间的 UPDATE；要 ffmpeg／ffprobe
+npx tsx scripts/t2-prepare-media.ts --zip <zip 的路径>
+npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 ```
 
 > 活动库（ADR-0005）的 300 支种子是**算**出来的，不是手抄的：`act300.ts` 由脚本抽自旧原型，
@@ -153,11 +160,24 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 > `test/activityGuide.test.ts`。
 >
 > 活动内容（Keep 规格 K02／K03，2026-09-23）：手册每张卡的原文（`age_label` 到 `deeper`）、模组一的脚本（`guide`，
-> 形状见 `src/t2/types.ts` 的 `ActivityGuide`）与示范片封面／片长（`poster_url`／`video_seconds`，票 3 才填）
+> 形状见 `src/t2/types.ts` 的 `ActivityGuide`）与示范片封面／片长（`poster_url`／`video_seconds`，这份只加栏位，下一段的迁移才填）
 > 由 `deploy/migrations/2026-09-23-activity-content.sql` 加栏位并写入；**可重跑**：文字与 `guide` 只填 NULL、
 > `steps` 只填还是空阵列的。`src/t2/activityContent.ts` 与那份迁移的 UPDATE 都由抽取脚本从 `NEWT2/` 的两份 docx
 > 产出，`test/activityContent.test.ts` 重跑比对（同 `toolkit.structure` 的护栏）。客户原文一个字都不改写，
 > 含《用语对照表》的禁字（规格 §7、§9 第 3 题）。⚠️ 这份迁移**先于新版程式码部署**。
+>
+> 示范片与封面（Keep 规格 K05，§6.2 甲，使用者 2026-09-24 定）：片子放在**正式站主机的静态目录**，不放物件储存、
+> 不进 git。`scripts/t2-prepare-media.ts` 从客户 zip 挑片（007 与 006 **位元组相同**，用 sha256 挡；
+> `008-不太好` 看档名注记挡），原封不动写到 `media/activities/A0xx.mp4`，并用 ffmpeg 在固定时间点抽一格当封面
+> `A0xx.jpg`（960×540，时间点对过样品的 17 张封面）；片长由 ffprobe 读。清单 `src/t2/activityMedia.ts` 与迁移
+> `deploy/migrations/2026-09-24-activity-media.sql` 的 UPDATE 由同一支脚本产出，`test/activityMedia.test.ts`
+> 重印比对（CI 不需要 zip；有 zip 的机器上另外整批重挑比 sha256）。UPDATE 三格都只在 NULL／空字串时才填 ——
+> **后台清掉一支片，下一次跑迁移会填回来**；要下架得让它离开清单，或停用那支活动。
+> `server.ts` 把 `MEDIA_DIR`（预设 `<cwd>/media`）挂在 `/media`：只在专案 A、**公开不验登入**（网址只出现在付费闸门
+> 后面的活动资料里，`<video>` 也带不了 token）、Range 回 206（iOS 必要）、快取一小时＋ETag、找不到一律 404
+> 不落到 SPA 兜底、目录不在也起得来。护栏：`test/activityMedia.http.test.ts`、`test/activityMediaProjectB.http.test.ts`。
+> ⚠️ 上线顺序：本机跑准备脚本 → 把 `media/activities/` 传到 `/var/www/sxk/media/activities/` → 跑迁移 → 部署程式码
+> （见 `deploy/README.md` 第五节）。片子没传上去就跑迁移，片库会列出十七支打不开的片。
 
 > `src/t2/toolkit/` 里的 22 份是脚本从 `NEWT2/森心康评估工具包_20260908.zip` 抽出来的常数，
 > **不要手改** —— `test/toolkit.structure.test.ts` 会重跑脚本比对。工具包的 HTML 一行都不执行：
@@ -272,6 +292,7 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 | `ALI_SMS_SIGN_NAME` | 已审核的短信签名 | **手机号登入必需** |
 | `ALI_SMS_TEMPLATE_CODE` | 已审核的验证码范本（须含 `${code}` 变数） | **手机号登入必需** |
 | `SMS_PROVIDER` | `aliyun`（预设）或 `console`（本机开发，只印不送） | 否 |
+| `MEDIA_DIR` | 示范片与封面的目录（预设 `<cwd>/media`，正式站 A 即 `/var/www/sxk/media`），`server.ts` 挂在 `/media`，只在专案 A。**不要指到 `dist/` 里面**：每次部署会整个换掉 | 否 |
 | `SMS_IP_DAILY_MAX` | 同一来源每日索取上限（预设 50）。按号码算的上限（10）挡不住换号码，这是按来源算的那一半；来源是收敛过的键（IPv6 截到 /64）。**设成 0 即停止发送**，遭滥用时最快的一道闸门 | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

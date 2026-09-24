@@ -18,6 +18,7 @@ function fakeBrowser(initialState: unknown = null) {
   const listeners = new Set<Listener>();
   const calls = { push: 0, replace: 0, go: [] as number[] };
   const history = {
+    scrollRestoration: 'auto' as 'auto' | 'manual',
     get state() {
       return entries[index].state;
     },
@@ -213,6 +214,15 @@ describe('邊界', () => {
     browser.pressBack();
     await flush();
     expect(stack.layers()).toEqual([]);
+  });
+
+  it('推第一層時把捲動還原改成手動：卸載時退回報告那一格，瀏覽器不把下一頁捲回舊位置', () => {
+    // 家長在計劃頁按「预约」→ App 換到 T1 報告並捲到預約區塊；這時卸載退格落地，
+    // 捲動還原是 auto 的話，瀏覽器會把新的一頁捲回推第一層那時報告頁的高度。
+    const { browser, stack } = setup();
+    expect(browser.history.scrollRestoration).toBe('auto');
+    stack.push(plan);
+    expect(browser.history.scrollRestoration).toBe('manual');
   });
 
   it('推進去的那一格保留原本歷史狀態的其他鍵', () => {

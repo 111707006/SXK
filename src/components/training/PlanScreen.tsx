@@ -23,6 +23,7 @@ import { dimensionStatus } from '../../t2/reportCopy';
 import { weekRangeLabel } from '../../t2/weeklyCopy';
 import {
   CLIP_STATE,
+  ENTRY,
   MOOD_LABEL,
   PLAN_PAGE,
   WEEKDAYS,
@@ -294,7 +295,17 @@ export default function PlanScreen() {
   const { data, nav, findings, childName, onBookService, onReassess } = useTraining();
   const steps = useRef<Array<HTMLElement | null>>([]);
   const plan = data.plan;
-  if (!plan) return null;
+  if (!plan) {
+    // 前進鍵把計劃頁開回來、而資料還在讀或讀不出來：留著導覽列與一句話，不給一整片白
+    return (
+      <div className="h-full flex flex-col bg-brand-cream" data-testid="training-plan">
+        <DarkNav title={planTitle(childName)} onBack={nav.back} />
+        <p className="mx-6 mt-10 text-[14px] text-brand-charcoal/70 leading-relaxed">
+          {data.status === 'loading' ? ENTRY.loading : ENTRY.error}
+        </p>
+      </div>
+    );
+  }
 
   const position = planPositionOf(plan);
   const practice = data.practice;

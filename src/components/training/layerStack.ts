@@ -20,6 +20,11 @@
  * 家長從計劃頁按「预约」，App 換到預約表，這一塊整個卸載，而歷史上還留著那幾格。不退掉的話，家長在
  * 預約表按返回要白按好幾次（那幾格已經沒有人聽）。所以卸載時還開著幾層，就退幾格。
  *
+ * 【捲動還原】
+ * 推第一層時把 `history.scrollRestoration` 改成 `manual`（`push` 裡的註解）。之後不改回來：
+ * 它記在歷史的那一格上，改回 auto 的時機（退格落地之後）這裡已經不在場了；App 本身不用歷史，
+ * 手動還原對它沒有差別。
+ *
  * 【重新整理】
  * 重整後停在一格帶著堆疊的歷史上時，把那一格洗掉，不從半路開一個計劃頁（報告與資料都還沒讀）。
  *
@@ -60,6 +65,7 @@ export const LAYER_STATE_KEY = 'sxkTraining';
 /** `window.history` 用得到的那幾樣。 */
 export interface HistoryLike {
   readonly state: unknown;
+  scrollRestoration?: 'auto' | 'manual';
   pushState(data: unknown, unused: string): void;
   replaceState(data: unknown, unused: string): void;
   go(delta: number): void;
@@ -151,6 +157,10 @@ export function createLayerHistory(deps: {
 
   const push = (layer: Layer) => {
     if (disposed) return;
+    // 推第一層之前，把報告那一格（與之後推的每一格）的捲動還原改成手動：這幾層蓋在報告上、報告頁本身
+    // 不捲，退回報告那一格時沒有東西要還原；而卸載時的退格（家長按了「预约」）落地時，App 已經換到下一頁、
+    // 正在捲去預約區塊，瀏覽器若照 auto 還原，會把那一頁捲回推第一層那時報告的高度。
+    if (layers.length === 0 && history.scrollRestoration === 'auto') history.scrollRestoration = 'manual';
     const next = [...layers, layer];
     history.pushState(withLayers(history.state, next), '');
     pending = 0;

@@ -11,6 +11,10 @@
  * §5.7：「塌成同一個值就是『沒做完』被讀成『沒事』」。這裡是那條規則在畫面上的最後一道。
  * `not_screened`（v2.1 S08，不篩）沒有句子：那一格整個不出（`gridDimensions`）。
  *
+ * v2.1 改了兩件事（§4.2、§4.6）：沒做的（`partial`／`not_assessed`）短標籤都是「此次没做」、顏色帶 T1 的
+ * 紅／黃（`tone`，看 `t1Flag`），`no_tool` 維持灰；6 歲以上的認知、語言、動作沒有星號時，`no_tool` 那一句
+ * 換成客戶的固定句（`SCHOOL_AGE_NO_TOOL_SENTENCE`）。
+ *
  * 【作答回顧列什麼】
  * §6.4：「逐支工具列出答成『偶爾會／還不會』『經常／總是』『≤4』的題目原文 —— 這是工具包報告的
  * 『尚未穩定的項目（可直接作為訓練目標）』」。三條各對一個計分族（達成率、關切率、獨立率）；其餘族
@@ -35,7 +39,8 @@ import { askedItems } from './scoring';
 import { TOOLKIT } from './toolkit';
 import type { ToolId, ToolkitItem } from './toolkit';
 import { TOOL_SPECS, feedAt } from './toolSpecs';
-import { SAFETY_SENTENCE } from './report/sentences';
+import { SAFETY_SENTENCE, SCHOOL_AGE_NO_TOOL_SENTENCE } from './report/sentences';
+import { schoolAgeNoStar } from './routing';
 import type { AdviceRank } from './advice';
 import { DIMENSION_CODES } from './types';
 import type { DimensionBand, DimensionFinding, ScoringFamily, T2Findings, ToolResult } from './types';
@@ -54,24 +59,50 @@ export const DIMENSION_STATE_SENTENCE: Readonly<Record<'partial' | 'not_assessed
   no_tool: '这个月龄暂时没有适合这一项的问卷',
 };
 
-/** 四種「沒有判定」的短標籤（卡片角落的膠囊，6 字以內，與 `StatusWording.label` 同一個位置）。 */
+/**
+ * 四種「沒有判定」的短標籤（卡片角落的膠囊，6 字以內，與 `StatusWording.label` 同一個位置）。
+ *
+ * `partial` 與 `not_assessed` 同一個字（v2.1 §4.2、S02，客戶 9/21 工作單 #2）：兩者對家長都是「這次沒做」，
+ * 分別改由顏色（T1 的紅／黃）與整句（`DIMENSION_STATE_SENTENCE`）講。`no_tool` 不是「沒做」是「沒得做」，另一個字。
+ */
 export const DIMENSION_STATE_LABEL: Readonly<Record<'partial' | 'not_assessed' | 'no_tool', string>> = {
-  partial: '还没做完',
-  not_assessed: '这次没做',
+  partial: '此次没做',
+  not_assessed: '此次没做',
   no_tool: '暂无问卷',
 };
 
+/**
+ * 「沒有判定」的那一格用哪一組顏色（v2.1 S02）：`delay`／`borderline` 是 T1 的紅／黃（與三級 band 同一組色），
+ * `state` 是不在那把尺上的灰。
+ */
+export type StateTone = 'delay' | 'borderline' | 'state';
+
 export type DimensionStatus =
   | { kind: 'band'; status: AssessmentStatus; label: string; tag: string }
-  | { kind: 'state'; label: string; tag: string };
+  | { kind: 'state'; tone: StateTone; label: string; tag: string };
 
 /**
- * 一個維度在總覽上怎麼標：三級 band 走 statusWording，其餘三種各自明寫。
+ * 沒做的維度帶 T1 的顏色（v2.1 §4.2、S02）：看快照上的 `t1Flag`（紅 2、黃 1），**不從 band 名稱推** ——
+ * `partial` 在規則上一定是紅、`not_assessed` 一定是黃，但顏色要講的是「第一層怎麼標」，那一格就是 `t1Flag`。
+ * 讀不到（舊資料缺這一格）或對不上（0）時不猜一個顏色，退回灰（v2.1 §10：舊快照照存的樣子讀，不炸）。
+ * `no_tool` 恆灰：它不是「沒做」，是這個月齡沒得做。
+ */
+function stateTone(finding: DimensionFinding): StateTone {
+  if (finding.band !== 'partial' && finding.band !== 'not_assessed') return 'state';
+  if (finding.t1Flag === 2) return 'delay';
+  if (finding.t1Flag === 1) return 'borderline';
+  return 'state';
+}
+
+/**
+ * 一個維度在總覽上怎麼標：三級 band 走 statusWording，其餘三種各自明寫。`ageMonth` 是這份報告的測評月齡
+ * （`findings.child.assessedAgeMonth`），6 歲以上的 `no_tool` 那一句要看它。
  *
  * `not_screened`（v2.1 S08）沒有句子：不篩的維度畫面上**不出這一格**，呼叫端要先過 `gridDimensions`。
  * 走到這裡就丟錯，不挑一種「沒有判定」的句子頂上 —— 那會把「不評這一項」印成「沒做」或「沒有問卷」。
  */
-export function dimensionStatus(band: DimensionBand): DimensionStatus {
+export function dimensionStatus(finding: DimensionFinding, ageMonth: number): DimensionStatus {
+  const band = finding.band;
   if (band === 'clear' || band === 'watch' || band === 'refer') {
     const status = STATUS_OF_BAND[band];
     return { kind: 'band', status, label: STATUS_WORDING[status].label, tag: STATUS_WORDING[status].tag };
@@ -79,7 +110,18 @@ export function dimensionStatus(band: DimensionBand): DimensionStatus {
   if (band === 'not_screened') {
     throw new Error('reportCopy：not_screened 的維度不出這一格，先過 gridDimensions 再取狀態句');
   }
-  return { kind: 'state', label: DIMENSION_STATE_LABEL[band], tag: DIMENSION_STATE_SENTENCE[band] };
+  return { kind: 'state', tone: stateTone(finding), label: DIMENSION_STATE_LABEL[band], tag: stateSentence(finding, ageMonth) };
+}
+
+/**
+ * 「沒有判定」的整句。6 歲以上的認知、語言、動作沒有星號時（v2.1 §4.6、S05，`schoolAgeNoStar`），`no_tool` 換成
+ * 客戶的固定句 —— 「这个月龄暂时没有」對它們不成立，長大了也不會有家長自填的工具。其他 no_tool（感覺 0–23、
+ * 學習 37–71、情緒 0–11）長大後確實有工具，照舊。九宮格那一格與 no_tool 段的標題都從這裡取，同一句。
+ */
+function stateSentence(finding: DimensionFinding, ageMonth: number): string {
+  const band = finding.band as 'partial' | 'not_assessed' | 'no_tool';
+  if (band === 'no_tool' && schoolAgeNoStar(finding.dimensionId, ageMonth)) return SCHOOL_AGE_NO_TOOL_SENTENCE;
+  return DIMENSION_STATE_SENTENCE[band];
 }
 
 /**
@@ -113,6 +155,15 @@ export function redoSentence(daysSinceLast: number): string {
 
 /** 回顧裡一題都沒有時說的話。 */
 export const REVIEW_EMPTY_SENTENCE = '这次勾选的项目都已经稳定，没有需要特别列出来的';
+
+/**
+ * 報告「本週活動」段之後的那一句（規格 v2.1 §4.10、S14，客戶 9/21 工作單 #18「沒打卡」那一半；句子是暫採）。
+ * 規則輸出、畫面直接顯示，不經 AI（§3.6）—— 模板與 AI 兩條路的報告頁都有。
+ *
+ * ⚠️ 現在沒有打卡紀錄可判斷，**一律出現**。打卡上線後（S27，等客戶定義「完成率上下調」）改成只在
+ * **沒有**打卡紀錄時出現；有打卡的那一支改走完成率調整，不再是這一句。
+ */
+export const RETEST_SENTENCE = '三个月后重评一次，看看这段时间练下来的变化。';
 
 // ---------------------------------------------------------------------------
 // CONSEQ／PLAN 兩段（規格 v2.1 §6.3，S09）

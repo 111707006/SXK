@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { TOOLKIT, TOOL_IDS } from '../src/t2/toolkit';
 import { STATUS_WORDING } from '../src/utils/statusWording';
-import { DIMENSION_STATE_SENTENCE, DIMENSION_STATE_LABEL } from '../src/t2/reportCopy';
+import { DIMENSION_STATE_SENTENCE, DIMENSION_STATE_LABEL, RETEST_SENTENCE } from '../src/t2/reportCopy';
 
 /**
  * 報告頁的結構護欄（票 #61，規格 §6.3、§6.4）。專案沒有 jsdom，畫面上出現什麼字只能讀原始碼。
@@ -14,12 +14,13 @@ import { DIMENSION_STATE_SENTENCE, DIMENSION_STATE_LABEL } from '../src/t2/repor
  * 2. **clear 的維度沒有段落；no_tool 有專屬段落**：逐維度那一段只渲染 band 是 watch／refer 的 prose；
  *    no_tool 從快照裡挑、另成一段並導向四種服務。
  * 3. **partial／not_assessed 的顯示與 clear 不同**（§5.7）：三種「沒有判定」各有自己的句子與標籤，
- *    沒有一句與 clear 的三級標示相同，膠囊走灰色那一組（不在綠黃紅那把尺上）。
+ *    沒有一句與 clear 的三級標示相同。顏色（v2.1 S02）：沒做的帶 T1 的紅／黃，`no_tool` 走灰（`tone`）。
  * 4. **模板與 AI 走同一個畫面**：元件不看 `isAiGenerated` 分岔渲染，只拿它標來源（三態沿用 T1 的那一份）。
  * 5. **題目原文不手抄**：22 支的題目沒有一句出現在元件或句子層裡；回顧走 `reviewGroups`。
  * 6. **tier 內部名稱不出現**：元件不讀 `sections[*].tier`、不印 `tier`。
  * 7. **CONSEQ／PLAN 兩段**（v2.1 §6.3）：在逐維度卡片裡、規則輸出不經 AI、空的時候整段不出。
  * 8. **不篩的維度整格不出**（v2.1 S08）：九宮格走 `gridDimensions`。
+ * 9. **「三个月后重评」**（v2.1 S14）：本週活動段的容器之後、closing 之前，規則輸出、不經 AI。
  */
 
 const ROOT = path.resolve(__dirname, '..');
@@ -45,7 +46,7 @@ function orderOf(anchors: string[]): number[] {
 }
 
 describe('段落順序（§6.3）', () => {
-  it('safety 橫幅 → 總覽 → 逐維度 → no_tool → 氣質 → 目標 → 本週活動 → closing → 作答回顧', () => {
+  it('safety 橫幅 → 總覽 → 逐維度 → no_tool → 氣質 → 目標 → 本週活動 → 三個月後重評 → closing → 作答回顧', () => {
     const positions = orderOf([
       'id="t2-safety-banner"',
       'id="t2-dimension-grid"',
@@ -54,6 +55,7 @@ describe('段落順序（§6.3）', () => {
       'id="t2-temperament"',
       'id="t2-goals"',
       'id="t2-weekly"',
+      'id="t2-retest"',
       'id="t2-closing"',
       'id="t2-review"',
     ]);
@@ -64,6 +66,18 @@ describe('段落順序（§6.3）', () => {
     expect(view).toContain('{SAFETY_SENTENCE}');
     expect(view).toContain('stripSafetyPrefix(prose.overview)');
     expect(view).toContain('hasSafetyConcern(findings)');
+  });
+
+  it('「三个月后重评」在本週活動段的容器之後、closing 之前；句子從 reportCopy 來，不看 prose、不看打卡（v2.1 S14）', () => {
+    const weeklyEnd = view.indexOf('</section>', view.indexOf('id="t2-weekly"'));
+    const retest = view.indexOf('id="t2-retest"');
+    expect(retest).toBeGreaterThan(weeklyEnd);
+    expect(retest).toBeLessThan(view.indexOf('id="t2-closing"'));
+    // 規則輸出、不經 AI：模板與 AI 兩條路都有，prose 讀不出來也有 —— 容器與 retest 之間沒有任何條件
+    const between = view.slice(weeklyEnd, view.indexOf('</p>', retest));
+    expect(between).toContain('{RETEST_SENTENCE}');
+    expect(between).not.toMatch(/prose|isAiGenerated|&&|\?/);
+    expect(view).not.toContain(RETEST_SENTENCE);
   });
 
   it('本週活動嵌的是票 #60 的元件，weeklyPlanIntro 在它上面', () => {
@@ -83,13 +97,17 @@ describe('哪些維度有段落', () => {
     expect(view).toMatch(/findings\.dimensions\.filter\(d => d\.band === 'no_tool'\)/);
     const noToolSection = view.slice(view.indexOf('id="t2-no-tool"'), view.indexOf('id="t2-temperament"'));
     expect(noToolSection).toContain('{serviceButtons}');
+    // 標題旁那一句與九宮格同一支（v2.1 S05：6 歲以上的認知、語言、動作換成客戶的固定句）
+    expect(noToolSection).toContain('dimensionStatus(d, ageMonth).tag');
     expect(view).toContain('serviceTypeDescriptors()');
   });
 });
 
 describe('partial／not_assessed 與 clear 分得開（§5.7）', () => {
-  it('總覽的九宮格每一格走 dimensionStatus，帶 data-band 讓三種狀態在畫面上可辨', () => {
-    expect(view).toContain('dimensionStatus(d.band)');
+  it('總覽的九宮格每一格走 dimensionStatus（吃整個維度與測評月齡），帶 data-band 讓三種狀態在畫面上可辨', () => {
+    expect(view).toContain('const ageMonth = findings.child.assessedAgeMonth;');
+    expect(view).toContain('dimensionStatus(d, ageMonth)');
+    expect(view).not.toMatch(/dimensionStatus\(d\.band\)/);
     expect(view).toContain('data-band={d.band}');
   });
 
@@ -108,9 +126,14 @@ describe('partial／not_assessed 與 clear 分得開（§5.7）', () => {
     }
   });
 
-  it('「沒有判定」的膠囊用灰的那一組，不在綠黃紅那把尺上', () => {
-    expect(view).toMatch(/STATUS_CLASS\[s\.kind === 'band' \? s\.status : 'state'\]/);
+  // v2.1 S02（§4.2）：顏色看 `dimensionStatus` 回的 `tone`（依 `t1Flag`：partial 紅、not_assessed 黃、no_tool 灰），
+  // 元件不自己從 band 名稱推，也不再把「沒有判定」一律塗灰
+  it('沒做的用 T1 顏色、no_tool 用灰：膠囊的顏色取 tone，紅黃與三級 band 同一組色', () => {
+    const uses = view.match(/STATUS_CLASS\[[^\]]*\]/g) ?? [];
+    expect(uses.length).toBeGreaterThanOrEqual(2);
+    for (const u of uses) expect(u).toBe("STATUS_CLASS[s.kind === 'band' ? s.status : s.tone]");
     expect(view).toMatch(/state: 'bg-brand-cream/);
+    expect(view).not.toMatch(/band === '(partial|not_assessed)'/);
   });
 });
 

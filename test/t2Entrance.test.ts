@@ -13,9 +13,13 @@ import {
   describePlan,
   describePlanItem,
   entranceState,
+  expertOnlyCopy,
   flaggedDimensions,
+  noToolNotes,
   t1FlagsFromScores,
 } from '../src/t2/entrance';
+import { SITE_DIMENSION_NAME } from '../src/t2/dimensionMap';
+import { SCHOOL_AGE_NO_TOOL_SENTENCE } from '../src/t2/report/sentences';
 import { findBannedWords } from '../src/utils/parentWording';
 
 /**
@@ -222,6 +226,67 @@ describe('describePlan：題量怎麼講', () => {
     for (const s of [d.headline, d.followup, d.extras]) {
       if (s) expect(findBannedWords(s), s).toEqual([]);
     }
+  });
+});
+
+/**
+ * 沒有工具的維度在入口上怎麼講（§4.5；v2.1 §4.6、S05）。6 歲以上的認知、語言、動作沒有星號時，
+ * 換成客戶 9/21 工作單 #6 的固定句（原樣）；其他 no_tool（感覺 0–23、學習 37–71、情緒 0–11）句子不變。
+ */
+describe('noToolNotes／expertOnlyCopy：沒有工具的維度怎麼講（v2.1 S05）', () => {
+  const FIXED = '6 岁以上的认知、语言、动作目前没有家长自填工具，建议到院做专业评估';
+  const GENERIC = '这个年龄目前没有适用的深度评估工具，建议直接预约专家';
+  const n = SITE_DIMENSION_NAME;
+
+  it('80 個月只有語言紅 → 語言那一段是固定句；入口只導專家，標題就是那一句', () => {
+    const flags = { ...GREEN, LANG: 2 } as const;
+    const plan = planT2(flags, 80);
+    expect(entranceState(plan, flags)).toBe('expert_only');
+    expect(noToolNotes(plan)).toEqual([{ dimensions: ['LANG'], sentence: FIXED, text: `「${n.LANG}」：${FIXED}。` }]);
+    expect(expertOnlyCopy(plan)).toEqual({ headline: FIXED, notes: [] });
+    expect(SCHOOL_AGE_NO_TOOL_SENTENCE).toBe(FIXED);
+  });
+
+  it('80 個月語言紅、黃的感覺有工具 → 入口顯示，清單下方語言那一段是固定句', () => {
+    const flags = { ...GREEN, LANG: 2, SEN: 1 } as const;
+    const plan = planT2(flags, 80);
+    expect(entranceState(plan, flags)).toBe('show');
+    expect(noToolNotes(plan).map(x => x.text)).toEqual([`「${n.LANG}」：${FIXED}。`]);
+  });
+
+  it('96 個月語言、動作紅（只有加測可答）→ 兩個維度併成一段固定句', () => {
+    const plan = planT2({ ...GREEN, LANG: 2, MOT: 2 }, 96);
+    expect(noToolNotes(plan)).toEqual([{ dimensions: ['LANG', 'MOT'], sentence: FIXED, text: `「${n.LANG}、${n.MOT}」：${FIXED}。` }]);
+    expect(expertOnlyCopy(plan)).toEqual({ headline: FIXED, notes: [] });
+  });
+
+  it.each([
+    ['情緒 10 個月', { EMO: 2 }, 10, ['EMO']],
+    ['感覺 12 個月', { SEN: 2 }, 12, ['SEN']],
+    ['學習 48 個月', { LEARN: 1 }, 48, ['LEARN']],
+  ] as const)('其他 no_tool 句子不變：%s', (_label, flagged, month, dims) => {
+    const plan = planT2({ ...GREEN, ...flagged }, month);
+    expect(plan.noTool).toEqual(dims);
+    const names = dims.map(d => n[d]).join('、');
+    expect(noToolNotes(plan)).toEqual([{ dimensions: dims, sentence: GENERIC, text: `「${names}」${GENERIC}。` }]);
+    expect(expertOnlyCopy(plan)).toEqual({ headline: GENERIC, notes: [] });
+  });
+
+  // 181 個月起感覺、日常生活暫時沒有工具（SPb、ADL 放寬到 216 是 S19，等新包），與 6 歲以上那三個會同時出現
+  it('190 個月語言、感覺紅 → 兩段各講各的；只導專家時標題用一般那句，固定句另列一段、不重複', () => {
+    const plan = planT2({ ...GREEN, LANG: 2, SEN: 2 }, 190);
+    expect(plan.noTool).toEqual(['LANG', 'SEN']);
+    expect(noToolNotes(plan).map(x => x.text)).toEqual([`「${n.LANG}」：${FIXED}。`, `「${n.SEN}」${GENERIC}。`]);
+    expect(expertOnlyCopy(plan)).toEqual({ headline: GENERIC, notes: [`「${n.LANG}」：${FIXED}。`] });
+  });
+
+  it('沒有 no_tool → 沒有段落', () => {
+    expect(noToolNotes(planT2({ ...GREEN, LANG: 2 }, 48))).toEqual([]);
+  });
+
+  it('每一段都過家長用字掃描', () => {
+    const plan = planT2({ ...GREEN, LANG: 2, SEN: 2, COG: 1 }, 190);
+    for (const x of noToolNotes(plan)) expect(findBannedWords(x.text), x.text).toEqual([]);
   });
 });
 

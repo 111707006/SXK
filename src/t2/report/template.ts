@@ -42,6 +42,7 @@ import {
   caveatsToVoice,
   charCount,
   hasSafetyConcern,
+  isSchoolAgeNoStar,
   reportedDimensions,
   tagsVoicedInTemperament,
   temperamentTagsOf,
@@ -135,6 +136,16 @@ const BAND_ADVICE: Readonly<Record<ReportedBand, string>> = {
   no_tool: '这一项先照第一层的结果看，等孩子长到适用的月龄，我们会再提醒你补做。',
 };
 
+/**
+ * 6 歲以上的認知、語言、動作的 `no_tool`（v2.1 §4.6、S05，`isSchoolAgeNoStar`）：換掉 `BAND_OPENING.no_tool` 與
+ * `BAND_ADVICE.no_tool` —— 「等孩子长到适用的月龄，我们会再提醒你补做」對它們永遠不會成真。客戶的固定句本身
+ * 不寫進段落：畫面在這一段標題旁原樣顯示它（`reportCopy.ts` 的狀態句），段落再抄一次就是同一句連著講兩次。
+ * 其他 no_tool（感覺 0–23、學習 37–71、情緒 0–11）長大後確實有工具，照舊。
+ */
+const SCHOOL_AGE_NO_TOOL_OPENING = (area: string) =>
+  `${area}这一项，这个年龄没有家长可以自己填的问卷，所以这次没有它的结果。这既不代表没事，也不代表有事。`;
+const SCHOOL_AGE_NO_TOOL_ADVICE = '这一项先照第一层的结果看；想看得更完整，可以约专业人员当面看一看。';
+
 /** 一個標籤都沒有時替代標籤句的那一句（band 判出来了，但没有指向更细的方向）。 */
 const NO_TAG_SENTENCE = '这次的结果没有指向更细的方向，先从这一项日常里最常用到的场景开始留意。';
 
@@ -209,8 +220,9 @@ function buildDimension(
 ): ProseDimension {
   const band = bandOf(dimension);
   const area = SITE_DIMENSION_NAME[dimension.dimensionId];
-  const opening = BAND_OPENING[band](area);
-  const advice = BAND_ADVICE[band];
+  const schoolAge = band === 'no_tool' && isSchoolAgeNoStar(dimension, findings);
+  const opening = schoolAge ? SCHOOL_AGE_NO_TOOL_OPENING(area) : BAND_OPENING[band](area);
+  const advice = schoolAge ? SCHOOL_AGE_NO_TOOL_ADVICE : BAND_ADVICE[band];
 
   // 氣質推出的段落不重複氣質段已經講的標籤句（v2.1 §4.4）
   const voicedElsewhere = tagsVoicedInTemperament(dimension).filter(t => inTemperament.has(t));

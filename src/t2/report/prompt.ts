@@ -43,6 +43,7 @@ import {
   CLOSING_SENTENCE,
   caveatsToVoice,
   hasSafetyConcern,
+  isSchoolAgeNoStar,
   reportedDimensions,
   tagsVoicedInTemperament,
   temperamentTagsOf,
@@ -70,6 +71,13 @@ export const NO_ADVICE_SECTIONS_RULE =
   `不写「${ADVICE_HEADING.consequences}」和「${ADVICE_HEADING.plans}」这两段，`
   + '也不要把「不处理会怎样」的预测或后续该做什么项目的建议写进任何字段：这两段由系统从固定内容里原样取出，不归你写。';
 
+/**
+ * 6 歲以上沒有星號的認知、語言、動作（v2.1 §4.6、S05）那一格多的一句。模型最自然的寫法是「等孩子大一點再做」——
+ * 對這三個維度永遠不會成真。驗證器另外擋常見寫法（`SCHOOL_AGE_BROKEN_PROMISES`）。
+ */
+export const SCHOOL_AGE_PROMPT_NOTE =
+  '这一项 6 岁以上没有家长可以自己填的问卷，长大了也不会有：不得写「长大后可以补做」「等到适用的月龄再做」一类的话。';
+
 function list(values: ReadonlyArray<string>): string {
   return values.join('、');
 }
@@ -94,7 +102,7 @@ function buildSystem(): string {
     '',
     '【你不可以做的】',
     '- 换掉任何一支活动、新增任何一支活动、改动任何一条目标。',
-    '- 省略任何一条 caveat：素材里每个维度列了几条，你就写几条（固定句可以改写，不可以少）。',
+    '- 省略任何一条 caveat：素材里每个维度列了几条，你就写几条（固定句可以改写，不可以少；素材里标明「原样照抄」的那一条一个字都不能改）。',
     '- 引用问卷的题目原文。你拿到的素材里没有题目，也不要凭印象写出像题目的句子。',
     '- 提任何仪器、疗程、药物。',
     `- ${NO_ADVICE_SECTIONS_RULE}`,
@@ -121,9 +129,10 @@ function buildSystem(): string {
   ].join('\n');
 }
 
-function dimensionBlock(dimension: DimensionFinding): string {
+function dimensionBlock(dimension: DimensionFinding, findings: T2Findings): string {
   const area = SITE_DIMENSION_NAME[dimension.dimensionId];
   const lines = [`- ${dimension.dimensionId}（家长看到的名称：${area}）：判定 ${dimension.band}`];
+  if (isSchoolAgeNoStar(dimension, findings)) lines.push(`  ${SCHOOL_AGE_PROMPT_NOTE}`);
   // 氣質推出的維度：氣質段會講的標籤不列在這裡，只點名（v2.1 §4.4，與模板同一條 `tagsVoicedInTemperament`）
   const voicedElsewhere = tagsVoicedInTemperament(dimension);
   const own = dimension.tags.filter(t => !voicedElsewhere.includes(t));
@@ -137,6 +146,8 @@ function dimensionBlock(dimension: DimensionFinding): string {
   lines.push(`  caveats（${caveats.length} 条，一条都不能少）：${caveats.length === 0
     ? '（无）'
     : caveats.map(c => `${c}＝${CAVEAT_SENTENCES[c] ?? ''}`).join('；')}`);
+  // v2.1 §3.6：6 歲以上那一句是固定句，不交給模型改寫（驗證器要它原樣）
+  if (caveats.includes('no_star_tool')) lines.push(`  no_star_tool 这一条原样照抄：${CAVEAT_SENTENCES.no_star_tool}`);
   return lines.join('\n');
 }
 
@@ -152,7 +163,7 @@ function buildUser(input: T2ReportInput): string {
   lines.push('');
 
   lines.push('【要写段落的维度，不多不少就是这几个，顺序照这里】');
-  lines.push(wanted.length === 0 ? '（这次没有需要单独成段的维度，perDimension 写成空数组）' : wanted.map(dimensionBlock).join('\n'));
+  lines.push(wanted.length === 0 ? '（这次没有需要单独成段的维度，perDimension 写成空数组）' : wanted.map(d => dimensionBlock(d, findings)).join('\n'));
   lines.push('');
 
   const temperament = temperamentTagsOf(findings);

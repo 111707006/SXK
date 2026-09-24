@@ -14,6 +14,8 @@ import { DIAGNOSIS_OPTIONS, DIAGNOSIS_QUESTION, NO_DIAGNOSIS_LABEL } from '../sr
  * 2. 沒填診斷方向不是缺漏（§4.3）：畫面上沒有「未提供」「未填写」「缺少」這種字樣，
  *    第十一個選項就是「未告知」。
  * 3. `no_tool` 的文案是規格 §4.5 的原話，而且入口掛在報告本體的雷達圖之後、語言專項之前。
+ *    6 歲以上的認知、語言、動作換成客戶的固定句（v2.1 S05）。兩句都在 `src/t2/entrance.ts`（固定句本身在
+ *    `report/sentences.ts`，與報告同一個常數），元件只走 `noToolNotes`／`expertOnlyCopy`、不手抄。
  */
 
 const ROOT = path.resolve(__dirname, '..');
@@ -28,6 +30,7 @@ function stripComments(source: string): string {
 }
 
 const entrance = stripComments(read('src/components/T2Entrance.tsx'));
+const entranceCopy = stripComments(read('src/t2/entrance.ts'));
 
 describe('診斷方向的字只在 diagnosisOptions.ts', () => {
   it('元件 import 那一檔', () => {
@@ -58,8 +61,18 @@ describe('沒填不是缺漏（§4.3）', () => {
 });
 
 describe('no_tool 的文案與位置', () => {
-  it('用的是規格 §4.5 的原話', () => {
-    expect(entrance).toContain('这个年龄目前没有适用的深度评估工具，建议直接预约专家');
+  it('用的是規格 §4.5 的原話（在句子層，元件不手抄）', () => {
+    expect(entranceCopy).toContain('这个年龄目前没有适用的深度评估工具，建议直接预约专家');
+    expect(entrance).not.toContain('这个年龄目前没有适用的深度评估工具');
+  });
+
+  // v2.1 S05：6 歲以上的認知、語言、動作用客戶的固定句 —— 清單下方與「只導專家」兩處都走句子層
+  it('沒有工具的那幾段走 noToolNotes，只導專家時的標題走 expertOnlyCopy；固定句不在元件裡手抄', () => {
+    expect(entrance).toContain('noToolNotes(plan)');
+    expect(entrance).toContain('expertOnlyCopy(plan)');
+    expect(entrance).not.toContain('家长自填工具');
+    expect(entranceCopy).not.toContain('家长自填工具');
+    expect(entranceCopy).toContain('SCHOOL_AGE_NO_TOOL_SENTENCE');
   });
 
   it('四種服務都導得到（走 serviceTypeDescriptors，不在這裡重抄四個名字）', () => {

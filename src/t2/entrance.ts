@@ -7,6 +7,8 @@
  *    —— 家長付費前就要知道這個年齡沒有東西可做。
  * 3. `describePlan`／`describePlanItem`：題量怎麼講。畫面上「需要完成 N 份、約 M 題」，
  *    必做、選做、加測分開算（§4.4 最後一段）。
+ * 4. `noToolNotes`／`expertOnlyCopy`：沒有工具的維度怎麼講（§4.5）；6 歲以上的認知、語言、動作
+ *    換成客戶的固定句（v2.1 §4.6、S05）。
  *
  * 【沒有 I/O】
  * 伺服器與畫面都呼叫這裡；伺服器算完把 `entrance` 一併回給前端，前端不重算。
@@ -20,7 +22,8 @@
  */
 
 import { SITE_DIMENSION_ID, SITE_DIMENSION_NAME } from './dimensionMap';
-import { notScreened } from './routing';
+import { notScreened, schoolAgeNoStar } from './routing';
+import { SCHOOL_AGE_NO_TOOL_SENTENCE } from './report/sentences';
 import { DIMENSION_CODES } from './types';
 import type { DimensionCode, PlanItem, T1Flag, T2Plan } from './types';
 
@@ -125,4 +128,52 @@ export function describePlan(plan: T2Plan): PlanDescription {
 export function describePlanItem(item: PlanItem): string {
   const names = DIMENSION_CODES.filter(d => item.forDimensions.includes(d)).map(d => SITE_DIMENSION_NAME[d]);
   return `${names.join('、')} · ${item.askedCount} 题`;
+}
+
+// ---------------------------------------------------------------------------
+// 沒有工具的維度（§4.5；v2.1 §4.6、S05）
+// ---------------------------------------------------------------------------
+
+/** 規格 v2 §4.5 的原話（簡體）：`no_tool` 的維度與「全部沒工具」都用它。 */
+export const NO_TOOL_SENTENCE = '这个年龄目前没有适用的深度评估工具，建议直接预约专家';
+
+/** 入口上講「沒有工具」的一段：哪幾個維度、講哪一句、整段怎麼寫。 */
+export interface NoToolNote {
+  dimensions: DimensionCode[];
+  sentence: string;
+  text: string;
+}
+
+/**
+ * `plan.noTool` 的維度依「該講哪一句」分段，段的先後照各段第一個維度（`noTool` 已是 `DIMENSION_CODES` 順序）。
+ *
+ * 6 歲以上的認知、語言、動作沒有星號（`schoolAgeNoStar`）→ 客戶 9/21 工作單 #6 的固定句（v2.1 §4.6、S05）：
+ * 「这个年龄目前没有」對它們會讀成「長大就有」，而它們長大了也不會有家長自填的工具。其餘的 no_tool（感覺 0–23、
+ * 學習 37–71、情緒 0–11，以及新包之前的感覺、日常生活 181 起）照舊是 `NO_TOOL_SENTENCE`。
+ *
+ * 固定句自帶主詞（「6 岁以上的认知、语言、动作」），所以維度名後面加冒號；一般那句沿用原本的「「X」这个年龄……」。
+ */
+export function noToolNotes(plan: Pick<T2Plan, 'noTool' | 'ageMonth'>): NoToolNote[] {
+  const notes: NoToolNote[] = [];
+  for (const d of plan.noTool) {
+    const sentence = schoolAgeNoStar(d, plan.ageMonth) ? SCHOOL_AGE_NO_TOOL_SENTENCE : NO_TOOL_SENTENCE;
+    const note = notes.find(n => n.sentence === sentence);
+    if (note) note.dimensions.push(d);
+    else notes.push({ dimensions: [d], sentence, text: '' });
+  }
+  for (const note of notes) {
+    const names = note.dimensions.map(d => SITE_DIMENSION_NAME[d]).join('、');
+    note.text = note.sentence === SCHOOL_AGE_NO_TOOL_SENTENCE ? `「${names}」：${note.sentence}。` : `「${names}」${note.sentence}。`;
+  }
+  return notes;
+}
+
+/**
+ * 入口只剩專家導向（`expert_only`）時的標題與另列的段落：所有被標記的維度講同一句 → 那一句就是標題；
+ * 講不同句（190 個月語言與感覺都紅）→ 標題用一般那句，固定句的那幾個維度另列一段 —— 每一句只出現一次。
+ */
+export function expertOnlyCopy(plan: Pick<T2Plan, 'noTool' | 'ageMonth'>): { headline: string; notes: string[] } {
+  const notes = noToolNotes(plan);
+  const headline = notes.length === 1 ? notes[0].sentence : NO_TOOL_SENTENCE;
+  return { headline, notes: notes.filter(n => n.sentence !== headline).map(n => n.text) };
 }

@@ -4,7 +4,7 @@ import { authFetch } from '../utils/api';
 import { formatFen } from '../utils/price';
 import type { DimensionAccess } from '../utils/access';
 import { serviceTypeDescriptors, type ServiceType } from '../utils/serviceTypes';
-import { describePlan, describePlanItem, type EntranceState } from '../t2/entrance';
+import { describePlan, describePlanItem, expertOnlyCopy, noToolNotes, type EntranceState } from '../t2/entrance';
 import { DIAGNOSIS_OPTIONS, DIAGNOSIS_QUESTION, NO_DIAGNOSIS_LABEL, isDiagnosisDirection } from '../t2/diagnosisOptions';
 import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import type { DiagnosisDirection, DimensionCode, PlanItem, T1Flag, T2Plan } from '../t2/types';
@@ -29,9 +29,6 @@ interface T2EntranceProps {
   onBookService: (type: ServiceType) => void;
 }
 
-/** 這一句是規格 §4.5 的原話（簡體），`no_tool` 的維度與「全部沒工具」都用它。 */
-const NO_TOOL_SENTENCE = '这个年龄目前没有适用的深度评估工具，建议直接预约专家';
-
 /**
  * T2 深度評估的入口 —— **家長端專屬**，放進 T1 報告本體的插槽（票 #56，規格 §4.3–4.5、§9.2）。
  *
@@ -48,6 +45,10 @@ const NO_TOOL_SENTENCE = '这个年龄目前没有适用的深度评估工具，
  * 醫師講出口的名稱，主語是醫師不是孩子，所以那一檔不進家長用字掃描；這一檔進。
  * `test/t2EntranceCopy.structure.test.ts` 釘住「這裡沒有那些字」。沒填是「未告知」，
  * 一個正常答案；畫面上沒有「未提供」「未填寫」這種像缺漏的字樣（§4.3）。
+ *
+ * 【沒有工具的維度怎麼講】
+ * 句子在 `src/t2/entrance.ts`：一般是規格 §4.5 的原話；6 歲以上的認知、語言、動作換成客戶 9/21 工作單 #6
+ * 的固定句（v2.1 S05，與報告同一個常數）。清單下方走 `noToolNotes`，只導專家時的標題走 `expertOnlyCopy`。
  *
  * 【解鎖之後】
  * 已解鎖的家長在這裡看到同一份清單，CTA 是「開始作答」→ 逐支作答畫面（`T2Assessment.tsx`，票 #58），
@@ -163,14 +164,16 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
 
   /** 全部被標記的維度都沒有工具：不顯示入口，只剩專家導向（§4.5）。 */
   if (plan.entrance === 'expert_only') {
+    const copy = expertOnlyCopy(plan);
     return (
       <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left space-y-3">
         <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
           <Layers size={10} /> 第二层 · 深度评估
         </span>
-        <h3 className="text-sm font-extrabold text-brand-forest">{NO_TOOL_SENTENCE}</h3>
+        <h3 className="text-sm font-extrabold text-brand-forest">{copy.headline}</h3>
         <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">
           筛查中被标记的方面：{plan.noTool.map(d => SITE_DIMENSION_NAME[d]).join('、')}。
+          {copy.notes.map(note => <React.Fragment key={note}>{note}</React.Fragment>)}
           四种服务都可以约，专家会照这份报告逐项说明接下来可以怎么做。
         </p>
         {serviceButtons}
@@ -246,9 +249,9 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
       {/* 有工具的維度照上面走；沒工具的維度在入口就說清楚，直接導向四種服務（§4.5）。 */}
       {plan.noTool.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
-          <p className="text-[11px] text-brand-charcoal/80 leading-relaxed">
-            「{plan.noTool.map(d => SITE_DIMENSION_NAME[d]).join('、')}」{NO_TOOL_SENTENCE}。
-          </p>
+          {noToolNotes(plan).map(note => (
+            <p key={note.sentence} className="text-[11px] text-brand-charcoal/80 leading-relaxed">{note.text}</p>
+          ))}
           {serviceButtons}
         </div>
       )}

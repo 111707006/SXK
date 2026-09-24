@@ -20,6 +20,10 @@
  *    條數 —— 少一條就是少一個「這份結果該打的折」。`parent_report` 不算（§5.6「不單獨成句」）。
  * 3. **黑名單**：`blacklist.ts`。五類，其中 tier 內部名稱是從工具包算出來的。
  *
+ * v2.1 §4.6（S05）多兩條，只對 6 歲以上沒有星號的認知、語言、動作：`no_star_tool` 那一條 caveat 要原樣
+ * 是客戶的固定句（§3.6「固定句不交給 AI 改寫」，與 `safety_concern` 同一種機械規則）；段落不能寫「長大後
+ * 補做」（`SCHOOL_AGE_BROKEN_PROMISES`）。
+ *
  * 【`safety_concern` 為什麼是「原樣照抄在 overview 最前面」】
  * §5.6 說它**報告置頂**。整份報告裡最該被讀到的一句話，不能交給模型改寫 —— 改寫過的版本讀起來
  * 有多急，我們事前不知道。所以規則是機械的：`overview` 以 `SAFETY_SENTENCE` 開頭，一字不改，
@@ -46,8 +50,9 @@ import { DIMENSION_CODES } from '../types';
 import type { DimensionCode, DimensionFinding, T2Findings } from '../types';
 import type { WeeklyActivities } from '../activityMatch';
 import type { SmartGoal } from '../goals';
+import { schoolAgeNoStar } from '../routing';
 import { findBlacklisted } from './blacklist';
-import { SAFETY_SENTENCE } from './sentences';
+import { SAFETY_SENTENCE, SCHOOL_AGE_NO_TOOL_SENTENCE } from './sentences';
 
 /** §6.3 的輸出 schema。`temperament` 只有在有氣質標籤時才在（見 `temperamentTagsOf`）。 */
 export interface T2ReportProse {
@@ -145,6 +150,22 @@ export function tagsVoicedInTemperament(dimension: DimensionFinding): FindingTag
   if (dimension.drivenBy === null || !TEMPERAMENT_TOOL_IDS.includes(dimension.drivenBy)) return [];
   return dimension.tags.filter(t => TEMPERAMENT_REPORT_TAGS.includes(t));
 }
+
+/**
+ * 這一段是不是 6 歲以上、沒有星號的認知、語言、動作（v2.1 §4.6、S05；`schoolAgeNoStar`）。兩種情況都算：
+ * `no_tool`（什麼都沒做，或只能當加測的判穩定），與只能當加測判出留意／關注（帶 `no_star_tool`）。
+ * 模板、提示、驗證器三邊都看這一條 —— 「等孩子長到適用的月齡再補做」對它們永遠不會成真。
+ */
+export function isSchoolAgeNoStar(dimension: DimensionFinding, findings: T2Findings): boolean {
+  return schoolAgeNoStar(dimension.dimensionId, findings.child.assessedAgeMonth);
+}
+
+/**
+ * `isSchoolAgeNoStar` 的段落裡（`whatWeSaw`、`whyItMatters`）不能出現的說法：長大後可以補做。
+ * 抓的是常見寫法，不是全部 —— 提示是第一道（`SCHOOL_AGE_PROMPT_NOTE`），這裡是第二道。caveats 不掃：
+ * `age_out_of_window` 那一句本來就有「适用的月龄范围」，講的是那一筆作答，不是承諾。
+ */
+export const SCHOOL_AGE_BROKEN_PROMISES: ReadonlyArray<string> = ['补做', '补测', '长大后', '长大以后', '适用的月龄'];
 
 /** 有沒有自我傷害的那一條（§5.6，報告置頂）。 */
 export function hasSafetyConcern(findings: T2Findings): boolean {
@@ -293,6 +314,19 @@ function checkConsistency(prose: T2ReportProse, input: T2ReportInput, errors: st
     const want = caveatsToVoice(finding);
     if (entry.caveats.length !== want.length) {
       errors.push(`perDimension ${entry.dimensionId}.caveats：要 ${want.length} 條（${want.join('、') || '無'}），拿到 ${entry.caveats.length} 條`);
+    }
+    // v2.1 §3.6：6 歲以上那一句是固定句，不交給 AI 改寫 —— `no_star_tool` 那一條要原樣在
+    if (want.includes('no_star_tool') && !entry.caveats.some(c => c.includes(SCHOOL_AGE_NO_TOOL_SENTENCE))) {
+      errors.push(`perDimension ${entry.dimensionId}.caveats：no_star_tool 那一條要原樣是「${SCHOOL_AGE_NO_TOOL_SENTENCE}」`);
+    }
+    // v2.1 §4.6：6 歲以上的認知、語言、動作長大了也不會有家長自填的工具，不能寫「長大後補做」
+    if (isSchoolAgeNoStar(finding, input.findings)) {
+      for (const field of ['whatWeSaw', 'whyItMatters'] as const) {
+        const hits = SCHOOL_AGE_BROKEN_PROMISES.filter(p => entry[field].includes(p));
+        if (hits.length > 0) {
+          errors.push(`perDimension ${entry.dimensionId}.${field}：6 歲以上沒有家長自填工具，不能寫「${hits.join('」「')}」`);
+        }
+      }
     }
   }
 

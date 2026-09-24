@@ -27,6 +27,7 @@ import {
   ADVICE_HEADING,
   ADVICE_LEAD_SENTENCE,
   ADVICE_RANK_LABEL,
+  RETEST_SENTENCE,
   REVIEW_EMPTY_SENTENCE,
   dimensionStatus,
   gridDimensions,
@@ -67,7 +68,9 @@ function formatDay(iso: string): string {
 
 /**
  * 三級 band 的膠囊顏色。與 T1 報告九宮格同一組色：綠／黃／紅照篩查判定，
- * 沒有第二把尺（ADR-0007）。四種「沒有判定」一律灰 —— 它們不在這把尺上。
+ * 沒有第二把尺（ADR-0007）。「沒有判定」的那幾格取 `dimensionStatus` 的 `tone`（v2.1 S02）：
+ * 沒做的（`partial`／`not_assessed`）帶 T1 的紅／黃，借的就是這裡的 `delay`／`borderline`；
+ * `no_tool` 是灰（`state`）—— 它不是沒做，是沒得做，不在這把尺上。
  */
 const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', string> = {
   normal: 'bg-emerald-50 border-emerald-200 text-emerald-800',
@@ -88,7 +91,7 @@ const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', string> 
  * 【段落順序】（§6.3）
  * `safety_concern` 橫幅（有才有）→ 總覽（overview ＋ 九個維度的狀態）→ 逐維度（只有 watch／refer）
  * → 沒有問卷的維度（no_tool 的專屬段落，導向專家）→ 氣質（有標籤才有）→ 目標 → 本週活動
- * （票 #60 的畫面嵌進來）→ closing → 作答回顧（可摺疊）。
+ * （票 #60 的畫面嵌進來）→ 三个月后重评（v2.1 S14）→ closing → 作答回顧（可摺疊）。
  *
  * 逐維度卡片裡、caveats 之前另有「若持续不处理」與「建议后续项目」兩段（規格 v2.1 §6.3，S09）：
  * 規則從快照取題庫原文（`advice.ts`），不經 AI，所以 AI 與模板兩條路都一樣有。題庫現在沒有這份
@@ -96,8 +99,17 @@ const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', string> 
  *
  * 【四種非 band 值不能長得像 clear】（§5.7）
  * prose 對 `partial`／`not_assessed` 不出段落（勘誤 M1），所以它們只在「總覽」的九宮格上出現 ——
- * 那一格必須明寫「還沒做完／這次沒做」，膠囊是灰的、字是 `DIMENSION_STATE_SENTENCE`，
+ * 那一格必須明寫「此次没做」，膠囊帶 T1 的紅／黃（v2.1 S02），整句是 `DIMENSION_STATE_SENTENCE`，
  * 與 clear 的綠色「目前发展稳定」分得開。`test/t2ReportView.structure.test.ts` 釘住。
+ *
+ * 【6 歲以上的認知、語言、動作】（v2.1 S05）
+ * 客戶的固定句由規則輸出、畫面直接顯示：`no_tool` 時是九宮格那一格與 no_tool 段標題旁的狀態句
+ * （`dimensionStatus` 依維度與測評月齡選）；做了只能當加測的、判出留意／關注時，是逐維度卡片裡
+ * `no_star_tool` 那一條 caveat（驗證器要它原樣）。兩種情況各出一次，不重複。
+ *
+ * 【三个月后重评】（v2.1 S14）
+ * 本週活動段的容器之後一句固定句（`RETEST_SENTENCE`），規則輸出、不經 AI，模板與 AI 兩條路都有。
+ * 現在沒有打卡，一律出現。
  *
  * 【不篩的維度整格不出】（v2.1 §4.7、S08）
  * 學習 0–36、注意力 0–11 是 `not_screened`：九宮格從 `gridDimensions` 取（10 個月的個案只有七格），
@@ -256,6 +268,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
 
   // status === 'ready'（或正在重新生成、畫面上還留著上一份）
   const { findings, prose } = entry!;
+  const ageMonth = findings.child.assessedAgeMonth;
   const goals = buildSmartGoals(findings, { childName });
   const byId = new Map<DimensionCode, DimensionFinding>(findings.dimensions.map(d => [d.dimensionId, d]));
   const proseById = new Map<DimensionCode, ProseDimension>((prose?.perDimension ?? []).map(p => [p.dimensionId, p]));
@@ -335,8 +348,8 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
         )}
         <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2" id="t2-dimension-grid">
           {gridDimensions(findings).map(d => {
-            const s = dimensionStatus(d.band);
-            const cls = STATUS_CLASS[s.kind === 'band' ? s.status : 'state'];
+            const s = dimensionStatus(d, ageMonth);
+            const cls = STATUS_CLASS[s.kind === 'band' ? s.status : s.tone];
             return (
               <li key={d.dimensionId} data-band={d.band} className={`rounded-xl border px-3 py-2 ${cls}`}>
                 <div className="flex items-center justify-between gap-2">
@@ -356,7 +369,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
           {sectionTitle(<Layers size={15} />, '各方面')}
           {flagged.map(p => {
             const d = byId.get(p.dimensionId)!;
-            const s = dimensionStatus(d.band);
+            const s = dimensionStatus(d, ageMonth);
             const redos = redoLines(d);
             // CONSEQ／PLAN（v2.1 §6.3）：規則從快照取、原樣顯示，不經 AI。題庫現在沒有內容 → null → 兩段都不出。
             const advice = dimensionAdvice(findings, p.dimensionId);
@@ -364,7 +377,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
               <article key={p.dimensionId} className="rounded-2xl border border-brand-moss/20 bg-white/70 p-4 space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <h4 className="text-xs font-extrabold text-brand-forest">{SITE_DIMENSION_NAME[p.dimensionId]}</h4>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold ${STATUS_CLASS[s.kind === 'band' ? s.status : 'state']}`}>
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold ${STATUS_CLASS[s.kind === 'band' ? s.status : s.tone]}`}>
                     {s.tag}
                   </span>
                 </div>
@@ -435,7 +448,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
                 <div key={d.dimensionId} className="space-y-1">
                   <h4 className="text-xs font-extrabold text-brand-forest">
                     {SITE_DIMENSION_NAME[d.dimensionId]}
-                    <span className="ml-2 font-bold text-[10px] text-brand-charcoal/60">{dimensionStatus(d.band).tag}</span>
+                    <span className="ml-2 font-bold text-[10px] text-brand-charcoal/60">{dimensionStatus(d, ageMonth).tag}</span>
                   </h4>
                   {p && <p className="text-xs text-brand-charcoal leading-relaxed">{p.whatWeSaw}</p>}
                   {p && <p className="text-[11px] text-brand-charcoal/80 leading-relaxed">{p.whyItMatters}</p>}
@@ -483,6 +496,9 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
         {prose && <p className="text-xs text-brand-charcoal leading-relaxed">{prose.weeklyPlanIntro}</p>}
         <T2WeeklyPlan onBookService={onBookService} />
       </section>
+
+      {/* 6 之後：三个月后重评（v2.1 S14）。規則輸出、不經 AI；沒有打卡紀錄的判斷，一律出現 */}
+      <p className="text-[11px] text-brand-charcoal/80 leading-relaxed" id="t2-retest">{RETEST_SENTENCE}</p>
 
       {/* 7. closing */}
       {prose && (

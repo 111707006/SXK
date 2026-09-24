@@ -20,7 +20,7 @@ import {
   TIER_NAMES,
   findBlacklisted,
 } from '../src/t2/report/blacklist';
-import { NO_VERDICT_CHANGE_RULE, buildProsePrompt } from '../src/t2/report/prompt';
+import { NO_VERDICT_CHANGE_RULE, SCHOOL_AGE_PROMPT_NOTE, buildProsePrompt } from '../src/t2/report/prompt';
 import {
   CHAR_RANGES,
   CLOSING_SENTENCE,
@@ -709,6 +709,138 @@ describe('v2.1 S06：只能當加測的判定帶兩條 caveat，報告兩條路�
     const prose = templateProse(input);
     const lang = prose.perDimension.find(d => d.dimensionId === 'LANG')!;
     expect(reject(withDimension(prose, 'LANG', { caveats: lang.caveats.slice(1) }), input).join('\n')).toContain('facet_only');
+  });
+});
+
+/**
+ * v2.1 S05（§4.6、§3.6，客戶 9/21 工作單 #6）：6 歲以上的認知、語言、動作沒有星號。
+ *
+ * 固定句本身由規則輸出、畫面直接顯示（`no_tool` 時是九宮格與 no_tool 段標題旁的狀態句，`t2ReportCopy.test.ts`；
+ * 只能當加測判出留意／關注時是 `no_star_tool` 那一條 caveat）。這裡釘文字那一層的兩件事：
+ * 1. 段落不得講「等孩子長到適用的月齡再補做」——對它們永遠不會成真。模板換一版、AI 提示明說、驗證器擋常見寫法。
+ * 2. `no_star_tool` 那一條 caveat 就是固定句，AI 不能改寫它（§3.6）：驗證器要它原樣。
+ * 其他 no_tool（感覺 0–23、學習 37–71、情緒 0–11）長大後確實有工具，句子不變。
+ */
+describe('v2.1 S05：6 歲以上的認知、語言、動作沒有家長自填工具', () => {
+  const PROMISE = '等孩子长到适用的月龄，我们会再提醒你补做';
+  // 80 個月語言紅、什麼都沒做：走真的 buildT2Findings → 語言 no_tool
+  const findings = buildT2Findings({
+    results: [],
+    t1Flags: { COG: 0, LANG: 2, SOC: 0, EMO: 0, ATT: 0, MOT: 0, SEN: 0, ADL: 0, LEARN: 0 },
+    assessedAgeMonth: 80,
+    computedAt: '2026-09-24T00:00:00.000Z',
+  });
+  const input = inputFor(findings);
+
+  /** 提示裡某一個維度的那一格（從「- LANG（」到下一個維度或空行）。 */
+  function blockOf(user: string, code: DimensionCode): string {
+    const at = user.indexOf(`- ${code}（`);
+    expect(at, code).toBeGreaterThanOrEqual(0);
+    const rest = user.slice(at + 1);
+    const end = Math.min(...['\n- ', '\n\n'].map(s => rest.indexOf(s)).filter(i => i >= 0));
+    return rest.slice(0, end);
+  }
+
+  it('先確認形狀：語言 no_tool', () => {
+    expect(findings.dimensions.find(d => d.dimensionId === 'LANG')!.band).toBe('no_tool');
+  });
+
+  it('模板：語言段不講「等孩子长到适用的月龄……补做」，也不照抄固定句（畫面標題旁已經有）；過驗證器', () => {
+    const prose = templateProse(input);
+    const lang = prose.perDimension.find(d => d.dimensionId === 'LANG')!;
+    for (const text of [lang.whatWeSaw, lang.whyItMatters]) {
+      expect(text).not.toContain('补做');
+      expect(text).not.toContain('适用的月龄');
+      expect(text).not.toContain(SCHOOL_AGE_NO_TOOL_SENTENCE);
+    }
+    accept(prose, input);
+  });
+
+  it.each([
+    ['SEN', 12], ['EMO', 6], ['LEARN', 48],
+  ] as const)('模板：其他 no_tool 句子不變（%s %i 個月仍講長大後補做）', (code, month) => {
+    const other = t2FindingsFixture({ [code]: { band: 'no_tool', t1Flag: 2 } }, { child: { assessedAgeMonth: month } });
+    const otherInput = inputFor(other);
+    const prose = templateProse(otherInput);
+    expect(prose.perDimension.find(d => d.dimensionId === code)!.whatWeSaw).toContain(PROMISE);
+    accept(prose, otherInput);
+  });
+
+  it('模板：三個維度 × 73／144／216 個月 × 有沒有標籤，字數都落在範圍裡、過驗證器', () => {
+    for (const code of ['COG', 'LANG', 'MOT'] as const) {
+      for (const month of [73, 144, 216]) {
+        for (const tags of [[], [FINDING_TAGS.find(t => t.startsWith(code.toLowerCase()))!]]) {
+          const f = t2FindingsFixture({ [code]: { band: 'no_tool', t1Flag: 2, tags } }, { child: { assessedAgeMonth: month } });
+          const i = inputFor(f);
+          const prose = templateProse(i);
+          const entry = prose.perDimension.find(d => d.dimensionId === code)!;
+          const where = `${code}/${month}/${tags.length} 個標籤`;
+          expect(entry.whatWeSaw, where).not.toContain('补做');
+          expect(charCount(entry.whatWeSaw), where).toBeGreaterThanOrEqual(CHAR_RANGES.whatWeSaw.min);
+          expect(charCount(entry.whatWeSaw), where).toBeLessThanOrEqual(CHAR_RANGES.whatWeSaw.max);
+          accept(prose, i);
+        }
+      }
+    }
+  });
+
+  it('提示：語言那一格註明 6 歲以上沒有家長自填工具、不得寫長大後可補做；其他 no_tool 那一格沒有這一句', () => {
+    const { user } = buildProsePrompt(input);
+    expect(blockOf(user, 'LANG')).toContain(SCHOOL_AGE_PROMPT_NOTE);
+    expect(SCHOOL_AGE_PROMPT_NOTE).toContain('补做');
+
+    const young = inputFor(t2FindingsFixture({ SEN: { band: 'no_tool', t1Flag: 2 } }, { child: { assessedAgeMonth: 12 } }));
+    expect(buildProsePrompt(young).user).not.toContain(SCHOOL_AGE_PROMPT_NOTE);
+  });
+
+  it.each([
+    ['whatWeSaw', '等孩子长大后可以再补做。'],
+    ['whyItMatters', '长大以后再补测一次。'],
+  ] as const)('驗證器：AI 在 6 歲以上的語言段（%s）寫「長大後補做」→ 拒，而且是因為這件事', (field, promise) => {
+    const prose = templateProse(input);
+    const lang = prose.perDimension.find(d => d.dimensionId === 'LANG')!;
+    // 其餘條件都合格（字數在範圍內），被拒只會是因為那一句
+    const broken = `${lang[field].slice(0, CHAR_RANGES[field].min)}${promise}`;
+    expect(charCount(broken)).toBeLessThanOrEqual(CHAR_RANGES[field].max);
+    const errors = reject(withDimension(prose, 'LANG', { [field]: broken }), input);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain(`LANG.${field}`);
+  });
+
+  it('驗證器：感覺 12 個月的 no_tool 段講長大後補做 → 過（它長大後確實有工具）', () => {
+    const young = inputFor(t2FindingsFixture({ SEN: { band: 'no_tool', t1Flag: 2 } }, { child: { assessedAgeMonth: 12 } }));
+    const youngProse = templateProse(young);
+    expect(youngProse.perDimension.find(d => d.dimensionId === 'SEN')!.whatWeSaw).toContain('补做');
+    accept(youngProse, young);
+  });
+
+  describe('做了只能當加測、判出留意／關注（帶 no_star_tool）', () => {
+    // 96 個月語言紅、做了 ldp → 語言 refer（`t2Findings.test.ts` 的 S06 那組）
+    const facet = t2FindingsFixture(
+      { LANG: { band: 'refer', drivenBy: 'sxk-ldp', caveats: ['parent_report', 'unsourced_threshold', 'facet_only', 'no_star_tool'] } },
+      { child: { assessedAgeMonth: 96 } },
+    );
+    const facetInput = inputFor(facet);
+
+    it('模板：固定句只在 caveats 出現一次（原樣），段落本身不重複它、不講補做', () => {
+      const lang = templateProse(facetInput).perDimension.find(d => d.dimensionId === 'LANG')!;
+      expect(lang.caveats.filter(c => c.includes(SCHOOL_AGE_NO_TOOL_SENTENCE))).toEqual([CAVEAT_SENTENCES.no_star_tool]);
+      expect(lang.whatWeSaw).not.toContain(SCHOOL_AGE_NO_TOOL_SENTENCE);
+      expect(lang.whatWeSaw).not.toContain('补做');
+    });
+
+    it('提示：no_star_tool 那一條要原樣照抄；語言那一格一樣註明不得寫長大後可補做', () => {
+      const block = blockOf(buildProsePrompt(facetInput).user, 'LANG');
+      expect(block).toContain(SCHOOL_AGE_PROMPT_NOTE);
+      expect(block).toContain(`no_star_tool 这一条原样照抄：${CAVEAT_SENTENCES.no_star_tool}`);
+    });
+
+    it('驗證器：條數對、但把固定句改寫了 → 拒（§3.6 固定句不交給 AI 改寫）', () => {
+      const prose = templateProse(facetInput);
+      const lang = prose.perDimension.find(d => d.dimensionId === 'LANG')!;
+      const rewritten = lang.caveats.map(c => (c === CAVEAT_SENTENCES.no_star_tool ? '六岁以后这几项没有在家填的问卷，可以去医院看看。' : c));
+      expect(reject(withDimension(prose, 'LANG', { caveats: rewritten }), facetInput).join('\n')).toContain('no_star_tool');
+    });
   });
 });
 

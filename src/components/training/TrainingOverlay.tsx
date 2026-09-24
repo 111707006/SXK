@@ -56,7 +56,7 @@ function SheetContent({ sheet }: { sheet: SheetState }) {
       return <ModeSheet id={sheet.id} />;
     case 'cast':
       return <CastSheet hasVideo={sheet.hasVideo} />;
-    case 'reminder':
+    case 'calendar':
       return <ReminderSheet />;
     default:
       return null;

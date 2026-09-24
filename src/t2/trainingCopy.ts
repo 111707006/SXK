@@ -218,6 +218,25 @@ export function practicedBadge(n: number): string {
   return `已练 ${n} 次`;
 }
 
+// ── 還沒做的頁（示範片庫、打卡日曆，票 8） ─────────────────────────────
+
+export const COMING_SOON = {
+  title: '即将开放',
+  body: '这一页还在准备中，先回到计划看看这周的活动。',
+  back: '回到上一页',
+} as const;
+
+// ── 抽屜 ────────────────────────────────────────────────────────────────
+
+export const EXPERT_SHEET = {
+  title: '约专家',
+  sub: '线上、线下都有；线下的地点和时间由客服打电话和你确认。',
+} as const;
+
+// ══ 活動詳情、播放器、打卡成功、抽屜（Keep 票 7） ═══════════════════════════
+//
+// 票 7 的字集中在這一段（§3.3–§3.6、§3.8）；打卡日曆、示範片庫（票 8）的字接在這一段之後。
+
 // ── 活動詳情（§3.3，票 7） ──────────────────────────────────────────────
 
 /**
@@ -225,7 +244,7 @@ export function practicedBadge(n: number): string {
  * 規格用），家長端要簡體；客戶手冊抽出來的內容（`activityContent.ts`）沒有模組名，所以在這裡另放一份，
  * `test/trainingDetailCopy.test.ts` 逐字對 `MODULE_TITLES` 釘住兩份一一對應。
  */
-export const MODULE_NAMES: Readonly<Record<ModuleNo, string>> = {
+export const MODULE_TITLES_SC: Readonly<Record<ModuleNo, string>> = {
   1: '身体动一动',
   2: '平衡与协调',
   3: '力气与耐力',
@@ -245,7 +264,7 @@ export const MODULE_NAMES: Readonly<Record<ModuleNo, string>> = {
 
 /** 詳情標題：「我们来爬行 · 身体动一动 · 亲子」。手冊沒填的那一段不出。 */
 export function detailHeadline(activity: { title: string; moduleNo: ModuleNo; people: string }): string {
-  return [activity.title, MODULE_NAMES[activity.moduleNo], activity.people].filter(Boolean).join(' · ');
+  return [activity.title, MODULE_TITLES_SC[activity.moduleNo], activity.people].filter(Boolean).join(' · ');
 }
 
 /**
@@ -431,20 +450,7 @@ export function checkinSub(title: string, times: number): string {
   return `${title} · 第 ${times} 次`;
 }
 
-// ── 還沒做的頁（示範片庫、打卡日曆，票 8） ─────────────────────────────
-
-export const COMING_SOON = {
-  title: '即将开放',
-  body: '这一页还在准备中，先回到计划看看这周的活动。',
-  back: '回到上一页',
-} as const;
-
-// ── 抽屜 ────────────────────────────────────────────────────────────────
-
-export const EXPERT_SHEET = {
-  title: '约专家',
-  sub: '线上、线下都有；线下的地点和时间由客服打电话和你确认。',
-} as const;
+// ── 抽屜（§3.8，票 7） ─────────────────────────────────────────────────
 
 /** 動作列表（§3.8 第一列）。英文小標照樣品（Keep 的「怎么玩–Play」那種寫法）。 */
 export const ACTIONS_SHEET = {

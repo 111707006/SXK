@@ -45,7 +45,7 @@ import { hasReminder } from '../../t2/practice';
 import { timesForActivity } from '../../t2/practiceStats';
 import {
   DETAIL,
-  MODULE_NAMES,
+  MODULE_TITLES_SC,
   aboutMinutes,
   ageReminder,
   detailHeadline,
@@ -273,7 +273,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
       ? `${planTitle(childName)} · ${DETAIL.seriesPlanSub}`
       : series.kind === 'swap' && series.dimension
         ? SITE_DIMENSION_NAME[series.dimension]
-        : MODULE_NAMES[a.moduleNo];
+        : MODULE_TITLES_SC[a.moduleNo];
 
   const startGo = () => nav.openPage({ name: 'go', id: a.id, from, mode: followModeFor(readFollowMode(), clip !== null) });
   const cast = () => {
@@ -388,7 +388,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
             icon={<CalendarPlus size={26} />}
             label={hasReminder(data.prefs) ? DETAIL.calendarAdded : DETAIL.addCalendar}
             active={hasReminder(data.prefs)}
-            onClick={() => nav.openSheet({ kind: 'reminder' })}
+            onClick={() => nav.openSheet({ kind: 'calendar' })}
           />
           <ActionIcon icon={<Cast size={26} />} label={DETAIL.cast} onClick={cast} />
           <ActionIcon icon={<MessageCircle size={26} />} label={DETAIL.expert} onClick={() => nav.openSheet({ kind: 'expert' })} />

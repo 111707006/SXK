@@ -229,7 +229,7 @@ describe('播放器、打卡成功、抽屜也都是一層（票 7）', () => {
     ['要準備', { type: 'sheet', sheet: { kind: 'equip', id: 'A001', from: 'plan' } } as Layer],
     ['跟練方式', { type: 'sheet', sheet: { kind: 'mode', id: 'A001', from: 'plan' } } as Layer],
     ['投屏', { type: 'sheet', sheet: { kind: 'cast', hasVideo: true } } as Layer],
-    ['加到日曆', { type: 'sheet', sheet: { kind: 'reminder' } } as Layer],
+    ['加到日曆', { type: 'sheet', sheet: { kind: 'calendar' } } as Layer],
     ['問專家', expert],
   ])('%s抽屜開在詳情上：返回只關抽屜', async (_name, sheet) => {
     const { browser, stack } = setup();

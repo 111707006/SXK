@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { MODULE_TITLES } from '../src/t2/activitySeed';
 import {
   CHECKIN,
-  MODULE_NAMES,
+  MODULE_TITLES_SC,
   REMINDER_SHEET,
   ageReminder,
   ageText,
@@ -23,7 +23,7 @@ import type { ModuleNo } from '../src/t2/types';
 
 /**
  * `MODULE_TITLES` 裡出現的繁體字 → 簡體（逐字對照，只列這 15 個名稱用得到的）。
- * 這張表是這支測試自己的真相來源：它不從 `MODULE_NAMES` 推，推出來的就等於拿程式驗程式。
+ * 這張表是這支測試自己的真相來源：它不從 `MODULE_TITLES_SC` 推，推出來的就等於拿程式驗程式。
  */
 const T2S: Record<string, string> = {
   體: '体', 動: '动', 與: '与', 協: '协', 調: '调', 氣: '气', 來: '来', 畫: '画', 寫: '写',
@@ -34,23 +34,23 @@ const T2S: Record<string, string> = {
 describe('模組名（詳情標題「{標題} · {模組名} · {亲子}」）', () => {
   it('15 個模組都有簡體名，逐字對得上 activitySeed 的繁體 MODULE_TITLES', () => {
     const numbers = Object.keys(MODULE_TITLES).map(Number).sort((a, b) => a - b);
-    expect(Object.keys(MODULE_NAMES).map(Number).sort((a, b) => a - b)).toEqual(numbers);
+    expect(Object.keys(MODULE_TITLES_SC).map(Number).sort((a, b) => a - b)).toEqual(numbers);
     expect(numbers).toHaveLength(15);
     for (const n of numbers as ModuleNo[]) {
       const expected = [...MODULE_TITLES[n]].map(ch => T2S[ch] ?? ch).join('');
-      expect(MODULE_NAMES[n], `模組 ${n}`).toBe(expected);
+      expect(MODULE_TITLES_SC[n], `模組 ${n}`).toBe(expected);
     }
   });
 
   it('簡體名裡不剩任何一個上面那張表的繁體字', () => {
     const traditional = new Set(Object.keys(T2S));
-    for (const name of Object.values(MODULE_NAMES)) {
+    for (const name of Object.values(MODULE_TITLES_SC)) {
       expect([...name].filter(ch => traditional.has(ch)), name).toEqual([]);
     }
   });
 
   it('模組一是「身体动一动」（與客戶腳本的檔名《…模组一_身体动一动》同一個字）', () => {
-    expect(MODULE_NAMES[1]).toBe('身体动一动');
+    expect(MODULE_TITLES_SC[1]).toBe('身体动一动');
   });
 });
 

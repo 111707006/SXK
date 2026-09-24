@@ -59,6 +59,9 @@ export type Route =
 /**
  * 底部抽屜（§3.8）：動作列表、要準備、跟練方式要知道是哪一支活動（`id`／`from`，與詳情同一個讀法）；
  * 投屏說明只要知道有沒有片；加到日曆、问专家不看活動。
+ *
+ * 抽屜的 `calendar` 是「加到日曆」（`ReminderSheet`：星期、時間、.ics），不是打卡日曆那一頁（頁面的
+ * `Route` 也有一個 `calendar`，票 8）。詳情的「加日历」與打卡日曆的提醒列都開這一個抽屜。
  */
 export type SheetState =
   | { kind: 'expert' }
@@ -66,7 +69,7 @@ export type SheetState =
   | { kind: 'equip'; id: string; from: DetailSource }
   | { kind: 'mode'; id: string; from: DetailSource }
   | { kind: 'cast'; hasVideo: boolean }
-  | { kind: 'reminder' };
+  | { kind: 'calendar' };
 
 export type Layer = { type: 'page'; route: Route } | { type: 'sheet'; sheet: SheetState };
 

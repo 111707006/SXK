@@ -6,11 +6,13 @@
  * （`activityMatch.ts`），所以上線當天每個維度都是「準備中」。這一頁讓內容團隊一支一支填：
  * `targetMonth`、`targets`、`dimensions`、`avoidIf`、啟用，加上圖文步驟與示範連結。
  *
- * 【三件事】
+ * 【四件事】
  * - `activityCoverage`：四個進度數字（沿用退場的素材庫分頁的作法）。總數／已填 targetMonth／
  *   已填 targets／已啟用 —— 四個各自代表一件事，混在一起就沒有一個是可信的。
  * - `filterActivities`：模組、維度、「還沒填 targetMonth」三個篩選。第三個是這一頁存在的理由。
  * - `readActivityPatch`：把 PATCH 的內容讀成一筆局部更新，讀不出來就說是哪裡不對。
+ * - `planActivityImport`：批量匯入（v2.1 S25）的逐列檢查。每一列多三條規則（編號要在活動庫裡、
+ *   模組對得上編號、目標月齡必填），其餘欄位走同一個 `readActivityPatch` —— 匯入與逐支編輯收的是同一套值。
  *
  * 【為什麼是 PATCH 不是 PUT】
  * 退場的素材庫一格是整筆覆寫 —— 一格素材是一次建好的。活動不是：300 支已經在
@@ -38,7 +40,7 @@ import type { ActivityTag, FindingTag } from '../t2/findingTags';
 import { DIMENSION_CODES } from '../t2/types';
 import type { Activity, ActivityStep, DimensionCode, ModuleNo } from '../t2/types';
 import type { ActivityGuide } from '../t2/types';
-import { parseAgeRange } from '../t2/activitySeed';
+import { moduleNoOf, parseAgeRange } from '../t2/activitySeed';
 import { isAllowedAssetUrl, assetUrlError } from './assetUrl';
 import { readSteps } from './activitySteps';
 import { readGuide } from './activityGuide';
@@ -307,6 +309,194 @@ function readUrl(raw: unknown, what: string): { ok: true; url: string | null } |
   if (!url) return { ok: true, url: null };
   if (!isAllowedAssetUrl(url)) return { ok: false, error: assetUrlError(what) };
   return { ok: true, url };
+}
+
+// ══════════════════════════════════════════════
+// 批量匯入（v2.1 S25）
+// ══════════════════════════════════════════════
+
+/**
+ * 活動編號：一個大寫字母加 3–7 位數字（種子是 'A001'–'A300'，欄位是 VARCHAR(8)）。
+ * PATCH 的路由與匯入共用這一份。
+ */
+export const ACTIVITY_ID_PATTERN = /^[A-Z]\d{3,7}$/;
+
+/** 一次匯入的列數上限。活動庫 300 支一次要收得下；再多就不是這份活動庫的表了。 */
+export const MAX_IMPORT_ROWS = 500;
+
+export interface ActivityImportFailure {
+  /** 第幾列，從 1 起算（`rows[0]` 是第 1 列）。 */
+  row: number;
+  /** 那一列的 `id`，只要它是字串就帶上（格式不對也帶，讓人對得回表格）。 */
+  id?: string;
+  error: string;
+}
+
+export interface ActivityImportWarning {
+  row: number;
+  /** 認不得、被忽略的欄位名。 */
+  field: string;
+}
+
+/**
+ * `POST /api/admin/activities/import` 的回應（規格 v2.1 §7）。試跑時 `imported` 是「會匯入的列數」。
+ */
+export interface ActivityImportReport {
+  imported: number;
+  failed: ActivityImportFailure[];
+  warnings: ActivityImportWarning[];
+}
+
+export type ActivityImportPlan =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      dryRun: boolean;
+      /** 驗過、可以寫的列，依列號排。 */
+      ready: Array<{ row: number; id: string; patch: ActivityPatch }>;
+      failed: ActivityImportFailure[];
+      warnings: ActivityImportWarning[];
+    };
+
+/**
+ * 讀一份匯入（body `{ rows, dryRun? }`），逐列驗過，分成「可以寫的」與「整列退回的」。
+ * `existingIds` 是活動庫現有的編號 —— 匯入只改、不新增。
+ */
+export function planActivityImport(body: unknown, existingIds: ReadonlySet<string>): ActivityImportPlan {
+  const raw = (isPlainObject(body) ? body : {}) as Record<string, unknown>;
+  if (!Array.isArray(raw.rows)) return { ok: false, error: '汇入档的格式应为 { "rows": [ … ] }。' };
+  const rows: unknown[] = raw.rows;
+  if (rows.length === 0) return { ok: false, error: '汇入档里没有任何一列（rows 是空的）。' };
+  if (rows.length > MAX_IMPORT_ROWS) {
+    return { ok: false, error: `一次最多汇入 ${MAX_IMPORT_ROWS} 列，这份有 ${rows.length} 列。` };
+  }
+  // 「"false"」當試跑或正式匯入都是猜，而猜錯的那一邊會把 300 支寫進去。
+  if ('dryRun' in raw && typeof raw.dryRun !== 'boolean') return { ok: false, error: 'dryRun 必须是 true 或 false。' };
+
+  const ready: Array<{ row: number; id: string; patch: ActivityPatch }> = [];
+  const failed: ActivityImportFailure[] = [];
+  const warnings: ActivityImportWarning[] = [];
+
+  // 同一支出現好幾次：不知道哪一列才對（多半是錯位或複製貼上），只寫其中一列等於猜，全部退回。
+  const rowsById = new Map<string, number[]>();
+  rows.forEach((item, index) => {
+    const id = idOf(item);
+    if (id !== undefined) pushTo(rowsById, id, index + 1);
+  });
+
+  rows.forEach((item, index) => {
+    const row = index + 1;
+    // 不認得的欄位忽略、說出來（規格 §7 第 5 條）。被退的列也列：改表時一次看到。
+    if (isPlainObject(item)) {
+      for (const field of Object.keys(item)) {
+        if (!isImportField(field)) warnings.push({ row, field });
+      }
+    }
+    const id = idOf(item);
+    const sameId = id === undefined ? [] : rowsById.get(id)!;
+    if (sameId.length > 1) {
+      failed.push({ row, id, error: `「${id}」在这份档案里出现在第 ${sameId.join('、')} 列，不知道哪一列才对，这几列都不汇入。` });
+      return;
+    }
+    const r = readImportRow(item, existingIds);
+    if (r.ok) ready.push({ row, id: r.id, patch: r.patch });
+    else failed.push({ row, ...(r.id !== undefined ? { id: r.id } : {}), error: r.error });
+  });
+  return { ok: true, dryRun: raw.dryRun === true, ready, failed, warnings };
+}
+
+/**
+ * 匯入認得的欄位：`id`、`moduleNo`，加上後台編輯頁送得出的全部欄位（`PATCH_KEYS`，含 Keep K17 的內容欄位）。
+ * `ageMonths` 不在其中 —— 它只由 `ageLabel` 解析；送來的當不認得的欄位。
+ * 草稿標記（v2.1 §9 第 10 題，暫採不入庫）也不在其中，不管它叫什麼名字。
+ */
+function isImportField(field: string): boolean {
+  return field === 'id' || field === 'moduleNo' || (PATCH_KEYS as ReadonlyArray<string>).includes(field);
+}
+
+/** `'A017'` → 1；編號不在 1–300 回 `null`（`moduleNoOf` 丟例外的那一段）。 */
+function moduleOfId(id: string): ModuleNo | null {
+  try {
+    return moduleNoOf(Number(id.slice(1)));
+  } catch {
+    return null;
+  }
+}
+
+type ImportRowResult =
+  | { ok: true; id: string; patch: ActivityPatch }
+  | { ok: false; id?: string; error: string };
+
+function isPlainObject(item: unknown): item is Record<string, unknown> {
+  return !!item && typeof item === 'object' && !Array.isArray(item);
+}
+
+/** 那一列的 `id`，只要它是字串（格式對不對都算）。 */
+function idOf(item: unknown): string | undefined {
+  return isPlainObject(item) && typeof item.id === 'string' ? item.id : undefined;
+}
+
+/** 一列：編號 → 模組 → 目標月齡 → 其餘欄位（`readActivityPatch`）。第一個錯就停，整列退回。 */
+function readImportRow(fields: unknown, existingIds: ReadonlySet<string>): ImportRowResult {
+  if (!isPlainObject(fields)) {
+    return { ok: false, error: '这一列不是一个物件（应为 { "id": "A017", … }）。' };
+  }
+  if (typeof fields.id !== 'string') return { ok: false, error: '缺少活动编号 id（例：「A017」）。' };
+  const id = fields.id;
+  if (!ACTIVITY_ID_PATTERN.test(id)) return { ok: false, id, error: `活动编号「${id}」格式不对（例：「A017」）。` };
+  if (!existingIds.has(id)) return { ok: false, id, error: `活动库里没有「${id}」。汇入只更新已有的活动，不新增。` };
+
+  // 模組由編號算出（§7.2）。這一欄存在只為了對帳：對不上多半是整張表錯位，寧可擋下。
+  const expectedModule = moduleOfId(id);
+  if (!('moduleNo' in fields)) return { ok: false, id, error: '缺少模组 moduleNo。' };
+  if (fields.moduleNo !== expectedModule) {
+    return {
+      ok: false,
+      id,
+      error: expectedModule === null
+        ? `「${id}」的编号不在 1–300，算不出模组。`
+        : `模组 moduleNo 对不上：「${id}」在模组 ${expectedModule}（ceil(编号 ÷ 20)），这一列写的是「${String(fields.moduleNo)}」。整张表是不是错位了？`,
+    };
+  }
+
+  // 工作單驗收「targetMonth 无 null」：PATCH 可以送 null 清掉，匯入不行。
+  if (!isNonNegativeInt(fields.targetMonth, MAX_TARGET_MONTH)) {
+    return { ok: false, id, error: `目标月龄 targetMonth 必填，必须是 0 到 ${MAX_TARGET_MONTH} 的整数（单位是月，不是岁）。` };
+  }
+
+  const r = readActivityPatch(fields);
+  if (!r.ok) return { ok: false, id, error: r.error };
+  return { ok: true, id, patch: r.patch };
+}
+
+/**
+ * 畫面讀進來的匯入檔 → `rows`。格式照附錄 C：`{ "rows": [ … ] }`。檔案裡若帶 `dryRun` 不算數 ——
+ * 試跑還是正式匯入由畫面的按鈕決定，不由檔案決定。列數與每一列的檢查交給伺服器（`planActivityImport`）。
+ */
+export function readImportFile(text: string): { ok: true; rows: unknown[] } | { ok: false; error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text.replace(/^\uFEFF/, ''));
+  } catch {
+    return { ok: false, error: '读不懂这个档案：不是 JSON。汇入档的格式见规格附录 C（{ "rows": [ … ] }）。' };
+  }
+  if (!isPlainObject(parsed) || !Array.isArray(parsed.rows)) {
+    return { ok: false, error: '汇入档的格式应为 { "rows": [ … ] }（规格附录 C）。' };
+  }
+  return { ok: true, rows: parsed.rows };
+}
+
+/** 同一個被忽略的欄位多半整張表每一列都有：收成一組，畫面一行說完，不列三百行。 */
+export function groupImportWarnings(warnings: ReadonlyArray<ActivityImportWarning>): Array<{ field: string; rows: number[] }> {
+  const groups = new Map<string, number[]>();
+  for (const { row, field } of warnings) pushTo(groups, field, row);
+  return [...groups].map(([field, rows]) => ({ field, rows }));
+}
+
+function pushTo(map: Map<string, number[]>, key: string, value: number): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
 }
 
 // ══════════════════════════════════════════════

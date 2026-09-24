@@ -19,14 +19,16 @@ import {
   type CompanyCondition,
 } from './companyScope';
 import { buildIdentity, signAdminToken, verifyAdminToken } from './adminAuth';
-import { readActivityPatch } from '../utils/activityAdmin';
+import {
+  ACTIVITY_ID_PATTERN,
+  planActivityImport,
+  readActivityPatch,
+  type ActivityImportReport,
+} from '../utils/activityAdmin';
 import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 
 const BCRYPT_ROUNDS = 10;
-
-/** 活動編號：一個大寫字母加 3–7 位數字（種子是 'A001'–'A300'，欄位是 VARCHAR(8)）。 */
-const ACTIVITY_ID_PATTERN = /^[A-Z]\d{3,7}$/;
 
 // 進站識別碼的格式規則收在 `src/utils/companySlug.ts`，與前端共用同一份。
 
@@ -696,6 +698,49 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       console.error('[Admin] updateActivity failed:', err.message);
       res.status(500).json({ error: '更新活动失败。' });
     }
+  });
+
+  // ── 批量匯入（v2.1 S25，客戶 9/21 工作單 #14）──
+  //
+  // 權限與 PATCH 相同。逐列獨立：壞的那一列整列不入庫，其他列照寫（工作單「非法值整行报错不入库」）。
+  // 每列的檢查在 `planActivityImport`；寫入逐列呼叫 `updateActivity`（帶了才改）——一列一句 UPDATE，
+  // 一列就是一個交易。仍然**不新增、不刪除**：活動庫裡沒有的編號整列退回。
+  router.post('/activities/import', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    let existing: Set<string>;
+    try {
+      existing = new Set((await store.listActivities()).map(a => a.id));
+    } catch (err: any) {
+      console.error('[Admin] import: listActivities failed:', err.message);
+      res.status(500).json({ error: '读取活动库失败，一列都没有汇入。' });
+      return;
+    }
+    const plan = planActivityImport(req.body, existing);
+    if (!plan.ok) {
+      res.status(400).json({ error: plan.error });
+      return;
+    }
+    if (plan.dryRun) {
+      const report: ActivityImportReport = { imported: plan.ready.length, failed: plan.failed, warnings: plan.warnings };
+      res.json(report);
+      return;
+    }
+    // 一列寫不進去不整份 500：前面的列已經寫了，500 會讓人以為一列都沒進去而整份重送。
+    // 記進 failed，回應照樣說清楚哪幾列進去了。
+    const failed = [...plan.failed];
+    let imported = 0;
+    for (const { row, id, patch } of plan.ready) {
+      try {
+        if (await store.updateActivity(id, patch)) imported++;
+        else failed.push({ row, id, error: `活动库里没有「${id}」。汇入只更新已有的活动，不新增。` });
+      } catch (err: any) {
+        console.error(`[Admin] import: updateActivity ${id} failed:`, err.message);
+        failed.push({ row, id, error: '写入失败，这一列没有汇入；请稍后重新汇入这一列。' });
+      }
+    }
+    failed.sort((a, b) => a.row - b.row);
+    const report: ActivityImportReport = { imported, failed, warnings: plan.warnings };
+    res.json(report);
   });
 
   return router;

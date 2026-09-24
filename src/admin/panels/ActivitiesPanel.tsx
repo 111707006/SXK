@@ -10,8 +10,8 @@
  *
  * 「未填」與「已停用」在畫面上分得開：對配對來說結果一樣（都配不到），對維護的人完全不同。
  */
-import { useCallback, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Save, Trash2, X } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, FileUp, Plus, Save, Trash2, X } from 'lucide-react';
 import { adminApi } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import type { Activity, DimensionCode, ModuleNo } from '../../t2/types';
@@ -27,10 +27,16 @@ import {
   changedFields,
   CONTENT_TEXT_FIELDS,
   filterActivities,
+  groupImportWarnings,
   MAX_AGE_LABEL,
+  MAX_IMPORT_ROWS,
   MAX_TARGET_MONTH,
   MAX_VIDEO_SECONDS,
+  readImportFile,
   type ActivityFilter,
+  type ActivityImportFailure,
+  type ActivityImportReport,
+  type ActivityImportWarning,
 } from '../../utils/activityAdmin';
 import { MAX_STEPS } from '../../utils/activitySteps';
 import {
@@ -240,6 +246,18 @@ export default function ActivitiesPanel({ onError }: { onError: (view: AdminErro
       title="活动库"
       description="300 支活动由种子写入，内容团队在这里逐支补「目标月龄」（做得到的孩子的发展月龄）与「练什么」标签。没填目标月龄的活动配不到任何孩子——这一页就是让人看见还差多少。不再用的活动请「停用」，没有删除。"
     >
+      {/* 放在載入狀態之外：匯入完重新讀列表時畫面會轉一下圈，匯入結果不能跟著消失。 */}
+      <ImportBox
+        // 編輯到一半不給匯入：匯入改掉的可能正是表單底下那一支，表單裡還是舊的內容。
+        disabled={editing !== null || busy}
+        onError={onError}
+        onImported={() => {
+          // 蓋在列表上的那幾支是匯入之前存的，重新讀回來之前先拿掉，否則會把匯入的值蓋回去。
+          setSaved({});
+          reload();
+        }}
+      />
+
       {loading ? (
         <Spinner label="正在读取活动库…" />
       ) : failure ? (
@@ -358,6 +376,208 @@ export default function ActivitiesPanel({ onError }: { onError: (view: AdminErro
         </>
       )}
     </Panel>
+  );
+}
+
+type ImportStage =
+  | { kind: 'idle' }
+  /** 試跑過了，等人看完按「确认汇入」。送出的是同一份 `rows`。 */
+  | { kind: 'checked'; fileName: string; rows: unknown[]; report: ActivityImportReport }
+  | { kind: 'done'; fileName: string; report: ActivityImportReport };
+
+/**
+ * 批量匯入（v2.1 S25，客戶 9/21 工作單 #14）：選一個 JSON 檔 → 試跑（dryRun）→ 看成功幾列、
+ * 哪幾列被退、哪些欄位被忽略 → 確認後正式匯入 → 重新讀列表。
+ *
+ * 一定先試跑：正式匯入是逐列寫、寫了就寫了，沒有「整份復原」。試跑與正式匯入送的是同一份 `rows`，
+ * 伺服器兩次跑同一套檢查（`planActivityImport`），所以試跑說能進的，正式匯入就進得去
+ * （除非中間有人改了活動庫，或資料庫那一列寫入失敗 —— 那一列會出現在結果的退回清單裡）。
+ */
+function ImportBox({
+  disabled,
+  onError,
+  onImported,
+}: {
+  disabled: boolean;
+  onError: (view: AdminErrorView) => void;
+  onImported: () => void;
+}) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [stage, setStage] = useState<ImportStage>({ kind: 'idle' });
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  function fail(err: unknown) {
+    const view = toErrorView(err);
+    // 內容不合格（400）留在這一區；401／503 交給外層的殼。
+    if (view.action === 'none') setFailure(view.message);
+    else onError(view);
+  }
+
+  async function check(file: File) {
+    setFailure(null);
+    setStage({ kind: 'idle' });
+    const read = readImportFile(await file.text());
+    if (!read.ok) {
+      setFailure(read.error);
+      return;
+    }
+    setBusy(true);
+    try {
+      const report = await adminApi.importActivities(read.rows, true);
+      setStage({ kind: 'checked', fileName: file.name, rows: read.rows, report });
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function commit() {
+    if (stage.kind !== 'checked') return;
+    setFailure(null);
+    setBusy(true);
+    try {
+      const report = await adminApi.importActivities(stage.rows, false);
+      setStage({ kind: 'done', fileName: stage.fileName, report });
+      onImported();
+    } catch (err) {
+      const view = toErrorView(err);
+      if (view.action !== 'none') {
+        onError(view);
+        return;
+      }
+      // 正式匯入是逐列寫的：請求失敗不代表一列都沒寫（例如寫到一半斷線、反向代理逾時）。
+      // 試跑結果這時已經不準，拿掉；列表重新讀，免得有人拿舊的內容去編輯、把匯入的值蓋回去。
+      setStage({ kind: 'idle' });
+      setFailure(`${view.message}（这次汇入可能已经写进去一部分。列表已重新读取，请核对后整份重新试跑、再汇入；已经写进去的列再写一次，结果一样。）`);
+      onImported();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function close() {
+    setStage({ kind: 'idle' });
+    setFailure(null);
+  }
+
+  return (
+    <div className="mb-4 rounded-2xl border border-brand-stone bg-brand-cream/40 px-4 py-3" data-testid="activity-import">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[11px] leading-relaxed text-brand-charcoal/60">
+          <span className="font-bold text-brand-charcoal/80">批量汇入</span>
+          ：选一个 JSON 档（格式 {'{ "rows": [ … ] }'}，见规格 v2.1 附录 C），一次最多 {MAX_IMPORT_ROWS} 列。
+          每列必填 id、moduleNo、targetMonth；只更新已有的活动，带了的栏位才改。先试跑，看过结果再确认汇入。
+        </p>
+        <Button variant="ghost" onClick={() => fileInput.current?.click()} busy={busy && stage.kind === 'idle'} disabled={disabled || busy}>
+          <FileUp size={12} />
+          {stage.kind === 'idle' ? '选择档案并试跑' : '换一个档案'}
+        </Button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          data-testid="activity-import-file"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            // 清掉，同一個檔案改過之後再選一次才會觸發 onChange。
+            e.target.value = '';
+            if (file) void check(file);
+          }}
+        />
+      </div>
+
+      {failure && (
+        <div className="mt-3">
+          <ErrorNote message={failure} />
+        </div>
+      )}
+
+      {stage.kind !== 'idle' && (
+        <div className="mt-3 space-y-3 border-t border-brand-stone pt-3">
+          <p className="text-xs font-bold text-brand-forest">
+            {stage.kind === 'checked' ? '试跑结果（还没写入）' : '汇入完成'}
+            <span className="ml-2 font-mono text-[10px] font-medium text-brand-charcoal/45">{stage.fileName}</span>
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <Stat label={stage.kind === 'checked' ? '可以汇入' : '已汇入'} value={stage.report.imported} highlight />
+            <Stat label="整列退回" value={stage.report.failed.length} />
+            <Stat label="忽略的栏位" value={groupImportWarnings(stage.report.warnings).length} />
+          </div>
+
+          <FailedRows failed={stage.report.failed} />
+          <IgnoredFields warnings={stage.report.warnings} />
+
+          <div className="flex flex-wrap gap-2">
+            {stage.kind === 'checked' ? (
+              <>
+                <Button onClick={() => void commit()} busy={busy} disabled={disabled || stage.report.imported === 0}>
+                  确认汇入 {stage.report.imported} 列
+                </Button>
+                <Button variant="ghost" onClick={close} disabled={busy}>
+                  取消
+                </Button>
+              </>
+            ) : (
+              <Button variant="ghost" onClick={close}>
+                关闭
+              </Button>
+            )}
+          </div>
+          {stage.kind === 'checked' && stage.report.failed.length > 0 && (
+            <p className="text-[10px] leading-relaxed text-brand-charcoal/45">
+              确认汇入只写能进的那几列；被退的列一个栏位都不写，改好档案后可以整份再汇入一次（已经写进去的列再写一次，结果一样）。
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FailedRows({ failed }: { failed: ReadonlyArray<ActivityImportFailure> }) {
+  if (failed.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1 text-[11px] font-bold text-brand-charcoal/70">整列退回（这些列一个栏位都没写）</p>
+      <ul className="max-h-64 space-y-1 overflow-auto rounded-xl border border-brand-stone bg-white p-2" data-testid="activity-import-failed">
+        {failed.map(f => (
+          <li key={f.row} className="flex gap-2 text-[11px] leading-relaxed text-brand-charcoal/70">
+            <span className="w-14 shrink-0 font-bold text-brand-charcoal/50">第 {f.row} 列</span>
+            <span className="w-16 shrink-0 font-mono text-brand-charcoal/50">{f.id ?? '（无 id）'}</span>
+            <span className="min-w-0">{f.error}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** 列號最多列十個，其餘說「共 N 列」—— 整張表都帶的欄位會有三百個列號。 */
+const MAX_LISTED_ROWS = 10;
+
+function IgnoredFields({ warnings }: { warnings: ReadonlyArray<ActivityImportWarning> }) {
+  const groups = groupImportWarnings(warnings);
+  if (groups.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1 text-[11px] font-bold text-brand-charcoal/70">
+        忽略的栏位（认不得，没写入；不影响那一列其他栏位）
+      </p>
+      <ul className="space-y-1 rounded-xl border border-brand-stone bg-white p-2" data-testid="activity-import-warnings">
+        {groups.map(g => (
+          <li key={g.field} className="text-[11px] leading-relaxed text-brand-charcoal/70">
+            <span className="font-mono">「{g.field}」</span>
+            <span className="ml-1 text-brand-charcoal/50">
+              第 {g.rows.slice(0, MAX_LISTED_ROWS).join('、')}
+              {g.rows.length > MAX_LISTED_ROWS ? '… ' : ' '}列（共 {g.rows.length} 列）
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

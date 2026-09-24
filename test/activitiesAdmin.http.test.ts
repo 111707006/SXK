@@ -26,6 +26,8 @@ vi.mock('../src/admin/adminStore', async () => {
   const db = {
     activities: seed(),
     available: true,
+    /** 這幾支的 updateActivity 丟例外（模擬資料庫在匯入中途出錯）。 */
+    failWrites: new Set<string>(),
     admins: [
       { id: 30, email: 'god@sxk.com', role: 'global_admin' as const, companyId: null, active: true, createdAt: null, passwordHash: hash('pw-god-123') },
       { id: 10, email: 'a@jia.com', role: 'company_member' as const, companyId: 1, active: true, createdAt: null, passwordHash: hash('pw-jia-123') },
@@ -37,6 +39,7 @@ vi.mock('../src/admin/adminStore', async () => {
     __reset() {
       db.activities = seed();
       db.available = true;
+      db.failWrites = new Set();
     },
 
     isAvailable: () => db.available,
@@ -57,6 +60,7 @@ vi.mock('../src/admin/adminStore', async () => {
       return db.activities.find(a => a.id === id) ?? null;
     },
     async updateActivity(id: string, patch: Patch) {
+      if (db.failWrites.has(id)) throw new Error('simulated write failure');
       const existing = db.activities.find(a => a.id === id);
       if (!existing) return null;
       Object.assign(existing, patch);
@@ -266,6 +270,184 @@ describe('PATCH 一支：帶了才改', () => {
   it('不存在的編號 → 404', async () => {
     expect((await patchJson('/api/admin/activities/A999', { targetMonth: 30 }, token)).status).toBe(404);
     expect((await patchJson('/api/admin/activities/not-an-id!!', { targetMonth: 30 }, token)).status).toBe(404);
+  });
+});
+
+/**
+ * 批量匯入（v2.1 S25）。客戶的 E 表還沒來，這裡全是假資料；規格見 v2.1 §7、附錄 C。
+ * 列號從 1 起算。
+ */
+describe('POST /api/admin/activities/import', () => {
+  let token: string;
+  beforeAll(async () => {
+    token = await login('god@sxk.com', 'pw-god-123');
+  });
+
+  const importJson = (body: unknown, auth: string | null = token) =>
+    client.postJson('/api/admin/activities/import', body, auth ? h(auth) : {});
+
+  it('全對：每一列都寫進去，回 imported 與空的 failed／warnings', async () => {
+    const resp = await importJson({
+      rows: [
+        { id: 'A017', moduleNo: 1, targetMonth: 30, targets: ['mot.balance', 'mot.locomotion'], avoidIf: ['sen.vestibular'] },
+        { id: 'A021', moduleNo: 2, targetMonth: 12, durationMin: 10, active: false },
+        { id: 'A300', moduleNo: 15, targetMonth: 216 },
+      ],
+    });
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ imported: 3, failed: [], warnings: [] });
+    expect(row('A017')).toMatchObject({ targetMonth: 30, targets: ['mot.locomotion', 'mot.balance'], avoidIf: ['sen.vestibular'] });
+    expect(row('A021')).toMatchObject({ targetMonth: 12, durationMin: 10, active: false });
+    expect(row('A300').targetMonth).toBe(216);
+    // 帶了才改：沒帶的欄位不動
+    expect(row('A300')).toMatchObject({ active: true, targets: [], title: ACTIVITY_SEED[299].title });
+  });
+
+  it('部分壞列：壞的整列不入庫（連同它帶的其他欄位），好的照寫；不認得的欄位進 warnings', async () => {
+    const resp = await importJson({
+      rows: [
+        { id: 'A001', moduleNo: 1, targetMonth: 6, 备注: '先做' },
+        { id: 'A002', moduleNo: 1, targetMonth: null, targets: ['mot.balance'] },
+        { id: 'A003', moduleNo: 2, targetMonth: 12 },
+        { id: 'A999', moduleNo: 50, targetMonth: 12 },
+        { id: 'A004', moduleNo: 1, targetMonth: 24, targets: ['mot.balance', 'emo.slow_to_warm'] },
+        { id: 'A005', moduleNo: 1, targetMonth: 36 },
+      ],
+    });
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.imported).toBe(2);
+    expect(body.failed.map((f: any) => [f.row, f.id])).toEqual([[2, 'A002'], [3, 'A003'], [4, 'A999'], [5, 'A004']]);
+    expect(body.failed[3].error).toContain('emo.slow_to_warm');
+    expect(body.warnings).toEqual([{ row: 1, field: '备注' }]);
+
+    expect(row('A001').targetMonth).toBe(6);
+    expect(row('A005').targetMonth).toBe(36);
+    expect(row('A002')).toMatchObject({ targetMonth: null, targets: [] });
+    expect(row('A003').targetMonth).toBeNull();
+    expect(row('A004')).toMatchObject({ targetMonth: null, targets: [] });
+  });
+
+  it('dryRun：只驗不寫，回同樣的報告', async () => {
+    const rows = [
+      { id: 'A001', moduleNo: 1, targetMonth: 6 },
+      { id: 'A002', moduleNo: 1, targetMonth: 300 },
+      { id: 'A003', moduleNo: 1, targetMonth: 12, remark: 'x' },
+    ];
+    const dry = await importJson({ rows, dryRun: true });
+    expect(dry.status).toBe(200);
+    const dryBody = await dry.json();
+    expect(dryBody).toMatchObject({ imported: 2, warnings: [{ row: 3, field: 'remark' }] });
+    expect(dryBody.failed.map((f: any) => f.row)).toEqual([2]);
+    expect(store.__db.activities.every((a: any) => a.targetMonth === null)).toBe(true);
+
+    // 同一份正式匯入：報告一模一樣，這次寫進去。
+    const real = await importJson({ rows });
+    expect(await real.json()).toEqual(dryBody);
+    expect(row('A001').targetMonth).toBe(6);
+  });
+
+  it('某一列寫入失敗：那一列記進 failed，其他列照寫，不整份 500', async () => {
+    store.__db.failWrites = new Set(['A002']);
+    const resp = await importJson({
+      rows: [
+        { id: 'A001', moduleNo: 1, targetMonth: 6 },
+        { id: 'A002', moduleNo: 1, targetMonth: 7 },
+        { id: 'A003', moduleNo: 1, targetMonth: 8 },
+      ],
+    });
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.imported).toBe(2);
+    expect(body.failed).toEqual([{ row: 2, id: 'A002', error: expect.stringContaining('写入失败') }]);
+    expect(row('A001').targetMonth).toBe(6);
+    expect(row('A003').targetMonth).toBe(8);
+  });
+
+  it('Keep K17 的內容欄位一併收：適齡連帶改硬閘、手冊文字、封面與片長、只有文字的步驟', async () => {
+    const resp = await importJson({
+      rows: [
+        {
+          id: 'A017',
+          moduleNo: 1,
+          targetMonth: 30,
+          ageLabel: '2–6岁',
+          people: '亲子',
+          trains: '练协调',
+          need: '一首有节奏的歌',
+          easier: '只拍手',
+          harder: '音乐停就定住',
+          tip: '选孩子喜欢的歌。',
+          deeper: '物理治疗册 模组九',
+          posterUrl: '/media/activities/A017.jpg',
+          videoSeconds: 10,
+          steps: [{ instruction: '放一首歌。' }],
+        },
+      ],
+    });
+    expect(await resp.json()).toEqual({ imported: 1, failed: [], warnings: [] });
+    expect(row('A017')).toMatchObject({
+      targetMonth: 30,
+      ageLabel: '2–6岁',
+      ageMonths: { min: 24, max: 72 },
+      people: '亲子',
+      trains: '练协调',
+      need: '一首有节奏的歌',
+      easier: '只拍手',
+      harder: '音乐停就定住',
+      tip: '选孩子喜欢的歌。',
+      deeper: '物理治疗册 模组九',
+      posterUrl: '/media/activities/A017.jpg',
+      videoSeconds: 10,
+      steps: [{ imageUrl: null, instruction: '放一首歌。' }],
+    });
+  });
+
+  it('未登入 401；公司成員 403 —— 一列都沒寫', async () => {
+    const body = { rows: [{ id: 'A017', moduleNo: 1, targetMonth: 30 }] };
+    expect((await importJson(body, null)).status).toBe(401);
+    const member = await importJson(body, await login('a@jia.com', 'pw-jia-123'));
+    expect(member.status).toBe(403);
+    expect((await member.json()).code).toBe('FORBIDDEN');
+    expect(row('A017').targetMonth).toBeNull();
+  });
+
+  it('整份的形狀不對 → 400，一列都沒寫', async () => {
+    for (const body of [{}, { rows: 'A017' }, { rows: [] }, { rows: [{ id: 'A017', moduleNo: 1, targetMonth: 30 }], dryRun: 'false' }]) {
+      const resp = await importJson(body);
+      expect(resp.status, JSON.stringify(body)).toBe(400);
+      expect(typeof (await resp.json()).error).toBe('string');
+    }
+    expect(row('A017').targetMonth).toBeNull();
+  });
+
+  it('列數上限：500 列收、501 列整份 400', async () => {
+    const one = { id: 'A017', moduleNo: 1, targetMonth: 30 };
+    // 500 列全是同一支：形狀收下、逐列以「重複」退回 —— 驗的是上限，不是內容。
+    const at = await importJson({ rows: Array.from({ length: 500 }, () => one), dryRun: true });
+    expect(at.status).toBe(200);
+    expect((await at.json()).failed).toHaveLength(500);
+    const over = await importJson({ rows: Array.from({ length: 501 }, () => one) });
+    expect(over.status).toBe(400);
+    expect((await over.json()).error).toContain('500');
+  });
+
+  // 驗收（v2.1 §2 S25）：「300 支一次匯入、targetMonth 无 null」。
+  it('300 支一次匯入：全部寫進去，targetMonth 沒有一支是 null', async () => {
+    const rows = ACTIVITY_SEED.map((a, i) => ({
+      id: a.id,
+      moduleNo: a.moduleNo,
+      targetMonth: (i * 7) % 217,
+      targets: i % 2 ? ['mot.balance'] : [],
+    }));
+    const resp = await importJson({ rows });
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ imported: 300, failed: [], warnings: [] });
+
+    const { activityCoverage } = await import('../src/utils/activityAdmin');
+    const list = (await (await client.get('/api/admin/activities', h(token))).json()).activities;
+    expect(activityCoverage(list)).toEqual({ total: 300, targetMonthFilled: 300, targetsFilled: 150, active: 300 });
+    expect(list.filter((a: any) => a.targetMonth === null)).toEqual([]);
   });
 });
 

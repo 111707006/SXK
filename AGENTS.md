@@ -157,8 +157,15 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > 读回时空字串的网址就是 `null`，见 `src/db/activities.ts`）；画面
 > `src/admin/panels/ActivitiesPanel.tsx`，四个进度数字 `activityCoverage`；`targets`／`avoidIf` 的勾选显示
 > 「中文短名 · 英文码」（v2.1 S15），存的仍是英文码。
-> 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`、`test/activityAdmin.test.ts`、
-> `test/activityGuide.test.ts`。
+>
+> 批量汇入（v2.1 S25，客户 E 表用；**E 表还没来，只用假资料测过**）：`POST /api/admin/activities/import`，
+> 每列检查在 `planActivityImport`（`src/utils/activityAdmin.ts`）：`id` 格式对且活动库里有、`moduleNo` 必填且等于
+> `moduleNoOf`、`targetMonth` 必填 0–216 整数（**不收 null**，PATCH 可以），其余栏位走同一个 `readActivityPatch`
+> （所以 K17 的内容栏位、只有文字的步骤都收得下，规则同 PATCH）；同一个 `id` 出现两次那几列全退；认不得的栏位
+> （含「草稿」标记、`ageMonths`）忽略并进 `warnings`。写入逐列 `updateActivity`，一列写不进去记进 `failed`、不整份 500。
+> 画面：活动库分页的「批量汇入」—— 选 JSON 档 → 试跑 → 看退回清单与忽略的栏位 → 确认汇入 → 重读列表。
+> 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`（唯一的 POST 是 `/activities/import`）、
+> `test/activityAdmin.test.ts`、`test/activityGuide.test.ts`。
 >
 > 活动内容（Keep 规格 K02／K03，2026-09-23）：手册每张卡的原文（`age_label` 到 `deeper`）、模组一的脚本（`guide`，
 > 形状见 `src/t2/types.ts` 的 `ActivityGuide`）与示范片封面／片长（`poster_url`／`video_seconds`，这份只加栏位，下一段的迁移才填）
@@ -220,6 +227,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `/api/t2/practice-prefs` | GET／PUT | 提醒的星期几（0＝星期一…6＝星期日，可复选）与时间（只收 08:30／12:30／19:30／20:30）；两样要嘛都有、要嘛清成 `[]` 与 null | PUT：`reminderDays`, `reminderTime`；`Authorization: Bearer <token>` |
 | `/api/t2/practice-prefs.ics` | GET | 依提醒产生每周重复的 `.ics`（`RRULE:FREQ=WEEKLY`、`TZID=Asia/Shanghai`、标题「陪孩子做家庭活动」）；没设提醒 404。**两种身分**：Bearer，或 `?t=` 带下一支发的短时效连结（带了 `t` 就只看连结，坏的／过期的 401，不退回 Bearer） | `Authorization: Bearer <token>` 或 `t` (query) |
 | `/api/t2/practice-prefs/ics-link` | POST | 换一条上面那一支的短时效连结（Keep 票 7）：回 `{url: "/api/t2/practice-prefs.ics?t=…"}`，10 分钟内有效、`Cache-Control: no-store`；没设提醒 404 `REMINDER_NOT_SET`。前端拿到用 `location.href` 开（手机「加入日历」那一次请求带不了 Bearer） | `Authorization: Bearer <token>` |
+| `/api/admin/activities/import` | POST | 活动批量汇入（v2.1 S25，格式见 v2.1 附录 C）：**逐列独立**，坏列整列不入库、其他列照写；只更新已有的活动（不新增）；`dryRun: true` 只验不写。回 `{imported, failed: [{row, id?, error}], warnings: [{row, field}]}`（列号从 1 起）。形状不对（非阵列、空的、超过 500 列、`dryRun` 非布林）整份 400；只有全域管理员（`requireGlobal`，不经 `withScope`） | `rows`, `dryRun`（选填）；`Authorization: Bearer <后台 token>` |
 
 > T2 入口的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
 > 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量，诊断方向会改题量。

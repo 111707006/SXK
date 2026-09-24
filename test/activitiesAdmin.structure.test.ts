@@ -24,17 +24,20 @@ describe('活動庫的路由在 requireGlobal 之下', () => {
   const handlers = [...routes.matchAll(/router\.(get|post|put|patch|delete)\(\s*'\/activities[^']*'[^\n]*\n([^\n]*)/g)];
 
   it('確實抓到了路由（護欄本身沒有壞掉）', () => {
-    expect(handlers.map(h => h[1])).toEqual(['get', 'patch']);
+    expect(handlers.map(h => h[1])).toEqual(['get', 'patch', 'post']);
   });
 
-  it.each(['get', 'patch'])('%s /activities… 的第一句就是 requireGlobal', method => {
+  it.each(['get', 'patch', 'post'])('%s /activities… 的第一句就是 requireGlobal', method => {
     const h = handlers.find(x => x[1] === method)!;
     expect(h[2]).toContain('if (!requireGlobal(req, res)) return;');
   });
 
   // 只有停用沒有刪除（ADR-0005）；沒有新增 —— 300 支由種子寫入，之後新增走遷移。
-  it('沒有 DELETE、沒有 POST', () => {
-    expect(routes).not.toMatch(/router\.(delete|post)\(\s*'\/activities/);
+  // 唯一的 POST 是批量匯入（v2.1 S25），它只更新活動庫裡已有的（`planActivityImport`）。
+  it('沒有 DELETE；POST 只有 /activities/import', () => {
+    expect(routes).not.toMatch(/router\.delete\(\s*'\/activities/);
+    const posts = [...routes.matchAll(/router\.post\(\s*'(\/activities[^']*)'/g)].map(m => m[1]);
+    expect(posts).toEqual(['/activities/import']);
   });
 
   it('活動庫不經過 withScope —— 它不是家長資料', () => {

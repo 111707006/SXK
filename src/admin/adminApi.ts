@@ -7,7 +7,7 @@
  */
 
 import type { AssessmentRecord } from '../types';
-import type { ActivityPatch } from '../utils/activityAdmin';
+import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
 
 const TOKEN_KEY = 'sxk_admin_token';
@@ -275,5 +275,12 @@ export const adminApi = {
     request<{ activity: Activity }>(`/activities/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
+    }),
+
+  // 批量匯入（v2.1 S25）：先 dryRun 試跑、給人看過，再同一份 rows 正式匯入。
+  importActivities: (rows: unknown[], dryRun: boolean) =>
+    request<ActivityImportReport>('/activities/import', {
+      method: 'POST',
+      body: JSON.stringify({ rows, dryRun }),
     }),
 };

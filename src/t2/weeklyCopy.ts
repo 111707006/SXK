@@ -78,7 +78,8 @@ export function weekRangeLabel(weekStart: string, weekEnd: string): string {
   return a && b ? `${a} – ${b}` : '';
 }
 
-function monthDayLabel(date: string): string {
+/** 「9 月 7 日」。認不得的日期回空字串。打卡日曆「最近的打卡」也用它（Keep 票 8）。 */
+export function monthDayLabel(date: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   return m ? `${Number(m[2])} 月 ${Number(m[3])} 日` : '';
 }

@@ -12,7 +12,8 @@
  * - 配不到活動的維度列「準備中」並導向專家（`PREPARING_SENTENCE`）。
  * - 配對用的實足月齡與報告的測評月齡不同時說一句（`AGE_SPLIT_NOTE`，經 `weekAgeLine`）。
  *
- * 【片庫與打卡日曆（票 8）】在那之前兩個入口顯示「即将开放」、不能點——不放點了會壞或空白的按鈕。
+ * 【片庫與打卡日曆（票 8）】標題列的兩個分頁字與第 6 項入口推一層蓋在報告上（`LibraryScreen`、
+ * `CalendarScreen`）。
  */
 import { useState, type ReactNode } from 'react';
 import { CalendarDays, ChevronRight, LayoutGrid, ListVideo, Loader2, MessageCircle, Play, Shuffle, UserRound, X } from 'lucide-react';
@@ -92,16 +93,8 @@ function ActivityCard({ activity, dimension, lead, practiced, onClick }: {
   );
 }
 
-/** 標題列右邊的分頁字；`disabled` 的底下掛一行「即将开放」（票 8 之前的片庫、打卡日曆）。 */
-function TabWord({ label, onClick, disabled = false }: { label: string; onClick?: () => void; disabled?: boolean }) {
-  if (disabled) {
-    return (
-      <span aria-disabled="true" className="relative text-[16px] font-bold text-brand-charcoal/25 leading-none whitespace-nowrap">
-        {label}
-        <span className="absolute left-0 top-full mt-1 text-[9px] font-bold text-brand-charcoal/45 whitespace-nowrap">{COMMON.comingSoon}</span>
-      </span>
-    );
-  }
+/** 標題列右邊的分頁字。 */
+function TabWord({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="text-[16px] font-bold text-brand-charcoal/50 hover:text-brand-forest leading-none whitespace-nowrap cursor-pointer">
       {label}
@@ -149,8 +142,8 @@ export default function ReportEntry() {
             <span className="relative z-10">{ENTRY.title}</span>
             <span aria-hidden="true" className="absolute left-0 right-0 -bottom-0.5 h-2.5 rounded-sm bg-brand-moss/50" />
           </h3>
-          <TabWord label={ENTRY.tabs.library} disabled />
-          <TabWord label={ENTRY.tabs.calendar} disabled />
+          <TabWord label={ENTRY.tabs.library} onClick={() => nav.openPage({ name: 'library' })} />
+          <TabWord label={ENTRY.tabs.calendar} onClick={() => nav.openPage({ name: 'calendar' })} />
           <TabWord label={ENTRY.tabs.expert} onClick={() => nav.openSheet({ kind: 'expert' })} />
         </div>
         <p className="mt-1 text-[13px] text-brand-charcoal/60">{ENTRY.subtitle}</p>
@@ -270,17 +263,19 @@ export default function ReportEntry() {
         </section>
       ))}
 
-      {/* 6. 示範片庫入口（票 8 之前：即将开放） */}
-      <div aria-disabled="true" className="w-full rounded-xl bg-brand-cream px-4 py-3.5 flex items-center gap-3 text-left">
+      {/* 6. 示範片庫入口 */}
+      <button
+        type="button"
+        onClick={() => nav.openPage({ name: 'library' })}
+        className="w-full rounded-xl bg-brand-cream px-4 py-3.5 flex items-center gap-3 text-left cursor-pointer active:scale-[0.99] transition"
+      >
         <ListVideo size={22} className="text-brand-moss shrink-0" />
         <span className="flex-1 min-w-0">
           <span className="block text-[15px] font-bold text-brand-forest">{ENTRY.libraryTitle}</span>
           <span className="block text-[12px] text-brand-charcoal/55">{ENTRY.librarySub}</span>
         </span>
-        <span className="shrink-0 text-[11px] font-bold text-brand-charcoal/55 border border-brand-stone rounded-full px-2 py-0.5">
-          {COMMON.comingSoon}
-        </span>
-      </div>
+        <ChevronRight size={18} className="shrink-0 text-brand-charcoal/40" />
+      </button>
 
       {/* 7. 可關的橫幅 → 問專家（四種服務 → 既有的預約表） */}
       {bannerOpen && (

@@ -22,6 +22,7 @@ import { AGE_SPLIT_NOTE } from './weeklyCopy';
 import { PLAN_TOTAL_WEEKS, type PlanPosition } from './trainingPlan';
 import type { CheckinMood } from './practice';
 import type { ModuleNo } from './types';
+import { hasReminder, type PracticePrefs } from './practice';
 
 /** 孩子的稱呼：家長填了名字用名字，沒有就是「孩子」（與 SMART 目標同一個退路）。 */
 export function childLabel(name: string | undefined): string {
@@ -218,7 +219,7 @@ export function practicedBadge(n: number): string {
   return `已练 ${n} 次`;
 }
 
-// ── 還沒做的頁（示範片庫、打卡日曆，票 8） ─────────────────────────────
+// ── 認不得的頁的退路（`ComingSoonScreen`；片庫、日曆票 8 已換成真的頁） ─
 
 export const COMING_SOON = {
   title: '即将开放',
@@ -528,4 +529,109 @@ export function reminderSaved(label: string): string {
 /** 「每周一、三、五 19:30」（星期 0＝一…6＝日，與 `practice.ts` 同一套編號）。 */
 export function reminderLabel(days: ReadonlyArray<number>, time: string): string {
   return `每周${days.map(d => WEEKDAYS[d]).join('、')} ${time}`;
+}
+
+// ── 打卡日曆、示範片庫（Keep 票 8） ────────────────────────────────────
+//
+// §3.7、§3.9。句子的來源：樣品的 `CalendarScreen`／`LibraryScreen` 原句，規格點名的兩句照規格
+// （提醒列、片庫底下那一句）。數字與日期由畫面算好傳進來，這裡只拼字。
+
+/** 打卡日曆（§3.7）。 */
+export const CALENDAR = {
+  title: '打卡日历',
+  /** 三個數字的標題。第三個與計劃頁底部的 x/4 同一句（`PLAN_PAGE.barLabel`）。 */
+  stats: ['本月练了几天', '连续天数', PLAN_PAGE.barLabel],
+  prevMonth: '上个月',
+  nextMonth: '下个月',
+  legend: {
+    done: '练过',
+    reminder: '提醒的日子',
+    today: '今天',
+    /** 第 12 週末（§8、v2.1 S14），與計劃頁 STEP 4 最後一格同一天。 */
+    reassess: `第 ${PLAN_TOTAL_WEEKS} 周末再评估`,
+  },
+  recentTitle: '最近的打卡',
+  recentEmpty: '还没有打卡。做完一个活动按「打卡」，就会记在这里。',
+  /** 這個月的打卡讀不出來：日曆照畫，練過的日子不標，數字不出（不寫 0）。 */
+  checkinsError: '打卡记录暂时读不出来，请稍后再打开这一页。',
+  /** 提醒讀不出來：不說「还没设」（那是一句不知道真假的話）。 */
+  reminderError: '提醒暂时读不出来，点这里重新设定',
+} as const;
+
+/**
+ * 提醒列（§3.7）：「提醒：每周一、三、五 19:30」或「还没设提醒，设定每周哪几天练」。
+ * 「每周……」與加到日曆抽屜存好時說的是同一句（`reminderLabel`，票 7）。
+ */
+export function reminderLine(prefs: PracticePrefs | null): string {
+  if (!hasReminder(prefs)) return '还没设提醒，设定每周哪几天练';
+  return `提醒：${reminderLabel(prefs.reminderDays, prefs.reminderTime)}`;
+}
+
+/** 月曆的標題：「2026 年 9 月」。 */
+export function calendarMonthLabel(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return `${y} 年 ${m} 月`;
+}
+
+/**
+ * 最近的打卡那一列找不到活動（停用了、讀不到）：「活动 007」。只寫編號，不編一個名字。
+ */
+export function unknownActivityTitle(id: string): string {
+  return `活动 ${activityNo(id)}`;
+}
+
+/** 最近的打卡那一列：「看到 N 项进步」（勾了才出）。 */
+export function progressSeen(n: number): string {
+  return `看到 ${n} 项进步`;
+}
+
+/** 示範片庫（§3.9）。 */
+export const LIBRARY = {
+  title: '示范片库',
+  markPlan: '本周',
+  markSwap: '换着玩',
+  /** 適齡含孩子現在的月齡時，接在適齡原文後面。 */
+  fitsNow: ' · 适合现在',
+  loading: '正在读取示范片…',
+  error: '示范片暂时读不出来，请稍后再打开这一页。',
+  /** 片庫是空的（示範片還在上架）。 */
+  empty: '示范片还在制作中，做好后都会放在这里。这一周的活动先照图文一步一步做，一样能打卡。',
+  /** 篩選之後一支都沒有。 */
+  filterEmpty: '这一类暂时还没有示范片。',
+} as const;
+
+/** 片庫最上面那一行：「17 支示范片 · 点开看怎么做」。 */
+export function librarySummary(n: number): string {
+  return `${n} 支示范片 · 点开看怎么做`;
+}
+
+/** 三個篩選，帶數量。 */
+export function libraryChips(
+  childName: string | undefined,
+  counts: { all: number; fit: number; later: number },
+): Array<{ key: 'all' | 'fit' | 'later'; label: string }> {
+  return [
+    { key: 'all', label: `全部 ${counts.all}` },
+    { key: 'fit', label: `适合${childLabel(childName)}现在 ${counts.fit}` },
+    { key: 'later', label: `再大一点 ${counts.later}` },
+  ];
+}
+
+/** 片庫底下那一句（§3.9 原句）。 */
+export function libraryFootnote(childName: string | undefined): string {
+  const child = childLabel(childName);
+  return `年龄还没到的也可以先看片。每周排进计划的，只会是适合${child}现在月龄的活动。`;
+}
+
+/** 手冊的編號：`A001` → `001`（樣品卡片上標題前那個灰字）。認不得的照原樣。 */
+export function activityNo(id: string): string {
+  const m = /^A(\d{3})$/.exec(id);
+  return m ? m[1] : id;
+}
+
+const MODULE_NUMERALS = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五'];
+
+/** 片庫的組標題：「模组一 · 身体动一动」（模組名是票 7 的 `MODULE_TITLES_SC`）。 */
+export function moduleHeading(no: ModuleNo): string {
+  return `模组${MODULE_NUMERALS[no]} · ${MODULE_TITLES_SC[no]}`;
 }

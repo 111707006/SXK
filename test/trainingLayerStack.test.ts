@@ -379,3 +379,54 @@ describe('邊界', () => {
     expect(browser.history.state).toEqual({ other: 1, sxkTraining: [plan] });
   });
 });
+
+describe('打卡日曆、示範片庫（票 8）：各是一層，返回鍵關最上面那一層', () => {
+  const library: Layer = { type: 'page', route: { name: 'library' } };
+  const calendar: Layer = { type: 'page', route: { name: 'calendar' } };
+  const reminder: Layer = { type: 'sheet', sheet: { kind: 'calendar' } };
+  const fromLibrary: Layer = { type: 'page', route: { name: 'detail', id: 'A004', from: 'library' } };
+
+  it('報告 → 片庫 → 詳情：返回先關詳情、停在片庫，再按回到報告', async () => {
+    const { browser, stack } = setup();
+    stack.push(library);
+    stack.push(fromLibrary);
+    expect(browser.calls.push).toBe(2);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([library]);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([]);
+    expect(browser.depth).toBe(0);
+  });
+
+  it('日曆上開「加到日历」抽屜：返回只關抽屜，日曆還在', async () => {
+    const { browser, stack } = setup();
+    stack.push(calendar);
+    stack.push(reminder);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([calendar]);
+  });
+
+  it('計劃頁 → 日曆：畫面上的 ‹ 與返回鍵同一條路，只關日曆', async () => {
+    const { browser, stack } = setup();
+    stack.push(plan);
+    stack.push(calendar);
+    stack.back();
+    expect(browser.calls.go).toEqual([-1]);
+    await flush();
+    expect(stack.layers()).toEqual([plan]);
+  });
+
+  it('歷史上記著的片庫、日曆與「加到日历」抽屜認得回來（前進鍵）', async () => {
+    const { browser, stack } = setup();
+    stack.push(calendar);
+    stack.push(reminder);
+    browser.pressBack();
+    await flush();
+    browser.pressForward();
+    await flush();
+    expect(stack.layers()).toEqual([calendar, reminder]);
+  });
+});

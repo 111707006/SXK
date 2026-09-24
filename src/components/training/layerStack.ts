@@ -41,7 +41,7 @@ export type DetailSource = 'plan' | 'swap' | 'library';
 
 /**
  * 蓋在報告上的頁面。計劃頁（票 6）、詳情、按 GO 之後的播放器、打卡成功（票 7）；
- * 示範片庫、打卡日曆是票 8 的，在那之前落在「即将开放」那一頁（`TrainingOverlay`）。
+ * 示範片庫、打卡日曆（票 8，`LibraryScreen`、`CalendarScreen`）。
  *
  * - `go`：播放器。`mode` 是按 GO 那一刻決定的（有沒有片、家長選的跟練方式），記在這一格上，
  *   前進鍵開回來的是同一種。

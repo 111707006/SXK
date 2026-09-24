@@ -47,7 +47,8 @@ describe('資料與狀態重寫，不搬樣品', () => {
 
   it('沒有 toast 佔位（想练、一起练、分享、更多、筛选都不做）', () => {
     expect(all).not.toMatch(/toast/i);
-    expect(all).not.toMatch(/Share2|Ellipsis|Filter\b|ListPlus/);
+    // 擋的是樣品那幾顆佔位按鈕的圖示。片庫的三個篩選（§3.9 要的，`LibraryFilter`）不是報告頁那顆「筛选」
+    expect(all).not.toMatch(/\bShare2\b|\bEllipsis\b|\bFilter\b|\bListPlus\b/);
   });
 
   it('每週活動與打卡從 API 來；畫面不配對、不重算週次', () => {
@@ -105,10 +106,11 @@ describe('規格點名的幾件事在畫面上', () => {
     expect(entry).toContain('alternateRows(plan)');
   });
 
-  it('片庫、打卡日曆（票 8）的入口是「即将开放」，點不動', () => {
-    expect(entry).toMatch(/<TabWord label=\{ENTRY\.tabs\.library\} disabled \/>/);
-    expect(entry).toMatch(/<TabWord label=\{ENTRY\.tabs\.calendar\} disabled \/>/);
-    expect(entry).not.toMatch(/openPage\(\{ name: '(library|calendar)' \}\)/);
+  it('片庫、打卡日曆（票 8）的入口接通：兩個分頁字與第 6 項都推一層，不再是「即将开放」', () => {
+    expect(entry).toMatch(/<TabWord label=\{ENTRY\.tabs\.library\} onClick=\{\(\) => nav\.openPage\(\{ name: 'library' \}\)\} \/>/);
+    expect(entry).toMatch(/<TabWord label=\{ENTRY\.tabs\.calendar\} onClick=\{\(\) => nav\.openPage\(\{ name: 'calendar' \}\)\} \/>/);
+    expect(entry.match(/openPage\(\{ name: 'library' \}\)/g)).toHaveLength(2);
+    expect(entry).not.toContain('comingSoon');
   });
 
   it('計劃頁的第幾週與「已满 12 周」走 planWeekLabel，12 週的格子走 planGrid', () => {
@@ -203,8 +205,8 @@ describe('票 7：詳情、播放器、打卡成功、抽屜', () => {
     expect(sheets).not.toContain('practice-prefs');
   });
 
-  it('打卡日曆（票 8）之前，「练过 N」與「看打卡日历」落在「即将开放」', () => {
-    expect(overlay).toMatch(/case 'calendar':\s*return <ComingSoonScreen \/>;/);
+  it('「练过 N」與「看打卡日历」開打卡日曆（票 8 接上真的頁）', () => {
+    expect(overlay).toMatch(/case 'calendar':\s*return <CalendarScreen \/>;/);
     expect(detail).toContain("nav.openPage({ name: 'calendar' })");
     expect(checkin).toContain("nav.openPage({ name: 'calendar' })");
   });

@@ -49,7 +49,12 @@
 │   │   │   ├── useActivity.ts       # 这一支活动：先找每周活动那一份，找不到读 /api/t2/activities/:id（留快取）；片库清单
 │   │   │   ├── trainingApi.ts       # 单次动作：读单支／片库、打卡、改心情进步、读写提醒、换 .ics 连结
 │   │   │   ├── followMode.ts        # 跟练方式存 localStorage（读写包 try/catch，读不到＝看示范片）；device.ts 微信判断、投屏先试浏览器自己的
-│   │   │   └── TrainingOverlay.tsx  # 各层怎么叠（portal、fixed、max-w-3xl）；详情知道自己是不是最上面那一页；片库与打卡日历先落在「即将开放」（票 8）
+│   │   │   ├── CalendarScreen.tsx   # 打卡日历（§3.7，票 8）：三个数字、月历（练过／今天／提醒虚线／第 12 周末）、提醒列（→ ReminderSheet）、最近 8 笔
+│   │   │   ├── useCalendarData.ts   # 日历一个月一个月查 checkins（每段 ≤31 天）、连续天数不够再往前补一个月、最近打卡的活动单支读（用 useActivity 的快取）
+│   │   │   ├── calendarData.ts      # 纯函式：月历格、切月、要查哪一段、calendarSummary（本月几天、连续天数、最近 8 笔）、第 12 周末
+│   │   │   ├── LibraryScreen.tsx    # 示范片库（§3.9，票 8）：片库清单（useActivity 的 useLibraryLoad，与详情的系列列同一次读取），依模组分组、三个筛选、本周／换着玩标记、空状态
+│   │   │   ├── libraryData.ts       # 纯函式：适合现在／再大一点（走 ageFit）、依模组分组、本周／换着玩
+│   │   │   └── TrainingOverlay.tsx  # 各层怎么叠（portal、fixed、max-w-3xl）；详情知道自己是不是最上面那一页；route → 页、SheetState → 抽屉
 │   │   ├── AnalysisReport.tsx       # 分析报告
 │   │   ├── SpecializedReportView.tsx # 专项报告视图
 │   │   ├── LanguageSpecialAssessment.tsx # 语言专项评估
@@ -71,7 +76,7 @@
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）、没有工具的维度怎么讲（6 岁以上认知／语言／动作用客户固定句，v2.1 S05）
 │   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
 │   │   ├── weeklyCopy.ts  # 每周活动画面的句子：「因为……所以练……」、年龄段、准备中（#60）
-│   │   ├── trainingCopy.ts # 线上干预新画面自己的字（Keep K16）：按钮、标题、12 周的说法；判定仍走 statusWording、理由句仍走 weeklyCopy
+│   │   ├── trainingCopy.ts # 线上干预新画面自己的字（Keep K16）：按钮、标题、12 周的说法；判定仍走 statusWording、理由句仍走 weeklyCopy；后面两段是票 7（详情、播放器、打卡成功、抽屉，含 15 个模组的简体名 MODULE_TITLES_SC）与票 8（打卡日历、示范片库）
 │   │   ├── reportCopy.ts  # 报告页的句子与作答回顾：维度状态句（partial／not_assessed／no_tool 与 clear 分开；没做的带 T1 红／黄、no_tool 灰，v2.1 S02；6 岁以上的固定句，S05）、九宫格不出「不筛」的维度（gridDimensions，v2.1 S08）、「三个月后重评」（S14）、逐族的「尚未稳定」题目、距上次 N 天（#61）
 │   │   ├── advice.ts      # CONSEQ／PLAN 的取句规则（v2.1 §6.3，S09）：从快照取题库 `advice` 原文，不经 AI；题库现在没有这一栏，报告上两段不出现（内容等 S23）
 │   │   ├── trainingPlan.ts # 家庭训练的「第几周」（Keep §4.5）：`PLAN_TOTAL_WEEKS = 12`（暂采）、`planPosition`

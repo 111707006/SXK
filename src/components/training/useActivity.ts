@@ -25,7 +25,11 @@ export type ActivityLoad =
 const activityCache = new Map<string, Activity>();
 const activityLoads = new Map<string, Promise<Activity | null>>();
 
-function loadActivity(id: string): Promise<Activity | null> {
+/**
+ * 讀一支活動，走上面那份快取（停用或不存在是 `null`）。打卡日曆「最近的打卡」要名字與封面時也用它
+ *（票 8）：家長接著點進那一支的詳情，就不必再讀一次。
+ */
+export function loadActivity(id: string): Promise<Activity | null> {
   const cached = activityCache.get(id);
   if (cached) return Promise.resolve(cached);
   let load = activityLoads.get(id);
@@ -72,26 +76,50 @@ export function useActivity(id: string): ActivityLoad {
 }
 
 let libraryLoad: Promise<LibraryEntry[]> | null = null;
+/** 讀到過的那一份：再打開片庫時直接畫，不先閃一下「正在读取」。 */
+let libraryEntries: LibraryEntry[] | null = null;
 
-/** 示範片庫那一份（詳情從片庫點進來時的系列列）。`enabled` 為假時不讀；讀不到是 `null`。 */
-export function useLibraryList(enabled: boolean): LibraryEntry[] | null {
-  const [list, setList] = useState<LibraryEntry[] | null>(null);
+export type LibraryLoad = { status: 'loading' } | { status: 'error' } | { status: 'ready'; entries: LibraryEntry[] };
+
+/**
+ * 示範片庫那一份，連同讀到哪裡了（票 8 的片庫頁要分「還在讀」「讀不出來」「讀到了但是空的」）。
+ * 與 `useLibraryList` 共用同一次讀取；讀失敗的不留，下次再讀。`enabled` 為假時不讀、停在 `loading`。
+ */
+export function useLibraryLoad(enabled: boolean): LibraryLoad {
+  const [load, setLoad] = useState<LibraryLoad>(() =>
+    libraryEntries ? { status: 'ready', entries: libraryEntries } : { status: 'loading' },
+  );
   useEffect(() => {
     if (!enabled) return;
     let live = true;
     if (!libraryLoad) {
-      libraryLoad = fetchLibrary().catch(err => {
-        libraryLoad = null;
-        throw err;
-      });
+      libraryLoad = fetchLibrary().then(
+        entries => {
+          libraryEntries = entries;
+          return entries;
+        },
+        err => {
+          libraryLoad = null;
+          throw err;
+        },
+      );
     }
     libraryLoad.then(
-      entries => live && setList(entries),
-      err => console.warn('Failed to load T2 library:', err),
+      entries => live && setLoad({ status: 'ready', entries }),
+      err => {
+        console.warn('Failed to load T2 library:', err);
+        if (live) setLoad({ status: 'error' });
+      },
     );
     return () => {
       live = false;
     };
   }, [enabled]);
-  return enabled ? list : null;
+  return load;
+}
+
+/** 示範片庫那一份（詳情從片庫點進來時的系列列）。`enabled` 為假時不讀；還在讀、讀不到都是 `null`。 */
+export function useLibraryList(enabled: boolean): LibraryEntry[] | null {
+  const load = useLibraryLoad(enabled);
+  return enabled && load.status === 'ready' ? load.entries : null;
 }

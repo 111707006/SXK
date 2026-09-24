@@ -12,15 +12,17 @@
  * 會改成相對那個容器定位（`index.css` 的 `.animate-fade-in` 註解記過一次）。寬度上限與報告頁相同
  *（`max-w-3xl`），手機上滿版、桌機置中，兩側暗下來。
  *
- * 【還沒做的頁】（票 8）示範片庫、打卡日曆落在「即将开放」。票 8 在這裡把 `library`／`calendar` 換成真的頁。
+ * 【頁】計劃（票 6）、詳情／播放器／打卡成功（票 7）、示範片庫與打卡日曆（票 8）；認不得的頁落在「即将开放」。
  */
 import { createPortal } from 'react-dom';
 import type { Layer, Route, SheetState } from './layerStack';
+import CalendarScreen from './CalendarScreen';
 import CheckinScreen from './CheckinScreen';
 import ComingSoonScreen from './ComingSoonScreen';
 import DetailScreen from './DetailScreen';
 import { ActionsSheet, CastSheet, EquipSheet, ModeSheet } from './DetailSheets';
 import ExpertSheet from './ExpertSheet';
+import LibraryScreen from './LibraryScreen';
 import PlanScreen from './PlanScreen';
 import PlayerScreen from './PlayerScreen';
 import ReminderSheet from './ReminderSheet';
@@ -36,8 +38,9 @@ function PageContent({ route, active }: { route: Route; active: boolean }) {
     case 'checkin':
       return <CheckinScreen id={route.id} checkinId={route.checkinId} times={route.times} date={route.date} />;
     case 'library':
+      return <LibraryScreen />;
     case 'calendar':
-      return <ComingSoonScreen />;
+      return <CalendarScreen />;
     default:
       // 歷史上留著一格舊版本認得、這一版不認得的頁（部署之後按前進鍵）：不畫空白，給一句話與返回
       return <ComingSoonScreen />;

@@ -7,6 +7,7 @@ import {
   monthFetchRange,
   monthGrid,
   monthOf,
+  planWeekPractice,
   reassessDayOf,
   shiftMonth,
   type LoadedMonths,
@@ -248,5 +249,34 @@ describe('最近的打卡那一列的封面、活動名、維度', () => {
     const recent = [checkin('2026-09-22', { activityId: 'A001' }), checkin('2026-09-21', { activityId: 'A300' }), checkin('2026-09-20', { activityId: 'A002' }), checkin('2026-09-19', { activityId: 'A300' }), checkin('2026-09-18', { activityId: 'A301' })];
     expect(unknownActivityIds(recent, plan(), new Set())).toEqual(['A300', 'A301']);
     expect(unknownActivityIds(recent, plan(), new Set(['A300']))).toEqual(['A301']);
+  });
+});
+
+describe('本週練過的計劃活動 x/4（日曆自己查的那幾個月）', () => {
+  const ids = (p: WeeklyPlanResponse) => p.activities.map(x => x.activity.id);
+
+  it('本週的打卡在這個月與上個月裡：照 practiceStats 算；換著玩、片庫的不算進 x/4', () => {
+    const week = { ...plan(), weekStart: '2026-08-31', weekEnd: '2026-09-06' };
+    const loaded: LoadedMonths = {
+      '2026-09': [checkin('2026-09-01', { activityId: 'A141' }), checkin('2026-09-02', { activityId: 'A002' })],
+      '2026-08': [checkin('2026-08-31', { activityId: 'A001' }), checkin('2026-08-30', { activityId: 'A141' })],
+    };
+    const r = planWeekPractice(loaded, week, '2026-09-03');
+    expect(r).toMatchObject({ planPracticed: 2, planTotal: 2, sessions: 3 });
+    expect(ids(week)).toEqual(['A001', 'A141']);
+  });
+
+  it('本週跨到下個月：還沒到的那個月不用查（不會有打卡）', () => {
+    const week = { ...plan(), weekStart: '2026-09-28', weekEnd: '2026-10-04' };
+    const r = planWeekPractice({ '2026-09': [checkin('2026-09-29', { activityId: 'A001' })], '2026-08': [] }, week, '2026-09-30');
+    expect(r).toMatchObject({ planPracticed: 1, planTotal: 2 });
+  });
+
+  it('本週用到的月份還在讀是 loading、讀不出來是 error（畫面上「…」與「–」，不寫 0）', () => {
+    const week = { ...plan(), weekStart: '2026-08-31', weekEnd: '2026-09-06' };
+    expect(planWeekPractice({ '2026-09': [], '2026-08': 'loading' }, week, '2026-09-03')).toBe('loading');
+    expect(planWeekPractice({ '2026-09': [] }, week, '2026-09-03')).toBe('loading');
+    expect(planWeekPractice({ '2026-09': 'error', '2026-08': [] }, week, '2026-09-03')).toBe('error');
+    expect(planWeekPractice({ '2026-09': [], '2026-08': [] }, null, '2026-09-03')).toBeNull();
   });
 });

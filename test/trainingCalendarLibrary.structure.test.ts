@@ -36,10 +36,11 @@ describe('打卡日曆（§3.7）', () => {
     expect(screen).toContain('activityInfo(c.activityId, plan, fetched)');
   });
 
-  it('三個數字：本月與連續天數走 calendarSummary，x/4 是計劃頁同一份 data.practice；讀不出來不寫 0', () => {
+  it('三個數字：本月與連續天數走 calendarSummary，x/4 走 planWeekPractice（與計劃頁同一個 weekPractice）；讀不出來不寫 0', () => {
     expect(screen).toContain('statValue(summary.monthDays, loading)');
     expect(screen).toContain('statValue(summary.streak, loading)');
-    expect(screen).toContain('`${practice.planPracticed}/${practice.planTotal}`');
+    expect(screen).toContain('planWeekPractice(months, plan, today)');
+    expect(screen).toContain('`${week.planPracticed}/${week.planTotal}`');
     expect(screen).not.toMatch(/\?\? 0\b/);
   });
 

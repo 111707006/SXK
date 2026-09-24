@@ -9,7 +9,8 @@
  * - 本月練了幾天、連續天數、最近 8 筆：一個月一個月查的打卡（`useCalendarData` → `calendarSummary`）。
  *   「本月」是今天所在的那個月，**不跟著翻頁變**：標題寫的是「本月」，翻到上個月時它若變成上個月的
  *   天數，就是一個標錯的數字（樣品跟著翻頁變，這裡不照搬）。
- * - 本週練過的計劃活動 x/4：計劃頁底部同一份（`data.practice`，`practiceStats.weekPractice`）。
+ * - 本週練過的計劃活動 x/4：與計劃頁底部同一個算法（`practiceStats.weekPractice`，那一週的四支才算），
+ *   打卡用日曆自己查的月份（`planWeekPractice`）——資料層那一份讀不到與還在讀都是 `null`，分不出「…」與「–」。
  * - 提醒：`data.prefs`（`GET /api/t2/practice-prefs`，用到才讀：`data.loadPrefs()`）；提醒列開「加到日历」抽屜
  *   （票 7 的 `ReminderSheet`）。抽屜存好時換掉的是同一份 `data.prefs`，提醒列與虛線跟著變。
  * - 第 12 週末（再評估）：每週活動回應的 `plan.firstWeekStart`（§8、v2.1 S14），與計劃頁 STEP 4 最後一格
@@ -33,7 +34,15 @@ import {
   unknownActivityTitle,
 } from '../../t2/trainingCopy';
 import { useTraining } from './TrainingContext';
-import { activityInfo, monthGrid, monthOf, reassessDayOf, shiftMonth, type CalendarDay } from './calendarData';
+import {
+  activityInfo,
+  monthGrid,
+  monthOf,
+  planWeekPractice,
+  reassessDayOf,
+  shiftMonth,
+  type CalendarDay,
+} from './calendarData';
 import { planPositionOf } from './trainingData';
 import { useCalendarData } from './useCalendarData';
 import { Cover, LightNav } from './ui';
@@ -75,11 +84,13 @@ export default function CalendarScreen() {
   });
   // 還有月份在讀（含連續天數往前補查的那個月）就是「…」，都讀完了還是 null 才是「–」
   const loading = months[monthOf(today)] === undefined || Object.values(months).includes('loading');
-  const practice = data.practice;
+  const week = planWeekPractice(months, plan, today);
   const stats = [
     statValue(summary.monthDays, loading),
     statValue(summary.streak, loading),
-    practice ? `${practice.planPracticed}/${practice.planTotal}` : statValue(null, data.status === 'loading'),
+    week !== null && typeof week === 'object'
+      ? `${week.planPracticed}/${week.planTotal}`
+      : statValue(null, week === 'loading' || (week === null && data.status === 'loading')),
   ];
   const showReassess = grid.days.some(d => d.reassess);
   // 還在讀時不說「还没设提醒」（那可能不是真的）

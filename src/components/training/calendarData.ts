@@ -12,7 +12,7 @@
 
 import { addCalendarDays } from '../../t2/weeks';
 import { PLAN_TOTAL_WEEKS } from '../../t2/trainingPlan';
-import { monthPracticeDays, streakDays } from '../../t2/practiceStats';
+import { monthPracticeDays, streakDays, weekPractice, type WeekPractice } from '../../t2/practiceStats';
 import type { Checkin } from '../../t2/practice';
 import type { Activity, DimensionCode } from '../../t2/types';
 import { findInPlan, type DateRange, type WeeklyPlanResponse } from './trainingData';
@@ -56,7 +56,8 @@ export interface DayMarkInput {
 
 /** 這一天是星期幾：0＝星期一 … 6＝星期日（與 `practice.ts` 的提醒編號一致）。 */
 function weekdayOf(date: string): number {
-  return (new Date(`${date}T00:00:00.000Z`).getUTCDay() + 6) % 7;
+  // 經 Date.parse 構造，與 weeks.ts 同一個寫法（`childAge.structure` 的護欄只放行由變數算出的日期）
+  return (new Date(Date.parse(`${date}T00:00:00.000Z`)).getUTCDay() + 6) % 7;
 }
 
 function daysInMonth(month: Month): number {
@@ -202,6 +203,29 @@ export function calendarSummary(loaded: LoadedMonths, today: string): CalendarSu
     recent: [...window].sort(byNewest).slice(0, RECENT_CHECKINS),
     earlierMonth,
   };
+}
+
+/**
+ * 本週練過的計劃活動 x/4（第三個數字）：與計劃頁底部同一個算法（`practiceStats.weekPractice`，那一週的
+ * 四支才算），但打卡用日曆自己查的那幾個月——這樣「還在讀」與「讀不出來」分得開（資料層那一份兩者都是
+ * `null`）。本週跨到還沒到的月份時，那個月不用查：不會有打卡。沒有每週活動是 `null`。
+ */
+export function planWeekPractice(
+  loaded: LoadedMonths,
+  plan: Pick<WeeklyPlanResponse, 'weekStart' | 'weekEnd' | 'activities'> | null,
+  today: string,
+): WeekPractice | 'loading' | 'error' | null {
+  if (!plan) return null;
+  const current = monthOf(today);
+  const checkins: Checkin[] = [];
+  for (const month of new Set([monthOf(plan.weekStart), monthOf(plan.weekEnd)])) {
+    if (month > current) continue;
+    const load = loaded[month];
+    if (load === 'error') return 'error';
+    if (!Array.isArray(load)) return 'loading';
+    checkins.push(...load);
+  }
+  return weekPractice(checkins, plan.weekStart, plan.activities.map(p => p.activity.id));
 }
 
 // ── 最近的打卡那一列 ────────────────────────────────────────────────────

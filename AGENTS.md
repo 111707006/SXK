@@ -153,7 +153,8 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > `tip`／`deeper`／`guide`／`posterUrl`／`videoSeconds`），两支都在 `requireGlobal` 之下、不经过 `withScope`；没有新增、没有删除。
 > 输入检查在 `src/utils/activityAdmin.ts`（`targets` 只认 ★ 标签，链接沿用 `assetUrl.ts`，步骤走 `readSteps`：
 > 允许零步、**图选填**（ADR-0008）；`ageLabel` 改了伺服器连带改配对硬闸 `ageMonths`，`ageMonths` 不能直接送；
-> 手册文字清掉存空字串不存 NULL、`guide` 不能整份删掉 —— 内容迁移重跑只填 NULL）；画面
+> 手册文字与示范片／封面网址清掉存空字串不存 NULL、`guide` 不能整份删掉 —— 内容与示范片的迁移重跑只填 NULL；
+> 读回时空字串的网址就是 `null`，见 `src/db/activities.ts`）；画面
 > `src/admin/panels/ActivitiesPanel.tsx`，四个进度数字 `activityCoverage`；`targets`／`avoidIf` 的勾选显示
 > 「中文短名 · 英文码」（v2.1 S15），存的仍是英文码。
 > 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`、`test/activityAdmin.test.ts`、
@@ -171,8 +172,9 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > `008-不太好` 看档名注记挡），原封不动写到 `media/activities/A0xx.mp4`，并用 ffmpeg 在固定时间点抽一格当封面
 > `A0xx.jpg`（960×540，时间点对过样品的 17 张封面）；片长由 ffprobe 读。清单 `src/t2/activityMedia.ts` 与迁移
 > `deploy/migrations/2026-09-24-activity-media.sql` 的 UPDATE 由同一支脚本产出，`test/activityMedia.test.ts`
-> 重印比对（CI 不需要 zip；有 zip 的机器上另外整批重挑比 sha256）。UPDATE 三格都只在 NULL／空字串时才填 ——
-> **后台清掉一支片，下一次跑迁移会填回来**；要下架得让它离开清单，或停用那支活动。
+> 重印比对（CI 不需要 zip；有 zip 的机器上另外整批重挑比 sha256）。与手册文字同一套规则：**NULL ＝ 从没设过、
+> 空字串 ＝ 后台刻意清掉**，UPDATE 只填 NULL —— 后台下架一支片（清掉网址存 `''`）不会在下一次部署被填回来；
+> 片长另外要那支片还是清单上这一支才补，不会出现「有片长、没有片」。
 > `server.ts` 把 `MEDIA_DIR`（预设 `<cwd>/media`）挂在 `/media`：只在专案 A、**公开不验登入**（网址只出现在付费闸门
 > 后面的活动资料里，`<video>` 也带不了 token）、Range 回 206（iOS 必要）、快取一小时＋ETag、找不到一律 404
 > 不落到 SPA 兜底、目录不在也起得来。护栏：`test/activityMedia.http.test.ts`、`test/activityMediaProjectB.http.test.ts`。

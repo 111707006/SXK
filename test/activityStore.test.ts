@@ -159,6 +159,13 @@ describe('activityFromRow', () => {
     expect(a.active).toBe(false);
   });
 
+  it('後台清掉的示範片與封面（空字串）讀回來是沒有（null）：家長端、片庫、配對看到的與從沒設過一樣', () => {
+    const a = activityFromRow({ ...CONTENT_ROW, video_url: '', poster_url: '  ', video_seconds: null });
+    expect(a.videoUrl).toBeNull();
+    expect(a.posterUrl).toBeNull();
+    expect(a.videoSeconds).toBeNull();
+  });
+
   it('mysql2 已經把 JSON 欄位解析成陣列時，照樣讀得出來', () => {
     const a = activityFromRow({
       ...ROW,
@@ -339,6 +346,15 @@ describe('adminStore.updateActivity（#62）', () => {
       '3–6岁', 36, 72, '亲子', '手机', '练协调', '', '音乐停就定住', '选孩子喜欢的歌。', '物理治疗册 模组九',
       JSON.stringify(GUIDE), '/media/activities/A017.jpg', 10, 'A017',
     ]);
+  });
+
+  // 示範片（Keep 規格 K05）：與手冊文字同一套 ——「清掉」存空字串，NULL 留給「從沒設過」。
+  // 示範片的遷移只填 NULL（deploy/migrations/2026-09-24-activity-media.sql），清掉的不會在下一次部署被填回來。
+  it('清掉示範片與封面（patch 帶 null）存成空字串，不是 NULL；片長清掉照舊存 NULL', async () => {
+    rows = [{ ...ROW }];
+    await store.updateActivity('A017', { videoUrl: null, posterUrl: null, videoSeconds: null });
+    expect(executed[0].sql).toBe('UPDATE activities SET video_url = ?, poster_url = ?, video_seconds = ? WHERE id = ?');
+    expect(executed[0].params).toEqual(['', '', null, 'A017']);
   });
 
   it('只帶 ageMonths 不帶適齡，一樣寫兩欄（它只由路由從適齡解析，這裡不擋）', async () => {

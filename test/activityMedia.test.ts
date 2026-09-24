@@ -157,27 +157,26 @@ describe('清單 → 遷移的 UPDATE', () => {
   const a001 = { id: 'A001', videoUrl: '/media/activities/A001.mp4', posterUrl: '/media/activities/A001.jpg', videoSeconds: 10, sha256: 'a'.repeat(64) };
   const a010 = { id: 'A010', videoUrl: '/media/activities/A010.mp4', posterUrl: '/media/activities/A010.jpg', videoSeconds: 5, sha256: 'b'.repeat(64) };
 
-  it('一支一句，三格都只在「還沒填」時才寫；最後一句數還缺幾支', () => {
+  it('一支一句，三格都只填 NULL（從沒設過）；片長另外要那支片還是這一支；最後一句數還缺幾支', () => {
     expect(renderActivityMediaSql([a001, a010])).toBe([
       'UPDATE `activities` SET',
-      "  `video_url` = IF(`video_url` IS NULL OR TRIM(`video_url`) = '', '/media/activities/A001.mp4', `video_url`),",
-      "  `poster_url` = IF(`poster_url` IS NULL OR TRIM(`poster_url`) = '', '/media/activities/A001.jpg', `poster_url`),",
-      '  `video_seconds` = IF(`video_seconds` IS NULL OR `video_seconds` <= 0, 10, `video_seconds`)',
+      "  `video_url` = IF(`video_url` IS NULL, '/media/activities/A001.mp4', `video_url`),",
+      "  `poster_url` = IF(`poster_url` IS NULL, '/media/activities/A001.jpg', `poster_url`),",
+      "  `video_seconds` = IF(`video_seconds` IS NULL AND (`video_url` IS NULL OR `video_url` = '/media/activities/A001.mp4'), 10, `video_seconds`)",
       "WHERE `id` = 'A001';",
       '',
       'UPDATE `activities` SET',
-      "  `video_url` = IF(`video_url` IS NULL OR TRIM(`video_url`) = '', '/media/activities/A010.mp4', `video_url`),",
-      "  `poster_url` = IF(`poster_url` IS NULL OR TRIM(`poster_url`) = '', '/media/activities/A010.jpg', `poster_url`),",
-      '  `video_seconds` = IF(`video_seconds` IS NULL OR `video_seconds` <= 0, 5, `video_seconds`)',
+      "  `video_url` = IF(`video_url` IS NULL, '/media/activities/A010.mp4', `video_url`),",
+      "  `poster_url` = IF(`poster_url` IS NULL, '/media/activities/A010.jpg', `poster_url`),",
+      "  `video_seconds` = IF(`video_seconds` IS NULL AND (`video_url` IS NULL OR `video_url` = '/media/activities/A010.mp4'), 5, `video_seconds`)",
       "WHERE `id` = 'A010';",
       '',
-      '-- 清單上的每一支三格都有值（_gone 必須回 0，migrate.mjs 的命名約定）。',
+      '-- 清單上的每一支都填過了（後台清掉的空字串也算，那是刻意的）。_gone 必須回 0（migrate.mjs 的命名約定）。',
       'SELECT 2 - COUNT(*) AS activity_media_missing_gone',
       '  FROM `activities`',
       " WHERE `id` IN ('A001', 'A010')",
-      "   AND `video_url` IS NOT NULL AND TRIM(`video_url`) <> ''",
-      "   AND `poster_url` IS NOT NULL AND TRIM(`poster_url`) <> ''",
-      '   AND `video_seconds` > 0;',
+      '   AND `video_url` IS NOT NULL',
+      '   AND `poster_url` IS NOT NULL;',
       '',
     ].join('\n'));
   });
@@ -272,6 +271,27 @@ describe('地基：遷移檔的 UPDATE 是 ACTIVITY_MEDIA 印出來的（CI 跑�
     });
     expect(statements[17]).toMatch(/^SELECT 17 - COUNT\(\*\) AS activity_media_missing_gone\b/);
     expect(migration).not.toMatch(/company_id\s*=/i);
+  });
+
+  // 與手冊文字同一套規則：後台清掉存空字串（刻意清空），遷移只填 NULL（從沒設過）。
+  // migrate.mjs --confirm 每次部署都把每一份遷移從頭跑一遍 —— 條件裡只要多一個「= ''」，
+  // 內容團隊下架的片就會在下一次部署自己回來。
+  it('重跑不把後台清掉的片填回來：每一格的條件只選 NULL，不選空字串', () => {
+    const statements = statementsOf(migration).slice(0, 17);
+    statements.forEach((s, i) => {
+      const m = ACTIVITY_MEDIA[i];
+      const [, video, poster, seconds] = s.split('\n');
+      expect(video).toBe(`  \`video_url\` = IF(\`video_url\` IS NULL, '${m.videoUrl}', \`video_url\`),`);
+      expect(poster).toBe(`  \`poster_url\` = IF(\`poster_url\` IS NULL, '${m.posterUrl}', \`poster_url\`),`);
+      // 片長只跟著這一支片補：片被清掉（空字串）或換成別的網址時不補，免得畫面上有片長卻沒有片。
+      // 條件在 video_url 改寫前後都成立（NULL → 這一支），與 MySQL 由左往右求值的順序無關。
+      expect(seconds).toBe(
+        `  \`video_seconds\` = IF(\`video_seconds\` IS NULL AND (\`video_url\` IS NULL OR \`video_url\` = '${m.videoUrl}'), ${m.videoSeconds}, \`video_seconds\`)`,
+      );
+      expect(s, m.id).not.toMatch(/= ''|TRIM\(/);
+    });
+    // 驗證句也一樣：清掉的（空字串）算「填過了」，不會讓 migrate.mjs 說「先不要部署」。
+    expect(statementsOf(migration)[17]).not.toMatch(/<> ''|TRIM\(/);
   });
 
   it('跑在加欄位的那一份之後（poster_url、video_seconds 由 2026-09-23-activity-content.sql 加）', () => {

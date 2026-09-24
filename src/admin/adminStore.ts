@@ -760,8 +760,14 @@ export async function findActivityById(id: string): Promise<Activity | null> {
  *
  * 手冊的文字欄位照原樣寫字串，**清掉就是空字串，不寫 `NULL`**：`NULL` 是「遷移還沒填」，
  * 遷移重跑只填 `NULL`（`deploy/migrations/2026-09-23-activity-content.sql`），清掉的不會被填回來。
+ *
+ * 示範片與封面同一條規則：patch 裡的 `null` 是「清掉」（`readActivityPatch` 的 `readUrl`），存成空字串；
+ * 示範片的遷移（`2026-09-24-activity-media.sql`）也只填 `NULL`，內容團隊下架的片不會在下一次部署自己回來。
+ * 讀回來時空字串就是沒有（`activityFromRow`）。片長清掉照舊寫 `NULL`：那一欄的遷移另外要片子還是清單上
+ * 那一支才補，片被清掉就不補。
  */
 const plainColumn = (column: string) => [{ column, encode: (v: any) => v }];
+const clearableUrlColumn = (column: string) => [{ column, encode: (v: string | null) => v ?? '' }];
 const jsonColumn = (column: string) => [{ column, encode: (v: any) => JSON.stringify(v) }];
 const ACTIVITY_COLUMNS: Readonly<Record<keyof ActivityPatch, ReadonlyArray<{ column: string; encode: (v: any) => unknown }>>> = {
   title: plainColumn('title'),
@@ -785,8 +791,8 @@ const ACTIVITY_COLUMNS: Readonly<Record<keyof ActivityPatch, ReadonlyArray<{ col
   tip: plainColumn('tip'),
   deeper: plainColumn('deeper'),
   guide: jsonColumn('guide'),
-  videoUrl: plainColumn('video_url'),
-  posterUrl: plainColumn('poster_url'),
+  videoUrl: clearableUrlColumn('video_url'),
+  posterUrl: clearableUrlColumn('poster_url'),
   videoSeconds: plainColumn('video_seconds'),
   active: [{ column: 'active', encode: v => (v ? 1 : 0) }],
 };

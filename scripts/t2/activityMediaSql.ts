@@ -6,13 +6,15 @@
  * 是唯一的來源，SQL 是它的投影。`test/activityMedia.test.ts` 會重印一次比對（CI 不需要 zip）。
  * 與活動內容的 `activityContentSql.ts` 同一種做法、同一套字串跳脫（`str()`）。
  *
- * 【重跑不蓋掉後台填過的東西】
- * `deploy/migrate.mjs --confirm` 每一次都把每一份遷移從頭跑一遍，所以三格都只在「還沒填」時才寫：
- * 網址是 `NULL` 或空字串、片長是 `NULL` 或不是正數（`activityFromRow` 把它讀成沒有）。
- * 內容團隊在後台換成別的網址（例如日後搬到物件儲存的 `https://…`）不會被蓋回來。
+ * 【重跑不蓋掉後台填過的、也不把後台清掉的填回來】
+ * `deploy/migrate.mjs --confirm` 每一次都把每一份遷移從頭跑一遍。規則與手冊文字相同：
+ * **`NULL` 是「從沒設過」，空字串是後台刻意清掉的**（`src/admin/adminStore.ts` 的 `ACTIVITY_COLUMNS`）。
+ * 所以網址只在 `NULL` 時才寫：內容團隊換成別的網址（例如日後搬到物件儲存的 `https://…`）不會被蓋回來，
+ * 下架的片（清掉＝空字串）也不會在下一次部署自己回來。
  *
- * 反過來說：後台把一支的示範片**清掉**（存的是 `NULL`，`activityAdmin.ts` 的 `readUrl`），下一次跑遷移
- * 會把它填回來。要下架一支片，得同時讓它離開清單（重跑準備腳本）——或者停用那支活動。
+ * 片長清掉存的是 `NULL`，所以它另外要「那支片還是清單上這一支」（或也還沒設）才補 —— 片被清掉或換掉時
+ * 不補，免得活動庫裡有片長卻沒有片。這個條件在 `video_url` 改寫前後都成立（`NULL` → 這一支），
+ * 不依賴 MySQL 由左往右求值 SET 的順序。
  *
  * 【驗證句也印在標記之間】
  * 它要列出清單上的每一支；手寫的話，清單多一支、驗證句就少驗一支，而不會有人發現。
@@ -49,14 +51,14 @@ function checked(entries: ReadonlyArray<MediaSqlEntry>): ReadonlyArray<MediaSqlE
 }
 
 function updateFor(e: MediaSqlEntry): string {
-  const url = (column: string, v: string) =>
-    `  \`${column}\` = IF(\`${column}\` IS NULL OR TRIM(\`${column}\`) = '', ${str(v)}, \`${column}\`)`;
+  const url = (column: string, v: string) => `  \`${column}\` = IF(\`${column}\` IS NULL, ${str(v)}, \`${column}\`)`;
+  const ourClip = `(\`video_url\` IS NULL OR \`video_url\` = ${str(e.videoUrl)})`;
   return [
     'UPDATE `activities` SET',
     [
       url('video_url', e.videoUrl),
       url('poster_url', e.posterUrl),
-      `  \`video_seconds\` = IF(\`video_seconds\` IS NULL OR \`video_seconds\` <= 0, ${e.videoSeconds}, \`video_seconds\`)`,
+      `  \`video_seconds\` = IF(\`video_seconds\` IS NULL AND ${ourClip}, ${e.videoSeconds}, \`video_seconds\`)`,
     ].join(',\n'),
     `WHERE \`id\` = ${str(e.id)};`,
   ].join('\n');
@@ -64,13 +66,12 @@ function updateFor(e: MediaSqlEntry): string {
 
 function checkFor(entries: ReadonlyArray<MediaSqlEntry>): string {
   return [
-    '-- 清單上的每一支三格都有值（_gone 必須回 0，migrate.mjs 的命名約定）。',
+    '-- 清單上的每一支都填過了（後台清掉的空字串也算，那是刻意的）。_gone 必須回 0（migrate.mjs 的命名約定）。',
     `SELECT ${entries.length} - COUNT(*) AS activity_media_missing_gone`,
     '  FROM `activities`',
     ` WHERE \`id\` IN (${entries.map(e => str(e.id)).join(', ')})`,
-    "   AND `video_url` IS NOT NULL AND TRIM(`video_url`) <> ''",
-    "   AND `poster_url` IS NOT NULL AND TRIM(`poster_url`) <> ''",
-    '   AND `video_seconds` > 0;',
+    '   AND `video_url` IS NOT NULL',
+    '   AND `poster_url` IS NOT NULL;',
   ].join('\n');
 }
 

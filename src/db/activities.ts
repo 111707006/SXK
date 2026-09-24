@@ -46,8 +46,8 @@ export function activityFromRow(row: any): Activity {
     tip: text(row.tip),
     deeper: text(row.deeper),
     guide: row.guide === null || row.guide === undefined ? null : guideFromStored(row.guide),
-    videoUrl: row.video_url ?? null,
-    posterUrl: row.poster_url ?? null,
+    videoUrl: urlOrNull(row.video_url),
+    posterUrl: urlOrNull(row.poster_url),
     videoSeconds: positiveIntOrNull(row.video_seconds),
     active: Number(row.active) === 1,
   };
@@ -59,6 +59,14 @@ export function activityFromRow(row: any): Activity {
  */
 function text(raw: unknown): string {
   return typeof raw === 'string' ? raw : '';
+}
+
+/**
+ * 示範片與封面的網址。`NULL` 是「從沒設過」（遷移會填），空字串是後台**刻意清掉**的（遷移不填，
+ * `src/admin/adminStore.ts` 的 `ACTIVITY_COLUMNS`）；對讀的人兩者是同一件事：沒有片、沒有封面。
+ */
+function urlOrNull(raw: unknown): string | null {
+  return typeof raw === 'string' && raw.trim() !== '' ? raw : null;
 }
 
 function positiveIntOrNull(raw: unknown): number | null {

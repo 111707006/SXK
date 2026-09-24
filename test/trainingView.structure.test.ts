@@ -67,9 +67,15 @@ describe('資料與狀態重寫，不搬樣品', () => {
     expect(stripComments(read(`${DIR}/PlanScreen.tsx`))).toContain("STATUS_TEXT[s.kind === 'band' ? s.status : s.tone]");
   });
 
-  it('圖只來自活動庫的欄位（posterUrl、步驟的 imageUrl）', () => {
+  it('圖與片只來自活動庫的欄位（posterUrl、步驟的 imageUrl、示範片 videoUrl → clip）', () => {
     const srcs = all.match(/src=\{[^}]+\}/g) ?? [];
-    for (const s of srcs) expect(s, s).toMatch(/src=\{(src|photo|a\.posterUrl|activity\.posterUrl|step\.imageUrl|s\.imageUrl)\}/);
+    for (const s of srcs) {
+      expect(s, s).toMatch(/src=\{(src|photo|clip|loaded \? clip : undefined|a\.posterUrl|activity\.posterUrl|step\.imageUrl|s\.imageUrl)\}/);
+    }
+    // clip 只從活動的 videoUrl 來
+    for (const f of files.filter(x => /\bclip\b/.test(x.source) && /<video/.test(x.source))) {
+      expect(f.source, f.name).toMatch(/const clip = hasClip\(a\) \? a\.videoUrl : null;/);
+    }
   });
 });
 
@@ -114,5 +120,90 @@ describe('規格點名的幾件事在畫面上', () => {
     expect(entry).toMatch(/practice \? practicedTimes\(/);
     expect(entry).toMatch(/practice \? practice\.sessions : null/);
     expect(plan).toMatch(/\{practice && \(/);
+  });
+
+  it('入口的活動卡：「练什么」與「本周已练 N 次」分兩行，不接成「。 · 」（票 7 順手修）', () => {
+    expect(entry).not.toMatch(/trains[^\n]*\.join\(' · '\)/);
+    expect(entry).toMatch(/\{activity\.trains && \(/);
+    expect(entry).toMatch(/\{practiced && \(/);
+  });
+});
+
+describe('票 7：詳情、播放器、打卡成功、抽屜', () => {
+  const src = (name: string) => files.find(f => f.name === name)?.source ?? '';
+  const detail = src('DetailScreen.tsx');
+  const player = src('PlayerScreen.tsx');
+  const checkin = src('CheckinScreen.tsx');
+  const reminder = src('ReminderSheet.tsx');
+  const sheets = src('DetailSheets.tsx');
+  const overlay = src('TrainingOverlay.tsx');
+
+  it('簡單版詳情已經換掉', () => {
+    expect(fs.existsSync(path.join(ROOT, DIR, 'SimpleDetailScreen.tsx'))).toBe(false);
+    expect(overlay).toMatch(/case 'detail':\s*return <DetailScreen /);
+  });
+
+  it('示範片三種行內播放的寫法都加、只先載 metadata（詳情的大圖與播放器）', () => {
+    for (const [name, source] of [['DetailScreen', detail], ['PlayerScreen', player]]) {
+      expect(source, name).toContain('playsInline');
+      expect(source, name).toContain('webkit-playsinline="true"');
+      expect(source, name).toContain('x5-playsinline="true"');
+      expect(source, name).toContain('preload="metadata"');
+    }
+  });
+
+  it('詳情的大圖進入畫面、而且這一頁在最上面時才給片子 src（§6.3）', () => {
+    expect(detail).toContain('IntersectionObserver');
+    expect(detail).toContain('const playing = inView && active;');
+    expect(detail).toContain('src={loaded ? clip : undefined}');
+    expect(overlay).toContain('<PageContent route={layer.route} active={!hidden} />');
+  });
+
+  it('播放器：先試帶聲音播 → 擋就靜音播 → 再擋就等家長點', () => {
+    expect(player).toMatch(/v\.muted = false;\s*v\.play\(\)\.catch\(\(\) => \{\s*v\.muted = true;\s*setMuted\(true\);\s*v\.play\(\)\.catch\(\(\) => setNeedsTap\(true\)\);/);
+  });
+
+  it('沒有示範片、或選了只看圖文 → 圖文模式', () => {
+    expect(player).toContain("mode === 'video' && clip ? <PlayerLoop");
+    expect(detail).toContain('followModeFor(readFollowMode(), clip !== null)');
+  });
+
+  it('做完了打卡：POST → 重讀打卡 → 打卡成功取代播放器（不多一格歷史）', () => {
+    expect(player).toMatch(/await postCheckin\(activity\.id\);\s*void data\.reloadCheckins\(\);\s*nav\.replacePage\(\{\s*name: 'checkin'/);
+  });
+
+  it('打卡成功：「回到计划」走 returnToPage；說明句是「会记在打卡日历里」', () => {
+    expect(checkin).toContain("nav.returnToPage({ name: 'plan' })");
+    expect(checkin).toContain('CHECKIN.optional');
+    expect(checkin).toContain('patchCheckin(checkinId, patch)');
+  });
+
+  it('只有有腳本的活動才出腳本那幾區（開場白、原理、卡住了、常做錯、邊做邊說、進步）', () => {
+    expect(detail).toContain('{guide?.intro && ');
+    expect(detail).toContain('{guide && guide.reactions.length > 0 && (');
+    expect(detail).toContain('{guide && guide.mistakes.length > 0 && (');
+    expect(player).toContain("const shots = activity.guide?.shots.filter(s => s.say) ?? [];");
+    expect(checkin).toContain('const progressItems = activity?.guide?.progress ?? [];');
+  });
+
+  it('.ics：換短時效連結再用 location.href 開，不做 blob；微信裡改說明', () => {
+    expect(reminder).toContain('window.location.href = await fetchIcsLink();');
+    expect(reminder).not.toMatch(/createObjectURL|new Blob/);
+    expect(reminder).toContain('isWeChatBrowser(navigator.userAgent)');
+  });
+
+  it('動作列表裡按 GO：抽屜換成播放器（replacePage），不是關抽屜再推一層', () => {
+    expect(sheets).toMatch(/const go = \(\) => nav\.replacePage\(\{ name: 'go'/);
+  });
+
+  it('跟練方式存在這支手機上（localStorage），不上伺服器', () => {
+    expect(sheets).toContain('writeFollowMode(browserStorage, mode)');
+    expect(sheets).not.toContain('practice-prefs');
+  });
+
+  it('打卡日曆（票 8）之前，「练过 N」與「看打卡日历」落在「即将开放」', () => {
+    expect(overlay).toMatch(/case 'calendar':\s*return <ComingSoonScreen \/>;/);
+    expect(detail).toContain("nav.openPage({ name: 'calendar' })");
+    expect(checkin).toContain("nav.openPage({ name: 'calendar' })");
   });
 });

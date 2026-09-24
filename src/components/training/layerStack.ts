@@ -36,24 +36,37 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 // ── 層 ──────────────────────────────────────────────────────────────────
 
-/** 詳情頁從哪裡點進來：本週計劃的四支、換著玩、示範片庫。票 7 的「系列列」照它決定列哪一組。 */
+/** 詳情頁從哪裡點進來：本週計劃的四支、換著玩、示範片庫。詳情的「系列列」照它決定列哪一組。 */
 export type DetailSource = 'plan' | 'swap' | 'library';
 
 /**
- * 蓋在報告上的頁面。票 6 做了計劃頁；詳情先是簡單版（`SimpleDetailScreen`），票 7 換成完整的；
+ * 蓋在報告上的頁面。計劃頁（票 6）、詳情、按 GO 之後的播放器、打卡成功（票 7）；
  * 示範片庫、打卡日曆是票 8 的，在那之前落在「即将开放」那一頁（`TrainingOverlay`）。
+ *
+ * - `go`：播放器。`mode` 是按 GO 那一刻決定的（有沒有片、家長選的跟練方式），記在這一格上，
+ *   前進鍵開回來的是同一種。
+ * - `checkin`：打卡成功。**取代**播放器那一層（`replaceTop`），在它上面按返回回到詳情，不回播放器。
+ *   `checkinId`／`times`／`date` 是 POST 回來的那一筆、「第 N 次」與伺服器算的打卡日期。
  */
 export type Route =
   | { name: 'plan' }
   | { name: 'detail'; id: string; from: DetailSource }
+  | { name: 'go'; id: string; from: DetailSource; mode: 'video' | 'pictures' }
+  | { name: 'checkin'; id: string; checkinId: number; times: number; date: string }
   | { name: 'library' }
   | { name: 'calendar' };
 
 /**
- * 底部抽屜。票 6 只有「问专家」；票 7 的動作列表、要準備、跟練方式、投屏、加到日曆在這裡加一種
- * `kind`，再到 `TrainingOverlay` 的 `SheetContent` 接上畫面。
+ * 底部抽屜（§3.8）：動作列表、要準備、跟練方式要知道是哪一支活動（`id`／`from`，與詳情同一個讀法）；
+ * 投屏說明只要知道有沒有片；加到日曆、问专家不看活動。
  */
-export type SheetState = { kind: 'expert' };
+export type SheetState =
+  | { kind: 'expert' }
+  | { kind: 'actions'; id: string; from: DetailSource }
+  | { kind: 'equip'; id: string; from: DetailSource }
+  | { kind: 'mode'; id: string; from: DetailSource }
+  | { kind: 'cast'; hasVideo: boolean }
+  | { kind: 'reminder' };
 
 export type Layer = { type: 'page'; route: Route } | { type: 'sheet'; sheet: SheetState };
 
@@ -89,6 +102,12 @@ export interface LayerHistory {
   back(): void;
   /** 退到只剩 `depth` 層（0＝回到報告）。 */
   popTo(depth: number): void;
+  /**
+   * 回到堆疊裡的某一層（打卡完「回到计划」）。它在堆疊裡：退到它為止。不在（家長從報告的活動卡
+   * 直接進詳情，堆疊最底下是詳情）：退到只剩一層，落地之後把那一層換成它 —— 歷史上只留一格，
+   * 再按返回就回到報告。
+   */
+  returnTo(layer: Layer): void;
   /** 不再聽 `popstate`；還開著幾層就退幾格。 */
   dispose(): void;
 }
@@ -97,15 +116,42 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * 一格歷史上的一層長得對不對。**帶參數的層要把參數帶齊**：少了活動編號的播放器、少了那一筆 id 的
+ * 打卡成功畫不出來，與其畫一個壞掉的頁，不如當成認不得（整格回到報告）。
+ * 不認得的頁名照舊放行 —— 部署之後按前進鍵，歷史上可能留著下一版才有的頁（`TrainingOverlay` 的退路）。
+ */
 function isLayer(value: unknown): value is Layer {
   if (!isObject(value)) return false;
   if (value.type === 'page') {
     const route = value.route;
     if (!isObject(route) || typeof route.name !== 'string') return false;
-    return route.name !== 'detail' || typeof route.id === 'string';
+    switch (route.name) {
+      case 'detail':
+      case 'go':
+        return typeof route.id === 'string';
+      case 'checkin':
+        return (
+          typeof route.id === 'string' &&
+          Number.isInteger(route.checkinId) &&
+          Number.isInteger(route.times) &&
+          typeof route.date === 'string'
+        );
+      default:
+        return true;
+    }
   }
-  if (value.type === 'sheet') return isObject(value.sheet) && typeof value.sheet.kind === 'string';
+  if (value.type === 'sheet') {
+    const sheet = value.sheet;
+    if (!isObject(sheet) || typeof sheet.kind !== 'string') return false;
+    return !['actions', 'equip', 'mode'].includes(sheet.kind) || typeof sheet.id === 'string';
+  }
   return false;
+}
+
+/** 兩層是不是同一層（頁名與參數都一樣）。層都是小的可序列化物件。 */
+function sameLayer(a: Layer, b: Layer): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /** 一格歷史記的堆疊。沒有、或有任何一層認不得，都當成沒有任何一層（回到報告）。 */
@@ -135,6 +181,8 @@ export function createLayerHistory(deps: {
   /** 我們自己發出去、還沒等到 `popstate` 的退格有幾格（0＝沒有）。 */
   let pending = 0;
   let disposed = false;
+  /** `returnTo` 退格落地之後要換上去的那一層（沒有就是 `null`）。 */
+  let replaceOnLand: Layer | null = null;
 
   if (readLayers(history.state).length > 0) history.replaceState(withoutLayers(history.state), '');
 
@@ -143,9 +191,23 @@ export function createLayerHistory(deps: {
     onChange(next);
   };
 
+  const swapTop = (layer: Layer) => {
+    const next = [...layers.slice(0, -1), layer];
+    history.replaceState(withLayers(history.state, next), '');
+    set(next);
+  };
+
   const onPop: PopListener = event => {
     pending = 0;
-    set(readLayers(event.state));
+    const landed = readLayers(event.state);
+    const swap = replaceOnLand;
+    replaceOnLand = null;
+    if (swap && landed.length > 0) {
+      layers = landed;
+      swapTop(swap);
+      return;
+    }
+    set(landed);
   };
   target.addEventListener('popstate', onPop);
 
@@ -176,15 +238,28 @@ export function createLayerHistory(deps: {
         push(layer);
         return;
       }
-      const next = [...layers.slice(0, -1), layer];
-      history.replaceState(withLayers(history.state, next), '');
-      set(next);
+      swapTop(layer);
     },
     back() {
       retreat(layers.length > 0 ? 1 : 0);
     },
     popTo(depth) {
       retreat(layers.length - Math.max(0, depth));
+    },
+    returnTo(layer) {
+      // 上一次的退格還沒落地：與 `back` 同一條規矩，不再動
+      if (disposed || pending > 0 || layers.length === 0) return;
+      const at = layers.findIndex(l => sameLayer(l, layer));
+      if (at >= 0) {
+        retreat(layers.length - (at + 1));
+        return;
+      }
+      if (layers.length === 1) {
+        swapTop(layer);
+        return;
+      }
+      replaceOnLand = layer;
+      retreat(layers.length - 1);
     },
     dispose() {
       if (disposed) return;
@@ -209,6 +284,8 @@ export interface LayerNav {
   back(): void;
   /** 退到只剩 `depth` 層；0＝回到報告。 */
   popTo(depth: number): void;
+  /** 回到某一頁（打卡完「回到计划」）：堆疊裡有就退到它，沒有就退到只剩一層再換成它。 */
+  returnToPage(route: Route): void;
 }
 
 export interface LayerStack extends LayerNav {
@@ -250,6 +327,7 @@ export function useLayerStack(): LayerStack {
       replacePage: route => ref.current?.replaceTop({ type: 'page', route }),
       back: () => ref.current?.back(),
       popTo: depth => ref.current?.popTo(depth),
+      returnToPage: route => ref.current?.returnTo({ type: 'page', route }),
     }),
     [],
   );

@@ -21,6 +21,7 @@
 import { AGE_SPLIT_NOTE } from './weeklyCopy';
 import { PLAN_TOTAL_WEEKS, type PlanPosition } from './trainingPlan';
 import type { CheckinMood } from './practice';
+import type { ModuleNo } from './types';
 
 /** 孩子的稱呼：家長填了名字用名字，沒有就是「孩子」（與 SMART 目標同一個退路）。 */
 export function childLabel(name: string | undefined): string {
@@ -217,22 +218,217 @@ export function practicedBadge(n: number): string {
   return `已练 ${n} 次`;
 }
 
-// ── 活動詳情的簡單版（票 7 換成完整的） ────────────────────────────────
+// ── 活動詳情（§3.3，票 7） ──────────────────────────────────────────────
 
+/**
+ * 15 個模組的簡體名（詳情標題的「{模組名}」）。`activitySeed.ts` 的 `MODULE_TITLES` 是繁體（後台與
+ * 規格用），家長端要簡體；客戶手冊抽出來的內容（`activityContent.ts`）沒有模組名，所以在這裡另放一份，
+ * `test/trainingDetailCopy.test.ts` 逐字對 `MODULE_TITLES` 釘住兩份一一對應。
+ */
+export const MODULE_NAMES: Readonly<Record<ModuleNo, string>> = {
+  1: '身体动一动',
+  2: '平衡与协调',
+  3: '力气与耐力',
+  4: '小手动起来',
+  5: '画画写写前',
+  6: '自己来',
+  7: '听懂与回应',
+  8: '词汇与说话',
+  9: '聊天与说故事',
+  10: '认识情绪',
+  11: '情绪来了怎么办',
+  12: '和人一起玩',
+  13: '专心与记忆',
+  14: '看与想',
+  15: '动脑与解决问题',
+};
+
+/** 詳情標題：「我们来爬行 · 身体动一动 · 亲子」。手冊沒填的那一段不出。 */
+export function detailHeadline(activity: { title: string; moduleNo: ModuleNo; people: string }): string {
+  return [activity.title, MODULE_NAMES[activity.moduleNo], activity.people].filter(Boolean).join(' · ');
+}
+
+/**
+ * 詳情頁自己的字。客戶的內容（練什麼、原理、步驟、孩子卡住了怎麼辦……）是活動庫的欄位，照原文顯示，
+ * 不在這裡；「为什么这周排这一个」的理由句走 `weeklyCopy.ts`，「为什么练{維度}」走 `DIMENSION_WHY`。
+ */
 export const DETAIL = {
+  loading: '正在读取这个活动…',
+  error: '这个活动暂时读不出来，请稍后再打开这一页。',
+  notFound: '这个活动暂时找不到了，回到计划看看这周的其他活动。',
+
+  /** 大圖（§3.3 第一列）。 */
+  clipMaking: '示范片制作中',
+  goWithClip: '跟着示范做',
+  goPictures: '看图文步骤',
+  actions: '动作列表',
+
+  /** 系列列：本週計劃／換著玩／示範片庫各自是一個系列。 */
+  series: { plan: '计划', swap: '换着玩', library: '示范片库' },
+  seriesPlanSub: '本周',
+  clipBadge: '示范片',
+  picturesBadge: '图文',
+
+  /** 數字列。 */
+  minutes: '分钟',
+  clipSeconds: '示范片',
+  doneThenCheckin: '做完就打卡',
+
+  /** 出處（樣品寫的「星晨儿童康复中心」是客戶 ASQ3 檔案上的院所名，不用）。 */
+  source: '森心康',
+  sourceMark: '森',
+
+  /** 標籤列的第一個：從哪裡點進來。 */
+  sourceTag: { plan: '按评估安排', swap: '换着玩', library: '示范片库' },
+  atHome: '在家就能做',
+
+  /** 四個圖示。 */
+  addCalendar: '加日历',
+  calendarAdded: '已加日历',
+  cast: '投屏',
+  expert: '问专家',
+
   trainsTitle: '这个活动练什么',
-  whyTitle: '为什么这周排这一个',
-  needTitle: '要准备',
+  whyPlan: '为什么这周排这一个：',
+  whyOther: '什么时候选它：',
+  collapse: '收起',
   stepsTitle: '怎么玩',
+  stepsMoreWithSay: '看动作列表（含边做边说）',
+  stepsMore: '看动作列表',
+  reactionsTitle: '孩子卡住了怎么办',
+  mistakesTitle: '大人最常做错的三件事',
+  levelTitle: '太难或太简单',
+  easier: '做不到 · 降一阶',
+  harder: '太简单 · 升一阶',
   tipTitle: '小提醒',
   deeperPrefix: '想深入练：',
-  watchClip: '看示范',
-  notFound: '这个活动暂时找不到了，回到计划看看这周的其他活动。',
+
+  /** 底部三顆。 */
+  mode: '跟练方式',
+  go: 'GO',
+  equip: '要准备',
 } as const;
 
-/** 「约 N 分钟」（活動庫有填時長才出現）。 */
+/** 「约 N 分钟」（活動庫有填時長、又沒有腳本的片長時才出現）。 */
 export function aboutMinutes(n: number): string {
   return `约 ${n} 分钟`;
+}
+
+/**
+ * 數字列的片長：腳本的「2–3 分钟」拆成大字「2–3」與單位「分钟」（照樣品的排法）。不是這種寫法就
+ * 整段原文照放（客戶的原文，不硬拆）。
+ */
+export function splitMinutes(length: string): { big: string; unit: string } {
+  const m = /^(.+?)\s*分钟$/.exec(length.trim());
+  return m && /^[\d–\-~～.]+$/.test(m[1]) ? { big: m[1], unit: '分钟' } : { big: length.trim(), unit: '' };
+}
+
+/** 「展开全部 8 条」（腳本的原理先列三條）。 */
+export function expandAll(n: number): string {
+  return `展开全部 ${n} 条`;
+}
+
+/** 「为什么练大运动：」 */
+export function whyDimension(dimensionName: string): string {
+  return `为什么练${dimensionName}：`;
+}
+
+/** 腳本的「孩子的反應」抽出來時拿掉了「如果」兩個字（`ActivityGuide` 的註解），畫面上加回來。 */
+export function reactionIf(text: string): string {
+  return `如果${text}`;
+}
+
+/** 「练过 N」圖示（→ 打卡日曆）。打卡讀不出來時不寫數字。 */
+export function practicedIcon(n: number | null): string {
+  return n === null ? '练过' : `练过 ${n}`;
+}
+
+/** 孩子現在幾個月：「8 个月」「3 岁」「1 岁 6 个月」。 */
+export function ageText(months: number): string {
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (y === 0) return `${m} 个月`;
+  return m === 0 ? `${y} 岁` : `${y} 岁 ${m} 个月`;
+}
+
+/**
+ * 年齡提醒（§3.3）：孩子還不到這一支的適齡。**只在比下限小時出**（`ageFit` 的 `tooYoung`）：配對會
+ * 往前取適齡較小的活動（「从做得到的开始」），那種不能說成「先看看就好」。沒有示範片時不叫家長去看
+ * 一支不存在的片。
+ */
+export function ageReminder(ageLabel: string, childName: string | undefined, childAgeMonth: number, clip: boolean): string {
+  return `适合 ${ageLabel}；${childLabel(childName)}现在 ${ageText(childAgeMonth)}，${clip ? '先看看示范片就好' : '先看看怎么玩就好'}。`;
+}
+
+/** 片庫裡的一支（不在這週的計劃、也不是換著玩）在「什么时候选它」說的話。 */
+export function libraryReason(
+  fit: 'fits' | 'tooYoung' | 'tooOld' | 'unknown',
+  ageLabel: string,
+  childName: string | undefined,
+  childAgeMonth: number | null,
+): string {
+  if (fit === 'fits') return `这一个不在这周的计划里，也适合${childLabel(childName)}现在的月龄，想换着玩可以选它。`;
+  if (fit === 'tooYoung' && childAgeMonth !== null) {
+    return `这一个适合 ${ageLabel}，${childLabel(childName)}现在 ${ageText(childAgeMonth)}，还不到这个年龄——先看看示范片，到了再练。`;
+  }
+  return '这一个不在这周的计划里，想换着玩可以选它。';
+}
+
+// ── 按 GO 之後（§3.4、§3.5，票 7） ──────────────────────────────────────
+
+export const PLAYER = {
+  prev: '上一步',
+  next: '下一步',
+  done: '做完了，打卡',
+  posting: '正在打卡…',
+  failed: '没打上卡，请再按一次。',
+  soundOn: '打开声音',
+  soundOff: '静音',
+  tapToPlay: '点一下播放',
+  sayTitle: '边做边说（影片脚本的旁白）',
+  /** 圖文模式、又沒有示範片時多說的一句（§3.5）。 */
+  noClipNote: '这一个还没有示范片；示范片做好后，按 GO 会改成看片跟着做。',
+  /** 活動庫裡這一支還沒有步驟（後台可以清成零步）：照樣做得完、打得了卡。 */
+  noSteps: '这一个的步骤还在整理中，陪孩子玩过了一样可以打卡。',
+} as const;
+
+/** 「第 1 步 · 共 4 步」。 */
+export function stepOf(i: number, n: number): string {
+  return `第 ${i} 步 · 共 ${n} 步`;
+}
+
+/** 圖文模式的「第 1 步」。 */
+export function stepNo(i: number): string {
+  return `第 ${i} 步`;
+}
+
+/** 播放器左上角：「示范片 0:10 · 循环播放」；不知道長度（`clock` 是空字串）就不寫長度。 */
+export function clipLoopLabel(clock: string): string {
+  return clock ? `示范片 ${clock} · 循环播放` : '示范片 · 循环播放';
+}
+
+// ── 打卡成功（§3.6，票 7） ─────────────────────────────────────────────
+
+/**
+ * 樣品的說明句是「都是选填。下周安排活动时会参考」——**配對現在不看心情與進步**（§9 第 6 題），
+ * 改成「都是选填，会记在打卡日历里」；等 S27 真的用上再改回來。
+ */
+export const CHECKIN = {
+  title: '打卡成功',
+  weekSessions: '本周打卡次数',
+  planPracticed: '本周练过的活动',
+  moodQuestion: '孩子今天玩得怎样？',
+  progressTitle: '这次看看有没有进步',
+  progressSub: '影片脚本里的「怎么看出有进步」，看到了就勾起来',
+  optional: '都是选填，会记在打卡日历里',
+  saveFailed: '没存上，请再点一次。',
+  toCalendar: '看打卡日历',
+  toPlan: '回到计划',
+} as const;
+
+/** 「我们来爬行 · 第 3 次」（N 是 POST 回來的 `timesForActivity`：這一支一共第幾次，不分週）。 */
+export function checkinSub(title: string, times: number): string {
+  return `${title} · 第 ${times} 次`;
 }
 
 // ── 還沒做的頁（示範片庫、打卡日曆，票 8） ─────────────────────────────
@@ -249,3 +445,77 @@ export const EXPERT_SHEET = {
   title: '约专家',
   sub: '线上、线下都有；线下的地点和时间由客服打电话和你确认。',
 } as const;
+
+/** 動作列表（§3.8 第一列）。英文小標照樣品（Keep 的「怎么玩–Play」那種寫法）。 */
+export const ACTIONS_SHEET = {
+  title: '动作列表',
+  steps: '个步骤',
+  minutes: '分钟',
+  clip: '示范片',
+  noteClip: '按 GO 之后示范片循环播放，步骤一步一步往下看；做完就打卡。',
+  noteNoClip: '这一个还没有示范片，先照图文一步一步做。',
+  playTitle: '怎么玩–Play',
+  sayTitle: '边做边说–Say',
+  saySub: '影片脚本里的旁白，照着对孩子说就好。',
+  easier: '简单–Easier',
+  harder: '难一点–Harder',
+  go: 'GO · 开始跟着做',
+} as const;
+
+/** 要準備（§3.8）：手冊的「需要什么」；有腳本時加场地／器材／安全检查／大人位置（標題是腳本的原文鍵）。 */
+export const EQUIP_SHEET = {
+  title: '要准备',
+  need: '需要什么',
+} as const;
+
+/** 跟練方式（§3.8）。存在這支手機上，不上伺服器（`followMode.ts`）。 */
+export const MODE_SHEET = {
+  title: '跟练方式',
+  video: '看示范片跟着做',
+  videoNote: '示范片边看边做，适合第一次做',
+  videoNoClip: '这一个还没有示范片',
+  pictures: '只看图文步骤',
+  picturesNote: '一步一张卡，网络不好、想自己掌握节奏时用',
+  savedHere: '只记在这支手机上',
+} as const;
+
+/** 投屏（§3.8）：瀏覽器叫不出投屏時的說明。 */
+export const CAST_SHEET = {
+  title: '投屏到电视',
+  leadClip: '这个浏览器叫不出投屏，可以改用手机自己的投屏：',
+  leadNoClip: '这一个还没有示范片，先照图文步骤做。有示范片的活动可以这样投：',
+  ways: [
+    { who: 'iPhone：', how: '按 GO 播放后，点画面上的投屏图示（AirPlay），或从控制中心选「屏幕镜像」。' },
+    { who: '安卓：', how: '用浏览器菜单里的「投屏」，或手机下拉选单里的「无线投屏」。' },
+    { who: '在微信里：', how: '先点右上角「…」→「在浏览器打开」，再照上面做。' },
+  ],
+} as const;
+
+/**
+ * 加到日曆（§3.8）。**提醒是手機日曆發的，不是我們發的**：樣品的「到时间提醒你」改成
+ * 「加到手机日历，到时间手机会提醒你」。
+ */
+export const REMINDER_SHEET = {
+  title: '加到日历',
+  sub: '每周哪几天陪孩子练？加到手机日历，到时间手机会提醒你。',
+  days: '哪几天',
+  time: '几点',
+  save: '加到打卡日历',
+  saving: '正在保存…',
+  saveFailed: '没存上，请稍后再试。',
+  ics: '也加到手机日历（.ics）',
+  icsOpening: '正在打开日历档…',
+  icsFailed: '日历档暂时打不开，请稍后再试。',
+  icsNote: 'iPhone 会直接打开「日历」；安卓看浏览器。',
+  wechat: '微信里下载不了日历档：先点右上角「…」→「在浏览器打开」，再回到这里加到手机日历。',
+} as const;
+
+/** 「已加到打卡日历：每周一、三、五 19:30」。 */
+export function reminderSaved(label: string): string {
+  return `已加到打卡日历：${label}`;
+}
+
+/** 「每周一、三、五 19:30」（星期 0＝一…6＝日，與 `practice.ts` 同一套編號）。 */
+export function reminderLabel(days: ReadonlyArray<number>, time: string): string {
+  return `每周${days.map(d => WEEKDAYS[d]).join('、')} ${time}`;
+}

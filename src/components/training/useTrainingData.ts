@@ -22,7 +22,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authFetch } from '../../utils/api';
 import { calendarDateOf } from '../../t2/weeks';
 import { weekPractice, type WeekPractice } from '../../t2/practiceStats';
-import type { Checkin } from '../../t2/practice';
+import type { Checkin, PracticePrefs } from '../../t2/practice';
+import { fetchPrefs, savePrefs } from './trainingApi';
 import { checkinRanges, planPositionOf, type WeeklyPlanResponse } from './trainingData';
 
 export type PlanStatus = 'loading' | 'ready' | 'unavailable' | 'error';
@@ -36,6 +37,15 @@ export interface TrainingData {
   today: string;
   /** 這一週（每週活動那一週）的打卡摘要；打卡讀不出來是 `null`。 */
   practice: WeekPractice | null;
+  /**
+   * 提醒的星期與時間（票 7：詳情的「加日历／已加日历」、加到日曆抽屜；票 8 的打卡日曆）。
+   * `null`＝還沒讀、或讀不出來。**不跟著每週活動一起讀**：多數家長只看入口，不必每次多一支請求；
+   * 要用的頁呼叫 `loadPrefs()`（讀過就不再讀）。
+   */
+  prefs: PracticePrefs | null;
+  loadPrefs(): void;
+  /** 存提醒（PUT）。成功就換掉 `prefs`；失敗丟出去，呼叫端說「没存上」。 */
+  savePrefs(prefs: PracticePrefs): Promise<void>;
   refresh(): Promise<void>;
   reloadCheckins(): Promise<void>;
 }
@@ -135,5 +145,41 @@ export function useTrainingData(): TrainingData {
     [plan, checkins],
   );
 
-  return { status, plan, checkins, today, practice, refresh, reloadCheckins };
+  const [prefs, setPrefs] = useState<PracticePrefs | null>(null);
+  const prefsLoad = useRef<'idle' | 'loading' | 'done'>('idle');
+
+  const loadPrefs = useCallback(() => {
+    if (prefsLoad.current !== 'idle') return;
+    prefsLoad.current = 'loading';
+    fetchPrefs().then(
+      p => {
+        prefsLoad.current = 'done';
+        setPrefs(p);
+      },
+      err => {
+        // 讀不出來就留在「不知道」：下一次有頁要用時再讀
+        prefsLoad.current = 'idle';
+        console.warn('Failed to load T2 practice prefs:', err);
+      },
+    );
+  }, []);
+
+  const savePrefsAndKeep = useCallback(async (next: PracticePrefs) => {
+    const saved = await savePrefs(next);
+    prefsLoad.current = 'done';
+    setPrefs(saved);
+  }, []);
+
+  return {
+    status,
+    plan,
+    checkins,
+    today,
+    practice,
+    prefs,
+    loadPrefs,
+    savePrefs: savePrefsAndKeep,
+    refresh,
+    reloadCheckins,
+  };
 }

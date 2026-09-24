@@ -34,18 +34,18 @@ export interface TrainingSectionProps {
 export default function TrainingSection({ findings, childName, onBookService, onReassess }: TrainingSectionProps) {
   const data = useTrainingData();
   const stack = useLayerStack();
-  const { layers, openPage, openSheet, replacePage, back, popTo } = stack;
+  const { layers, openPage, openSheet, replacePage, back, popTo, returnToPage } = stack;
 
   const value = useMemo<TrainingContextValue>(
     () => ({
       data,
-      nav: { openPage, openSheet, replacePage, back, popTo },
+      nav: { openPage, openSheet, replacePage, back, popTo, returnToPage },
       findings,
       childName,
       onBookService,
       onReassess,
     }),
-    [data, openPage, openSheet, replacePage, back, popTo, findings, childName, onBookService, onReassess],
+    [data, openPage, openSheet, replacePage, back, popTo, returnToPage, findings, childName, onBookService, onReassess],
   );
 
   return (

@@ -33,10 +33,8 @@ import {
 } from '../../t2/trainingCopy';
 import type { Activity, DimensionCode } from '../../t2/types';
 import { useTraining } from './TrainingContext';
-import { alternateRows, weekDimensions } from './trainingData';
+import { alternateRows, hasClip, weekDimensions } from './trainingData';
 import { Cover, Tag } from './ui';
-
-const hasClip = (a: Activity) => typeof a.videoUrl === 'string' && a.videoUrl.trim() !== '';
 
 /**
  * 橫向捲動的那兩排（篩選、換著玩）伸到報告卡片的邊緣，與樣品伸到螢幕邊緣同一個意思。
@@ -44,12 +42,18 @@ const hasClip = (a: Activity) => typeof a.videoUrl === 'string' && a.videoUrl.tr
  */
 const BLEED = '-mx-5 px-5 scroll-px-5 md:-mx-8 md:px-8 md:scroll-px-8';
 
-/** 樣品的照片大卡。有封面時照片＋深色漸層；沒有封面（現在全部）時是淡綠底的無圖版面。 */
-function ActivityCard({ activity, dimension, lead, meta, onClick }: {
+/**
+ * 樣品的照片大卡。有封面時照片＋深色漸層；沒有封面（現在全部）時是淡綠底的無圖版面。
+ *
+ * 手冊的「练什么」與「本周已练 N 次」分兩行（票 7 順手修）：「练什么」是客戶原文、句尾常有「。」，
+ * 照樣品接成一行會變成「……的基础。 · 本周已练 1 次」；原文不改字，所以不去句號、改成換行。
+ */
+function ActivityCard({ activity, dimension, lead, practiced, onClick }: {
   activity: Activity;
   dimension: DimensionCode;
   lead: string;
-  meta: string;
+  /** 「本周已练 N 次」；打卡讀不出來時是空字串（不寫 0 次）。 */
+  practiced: string;
   onClick: () => void;
 }) {
   const photo = activity.posterUrl;
@@ -75,7 +79,14 @@ function ActivityCard({ activity, dimension, lead, meta, onClick }: {
           <span className={`text-[13px] ml-1 ${photo ? 'text-white/70' : 'text-brand-charcoal/60'}`}>{lead}</span>
         </div>
         <p className={`mt-3 text-[23px] font-black tracking-tight leading-tight ${photo ? 'text-white' : 'text-brand-forest'}`}>{activity.title}</p>
-        {meta && <p className={`mt-2 text-[13px] leading-relaxed ${photo ? 'text-white/60' : 'text-brand-charcoal/70'}`}>{meta}</p>}
+        {activity.trains && (
+          <p className={`mt-2 text-[13px] leading-relaxed ${photo ? 'text-white/60' : 'text-brand-charcoal/70'}`}>{activity.trains}</p>
+        )}
+        {practiced && (
+          <p className={`mt-1 text-[12px] font-bold ${photo ? 'text-white/75' : 'text-brand-forest/80'}`} data-testid="entry-practiced">
+            {practiced}
+          </p>
+        )}
       </div>
     </button>
   );
@@ -196,9 +207,7 @@ export default function ReportEntry() {
               activity={activity}
               dimension={dimension}
               lead={hasClip(activity) ? CLIP_STATE.has : CLIP_STATE.none}
-              meta={[activity.trains, practice ? practicedTimes(practice.timesByActivity[activity.id] ?? 0) : '']
-                .filter(Boolean)
-                .join(' · ')}
+              practiced={practice ? practicedTimes(practice.timesByActivity[activity.id] ?? 0) : ''}
               onClick={() => nav.openPage({ name: 'detail', id: activity.id, from: 'plan' })}
             />
           ))}

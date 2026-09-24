@@ -40,16 +40,16 @@ function stripComments(source: string): string {
     .replace(/^[ \t]*\/\/.*$/gm, '');
 }
 
-/** 新畫面：入口、詳情（簡單版）、資料層。四支、準備中、兩個月齡、理由句分散在這幾檔。 */
+/** 新畫面：入口、詳情（票 7 的完整版）、資料層。四支、準備中、兩個月齡、理由句分散在這幾檔。 */
 const TRAINING_FILES = [
   'src/components/training/ReportEntry.tsx',
-  'src/components/training/SimpleDetailScreen.tsx',
+  'src/components/training/DetailScreen.tsx',
   'src/components/training/PlanScreen.tsx',
   'src/components/training/useTrainingData.ts',
   'src/components/training/trainingData.ts',
 ];
 const entry = stripComments(read('src/components/training/ReportEntry.tsx'));
-const detail = stripComments(read('src/components/training/SimpleDetailScreen.tsx'));
+const detail = stripComments(read('src/components/training/DetailScreen.tsx'));
 const view = TRAINING_FILES.map(f => stripComments(read(f))).join('\n');
 const trainingCopy = stripComments(read('src/t2/trainingCopy.ts'));
 const copy = stripComments(read('src/t2/weeklyCopy.ts'));
@@ -159,12 +159,13 @@ describe('畫面只排版，不自己算', () => {
   });
 
   it('詳情的步驟有幾則顯示幾則：沒有 slice、沒有補空的', () => {
-    expect(detail).toMatch(/activity\.steps\.map/);
+    expect(detail).toMatch(/\ba\.steps\.map\(/);
     expect(detail).not.toMatch(/steps\.slice/);
   });
 
-  it('示範連結有才顯示', () => {
-    expect(detail).toMatch(/\{clip && \(/);
+  it('示範片有才播（票 7：大圖裡循環播），沒有就是封面＋「示范片制作中」', () => {
+    expect(detail).toMatch(/\{clip \? \(\s*<HeroClip clip=\{clip\}/);
+    expect(detail).toMatch(/\{!clip && <span[^>]*>\{DETAIL\.clipMaking\}/);
   });
 });
 

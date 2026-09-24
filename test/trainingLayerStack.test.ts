@@ -185,6 +185,137 @@ describe('其餘移動', () => {
   });
 });
 
+describe('播放器、打卡成功、抽屜也都是一層（票 7）', () => {
+  const go: Layer = { type: 'page', route: { name: 'go', id: 'A001', from: 'plan', mode: 'video' } };
+  const done: Layer = { type: 'page', route: { name: 'checkin', id: 'A001', checkinId: 12, times: 3, date: '2026-09-23' } };
+  const actions: Layer = { type: 'sheet', sheet: { kind: 'actions', id: 'A001', from: 'plan' } };
+
+  it('播放器開著時按返回：關掉播放器回到詳情，不離開報告（✕ 也是這一條）', async () => {
+    const { browser, stack } = setup();
+    stack.push(plan);
+    stack.push(detail);
+    stack.push(go);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([plan, detail]);
+  });
+
+  it('做完了打卡：打卡成功取代播放器（歷史不多一格）；在打卡成功按返回回到詳情，不回播放器', async () => {
+    const { browser, stack } = setup();
+    stack.push(plan);
+    stack.push(detail);
+    stack.push(go);
+    stack.replaceTop(done);
+    expect(browser.calls.push).toBe(3);
+    expect(stack.layers()).toEqual([plan, detail, done]);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([plan, detail]);
+  });
+
+  it('動作列表抽屜裡按 GO：抽屜換成播放器，返回回到詳情', async () => {
+    const { browser, stack } = setup();
+    stack.push(detail);
+    stack.push(actions);
+    stack.replaceTop(go);
+    expect(stack.layers()).toEqual([detail, go]);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([detail]);
+  });
+
+  it.each([
+    ['動作列表', actions],
+    ['要準備', { type: 'sheet', sheet: { kind: 'equip', id: 'A001', from: 'plan' } } as Layer],
+    ['跟練方式', { type: 'sheet', sheet: { kind: 'mode', id: 'A001', from: 'plan' } } as Layer],
+    ['投屏', { type: 'sheet', sheet: { kind: 'cast', hasVideo: true } } as Layer],
+    ['加到日曆', { type: 'sheet', sheet: { kind: 'reminder' } } as Layer],
+    ['問專家', expert],
+  ])('%s抽屜開在詳情上：返回只關抽屜', async (_name, sheet) => {
+    const { browser, stack } = setup();
+    stack.push(plan);
+    stack.push(detail);
+    stack.push(sheet);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([plan, detail]);
+  });
+
+  it('投屏說明開在播放器上：返回只關說明，播放器還在', async () => {
+    const { browser, stack } = setup();
+    stack.push(detail);
+    stack.push(go);
+    stack.push({ type: 'sheet', sheet: { kind: 'cast', hasVideo: true } });
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([detail, go]);
+  });
+
+  describe('「回到计划」（returnTo）', () => {
+    it('計劃頁在堆疊裡：一次退到它', async () => {
+      const { browser, stack } = setup();
+      stack.push(plan);
+      stack.push(detail);
+      stack.push(done);
+      stack.returnTo(plan);
+      expect(browser.calls.go).toEqual([-2]);
+      await flush();
+      expect(stack.layers()).toEqual([plan]);
+    });
+
+    it('從報告的活動卡直接進詳情（堆疊裡沒有計劃頁）：退到第一層再把它換成計劃頁；再按返回回到報告', async () => {
+      const { browser, stack } = setup();
+      stack.push(detail);
+      stack.push(done);
+      stack.returnTo(plan);
+      expect(browser.calls.go).toEqual([-1]);
+      await flush();
+      expect(stack.layers()).toEqual([plan]);
+      expect(browser.depth).toBe(1);
+      browser.pressBack();
+      await flush();
+      expect(stack.layers()).toEqual([]);
+      expect(browser.depth).toBe(0);
+    });
+
+    it('只剩一層、又不是計劃頁：原地換成計劃頁，不動歷史的格數', () => {
+      const { browser, stack } = setup();
+      stack.push(done);
+      stack.returnTo(plan);
+      expect(browser.calls.go).toEqual([]);
+      expect(stack.layers()).toEqual([plan]);
+    });
+
+    it('上一次的退格還沒落地時再按：不再退，也不換', async () => {
+      const { browser, stack } = setup();
+      stack.push(detail);
+      stack.push(done);
+      stack.back();
+      stack.returnTo(plan);
+      expect(browser.calls.go).toEqual([-1]);
+      await flush();
+      expect(stack.layers()).toEqual([detail]);
+    });
+  });
+
+  it('歷史上的一格少了必要的欄位（播放器沒有編號、打卡成功沒有那一筆的 id）：當成沒有任何一層', async () => {
+    const { browser, stack } = setup();
+    stack.push(plan);
+    browser.history.replaceState({ sxkTraining: [{ type: 'page', route: { name: 'go' } }] });
+    stack.push(detail);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([]);
+
+    stack.push(plan);
+    browser.history.replaceState({ sxkTraining: [{ type: 'page', route: { name: 'checkin', id: 'A001', times: 1 } }] });
+    stack.push(detail);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([]);
+  });
+});
+
 describe('邊界', () => {
   it('離開（元件卸載）時還開著幾層，就把那幾格歷史退掉，並且不再聽 popstate', async () => {
     const { browser, stack, seen } = setup();

@@ -42,6 +42,7 @@ import type { DimensionCode, DimensionFinding } from '../../t2/types';
 import { useTraining } from './TrainingContext';
 import {
   dimensionShares,
+  hasClip,
   nextToStart,
   planGrid,
   planPositionOf,
@@ -443,7 +444,7 @@ export default function PlanScreen() {
                   >
                     <Cover src={a.posterUrl} className="w-[96px] h-[66px] rounded-lg shrink-0">
                       {!a.posterUrl && <Play size={26} aria-hidden="true" className="absolute inset-0 m-auto text-brand-moss/30" />}
-                      {a.videoUrl && (
+                      {hasClip(a) && (
                         <span className="absolute left-1 bottom-1 rounded bg-black/60 text-white text-[10px] px-1 py-px flex items-center gap-0.5">
                           <Play size={9} fill="currentColor" />
                           {CLIP_STATE.badgeClip}

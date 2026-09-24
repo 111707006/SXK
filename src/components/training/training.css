@@ -22,13 +22,21 @@
   from { transform: translateX(24%); opacity: 0.5; }
   to { transform: none; opacity: 1; }
 }
+@keyframes trainingPop {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
 
 .training-fade { animation: trainingFade 0.2s ease-out both; }
 .training-up { animation: trainingUp 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .training-push { animation: trainingPush 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* 打卡成功的大勾（樣品的 proto-pop）。 */
+.training-pop { animation: trainingPop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
   .training-fade,
   .training-up,
-  .training-push { animation: none; }
+  .training-push,
+  .training-pop { animation: none; }
 }

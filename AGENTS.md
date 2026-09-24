@@ -38,11 +38,18 @@
 │   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段嵌线上干预、可摺叠作答回顾（#61）
 │   │   ├── training/                # 线上干预（Keep 式，Keep 规格 K11 起）：报告第六段的入口＋盖在报告上的计划页、详情、抽屉
 │   │   │   ├── TrainingSection.tsx  # T2Report 只挂它：资料（useTrainingData）＋页面堆叠（useLayerStack）＋context
-│   │   │   ├── layerStack.ts        # 页面堆叠：推一层＝pushState 一格，返回键／实体返回键关最上面那一层；Route、SheetState 型别
-│   │   │   ├── useTrainingData.ts   # 读 weekly-plan 与 checkins（checkinRanges 切 62 天）；reloadCheckins 给打卡后刷新
-│   │   │   ├── trainingData.ts      # 纯函式：第几周、打卡要查哪几段、换着玩排序、评估结果（走 gridDimensions）、12 周打卡格
-│   │   │   ├── ReportEntry.tsx      # 报告入口（§3.1）；PlanScreen.tsx 计划页（§3.2）；SimpleDetailScreen.tsx 详情简单版（票 7 换掉）
-│   │   │   └── TrainingOverlay.tsx  # 各层怎么叠（portal、fixed、max-w-3xl）；片库与打卡日历先落在「即将开放」（票 8）
+│   │   │   ├── layerStack.ts        # 页面堆叠：推一层＝pushState 一格，返回键／实体返回键关最上面那一层；Route、SheetState 型别；打卡后「回到计划」走 returnTo
+│   │   │   ├── useTrainingData.ts   # 读 weekly-plan 与 checkins（checkinRanges 切 62 天）；reloadCheckins 给打卡后刷新；提醒 prefs 用到才读（loadPrefs）
+│   │   │   ├── trainingData.ts      # 纯函式：第几周、打卡要查哪几段、换着玩排序、评估结果（走 gridDimensions）、12 周打卡格；详情的系列列／年龄提醒（ageFit）；打卡成功的数字（checkinSummary）
+│   │   │   ├── ReportEntry.tsx      # 报告入口（§3.1）；PlanScreen.tsx 计划页（§3.2）
+│   │   │   ├── DetailScreen.tsx     # 活动详情（§3.3，票 7）：大图进画面才载片、系列列、年龄提醒、四个图示；脚本那几区只有模组一有
+│   │   │   ├── PlayerScreen.tsx     # 按 GO 之后（§3.4、§3.5）：样式 A（先带声音→静音→播放钮）与图文模式；最后一步打卡
+│   │   │   ├── CheckinScreen.tsx    # 打卡成功（§3.6）：第 N 次、本周次数、x/4、七天格、心情与进步（PATCH，依序送）
+│   │   │   ├── DetailSheets.tsx     # 抽屉：动作列表、要准备、跟练方式、投屏说明；ReminderSheet.tsx 加到日历（PUT prefs＋.ics 短时效连结）
+│   │   │   ├── useActivity.ts       # 这一支活动：先找每周活动那一份，找不到读 /api/t2/activities/:id（留快取）；片库清单
+│   │   │   ├── trainingApi.ts       # 单次动作：读单支／片库、打卡、改心情进步、读写提醒、换 .ics 连结
+│   │   │   ├── followMode.ts        # 跟练方式存 localStorage（读写包 try/catch，读不到＝看示范片）；device.ts 微信判断、投屏先试浏览器自己的
+│   │   │   └── TrainingOverlay.tsx  # 各层怎么叠（portal、fixed、max-w-3xl）；详情知道自己是不是最上面那一页；片库与打卡日历先落在「即将开放」（票 8）
 │   │   ├── AnalysisReport.tsx       # 分析报告
 │   │   ├── SpecializedReportView.tsx # 专项报告视图
 │   │   ├── LanguageSpecialAssessment.tsx # 语言专项评估
@@ -71,7 +78,8 @@
 │   │   ├── practice.ts    # 打卡与提醒的形状、选项与输入检查：心情三选一、提醒四个时间、星期 0＝一…6＝日、62 天上限（Keep 票 4，伺服器与画面共用）
 │   │   ├── practiceStats.ts # 打卡统计纯函式：本周次数、本周练过的计划活动 x/4、连续天数、本月天数、完成率（§8 暂采，未接配对）
 │   │   ├── ics.ts         # 提醒的 .ics：每周重复、TZID=Asia/Shanghai＋VTIMEZONE、CRLF、按位元组折行（RFC 5545）
-│   │   ├── practiceRoutes.ts # 打卡与提醒的六支端点（Express Router，server.ts 只挂上去；含记忆体模式退路）
+│   │   ├── icsLink.ts     # .ics 的短时效连结（Keep 票 7）：AES-256-GCM 加密 {使用者 id, 到期}，钥匙由 SESSION_SECRET 导出；10 分钟、不透明（伺服器专用）
+│   │   ├── practiceRoutes.ts # 打卡与提醒的七支端点（Express Router，server.ts 只挂上去；含记忆体模式退路；.ics 认 Bearer 或连结）
 │   │   └── diagnosisOptions.ts # 诊断方向十选一的名称与问句；刻意不进家长用字扫描（理由见档头）
 │   ├── db/
 │   │   ├── mysql.ts       # 连线池与家长端资料层
@@ -198,7 +206,7 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 > ⚠️ `t2_intake` 表由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立、`t2_tool_results` 表由
 > `deploy/migrations/2026-09-12-t2-tool-results.sql` 建立，**都必须先于新版程式码部署**。
 
-> 打卡与提醒（Keep 票 4，K06、K07、K10）：六支都在 `src/t2/practiceRoutes.ts`，`server.ts` 只把 Router 挂在
+> 打卡与提醒（Keep 票 4，K06、K07、K10；票 7 加 `.ics` 连结）：七支都在 `src/t2/practiceRoutes.ts`，`server.ts` 只把 Router 挂在
 > `tier2Only` 上、T2 闸门之后（**不在** `T2_OPEN_PATHS`：未付费 403 `LOCKED`、未登入 401、B 是 404）。
 > 身分取自 token，body／query 里的 `userId` 不采信。心情与进步**现在只记录**，配对不看（规格 §9 第 6 题）；
 > 统计（x/4、连续天数、完成率）在 `src/t2/practiceStats.ts`，时区与周界照 `weeks.ts`。

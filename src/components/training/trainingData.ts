@@ -10,7 +10,10 @@
  */
 
 import { addCalendarDays, weekStartOf } from '../../t2/weeks';
-import { MAX_CHECKIN_RANGE_DAYS } from '../../t2/practice';
+import { MAX_CHECKIN_RANGE_DAYS, type Checkin, type CheckinMood } from '../../t2/practice';
+import { weekPractice } from '../../t2/practiceStats';
+import type { LibraryEntry } from '../../t2/libraryRoutes';
+import type { DetailSource } from './layerStack';
 import { PLAN_TOTAL_WEEKS, type PlanPosition } from '../../t2/trainingPlan';
 import { dimensionStatus, gridDimensions } from '../../t2/reportCopy';
 import type { PickReason } from '../../t2/activityMatch';
@@ -172,6 +175,149 @@ export function alternateRows(plan: WeeklyPlanResponse): AlternateRow[] {
   return order
     .map(dimension => ({ dimension, activities: alternates[dimension] ?? [] }))
     .filter(row => row.activities.length > 0);
+}
+
+// ── 活動詳情（§3.3，票 7） ─────────────────────────────────────────────
+
+/** 有沒有示範片：`videoUrl` 非空才算（後台清掉是空字串）。 */
+export function hasClip(activity: Pick<Activity, 'videoUrl'>): boolean {
+  return typeof activity.videoUrl === 'string' && activity.videoUrl.trim() !== '';
+}
+
+/** 示範片長度「0:10」。不知道長度（還沒上片、或沒填）是空字串，畫面上不寫。 */
+export function clipClock(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return '';
+  const s = Math.round(seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+export interface PlanPlace {
+  /** 本週四支之一：配對的那一筆（理由、維度）。 */
+  pick: WeeklyPick | null;
+  /** 換著玩的備選：是哪個維度的。 */
+  swapDimension: DimensionCode | null;
+  /** 在每週活動那一份裡找到的內容；找不到（片庫的一支）要另外讀單支。 */
+  activity: Activity | null;
+}
+
+/**
+ * 這一支在這週的計劃裡是什麼身分。先找四支、再找換著玩 —— 同一支不會兩邊都在（備選扣掉了本週四支，
+ * Keep §5.2）。決定詳情頁「为什么这周排这一个」說哪一句，與點進來的地方（`from`）無關：片庫裡點到
+ * 本週的一支，理由照樣是配對的那一句。
+ */
+export function findInPlan(plan: WeeklyPlanResponse | null, id: string): PlanPlace {
+  const none: PlanPlace = { pick: null, swapDimension: null, activity: null };
+  if (!plan) return none;
+  const pick = plan.activities.find(p => p.activity.id === id);
+  if (pick) return { pick, swapDimension: null, activity: pick.activity };
+  for (const [dimension, list] of Object.entries(plan.alternates ?? {}) as Array<[DimensionCode, Activity[]]>) {
+    const activity = list.find(a => a.id === id);
+    if (activity) return { pick: null, swapDimension: dimension, activity };
+  }
+  return none;
+}
+
+export interface SeriesItem {
+  id: string;
+  title: string;
+  hasClip: boolean;
+}
+
+export interface DetailSeries {
+  /** 哪一組：本週計劃、某個維度的換著玩、示範片庫。 */
+  kind: DetailSource;
+  /** 換著玩那一組是哪個維度的。 */
+  dimension: DimensionCode | null;
+  items: SeriesItem[];
+  /** 這一支在那一組裡是第幾支（0 起）。 */
+  index: number;
+}
+
+/**
+ * 詳情頁的「系列列」（§3.3）：從哪裡點進來，就列哪一組 —— 本週四支、換著玩的那個維度、示範片庫。
+ * 那一組還沒讀到、或這一支不在那一組裡（歷史上留著的舊一格），回 `null`，畫面不出那一列。
+ */
+export function detailSeries(
+  from: DetailSource,
+  id: string,
+  plan: WeeklyPlanResponse | null,
+  library: ReadonlyArray<LibraryEntry> | null,
+): DetailSeries | null {
+  let items: SeriesItem[] | null = null;
+  let dimension: DimensionCode | null = null;
+  if (from === 'plan' && plan) {
+    items = plan.activities.map(p => ({ id: p.activity.id, title: p.activity.title, hasClip: hasClip(p.activity) }));
+  } else if (from === 'swap' && plan) {
+    dimension = findInPlan(plan, id).swapDimension;
+    const list = dimension ? plan.alternates?.[dimension] ?? [] : [];
+    items = list.map(a => ({ id: a.id, title: a.title, hasClip: hasClip(a) }));
+  } else if (from === 'library' && library) {
+    // 片庫只收有示範片的活動（`libraryEntries`）
+    items = library.map(e => ({ id: e.id, title: e.title, hasClip: true }));
+  }
+  if (!items) return null;
+  const index = items.findIndex(i => i.id === id);
+  return index < 0 ? null : { kind: from, dimension, items, index };
+}
+
+/**
+ * 孩子現在的月齡落在活動的適齡區間哪裡（頭尾都含）。`tooOld` 與 `tooYoung` 分開：配對會為了
+ * 「從做得到的開始」往前取適齡較小的活動（`activityMatch.ts` 不拿 `ageMonths` 當閘），那種不該
+ * 被說成「先看看示范片就好」。
+ */
+export function ageFit(range: Activity['ageMonths'], childAgeMonth: number | null): 'fits' | 'tooYoung' | 'tooOld' | 'unknown' {
+  if (childAgeMonth === null || !Number.isFinite(childAgeMonth)) return 'unknown';
+  if (childAgeMonth < range.min) return 'tooYoung';
+  if (childAgeMonth > range.max) return 'tooOld';
+  return 'fits';
+}
+
+// ── 打卡成功（§3.6，票 7） ─────────────────────────────────────────────
+
+/** 勾／取消腳本「怎么看出有进步」的第幾條，由小到大（API 存的也是這個順序）。 */
+export function toggleProgress(progress: ReadonlyArray<number>, index: number): number[] {
+  const next = progress.includes(index) ? progress.filter(i => i !== index) : [...progress, index];
+  return next.sort((a, b) => a - b);
+}
+
+/** 心情三選一、選填、可改：點選中的那一個就是取消。 */
+export function nextMood(current: CheckinMood | null, clicked: CheckinMood): CheckinMood | null {
+  return current === clicked ? null : clicked;
+}
+
+export interface CheckinSummary {
+  /** 本週打卡次數（含剛打的這一筆；換著玩、片庫的也算）。 */
+  sessions: number;
+  /** 本週練過的計劃活動 x/4。手上的每週活動不是打卡那一週（或還沒讀到）時是 `null`，畫面不出。 */
+  plan: { practiced: number; total: number } | null;
+  /** 打卡那一週的星期一到星期日。`today` 是打卡那一天。 */
+  days: Array<{ date: string; done: boolean; today: boolean }>;
+}
+
+/**
+ * 打卡成功頁的數字。`just` 是 POST 剛回來的那一筆：畫面手上的清單可能還沒重讀（算進去），也可能
+ * 已經重讀過（照 id 去重，不算兩次）。打卡清單讀不出來（`null`）整組回 `null` —— 只憑剛打的
+ * 這一筆寫「本周打卡 1 次」，是在說一件不知道真假的事。
+ */
+export function checkinSummary(
+  checkins: ReadonlyArray<Pick<Checkin, 'id' | 'activityId' | 'checkinDate'>> | null,
+  just: Pick<Checkin, 'id' | 'activityId' | 'checkinDate'>,
+  plan: WeeklyPlanResponse | null,
+): CheckinSummary | null {
+  if (!checkins) return null;
+  const all = checkins.some(c => c.id === just.id) ? checkins : [...checkins, just];
+  const weekStart = weekStartOf(just.checkinDate);
+  const samePlanWeek = plan !== null && plan.weekStart === weekStart && plan.activities.length > 0;
+  const week = weekPractice(all, weekStart, samePlanWeek ? plan.activities.map(p => p.activity.id) : []);
+  const practiced = new Set(week.practicedDays);
+  return {
+    sessions: week.sessions,
+    plan: samePlanWeek ? { practiced: week.planPracticed, total: week.planTotal } : null,
+    days: Array.from({ length: 7 }, (_, d) => {
+      const date = addCalendarDays(weekStart, d);
+      return { date, done: practiced.has(date), today: date === just.checkinDate };
+    }),
+  };
 }
 
 // ── 我的评估结果（報告快照） ────────────────────────────────────────────

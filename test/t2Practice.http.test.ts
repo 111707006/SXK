@@ -5,6 +5,8 @@ import { NO_ACTIVITY_CONTENT } from '../src/t2/activitySeed';
 import type { Activity, ActivityGuide } from '../src/t2/types';
 import type { Checkin, CheckinPatch, PracticePrefs } from '../src/t2/practice';
 import type { CheckinInsert } from '../src/db/t2Checkins';
+import { checkinRanges, checkinSummary } from '../src/components/training/trainingData';
+import { weekPractice } from '../src/t2/practiceStats';
 
 /**
  * 打卡與提醒的端點（Keep 規格 K06、K07、§5.3）。
@@ -501,5 +503,60 @@ describe('記憶體模式（沒有資料庫）', () => {
     expect(await (await client.get('/api/t2/practice-prefs', bearer(OTHER))).json()).toEqual({ reminderDays: [], reminderTime: null });
     expect((await client.get('/api/t2/practice-prefs.ics', bearer(PARENT))).status).toBe(200);
     expect(prefsTable.size).toBe(0);
+  });
+});
+
+describe('票 7：畫面走的那一串（GO → 最後一步 → 打卡 → 打卡成功 → 改心情與進步 → 回到計劃）', () => {
+  /** 這一週（2026-09-21 那一週）的計劃四支：A001、A002 在活動庫裡，另兩支是別的維度的。 */
+  const PLAN_WEEK = { weekStart: '2026-09-21', ids: ['A001', 'A002', 'A141', 'A121'] };
+
+  /** 畫面重讀打卡的方式：照 `checkinRanges` 切段、每段 GET、併起來（`useTrainingData`）。 */
+  async function reloadLikeTheScreen(today: string): Promise<Checkin[]> {
+    const parts = await Promise.all(
+      checkinRanges(PLAN_WEEK.weekStart, today).map(async ({ from, to }) => {
+        const resp = await client.get(`/api/t2/checkins?from=${from}&to=${to}`, bearer(PARENT));
+        expect(resp.status).toBe(200);
+        return (await resp.json()).checkins as Checkin[];
+      }),
+    );
+    return parts.flat();
+  }
+
+  it('打卡成功頁的數字、存下的心情與進步、回到計劃後的 x/4 都對得上', async () => {
+    // 週一練過一次 A002（計劃裡的另一支）
+    clockAt('2026-09-21T12:00:00.000Z');
+    await checkin('A002');
+    clockAt(WED_EVENING);
+
+    // 播放器最後一步「做完了，打卡」
+    const posted = await checkin('A001');
+    expect(posted.status).toBe(201);
+    const created = await posted.json();
+    expect(created).toMatchObject({ checkinDate: '2026-09-23', timesForActivity: 1 });
+
+    // 打卡成功頁：重讀之前手上的清單還沒有這一筆 → checkinSummary 算進去
+    const before = await reloadLikeTheScreen('2026-09-23');
+    const staleList = before.filter(c => c.id !== created.id);
+    const shown = checkinSummary(
+      staleList,
+      { id: created.id, activityId: 'A001', checkinDate: created.checkinDate },
+      { weekStart: PLAN_WEEK.weekStart, activities: PLAN_WEEK.ids.map(id => ({ activity: { id } })) } as never,
+    );
+    expect(shown?.sessions).toBe(2);
+    expect(shown?.plan).toEqual({ practiced: 2, total: 4 });
+    expect(shown?.days.filter(d => d.done).map(d => d.date)).toEqual(['2026-09-21', '2026-09-23']);
+
+    // 改心情、勾第 1、3 條進步（兩次 PATCH，畫面依序送）
+    expect((await send('PATCH', `/api/t2/checkins/${created.id}`, { mood: 'engaged' }, bearer(PARENT))).status).toBe(200);
+    const patched = await send('PATCH', `/api/t2/checkins/${created.id}`, { progress: [2, 0] }, bearer(PARENT));
+    expect((await patched.json()).checkin).toMatchObject({ mood: 'engaged', progress: [0, 2] });
+
+    // 回到計劃：重讀之後，入口與計劃頁的「本周已练」與 x/4 跟著變
+    const after = await reloadLikeTheScreen('2026-09-23');
+    const week = weekPractice(after, PLAN_WEEK.weekStart, PLAN_WEEK.ids);
+    expect(week.timesByActivity).toEqual({ A001: 1, A002: 1 });
+    expect(week.planPracticed).toBe(2);
+    expect(week.sessions).toBe(2);
+    expect(after.find(c => c.id === created.id)).toMatchObject({ mood: 'engaged', progress: [0, 2] });
   });
 });

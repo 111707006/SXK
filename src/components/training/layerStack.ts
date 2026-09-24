@@ -99,7 +99,10 @@ export interface LayerHistory {
   layers(): Layer[];
   /** 推一層＝推一格歷史。 */
   push(layer: Layer): void;
-  /** 換掉最上面那一層（詳情切到同系列的另一支），歷史不多一格。堆疊是空的就等於 `push`。 */
+  /**
+   * 換掉最上面那一層（詳情切到同系列的另一支），歷史不多一格。堆疊是空的就等於 `push`。
+   * 上一次的退格還沒落地時不換（那一層正要被關掉）。
+   */
   replaceTop(layer: Layer): void;
   /** 關最上面那一層：退一格歷史，由 `popstate` 關。 */
   back(): void;
@@ -236,7 +239,9 @@ export function createLayerHistory(deps: {
     layers: () => layers,
     push,
     replaceTop(layer) {
-      if (disposed) return;
+      // 退格還沒落地（家長剛按了返回或 ✕）：最上面那一層正要被關掉，換它就是寫進一格等一下就退掉的
+      // 歷史（或落地後換掉下面那一層）。例：打卡還在送時家長關了播放器，POST 回來不再換成打卡成功。
+      if (disposed || pending > 0) return;
       if (layers.length === 0) {
         push(layer);
         return;

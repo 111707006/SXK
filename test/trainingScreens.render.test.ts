@@ -5,13 +5,14 @@ import CheckinScreen from '../src/components/training/CheckinScreen';
 import DetailScreen from '../src/components/training/DetailScreen';
 import { ActionsSheet, EquipSheet } from '../src/components/training/DetailSheets';
 import PlayerScreen from '../src/components/training/PlayerScreen';
+import ReminderSheet from '../src/components/training/ReminderSheet';
 import { TrainingProvider, type TrainingContextValue } from '../src/components/training/TrainingContext';
 import type { WeeklyPlanResponse } from '../src/components/training/trainingData';
 import type { TrainingData } from '../src/components/training/useTrainingData';
 import { ACTIVITY_CONTENT } from '../src/t2/activityContent';
 import { parseAgeRange } from '../src/t2/activitySeed';
 import { weekPractice } from '../src/t2/practiceStats';
-import type { Checkin } from '../src/t2/practice';
+import type { Checkin, PracticePrefs } from '../src/t2/practice';
 import type { Activity, DimensionCode, ModuleNo } from '../src/t2/types';
 import { t2FindingsFixture } from './helpers/t2Fixtures';
 
@@ -94,7 +95,10 @@ const checkin = (activityId: string, checkinDate: string, id = ++seq): Checkin =
   createdAt: null,
 });
 
-function render(element: ReactElement, opts: { ageMonth?: number; checkins?: Checkin[] | null } = {}): string {
+function render(
+  element: ReactElement,
+  opts: { ageMonth?: number; checkins?: Checkin[] | null; prefs?: PracticePrefs | null; prefsStatus?: TrainingData['prefsStatus'] } = {},
+): string {
   const plan = planWith(opts.ageMonth ?? 18);
   const checkins = opts.checkins === undefined ? [] : opts.checkins;
   const noop = () => {};
@@ -104,7 +108,8 @@ function render(element: ReactElement, opts: { ageMonth?: number; checkins?: Che
     checkins,
     today: '2026-09-23',
     practice: checkins ? weekPractice(checkins, plan.weekStart, plan.activities.map(p => p.activity.id)) : null,
-    prefs: null,
+    prefs: opts.prefs ?? null,
+    prefsStatus: opts.prefsStatus ?? 'idle',
     loadPrefs: noop,
     savePrefs: async () => {},
     refresh: async () => {},
@@ -317,5 +322,46 @@ describe('抽屜', () => {
     const without = render(createElement(EquipSheet, { id: 'A041' }));
     expect(without).toContain(A041.need);
     expect(without).not.toContain('安全检查');
+  });
+});
+
+describe('加到日曆抽屜：伺服器上存的提醒還不知道時，不讓預設值蓋掉它', () => {
+  const sheet = () => createElement(ReminderSheet);
+  /** 兩顆按鈕（加到打卡日历、也加到手机日历）各自是不是 disabled。 */
+  const buttons = (html: string) =>
+    html
+      .split('<button')
+      .slice(1)
+      .map(chunk => chunk.slice(0, chunk.indexOf('</button>')))
+      .map(chunk => ({ label: /加到打卡日历|也加到手机日历/.exec(chunk)?.[0], disabled: chunk.slice(0, chunk.indexOf('>')).includes('disabled=""') }))
+      .filter((b): b is { label: string; disabled: boolean } => b.label !== undefined);
+
+  it('讀取中：畫面上的一、三、五 19:30 只是預設，兩顆按鈕都不能按，說「正在读取」', () => {
+    const html = render(sheet(), { prefsStatus: 'loading' });
+    expect(html).toContain('正在读取已经设好的提醒');
+    expect(buttons(html)).toEqual([
+      { label: '加到打卡日历', disabled: true },
+      { label: '也加到手机日历', disabled: true },
+    ]);
+  });
+
+  it('讀不出來：說「暂时读不到」，家長自己選過才能按（這裡還沒選 → 不能按）', () => {
+    const html = render(sheet(), { prefsStatus: 'error' });
+    expect(html).toContain('暂时读不到已经设好的提醒');
+    expect(buttons(html).every(b => b.disabled)).toBe(true);
+  });
+
+  it('讀到了：照存的顯示（二、四 20:30），兩顆都能按', () => {
+    const html = render(sheet(), { prefsStatus: 'ready', prefs: { reminderDays: [1, 3], reminderTime: '20:30' } });
+    expect(html).not.toContain('data-testid="reminder-stored-unknown"');
+    expect(html).toMatch(/aria-pressed="true"[^>]*>二</);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>四</);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>一</);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>20:30</);
+    expect(buttons(html).every(b => !b.disabled)).toBe(true);
+  });
+
+  it('說法是「加到手机日历，到时间手机会提醒你」', () => {
+    expect(render(sheet(), { prefsStatus: 'ready' })).toContain('加到手机日历，到时间手机会提醒你');
   });
 });

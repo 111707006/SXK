@@ -213,6 +213,23 @@ describe('播放器、打卡成功、抽屜也都是一層（票 7）', () => {
     expect(stack.layers()).toEqual([plan, detail]);
   });
 
+  it('打卡還在送的時候家長按了 ✕（退格還沒落地）：打卡成功不換上去，也不寫到別的那一格', async () => {
+    // POST 先回來、popstate 還沒到：這時 replaceTop 若照做，會寫進播放器那一格（等一下就被退掉），
+    // 或落地之後把詳情換成打卡成功。家長已經選擇離開播放器，打卡照樣存了，畫面回到詳情就好。
+    const { browser, stack } = setup();
+    stack.push(plan);
+    stack.push(detail);
+    stack.push(go);
+    stack.back();
+    stack.replaceTop(done);
+    expect(browser.calls.replace).toBe(0);
+    await flush();
+    expect(stack.layers()).toEqual([plan, detail]);
+    browser.pressForward();
+    await flush();
+    expect(stack.layers()).toEqual([plan, detail, go]);
+  });
+
   it('動作列表抽屜裡按 GO：抽屜換成播放器，返回回到詳情', async () => {
     const { browser, stack } = setup();
     stack.push(detail);

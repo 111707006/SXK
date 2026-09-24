@@ -73,11 +73,23 @@ function SayList({ activity }: { activity: Activity }) {
   );
 }
 
-/** 「做完了，打卡」：POST、重讀打卡、打卡成功取代這一層。 */
+/**
+ * 「做完了，打卡」：POST、重讀打卡、打卡成功取代這一層。
+ *
+ * 送出去之後家長按了 ✕ 或返回鍵：打卡照樣存了（重讀，入口與計劃頁的次數會變），但**不再**把打卡成功
+ * 換上去——播放器已經關了（這裡看 `alive`），或正在關（堆疊的 `replaceTop` 在退格落地前不換）。
+ */
 function useFinish(activity: Activity) {
   const { data, nav } = useTraining();
   const [posting, setPosting] = useState(false);
   const [failed, setFailed] = useState(false);
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
   const finish = async () => {
     if (posting) return;
     setPosting(true);
@@ -85,6 +97,7 @@ function useFinish(activity: Activity) {
     try {
       const created = await postCheckin(activity.id);
       void data.reloadCheckins();
+      if (!alive.current) return;
       nav.replacePage({
         name: 'checkin',
         id: activity.id,

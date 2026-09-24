@@ -27,7 +27,7 @@ type Status = 'idle' | 'saving' | 'saved' | 'saveFailed' | 'ics' | 'icsFailed';
 
 export default function ReminderSheet() {
   const { data, nav } = useTraining();
-  const { loadPrefs, savePrefs, prefs } = data;
+  const { loadPrefs, savePrefs, prefs, prefsStatus } = data;
   const [draft, setDraft] = useState<{ days: number[]; time: ReminderTime } | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const inWeChat = typeof navigator !== 'undefined' && isWeChatBrowser(navigator.userAgent);
@@ -39,8 +39,11 @@ export default function ReminderSheet() {
   // 家長還沒動過：照伺服器上存的（讀到之前先用預設）；動過就用他選的
   const stored = hasReminder(prefs) ? { days: prefs.reminderDays, time: prefs.reminderTime } : null;
   const shown = draft ?? stored ?? DEFAULT_DRAFT;
-  const canSave = shown.days.length > 0;
   const busy = status === 'saving' || status === 'ics';
+  // 伺服器上存的還不知道（讀取中、讀不出來）時，畫面上的一、三、五 19:30 只是預設：家長沒動過就不讓按，
+  // 否則一按就把他原本設好的提醒換成預設值
+  const known = prefsStatus === 'ready';
+  const canSave = shown.days.length > 0 && (known || draft !== null) && !busy;
 
   const change = (next: { days: number[]; time: ReminderTime }) => {
     setDraft(next);
@@ -107,9 +110,15 @@ export default function ReminderSheet() {
           ))}
         </div>
 
+        {!known && draft === null && (
+          <p className="mt-5 text-[12px] text-brand-charcoal/55 flex items-center gap-1.5" data-testid="reminder-stored-unknown">
+            {prefsStatus === 'error' ? <Info size={14} className="shrink-0" /> : <Loader2 size={14} className="animate-spin shrink-0" />}
+            {prefsStatus === 'error' ? REMINDER_SHEET.storedUnknown : REMINDER_SHEET.loadingStored}
+          </p>
+        )}
         <button
           type="button"
-          disabled={!canSave || busy}
+          disabled={!canSave}
           onClick={save}
           className="mt-7 w-full h-12 rounded-full bg-brand-forest text-white font-bold text-[16px] flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
         >
@@ -137,7 +146,7 @@ export default function ReminderSheet() {
           <>
             <button
               type="button"
-              disabled={!canSave || busy}
+              disabled={!canSave}
               onClick={addToPhone}
               className="mt-3 w-full h-11 rounded-full border border-brand-stone text-brand-forest font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
             >

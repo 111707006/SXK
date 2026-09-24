@@ -43,6 +43,8 @@ export interface TrainingData {
    * 要用的頁呼叫 `loadPrefs()`（讀過就不再讀）。
    */
   prefs: PracticePrefs | null;
+  /** `prefs` 讀到哪裡了：還沒讀、讀取中、讀到了（或剛存好）、讀不出來。 */
+  prefsStatus: 'idle' | 'loading' | 'ready' | 'error';
   loadPrefs(): void;
   /** 存提醒（PUT）。成功就換掉 `prefs`；失敗丟出去，呼叫端說「没存上」。 */
   savePrefs(prefs: PracticePrefs): Promise<void>;
@@ -146,28 +148,39 @@ export function useTrainingData(): TrainingData {
   );
 
   const [prefs, setPrefs] = useState<PracticePrefs | null>(null);
+  const [prefsStatus, setPrefsStatus] = useState<TrainingData['prefsStatus']>('idle');
   const prefsLoad = useRef<'idle' | 'loading' | 'done'>('idle');
+  // 每存成功一次加一：讀取是在那之前發的，晚回來的舊值不蓋掉剛存好的
+  const prefsSaves = useRef(0);
 
   const loadPrefs = useCallback(() => {
     if (prefsLoad.current !== 'idle') return;
     prefsLoad.current = 'loading';
+    setPrefsStatus('loading');
+    const savesAtStart = prefsSaves.current;
     fetchPrefs().then(
       p => {
+        if (savesAtStart !== prefsSaves.current) return;
         prefsLoad.current = 'done';
         setPrefs(p);
+        setPrefsStatus('ready');
       },
       err => {
-        // 讀不出來就留在「不知道」：下一次有頁要用時再讀
-        prefsLoad.current = 'idle';
         console.warn('Failed to load T2 practice prefs:', err);
+        // 讀不出來就留在「不知道」：下一次有頁要用時再讀（這中間存過了就不必再讀）
+        if (savesAtStart !== prefsSaves.current) return;
+        prefsLoad.current = 'idle';
+        setPrefsStatus('error');
       },
     );
   }, []);
 
   const savePrefsAndKeep = useCallback(async (next: PracticePrefs) => {
     const saved = await savePrefs(next);
+    prefsSaves.current += 1;
     prefsLoad.current = 'done';
     setPrefs(saved);
+    setPrefsStatus('ready');
   }, []);
 
   return {
@@ -177,6 +190,7 @@ export function useTrainingData(): TrainingData {
     today,
     practice,
     prefs,
+    prefsStatus,
     loadPrefs,
     savePrefs: savePrefsAndKeep,
     refresh,

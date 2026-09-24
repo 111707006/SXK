@@ -168,8 +168,10 @@ describe('票 7：詳情、播放器、打卡成功、抽屜', () => {
     expect(detail).toContain('followModeFor(readFollowMode(), clip !== null)');
   });
 
-  it('做完了打卡：POST → 重讀打卡 → 打卡成功取代播放器（不多一格歷史）', () => {
-    expect(player).toMatch(/await postCheckin\(activity\.id\);\s*void data\.reloadCheckins\(\);\s*nav\.replacePage\(\{\s*name: 'checkin'/);
+  it('做完了打卡：POST → 重讀打卡 → 打卡成功取代播放器（不多一格歷史）；送出去之後播放器被關了就不換', () => {
+    expect(player).toMatch(
+      /await postCheckin\(activity\.id\);\s*void data\.reloadCheckins\(\);\s*if \(!alive\.current\) return;\s*nav\.replacePage\(\{\s*name: 'checkin'/,
+    );
   });
 
   it('打卡成功：「回到计划」走 returnToPage；說明句是「会记在打卡日历里」', () => {

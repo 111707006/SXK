@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@fontsource-variable/noto-sans-sc':
+        specifier: 5.3.0
+        version: 5.3.0
       '@google/genai':
         specifier: ^2.4.0
         version: 2.11.0
@@ -19,13 +22,13 @@ importers:
         version: 5.2.0(vite@6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.1))
       axios:
         specifier: ^1.7.9
-        version: 1.18.1(debug@4.4.3)
+        version: 1.18.1
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
       coze-coding-dev-sdk:
         specifier: ^0.7.24
-        version: 0.7.24(debug@4.4.3)(openai@6.46.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0)
+        version: 0.7.24(openai@6.46.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0)
       dotenv:
         specifier: ^17.2.3
         version: 17.4.2
@@ -490,6 +493,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@fontsource-variable/noto-sans-sc@5.3.0':
+    resolution: {integrity: sha512-lNar1dF7Ik/lHNPo/7JWG0TolXY29LtsqYgMvEysooZ5bsO9uH4shJmRrwyJ3PjyTPljhpMJEK0jDuLSU4vJ1w==}
 
   '@google/genai@2.11.0':
     resolution: {integrity: sha512-d2Csf29vS0GfHc52H0MG25ccY4FKvvbDgqDlEovLrPLF8sPegWr/GGO+LMOy85/1SnX0iV0zDAW7R8SsvWg8Vg==}
@@ -2239,6 +2245,8 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
+  '@fontsource-variable/noto-sans-sc@5.3.0': {}
+
   '@google/genai@2.11.0':
     dependencies:
       google-auth-library: 10.9.0
@@ -2681,9 +2689,9 @@ snapshots:
 
   aws-ssl-profiles@1.1.2: {}
 
-  axios@1.18.1(debug@4.4.3):
+  axios@1.18.1:
     dependencies:
-      follow-redirects: 1.16.0(debug@4.4.3)
+      follow-redirects: 1.16.0
       form-data: 4.0.6
       https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
@@ -2758,12 +2766,12 @@ snapshots:
 
   cookie@0.7.2: {}
 
-  coze-coding-dev-sdk@0.7.24(debug@4.4.3)(openai@6.46.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0):
+  coze-coding-dev-sdk@0.7.24(openai@6.46.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0):
     dependencies:
       '@langchain/core': 1.2.2(openai@6.46.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0)
       '@langchain/openai': 1.5.5(@langchain/core@1.2.2(openai@6.46.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(ws@8.21.0)
       '@supabase/supabase-js': 2.95.3
-      axios: 1.18.1(debug@4.4.3)
+      axios: 1.18.1
       pg: 8.22.0
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -2981,9 +2989,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  follow-redirects@1.16.0(debug@4.4.3):
-    optionalDependencies:
-      debug: 4.4.3
+  follow-redirects@1.16.0: {}
 
   form-data@4.0.6:
     dependencies:

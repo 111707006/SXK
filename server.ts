@@ -51,6 +51,7 @@ import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
 import type { UnlockScope } from './src/types';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
+import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -3393,8 +3394,9 @@ function reportLinkNotFoundHtml(message = '这个报告连结无效，或对应�
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>找不到这份报告</title>
+${BRAND_FONT_LINK_TAG}
 <style>
-  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #1f2933;
+  body { font-family: ${BRAND_FONT_STACK}; color: #1f2933;
          margin: 0; min-height: 100vh; display: flex; align-items: center;
          justify-content: center; background: #f0f4f8; padding: 24px; }
   .box { background: #fff; border-radius: 16px; padding: 28px 24px; max-width: 380px;
@@ -3479,6 +3481,19 @@ export async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    // 思源黑体（`src/brandFont.ts`）：路徑帶套件版本號，換版就換目錄，所以可以放心快取一年。
+    // 找不到的字檔一律 404，不落到下面的 SPA 兜底 —— 把 index.html 當 woff2 回給瀏覽器只會
+    // 讓它安靜地退回系統字。
+    app.use(
+      `/${BRAND_FONT_DIR}`,
+      express.static(path.join(distPath, BRAND_FONT_DIR), {
+        index: false,
+        redirect: false,
+        fallthrough: false,
+        immutable: true,
+        maxAge: '365d',
+      })
+    );
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

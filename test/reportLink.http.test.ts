@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 import { bearer } from './helpers/session';
+import { BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from '../src/brandFont';
 
 /**
  * 掃碼帶走報告的 HTTP 測試（issue #22）。
@@ -271,5 +272,29 @@ describe('伺服器吐的那兩頁掛得上備案號', () => {
     const html = await resp.text();
     expect(html).toContain(TEST_BEIAN);
     expect(html).toContain('https://beian.miit.gov.cn/');
+  });
+});
+
+/**
+ * 字型（2026-09 評審會議：全站統一思源黑体，規避版權風險；理由見 `src/brandFont.ts`）。
+ *
+ * 這兩頁不經過 Vite，`index.css` 管不到它們 —— 要自己掛 `@font-face` 那一份。
+ * 而掃碼那一頁會被「列印 → 另存為 PDF」交給專家：另存 PDF 會把字型內嵌進檔案，
+ * 以前點名的 "Microsoft YaHei" 就是這樣跟著 PDF 出門的。
+ */
+describe('伺服器吐的那兩頁用思源黑体', () => {
+  it('掃碼帶走的報告頁掛上字型、不點名商用字型', async () => {
+    const { url } = await issue(OWNER_ID, OWNER_REPORT_ID);
+    const html = await (await client.get(pathOf(url))).text();
+    expect(html).toContain(BRAND_FONT_LINK_TAG);
+    expect(html).toContain(`font-family: ${BRAND_FONT_STACK}`);
+    expect(html).not.toMatch(/YaHei|PingFang|雅黑/);
+  });
+
+  it('連結失效那一頁也是', async () => {
+    const html = await (await client.get(`/r/${'A'.repeat(43)}`)).text();
+    expect(html).toContain(BRAND_FONT_LINK_TAG);
+    expect(html).toContain(`font-family: ${BRAND_FONT_STACK}`);
+    expect(html).not.toMatch(/YaHei|PingFang|雅黑/);
   });
 });

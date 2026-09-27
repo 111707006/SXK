@@ -3,6 +3,7 @@ import { DimensionConfig, Question, DimensionScore, Child, AssessmentRecord } fr
 import { transcribeWithQwenASR } from '../utils/asr';
 import { authFetch } from '../utils/api';
 import MotionVideoAssessment from './MotionVideoAssessment';
+import { BRAND_FONT_STACK } from '../brandFont';
 import { 
   ArrowLeft, AlertTriangle, CheckCircle2,
   Mic, Square, Play, Pause, Upload, FileAudio, FileVideo, 
@@ -366,7 +367,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
 
     // Label coordinates guide overlay
     ctx.fillStyle = 'rgba(27, 67, 50, 0.85)';
-    ctx.font = '10px monospace';
+    ctx.font = `10px ${BRAND_FONT_STACK}`;
     ctx.fillText('AI 神经网络关节点动作识别已激活', 15, 25);
     ctx.fillText('帧率: 60fps | 识别点: 14/14 OK', 15, 40);
     ctx.fillText('躯干中心垂直偏度: 1.2° (正常)', 15, 55);

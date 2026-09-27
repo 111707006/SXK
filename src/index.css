@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -12,9 +11,14 @@
   --color-brand-sage: #F0F4F0;
   --color-brand-charcoal: #4A4A40;
   
-  --font-sans: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, sans-serif;
-  --font-serif: "Playfair Display", Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  /*
+   * 全站只用思源黑体（字型堆疊與理由見 src/brandFont.ts；@font-face 由 vite.config.ts 的 brandFont()
+   * 注入 <head>）。serif、mono 兩個 token 也指到同一套：原本三個 token 各自的英文字型一併換掉，
+   * `font-serif`／`font-mono` 這兩個 class 留著不用改。三行由 test/brandFont.test.ts 比對。
+   */
+  --font-sans: "Noto Sans SC Variable", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+  --font-serif: "Noto Sans SC Variable", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+  --font-mono: "Noto Sans SC Variable", "Source Han Sans SC", "Noto Sans SC", sans-serif;
 }
 
 body {

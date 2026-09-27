@@ -319,7 +319,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 - React 19，不需要 `import React from 'react'`
 - Tailwind CSS 4 使用 `@theme` 指令定义设计令牌
 - 品牌色系： moss/forest/clay/cream/stone 等自然色调
-- 字体：Plus Jakarta Sans (正文) + Playfair Display (标题) + JetBrains Mono (代码)
+- 字体：全站只用思源黑体（Noto Sans SC，OFL；2026-09 评审会议为规避版权风险定案）。字档自己放在 `dist/fonts/noto-sans-sc-<版本>/`（`vite.config.ts` 的 `brandFont()`），不走 Google Fonts；伺服器吐的 HTML 与 canvas 用 `src/brandFont.ts` 的 `BRAND_FONT_STACK`，不点名其他字型（`test/brandFont.test.ts`）。升级字型套件要一起改 `BRAND_FONT_VERSION`
 
 ## Agent skills
 

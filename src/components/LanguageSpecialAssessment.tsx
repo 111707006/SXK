@@ -6,6 +6,7 @@ import { useToday } from '../utils/useToday';
 import { authFetch } from '../utils/api';
 import { peekDeviceId } from '../utils/deviceId';
 import { PRODUCT } from '../productConfig';
+import { BRAND_FONT_STACK } from '../brandFont';
 import {
   Mic, Square, Play, Pause, Upload, FileAudio, Sparkles, Brain,
   Compass, FileText, CheckCircle2, Volume2, ArrowLeft, AlertCircle,
@@ -367,7 +368,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
       ctx.stroke();
 
       // Label standard and child
-      ctx.font = 'bold 10px sans-serif';
+      ctx.font = `bold 10px ${BRAND_FONT_STACK}`;
       ctx.fillStyle = '#10b981';
       ctx.fillText('标准同龄基准声律带 (F0: 290Hz)', 40, 25);
 

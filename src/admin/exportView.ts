@@ -27,6 +27,7 @@ import type { AssessmentRecord, DimensionScore } from '../types';
 import { formatDateTime as fmtDate, genderLabel, statusLabel } from './adminView';
 import { ageBandDrift } from '../utils/ageBandDrift';
 import { isOfflineService, serviceTypeLabel } from '../utils/serviceTypes';
+import { BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from '../brandFont';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -157,8 +158,9 @@ export function renderParentExportHtml(
 -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>筛查资料 - ${esc(parent.childName || '未填姓名')}</title>
+${BRAND_FONT_LINK_TAG}
 <style>
-  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #1f2933; margin: 32px; line-height: 1.7; }
+  body { font-family: ${BRAND_FONT_STACK}; color: #1f2933; margin: 32px; line-height: 1.7; }
   h1 { font-size: 22px; margin: 0 0 4px; }
   h2 { font-size: 16px; margin: 28px 0 10px; border-bottom: 2px solid #d9e2ec; padding-bottom: 4px; }
   .meta { color: #627d98; font-size: 13px; margin-bottom: 20px; }

@@ -7,6 +7,7 @@ import {
 import { collectCpmv, buildCpmvSummary, buildCpmvSuggest, CpmvCollectResult } from '../utils/cpmvReport';
 import { extractVideoFrames } from '../utils/videoFrames';
 import { authFetch } from '../utils/api';
+import { BRAND_FONT_STACK } from '../brandFont';
 import {
   Video, Upload, Brain, Loader2, Check, ChevronRight, Database,
   Activity, AlertTriangle, FileText, Sparkles
@@ -444,7 +445,7 @@ function drawRadar(cv: HTMLCanvasElement, labels: string[], vals: number[]) {
   const ang = (i: number) => -Math.PI / 2 + i * 2 * Math.PI / n;
 
   ctx.strokeStyle = '#DFE6E1';
-  ctx.font = "11px 'Noto Sans SC',sans-serif";
+  ctx.font = `11px ${BRAND_FONT_STACK}`;
   for (let ring = 1; ring <= 4; ring++) {
     const rr = R * ring / 4;
     ctx.beginPath();

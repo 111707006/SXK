@@ -18,6 +18,7 @@ import { getPool, isConfigured } from '../db/mysql';
 import { companyWhereSql, type CompanyCondition } from './companyScope';
 import type { AssessmentRecord, DimensionScore } from '../types';
 import { calculateAgeMonth } from '../utils/dateUtils';
+import { screeningTotal, type ScreeningTotal } from './adminView';
 import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
 import { activityFromRow } from '../db/activities';
 import type { ActivityPatch } from '../utils/activityAdmin';
@@ -34,8 +35,16 @@ export interface ParentListItem {
   childName: string | null;
   childAgeMonth: number | null;
   childGender: string | null;
-  /** 被標記（黃燈或紅燈）的維度，讓公司知道該先聯絡誰。 */
-  flaggedDimensions: Array<{ dimensionId: string; dimensionName: string; status: string }>;
+  /** 被標記（黃燈或紅燈）的維度，讓公司知道該先聯絡誰。分數跟著燈號一起列（2026-09-27）。 */
+  flaggedDimensions: Array<{
+    dimensionId: string;
+    dimensionName: string;
+    status: string;
+    score: number;
+    maxScore: number;
+  }>;
+  /** T1 九個維度的總分；還沒做篩查是 null（`screeningTotal`，`adminView.ts`）。 */
+  screeningTotal: ScreeningTotal | null;
   /** 最近一次篩查資料的更新時間；沒做過篩查則為 null。 */
   screenedAt: string | null;
   registeredAt: string | null;
@@ -174,7 +183,13 @@ function toIso(value: unknown): string | null {
 function flaggedFrom(scores: DimensionScore[]): ParentListItem['flaggedDimensions'] {
   return scores
     .filter(s => s.status === 'delay' || s.status === 'borderline')
-    .map(s => ({ dimensionId: s.dimensionId, dimensionName: s.dimensionName, status: s.status }));
+    .map(s => ({
+      dimensionId: s.dimensionId,
+      dimensionName: s.dimensionName,
+      status: s.status,
+      score: s.score,
+      maxScore: s.maxScore,
+    }));
 }
 
 /**
@@ -206,6 +221,7 @@ function rowToListItem(row: any): ParentListItem {
     childAgeMonth: currentAgeMonth(child),
     childGender: child?.gender ?? null,
     flaggedDimensions: flaggedFrom(scores),
+    screeningTotal: screeningTotal(scores),
     screenedAt: toIso(row.screened_at),
     registeredAt: toIso(row.created_at),
     hasBooking: Number(row.booking_count) > 0,

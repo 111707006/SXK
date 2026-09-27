@@ -9,6 +9,7 @@
 import type { AssessmentRecord } from '../types';
 import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
+import type { ScreeningTotal } from './adminView';
 
 const TOKEN_KEY = 'sxk_admin_token';
 
@@ -37,7 +38,15 @@ export interface AdminParentListItem {
   childName: string | null;
   childAgeMonth: number | null;
   childGender: string | null;
-  flaggedDimensions: Array<{ dimensionId: string; dimensionName: string; status: string }>;
+  flaggedDimensions: Array<{
+    dimensionId: string;
+    dimensionName: string;
+    status: string;
+    score: number;
+    maxScore: number;
+  }>;
+  /** T1 總分；還沒做篩查是 null。 */
+  screeningTotal: ScreeningTotal | null;
   screenedAt: string | null;
   registeredAt: string | null;
   hasBooking: boolean;

@@ -20,6 +20,7 @@ function detail(overrides: Partial<ParentDetail> = {}): ParentDetail {
     childAgeMonth: 54,
     childGender: 'boy',
     flaggedDimensions: [],
+    screeningTotal: { score: 5, maxScore: 8 },
     screenedAt: '2026-01-05T09:00:00.000Z',
     registeredAt: '2025-12-01T09:00:00.000Z',
     hasBooking: false,

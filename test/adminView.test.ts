@@ -19,6 +19,9 @@ import {
   deletionChallenge,
   matchesChallenge,
   isBookingInProgress,
+  screeningTotal,
+  byScreeningTotalAsc,
+  formatScore,
   type AdminCenterShape,
   type AdminTabId,
 } from '../src/admin/adminView';
@@ -644,5 +647,74 @@ describe('進行中的預約', () => {
 
   it('認不得的狀態不算進行中 —— 不憑空製造一句警告', () => {
     expect(isBookingInProgress('不认得的状态')).toBe(false);
+  });
+});
+
+/**
+ * 篩查總分（2026-09-27：後台紅黃燈之外加上分數）。
+ *
+ * 會出錯的地方都很安靜：舊的 T2／T3 成績混進總分、一筆壞資料把總分變成 NaN、
+ * 滿分不同的兩筆照原始分排 —— 畫面上都只是一個看起來合理的數字。
+ */
+describe('screeningTotal：T1 九個維度的總分', () => {
+  const t1 = (score: number, maxScore = 8) => ({ tierId: 'T1', score, maxScore });
+
+  it('把 T1 的得分與滿分各自加總', () => {
+    expect(screeningTotal([t1(8), t1(5), t1(7)])).toEqual({ score: 20, maxScore: 24 });
+  });
+
+  it('九格滿分是 72', () => {
+    expect(screeningTotal(Array.from({ length: 9 }, () => t1(8)))).toEqual({ score: 72, maxScore: 72 });
+  });
+
+  // 深度評估改版前存的成績還躺在 completed_scores 裡，題目與滿分都不同。
+  it('不把 T2／T3 的成績加進來', () => {
+    expect(
+      screeningTotal([t1(6), { tierId: 'T2', score: 3, maxScore: 10 }, { tierId: 'T3', score: 1, maxScore: 5 }])
+    ).toEqual({ score: 6, maxScore: 8 });
+  });
+
+  it('一格 T1 都沒有 —— 還沒做篩查 —— 是 null，不是 0 / 0', () => {
+    expect(screeningTotal([])).toBeNull();
+    expect(screeningTotal([{ tierId: 'T3', score: 1, maxScore: 5 }])).toBeNull();
+  });
+
+  it('讀不成數字的格子跳過，不讓總分變成 NaN', () => {
+    const broken = { tierId: 'T1', score: 'x' as unknown as number, maxScore: 8 };
+    expect(screeningTotal([t1(7), broken])).toEqual({ score: 7, maxScore: 8 });
+  });
+});
+
+describe('byScreeningTotalAsc：总分低的在前', () => {
+  const row = (name: string, total: { score: number; maxScore: number } | null) => ({ name, screeningTotal: total });
+
+  it('照得分率由低到高，沒做篩查的排最後', () => {
+    const sorted = [
+      row('未筛查', null),
+      row('高', { score: 70, maxScore: 72 }),
+      row('低', { score: 40, maxScore: 72 }),
+    ].sort(byScreeningTotalAsc);
+    expect(sorted.map(r => r.name)).toEqual(['低', '高', '未筛查']);
+  });
+
+  // 少一個維度的舊資料：原始分 50 比 55 低，但 50/64 的得分率比 55/72 高。
+  it('比的是得分率，不是原始分', () => {
+    const sorted = [row('少一格', { score: 50, maxScore: 64 }), row('九格', { score: 55, maxScore: 72 })].sort(
+      byScreeningTotalAsc
+    );
+    expect(sorted.map(r => r.name)).toEqual(['九格', '少一格']);
+  });
+
+  it('同分維持原本的順序（後端給的最近篩查在前）', () => {
+    const sorted = [row('先', { score: 60, maxScore: 72 }), row('後', { score: 60, maxScore: 72 })].sort(
+      byScreeningTotalAsc
+    );
+    expect(sorted.map(r => r.name)).toEqual(['先', '後']);
+  });
+});
+
+describe('formatScore', () => {
+  it('寫成「得分 / 滿分」', () => {
+    expect(formatScore({ score: 58, maxScore: 72 })).toBe('58 / 72');
   });
 });

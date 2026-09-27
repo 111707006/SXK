@@ -51,12 +51,12 @@ vi.mock('../src/admin/adminStore', async () => {
       {
         id: 101, email: null, phone: '13800000001', companyId: null,
         childName: '直属的孩子', childAgeMonth: 36, childGender: 'boy',
-        flaggedDimensions: [], screenedAt: null, registeredAt: null, hasBooking: false,
+        flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: false,
       },
       {
         id: 202, email: null, phone: '13800000002', companyId: 1,
         childName: '不该出现的孩子', childAgeMonth: 30, childGender: 'girl',
-        flaggedDimensions: [], screenedAt: null, registeredAt: null, hasBooking: false,
+        flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: false,
       },
     ],
   };

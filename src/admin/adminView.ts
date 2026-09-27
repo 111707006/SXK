@@ -291,6 +291,56 @@ export function statusLabel(status: string): string {
   return status === 'delay' ? '需关注' : status === 'borderline' ? '需留意' : '正常';
 }
 
+/** 一格分數的最小形狀：清單的被標記維度與詳情的完整成績都吃這個。 */
+export interface ScoreLike {
+  tierId?: string;
+  score: number;
+  maxScore: number;
+}
+
+export interface ScreeningTotal {
+  score: number;
+  maxScore: number;
+}
+
+/**
+ * 篩查總分（2026-09-27：紅黃燈之外加上分數，營運挑人發簡訊時分得出輕重）。
+ *
+ * 只加 **T1** 那幾格：`completed_scores` 裡可能還躺著深度評估改版前存的 T2／T3 成績，
+ * 題目與滿分都不同，混進來的總分就不能拿來比。一格 T1 都沒有 → null（還沒做篩查）。
+ * 滿分照存下來的 `maxScore` 加，不寫死 72（九個維度 × 4 題 × 2 分）：哪天某一段的題數
+ * 改了，舊資料照樣算得對。讀不成數字的格子跳過，不讓一筆壞資料把總分變成 NaN。
+ */
+export function screeningTotal(scores: ReadonlyArray<ScoreLike>): ScreeningTotal | null {
+  const t1 = scores.filter(
+    s => s.tierId === 'T1' && Number.isFinite(Number(s.score)) && Number.isFinite(Number(s.maxScore))
+  );
+  if (t1.length === 0) return null;
+  return {
+    score: t1.reduce((sum, s) => sum + Number(s.score), 0),
+    maxScore: t1.reduce((sum, s) => sum + Number(s.maxScore), 0),
+  };
+}
+
+/**
+ * 「总分低的在前」的比較函式。比的是**得分率**不是原始分：滿分不同的兩筆（舊資料少一個維度）
+ * 照原始分排會把少考一格的人排到前面。沒做篩查的排最後；同分維持原本的順序（最近篩查在前）。
+ */
+export function byScreeningTotalAsc(
+  a: { screeningTotal: ScreeningTotal | null },
+  b: { screeningTotal: ScreeningTotal | null }
+): number {
+  const ratio = (t: ScreeningTotal | null) => (t && t.maxScore > 0 ? t.score / t.maxScore : Infinity);
+  const ra = ratio(a.screeningTotal);
+  const rb = ratio(b.screeningTotal);
+  return ra === rb ? 0 : ra < rb ? -1 : 1;
+}
+
+/** `58 / 72`；沒做篩查是 null，由畫面決定怎麼寫。 */
+export function formatScore(s: { score: number; maxScore: number }): string {
+  return `${s.score} / ${s.maxScore}`;
+}
+
 export function genderLabel(gender: string | null): string {
   return gender === 'boy' ? '男' : gender === 'girl' ? '女' : '未填';
 }

@@ -23,8 +23,10 @@ import {
   type AdminParentListItem,
 } from '../adminApi';
 import {
+  byScreeningTotalAsc,
   deletionChallenge,
   formatDateTime,
+  formatScore,
   genderLabel,
   isBookingInProgress,
   matchesChallenge,
@@ -51,7 +53,11 @@ import {
   useAsyncData,
 } from '../ui';
 
-type Sort = 'newest' | 'oldest';
+/**
+ * `score_low`（总分低的在前）是**畫面上**排的：後端照最近篩查取回最多 500 筆，這裡再照得分率
+ * 重排。超過 500 位家長時排的只是最近那 500 位 —— 與「被標記的維度」一樣，清單本來就只看這一批。
+ */
+type Sort = 'newest' | 'oldest' | 'score_low';
 type Booked = 'all' | 'booked' | 'not_booked';
 
 export default function ParentsPanel({ onError }: { onError: (view: AdminErrorView) => void }) {
@@ -59,20 +65,23 @@ export default function ParentsPanel({ onError }: { onError: (view: AdminErrorVi
   const [booked, setBooked] = useState<Booked>('all');
   const [openId, setOpenId] = useState<number | null>(null);
 
-  const load = useCallback(() => adminApi.parents(sort, booked), [sort, booked]);
-  const { data, loading, failure, reload } = useAsyncData(load, [sort, booked], onError);
-  const parents = data?.parents ?? [];
+  const serverSort = sort === 'oldest' ? 'oldest' : 'newest';
+  const load = useCallback(() => adminApi.parents(serverSort, booked), [serverSort, booked]);
+  const { data, loading, failure, reload } = useAsyncData(load, [serverSort, booked], onError);
+  const loaded = data?.parents ?? [];
+  const parents = sort === 'score_low' ? [...loaded].sort(byScreeningTotalAsc) : loaded;
 
   return (
     <>
       <Panel
         title="家长列表"
-        description="只包含当前视野内的家长。月龄与被标记的维度直接列出，让电话打得出去之前就知道该先联系谁。"
+        description="只包含当前视野内的家长。月龄、筛查总分与被标记的维度（附该维度得分）直接列出，让电话打得出去之前就知道该先联系谁。"
         action={
           <div className="flex gap-2">
             <Select value={sort} onChange={e => setSort(e.target.value as Sort)} className="w-auto">
               <option value="newest">最近筛查在前</option>
               <option value="oldest">最早筛查在前</option>
+              <option value="score_low">总分低的在前</option>
             </Select>
             <Select value={booked} onChange={e => setBooked(e.target.value as Booked)} className="w-auto">
               <option value="all">全部</option>
@@ -93,11 +102,12 @@ export default function ParentsPanel({ onError }: { onError: (view: AdminErrorVi
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-xs">
+            <table className="w-full min-w-[800px] text-left text-xs">
               <thead>
                 <tr className="border-b border-brand-stone text-[10px] uppercase tracking-wide text-brand-charcoal/45">
                   <th className="py-2 pr-3 font-bold">孩子</th>
                   <th className="py-2 pr-3 font-bold">月龄</th>
+                  <th className="py-2 pr-3 font-bold">筛查总分</th>
                   <th className="py-2 pr-3 font-bold">被标记的维度</th>
                   <th className="py-2 pr-3 font-bold">最近筛查</th>
                   <th className="py-2 pr-3 font-bold">预约</th>
@@ -144,6 +154,13 @@ function ParentRow({ parent, onOpen }: { parent: AdminParentListItem; onOpen: ()
       <td className="py-2.5 pr-3 text-brand-charcoal/70">
         {parent.childAgeMonth === null ? '—' : `${parent.childAgeMonth} 个月`}
       </td>
+      <td className="py-2.5 pr-3 whitespace-nowrap">
+        {parent.screeningTotal === null ? (
+          <span className="text-brand-charcoal/40">未筛查</span>
+        ) : (
+          <span className="font-bold text-brand-forest">{formatScore(parent.screeningTotal)}</span>
+        )}
+      </td>
       <td className="py-2.5 pr-3">
         {parent.flaggedDimensions.length === 0 ? (
           <span className="text-brand-charcoal/40">无</span>
@@ -151,7 +168,7 @@ function ParentRow({ parent, onOpen }: { parent: AdminParentListItem; onOpen: ()
           <span className="flex flex-wrap gap-1">
             {parent.flaggedDimensions.map(d => (
               <StatusBadge key={d.dimensionId} status={d.status}>
-                {d.dimensionName}
+                {d.dimensionName} {formatScore(d)}
               </StatusBadge>
             ))}
           </span>
@@ -492,6 +509,16 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
                   </tr>
                 ))}
               </tbody>
+              {parent.screeningTotal && (
+                <tfoot>
+                  <tr className="border-t-2 border-brand-stone">
+                    <td className="py-1.5 pr-3 font-bold text-brand-forest">T1 总分</td>
+                    <td className="py-1.5 pr-3" />
+                    <td className="py-1.5 pr-3 font-bold text-brand-forest">{formatScore(parent.screeningTotal)}</td>
+                    <td className="py-1.5" />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}

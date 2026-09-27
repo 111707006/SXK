@@ -60,6 +60,10 @@ services:
       # 專家預約通知（企業微信群機器人）。沒設就沒有任何通知送出。
       - key: WECOM_WEBHOOK_URL
         sync: false
+      # 示範片：Render 上沒有片子（不進 git），由伺服器向正式站拿（src/mediaProxy.ts）。
+      # 不能讓瀏覽器直接連正式站 —— 正式站回 Cross-Origin-Resource-Policy: same-origin。
+      - key: MEDIA_UPSTREAM
+        value: https://sxkscreen.com
       # ── 微信支付 APIv3 ──
       # 全部留空是安全的：訂單仍可開立、但回 wechatReady:false，前端顯示
       # 「支付通道尚未開放」而不是假的成功。啟動日誌會列出缺哪幾項。

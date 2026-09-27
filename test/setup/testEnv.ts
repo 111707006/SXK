@@ -52,3 +52,8 @@ process.env.SMS_IP_DAILY_MAX = '50';
 // 不渲染」那一條會安靜地變成綠燈卻什麼都沒驗到。
 // 需要「有備案號」的測試自己在檔案最上方設定它（見 reportLink.http.test.ts）。
 process.env.ICP_BEIAN = '';
+
+// `/media` 的上游代理（Render 展示環境）釘成不代理。開發機的 `.env` 若帶了它，
+// `activityMedia.http.test.ts` 的「找不到一律 404」會安靜地變成去問正式站。
+// 需要代理的測試自己在檔案最上方設定它（見 mediaProxy.http.test.ts）。
+process.env.MEDIA_UPSTREAM = '';

@@ -52,6 +52,7 @@ import { DIMENSIONS_DATA } from './src/data';
 import type { UnlockScope } from './src/types';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
+import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -1774,10 +1775,16 @@ tier2Only.use(createT2LibraryRouter({
 // - 目錄不在也起得來：`express.static` 不在啟動時檢查目錄，找不到就是 404。
 // - 找不到一律在這裡回 404，不落到 `startServer()` 的 SPA 兜底 —— 那會對任何路徑回
 //   `index.html`＋200，`<video>` 拿到一頁 HTML 不報錯、只是播不動。
+//
+// Render 展示環境沒有片子：設了 `MEDIA_UPSTREAM`（例：`https://sxkscreen.com`）時，本機找不到的
+// 那幾支改由伺服器向正式站拿（`src/mediaProxy.ts`；不能讓瀏覽器直接連 —— 正式站回
+// `Cross-Origin-Resource-Policy: same-origin`）。沒設就不掛，正式站 A 照舊。認不得的值讓程序起不來。
 const MEDIA_DIR = process.env.MEDIA_DIR?.trim() || path.join(process.cwd(), 'media');
+const MEDIA_UPSTREAM = resolveMediaUpstream(process.env.MEDIA_UPSTREAM);
 tier2Only.use(
   '/media',
   express.static(MEDIA_DIR, { index: false, redirect: false, maxAge: '1h' }),
+  ...(MEDIA_UPSTREAM ? [createMediaProxy(MEDIA_UPSTREAM)] : []),
   (_req: express.Request, res: express.Response) => {
     res.status(404).end();
   },

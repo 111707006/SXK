@@ -169,6 +169,8 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > （所以 K17 的内容栏位、只有文字的步骤都收得下，规则同 PATCH）；同一个 `id` 出现两次那几列全退；认不得的栏位
 > （含「草稿」标记、`ageMonths`）忽略并进 `warnings`。写入逐列 `updateActivity`，一列写不进去记进 `failed`、不整份 500。
 > 画面：活动库分页的「批量汇入」—— 选 JSON 档 → 试跑 → 看退回清单与忽略的栏位 → 确认汇入 → 重读列表。
+> 要汇入的标签档放在 `deploy/activity-tags/`（第一份：17 支示范片的 `targetMonth`＋`targets` 草稿，理由表在同目录 README，
+> 待治疗师看过再汇入）；`test/activityTagsImport.test.ts` 用同一个 `planActivityImport` 先跑，退一列或忽略一栏就失败。
 > 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`（唯一的 POST 是 `/activities/import`）、
 > `test/activityAdmin.test.ts`、`test/activityGuide.test.ts`。
 >

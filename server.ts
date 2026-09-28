@@ -53,6 +53,7 @@ import type { UnlockScope } from './src/types';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
+import { resolveDemoLoginCode } from './src/demoLogin';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -486,6 +487,12 @@ function normalizeRequestIp(raw: string | undefined | null): string | null {
 function generateSmsCode(): string {
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
 }
+
+/**
+ * 展示環境的固定驗證碼（`src/demoLogin.ts`）。只有資料庫在本機時才收，否則程序起不來。
+ * 設了它：索取驗證碼不送簡訊、不套防刷（沒有簡訊費、也沒有真人會被轟炸），其餘照正式那一條走。
+ */
+const DEMO_LOGIN_CODE = resolveDemoLoginCode(process.env.DEMO_LOGIN_CODE, process.env.MYSQL_HOST);
 
 // ── coze-coding-dev-sdk LLM client ──
 const llmConfig = new Config();
@@ -2874,6 +2881,23 @@ app.post('/api/auth/sms/request', async (req, res) => {
 
   const requestIp = normalizeRequestIp(req.ip);
   let codeId: number | null = null;
+
+  if (DEMO_LOGIN_CODE) {
+    try {
+      await withTimeout(mysqlDb.createSmsCode({
+        phone,
+        codeHash: await hashSecret(DEMO_LOGIN_CODE),
+        ttlSec: SMS_CODE_TTL_SEC,
+        requestIp,
+      }), 2000);
+      res.json({ success: true, expiresInSec: SMS_CODE_TTL_SEC, cooldownSec: 0 });
+    } catch (err: any) {
+      console.error('[SMS Request Error] (demo):', err.message);
+      res.status(500).json({ error: '验证码发送失败，请稍后再试。' });
+    }
+    return;
+  }
+
   try {
     // ── 防刷（一）：冷卻期 ──
     //
@@ -3523,6 +3547,12 @@ export async function startServer() {
         ? 'project A — tier-2/3 endpoints registered'
         : 'project B — tier-2/3 endpoints NOT registered'}), port from ${portSource}`
     );
+    if (DEMO_LOGIN_CODE) {
+      console.warn(
+        '[SenXinKang Server] DEMO LOGIN CODE ACTIVE (DEMO_LOGIN_CODE): no SMS is sent and a fixed code logs in any phone number. ' +
+        'Allowed only because MYSQL_HOST is local (the demo box database).'
+      );
+    }
     // Say out loud whether the paywall is enforced. Memory mode lets every
     // tier-2/3 request through (see denyIfLocked) — fine for a demo box, a
     // silent giveaway on a production one.

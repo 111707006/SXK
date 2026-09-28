@@ -57,3 +57,8 @@ process.env.ICP_BEIAN = '';
 // `activityMedia.http.test.ts` 的「找不到一律 404」會安靜地變成去問正式站。
 // 需要代理的測試自己在檔案最上方設定它（見 mediaProxy.http.test.ts）。
 process.env.MEDIA_UPSTREAM = '';
+
+// 展示環境的固定驗證碼釘成未設定。開發機的 `.env` 若帶了它（又剛好指到本機資料庫），
+// `smsLogin.http.test.ts` 的防刷與「沒送出去就不能說送出去了」會安靜地全部跳過。
+// 需要它的測試自己在檔案最上方設定（見 demoLogin.http.test.ts）。
+process.env.DEMO_LOGIN_CODE = '';

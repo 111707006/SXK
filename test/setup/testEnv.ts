@@ -62,3 +62,9 @@ process.env.MEDIA_UPSTREAM = '';
 // `smsLogin.http.test.ts` 的防刷與「沒送出去就不能說送出去了」會安靜地全部跳過。
 // 需要它的測試自己在檔案最上方設定（見 demoLogin.http.test.ts）。
 process.env.DEMO_LOGIN_CODE = '';
+
+// B→A 交接（ADR-0009）釘成關閉。開發機的 `.env` 若帶了密鑰，交接的端點會在不該有的測試裡出現。
+// 需要它的測試自己在檔案最上方設定（見 handoffSource.http.test.ts、handoffTarget.http.test.ts）。
+for (const key of ['HANDOFF_SECRET', 'HANDOFF_TARGET_ORIGIN', 'HANDOFF_SOURCE_ORIGIN', 'HANDOFF_CONSENT_VERSION']) {
+  process.env[key] = '';
+}

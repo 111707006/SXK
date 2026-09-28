@@ -54,6 +54,9 @@ import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
 import { resolveDemoLoginCode } from './src/demoLogin';
+import { resolveHandoffSourceConfig, resolveHandoffTargetConfig } from './src/handoff/core';
+import { createHandoffSourceRouter, createHandoffTargetRouter, type ParentData as HandoffParentData } from './src/handoff/routes';
+import { consumeHandoffCode, createHandoffCode, recordHandoffImport } from './src/db/handoffs';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -301,6 +304,9 @@ app.use('/api/admin/login', authLimiter);
 app.use(['/api/report', '/api/specialized-report', '/api/motion-eval',
   '/api/motion-report', '/api/ali-language-eval', '/api/asr'], aiLimiter);
 app.use(['/api/auth/sms/request', '/api/auth/sms/verify'], authLimiter);
+// B→A 交接的兩支公開端點與登入同一道速率限制。內部兌換（/internal/handoff/redeem）不套：
+// 呼叫它的是 A 的伺服器（永遠是同一個 127.0.0.1），套了等於全站共用一格額度；那一支靠密鑰擋。
+app.use(['/api/handoff/start', '/api/handoff/redeem'], authLimiter);
 
 // ── Auth: password hashing (bcrypt) + stateless HMAC session tokens ──
 const BCRYPT_ROUNDS = 10;
@@ -3138,6 +3144,72 @@ async function sessionAccountMissing(userId: UserId | null): Promise<boolean> {
   const user = await withTimeout(findSessionUser(userId), 2000).catch(() => undefined);
   return user === null;
 }
+
+// ══════════════════════════════════════════════════════════════
+// B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
+// ══════════════════════════════════════════════════════════════
+//
+// 專案 B 的家長按「到森心康做深度评估」→ B 發一組交接碼 → 瀏覽器到 A → A 的伺服器向 B（同一台主機、
+// 內部端點＋共用密鑰）兌換 → 找或建 A 帳號、帶入孩子與 T1 → 直接登入。端點本身在 `src/handoff/routes.ts`。
+// 沒設 HANDOFF_SECRET＝功能關閉；設一半或設錯，程序起不來（`resolveHandoff*Config`）。
+
+const HANDOFF_SOURCE_CONFIG = APP_MODE === 't1only' ? resolveHandoffSourceConfig(process.env) : null;
+const HANDOFF_TARGET_CONFIG = APP_MODE === 'full' ? resolveHandoffTargetConfig(process.env) : null;
+
+/** 交接只走資料庫（沒有記憶體模式）：家長的孩子檔案、成績、報告歷史與訂單。 */
+async function readHandoffParentData(userId: number): Promise<HandoffParentData | null> {
+  const row = await withTimeout(mysqlDb.getUserDataByUserId(userId), 2000);
+  const parsed = row ? mysqlDb.parseUserDataRow(row) : null;
+  if (!parsed) return null;
+  return {
+    child: parsed.child ?? null,
+    completedScores: Array.isArray(parsed.completedScores) ? parsed.completedScores : [],
+    orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+    reportHistory: Array.isArray(parsed.reportHistory) ? parsed.reportHistory : [],
+  };
+}
+
+multiCompanyOnly.use(createHandoffSourceRouter({
+  config: HANDOFF_SOURCE_CONFIG,
+  dbReady: () => mysqlDb.isConfigured(),
+  requireParent: async (req, res) => {
+    const userId = currentUserId(req);
+    const dbUserId = toDbUserId(userId);
+    if (dbUserId === null || await sessionAccountMissing(userId)) {
+      res.status(401).json({ error: '请先登录。', code: 'UNAUTHENTICATED' });
+      return null;
+    }
+    return dbUserId;
+  },
+  loadParent: async userId => {
+    const user = await withTimeout(mysqlDb.findUserById(userId), 2000);
+    if (!user) return null;
+    return { phone: typeof user.phone === 'string' ? user.phone : null, data: await readHandoffParentData(userId) };
+  },
+  loadCompany: async userId => {
+    const company = await withTimeout(mysqlDb.findCompanyByUserId(userId), 2000);
+    return company ? { id: Number(company.id), slug: company.slug, name: company.name } : null;
+  },
+  createCode: input => withTimeout(createHandoffCode(input), 2000),
+  consumeCode: codeHash => withTimeout(consumeHandoffCode(codeHash), 2000),
+}));
+
+tier2Only.use(createHandoffTargetRouter({
+  config: HANDOFF_TARGET_CONFIG,
+  dbReady: () => mysqlDb.isConfigured(),
+  fetchImpl: fetch,
+  // A 的家長全部未歸屬（ADR-0002 的範圍＝未歸屬）。
+  findUserIdByPhone: async phone => {
+    const user = await withTimeout(mysqlDb.findUserByPhone(null, phone), 2000);
+    return user ? Number(user.id) : null;
+  },
+  createUser: phone => withTimeout(mysqlDb.createPhoneUser(phone, null), 2000),
+  loadData: readHandoffParentData,
+  saveData: (userId, data) =>
+    withTimeout(mysqlDb.saveUserData(userId, null, data.child, data.completedScores, data.orders, data.reportHistory), 2000),
+  recordImport: input => withTimeout(recordHandoffImport(input), 2000),
+  signToken,
+}));
 
 // Endpoint to load child assessment records
 app.get('/api/db/load', async (req, res) => {

@@ -24,7 +24,9 @@
 - **Network access** 允许：`api.render.com`、`sxk.onrender.com`、`rds.aliyuncs.com`、`rds.cn-shanghai.aliyuncs.com`
 - **环境变数**（不要贴进对话）：
   - `RENDER_API_KEY` —— https://dashboard.render.com/u/settings#api-keys 。⚠️ Render 的 key 是整个帐号的权限。
-    2026-09-28 使用者在对话里贴过一把，那一把要当作外泄、删掉重开
+    2026-09-28 使用者在对话里贴过一把，那一把要当作外泄、删掉重开。
+    **也可能放在环境的「API credentials」**（Bearer、Allowed websites `api.render.com`）：那样 session 里看不到这个变数，
+    但打 `https://api.render.com/v1/...` 时代理会自动带上 `Authorization`。先不带标头打一次 `GET /v1/services`，回 200 就是这一种
   - `ALIYUN_ACCESS_KEY_ID`、`ALIYUN_ACCESS_KEY_SECRET` —— RAM 子帐号，只给 `AliyunRDSFullAccess`
   - `ALI_SMS_ACCESS_KEY_ID`、`ALI_SMS_ACCESS_KEY_SECRET`、`ALI_SMS_SIGN_NAME`（森心康）、`ALI_SMS_TEMPLATE_CODE`（SMS_337550877）——
     与正式站 `.env` 同一组。**Render 上若已经有这四项就不用**（先用 API 读 Render 的 env 确认）

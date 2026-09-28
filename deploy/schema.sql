@@ -600,6 +600,48 @@ CREATE TABLE IF NOT EXISTS `report_links` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- B 的家长免登入转到 A 做 T2（ADR-0009、docs/specs/b-to-a-handoff.md）
+-- ============================================================
+-- 两边都建：handoff_codes 只有专案 B（发出端）用，handoff_imports 只有专案 A（接收端）用。
+-- 来源与说明见 deploy/migrations/2026-09-28-handoffs.sql。
+
+CREATE TABLE IF NOT EXISTS `handoff_codes` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  -- 交接码的 SHA-256（hex）。
+  `code_hash` CHAR(64) NOT NULL,
+  `user_id` INT UNSIGNED NOT NULL,
+  -- button＝B 报告页的按钮（2 分钟）；sms＝简讯邀请（72 小时，第二期）。
+  `kind` ENUM('button','sms') NOT NULL,
+  -- 家长按下时看到的同意文字版本。
+  `consent_version` VARCHAR(32) NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` DATETIME NOT NULL,
+  `redeemed_at` DATETIME NULL,
+  UNIQUE KEY `uk_handoff_code_hash` (`code_hash`),
+  INDEX `idx_handoff_codes_user` (`user_id`, `created_at`),
+  CONSTRAINT `fk_handoff_codes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `handoff_imports` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  -- B 的帐号 id（sxk_t1_db.users.id）。
+  `source_user_id` INT UNSIGNED NOT NULL,
+  -- 来源公司当下的快照；B 的家长可能未归属，三栏都是 NULL。
+  `source_company_id` INT UNSIGNED NULL,
+  `source_company_slug` VARCHAR(64) NULL,
+  `source_company_name` VARCHAR(255) NULL,
+  `kind` ENUM('button','sms') NOT NULL,
+  `consent_version` VARCHAR(32) NULL,
+  -- 1＝孩子档案与 T1 成绩带进去了；0＝A 已经有筛查，没有覆盖，只记来源。
+  `imported` TINYINT(1) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_handoff_imports_user` (`user_id`, `created_at`),
+  INDEX `idx_handoff_imports_company` (`source_company_id`, `created_at`),
+  CONSTRAINT `fk_handoff_imports_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- 既有数据库的迁移（sxk_db 已建过旧版 users 时执行）
 -- ============================================================
 -- 多公司相关（专案 B）：companies 必须先建立，users.company_id 才加得上去。

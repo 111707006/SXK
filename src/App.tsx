@@ -52,6 +52,7 @@ import {
   BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck
 } from 'lucide-react';
 import { TRAINING_PAGE } from './t2/trainingCopy';
+import { latestT1ReportFor } from './utils/reportResume';
 
 export default function App() {
   /** 孩子檔案，**照存下來的樣子**。上面的 `ageMonth` 是寫入當下的值，會過期。 */
@@ -599,15 +600,11 @@ export default function App() {
    * 分數有任何一筆不同（重做過 T1）就是 null，報告頁照舊從「一键生成」開始。
    * 見 `AnalysisReport` 的 `resumeFrom`。
    */
-  const liveReportResume = useMemo(() => {
-    const sameScores = (a: DimensionScore[], b: DimensionScore[]) =>
-      a.length === b.length &&
-      a.every(s => b.some(t => t.dimensionId === s.dimensionId && t.tierId === s.tierId && t.completedAt === s.completedAt && t.score === s.score));
-    const timeOf = (r: AssessmentRecord) => (typeof r.createdAt === 'string' ? r.createdAt : '');
-    return reportHistory
-      .filter(r => r.type === 'T1_SCREENING' && r.aiReport && Array.isArray(r.scores) && sameScores(r.scores, completedScores))
-      .reduce<AssessmentRecord | null>((latest, r) => (!latest || timeOf(r) >= timeOf(latest) ? r : latest), null);
-  }, [reportHistory, completedScores]);
+  const liveReportResume = useMemo(
+    // 與 B→A 交接挑「帶過去的那一份報告」是同一個規則（src/utils/reportResume.ts）。
+    () => latestT1ReportFor(reportHistory, completedScores),
+    [reportHistory, completedScores],
+  );
 
   const handleSaveReportToHistory = (record: AssessmentRecord) => {
     const updatedHistory = [...reportHistory.filter(r => r.id !== record.id), record];

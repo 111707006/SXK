@@ -94,8 +94,8 @@ async function start(userId = PARENT): Promise<string> {
 }
 
 describe('GET /api/handoff/config', () => {
-  it('設了密鑰與 A 的網址、有資料庫：enabled', async () => {
-    expect(await (await client.get('/api/handoff/config')).json()).toEqual({ enabled: true });
+  it('設了密鑰與 A 的網址、有資料庫：enabled，附 A 的名字（B 的前端不寫死它）', async () => {
+    expect(await (await client.get('/api/handoff/config')).json()).toEqual({ enabled: true, targetName: '森心康' });
   });
 });
 

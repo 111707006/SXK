@@ -67,7 +67,7 @@ A 前端 ── 照一般登入成功處理 → 打開 T1 報告並捲到 T2 入
 
 | 端點 | 身分 | 行為 |
 |---|---|---|
-| `GET /api/handoff/config` | 無 | `{enabled}`：`HANDOFF_SECRET`、`HANDOFF_TARGET_ORIGIN`、資料庫三者都在才是 `true`。前端據此決定要不要畫按鈕 |
+| `GET /api/handoff/config` | 無 | `{enabled: true, targetName}` 或 `{enabled: false}`：`HANDOFF_SECRET`、`HANDOFF_TARGET_ORIGIN`、資料庫三者都在才開。前端據此決定要不要畫按鈕；`targetName`（「森心康」）由伺服器給 —— B 的建置不准寫品牌名（`test/brandIsolation.test.ts`），卡只在開啟時才拿得到那個名字 |
 | `POST /api/handoff/start` | B 家長 Bearer | body `{consent: true}`。沒同意 400 `CONSENT_REQUIRED`；沒有孩子檔案或 T1 成績 409 `SCREENING_REQUIRED`；未啟用 404。成功 `{url}` |
 | `POST /internal/handoff/redeem` | `Authorization: Bearer <HANDOFF_SECRET>`（常數時間比對） | body `{code}`。任何一種不成立（找不到、用過、過期、密鑰錯）都回同一個 404/401，不分辨原因。成功回 `{phone, sourceUserId, source:{companyId,slug,name}\|null, child, completedScores, t1Report\|null, kind, consentVersion}` |
 
@@ -86,9 +86,12 @@ A 前端 ── 照一般登入成功處理 → 打開 T1 報告並捲到 T2 入
 ## 5. 前端
 
 - **B 報告頁**（`AnalysisReport`，專案 B）：T1 報告生成後、家長已登入、`/api/handoff/config` 回 `enabled` 時，在原本 T2 插槽的位置畫一張卡
-  （`HandoffCard`）：一句說明、按鈕「到森心康做深度评估」、同意小字。按下 → `start` → `location.href = url`。失敗就在卡上說原因。
+  （`HandoffCard`）：一句說明、按鈕「到森心康做深度评估」、同意小字（「隐私保护条款」開 B 自己的條款視窗）。按下 → `start` → `location.href = url`。失敗就在卡上說原因。
+  句子在 `src/handoff/handoffCopy.ts`，名字由 config 的 `targetName` 填進去。畫面掛哪一半由 `PRODUCT.features.handoff`（B `send`、A `receive`）決定。
 - **A 落地**（`App`，專案 A）：開頁時路徑是 `/handoff` 且片段有 `code` → 先把網址換成 `/`、畫「正在把筛查结果带过来…」→ 打 `redeem`
-  → 成功照一般登入處理，然後打開即時 T1 報告並捲到 T2 入口（與付費回來同一條：`focusT2`）；失敗回登入頁並說「这个连结已经用过或过期了，请用手机验证码登录」。
+  → 成功照一般登入處理，然後打開即時 T1 報告並捲到 T2 入口（與付費回來同一條：`focusT2`；帶過來的報告接不上就一進去生成）；
+  失敗回登入頁並說「这个连结已经用过或过期了，请用手机验证码登录」（410）或「暂时无法把筛查结果带过来……」（502／503／網路）。
+  兌換期間不畫這台裝置上舊的登入狀態；失敗才照一般開頁讀資料（本來登入著的 A 家長不被一條用過的連結登出）。
 
 ## 6. 設定
 

@@ -105,6 +105,9 @@ const PARENT_FACING_FILES = [
   // 2026-09-24（Keep 票 6，K16 的一部分）：線上干預的新畫面與它的句子層。畫面那一整個資料夾都掃，
   // 票 7、8 加的頁不必再回來登記；句子集中在 `trainingCopy.ts`。
   'src/t2/trainingCopy.ts',
+  // 2026-09-28（ADR-0009）：B→A 交接那張卡與 A 的落地畫面、它們的句子。
+  'src/components/HandoffCard.tsx',
+  'src/handoff/handoffCopy.ts',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

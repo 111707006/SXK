@@ -152,6 +152,48 @@ scp -r media/activities root@你的IP:/var/www/sxk/media/
 > 部署完验：`curl -I https://sxkscreen.com/media/activities/A001.mp4` 回 200、`Content-Type: video/mp4`；
 > 加 `-H 'Range: bytes=0-1'` 回 206（iPhone 播 mp4 靠它）。
 
+### B→A 交接（ADR-0009；规格 `docs/specs/b-to-a-handoff.md`）
+
+B 的家长在报告页按「到森心康做深度评估」，不用再登入就到 A、带着孩子档案与 T1 成绩停在 T2 入口。
+两个数据库**不合并**：A 在那一刻用一次性的交接码向 B（`127.0.0.1:5001`，不经公网）拿资料。
+
+**没设 `HANDOFF_SECRET` ＝ 功能关闭**：B 的报告页不出现那张卡、A 的 `/handoff` 回登入页。
+ADR-0009「待定」第 1 项（合作公司同意在他们的报告页放这颗按钮）有答案之前，**先不要设**。
+
+要开的时候：
+
+```bash
+# ① 两个库都跑迁移（A、B 共用同一份 schema）：建 handoff_codes、handoff_imports
+cd /var/www/sxk   && node deploy/migrate.mjs            # 看清单 → 备份 → 加 --confirm
+cd /var/www/sxk-b && node deploy/migrate.mjs
+
+# ② 产生一把共用的密钥（A、B 两边的 .env 填同一串）
+openssl rand -hex 32
+```
+
+```ini
+# /var/www/sxk/.env（专案 A，接收端）
+HANDOFF_SECRET=上面那一串
+HANDOFF_SOURCE_ORIGIN=http://127.0.0.1:5001
+
+# /var/www/sxk-b/.env（专案 B，发出端）
+HANDOFF_SECRET=上面那一串
+HANDOFF_TARGET_ORIGIN=https://sxkscreen.com
+# HANDOFF_CONSENT_VERSION=handoff-consent-v1   # 改了按钮下那行同意文字才换
+```
+
+③ nginx 的 B 那一段要有 `location /internal/ { return 404; }`（见 `deploy/nginx.conf`；A 直接打 5001，不受影响）。
+④ 两边都重新部署（`deploy-app.sh a`、`deploy-app.sh b`）。
+
+> 设错会**起不来**，不会半开：密钥短于 32 字、有密钥没网址、对外网址不是 https，`server.ts` 启动就丢错。
+>
+> 部署完验：
+> `curl https://t1.sxkscreen.com/api/handoff/config` 回 `{"enabled":true,...}`；
+> `curl -X POST https://t1.sxkscreen.com/internal/handoff/redeem` 回 nginx 的 404；
+> 用一位 B 的测试家长做完筛查、按那颗按钮，应该直接落在 sxkscreen.com 的 T1 报告、捲到 T2 入口。
+>
+> 关掉：两边的 `.env` 拿掉 `HANDOFF_SECRET` 再重启。已经转过去的家长留在 A（那是他们自己的帐号了）。
+
 主机上各跑一次（脚本会检查 `.env` 与 `dist/` 在不在，缺了就地停下）：
 
 ```bash

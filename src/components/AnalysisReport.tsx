@@ -26,6 +26,7 @@ import { BUILTIN_SPECIALISTS } from '../builtinSpecialists';
 import { STATUS_WORDING } from '../utils/statusWording';
 import ReportBody from './ReportBody';
 import T2Entrance from './T2Entrance';
+import HandoffCard from './HandoffCard';
 import type { DimensionAccess } from '../utils/access';
 
 /** 沒有照片時的替代標記 —— 合作公司多半不會有每位治療師的沙龍照。 */
@@ -198,6 +199,11 @@ interface AnalysisReportProps {
    * 掛在一份舊報告底下會對不上那份報告的判定。
    */
   t2?: { access: DimensionAccess; priceFen: number; onUnlock: () => void; onStart: () => void };
+  /**
+   * B→A 交接（ADR-0009）：專案 B 在 T2 插槽的位置放「到 A 做深度評估」那張卡。A 不會收到（A 有 `t2`）。
+   * 同 `t2`，只掛在即時報告上 —— 帶過去的是**現在**的篩查。卡自己問伺服器交接開了沒，沒開就不出現。
+   */
+  handoff?: { onShowPrivacy: () => void };
   historicalRecord?: AssessmentRecord | null;
   /**
    * 開啟後自動捲到專家預約區塊。專案 B 的維度卡片會走這條路 ——
@@ -231,7 +237,7 @@ interface AnalysisReportProps {
   focusT2?: boolean;
 }
 
-export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, historicalRecord, focusBooking, focusBookingService, resumeFrom, generateOnOpen, focusT2 }: AnalysisReportProps) {
+export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, handoff, historicalRecord, focusBooking, focusBookingService, resumeFrom, generateOnOpen, focusT2 }: AnalysisReportProps) {
   const resumed = !historicalRecord && resumeFrom?.aiReport ? resumeFrom : null;
   const [loading, setLoading] = useState(false);
   const [aiReport, setAiReport] = useState<AssessmentRecord['aiReport'] | null>(() => resumed?.aiReport ?? null);
@@ -534,6 +540,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         onBookService={openBookingModal}
       />
     </div>
+  ) : handoff && !historicalRecord ? (
+    <HandoffCard onShowPrivacy={handoff.onShowPrivacy} />
   ) : null;
 
   /**

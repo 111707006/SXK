@@ -19,6 +19,7 @@ import {
   generateHandoffCode,
   handoffUrl,
   hashHandoffCode,
+  HANDOFF_TARGET_NAME,
   HANDOFF_TTL_SEC,
   isHandoffCodeShape,
   readHandoffPayload,
@@ -61,8 +62,9 @@ export function createHandoffSourceRouter(deps: HandoffSourceDeps): express.Rout
   const router = express.Router();
   const enabled = () => deps.config !== null && deps.dbReady();
 
+  // 開啟時一併給接收端的名字：B 的前端不寫死它（見 HANDOFF_TARGET_NAME）。
   router.get('/api/handoff/config', (_req, res) => {
-    res.json({ enabled: enabled() });
+    res.json(enabled() ? { enabled: true, targetName: HANDOFF_TARGET_NAME } : { enabled: false });
   });
 
   router.post('/api/handoff/start', async (req, res) => {
@@ -74,7 +76,7 @@ export function createHandoffSourceRouter(deps: HandoffSourceDeps): express.Rout
       const userId = await deps.requireParent(req, res);
       if (userId === null) return;
       if (req.body?.consent !== true) {
-        res.status(400).json({ error: '需要先同意把孩子的筛查结果带到森心康。', code: 'CONSENT_REQUIRED' });
+        res.status(400).json({ error: `需要先同意把孩子的筛查结果带到${HANDOFF_TARGET_NAME}。`, code: 'CONSENT_REQUIRED' });
         return;
       }
       const parent = await deps.loadParent(userId);
@@ -83,7 +85,7 @@ export function createHandoffSourceRouter(deps: HandoffSourceDeps): express.Rout
         return;
       }
       if (!parent.data?.child || !hasT1(parent.data.completedScores)) {
-        res.status(409).json({ error: '请先完成筛查，再到森心康做深度评估。', code: 'SCREENING_REQUIRED' });
+        res.status(409).json({ error: `请先完成筛查，再到${HANDOFF_TARGET_NAME}做深度评估。`, code: 'SCREENING_REQUIRED' });
         return;
       }
       const { code, hash } = generateHandoffCode();
@@ -99,7 +101,7 @@ export function createHandoffSourceRouter(deps: HandoffSourceDeps): express.Rout
       res.json({ url: handoffUrl(deps.config!.targetOrigin, code), expiresInSec: HANDOFF_TTL_SEC.button });
     } catch (err: any) {
       console.error('[Handoff] start failed:', err.message);
-      res.status(500).json({ error: '暂时无法前往森心康，请稍后再试。' });
+      res.status(500).json({ error: `暂时无法前往${HANDOFF_TARGET_NAME}，请稍后再试。` });
     }
   });
 

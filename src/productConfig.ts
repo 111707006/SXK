@@ -246,6 +246,11 @@ export interface ProductProfile {
     paywall: boolean;
     /** 穿戴裝置商城 */
     mall: boolean;
+    /**
+     * B→A 交接（ADR-0009）這個產品站在哪一邊：B 發出（報告頁那張卡）、A 接收（`/handoff` 落地）。
+     * 開不開由伺服器的 `HANDOFF_SECRET` 決定，這裡只決定畫面上掛哪一半。
+     */
+    handoff: 'send' | 'receive';
   };
 }
 
@@ -309,6 +314,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       tier2And3: true,
       paywall: true,
       mall: true,
+      handoff: 'receive',
     },
   },
 
@@ -382,6 +388,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       tier2And3: false,
       paywall: false,
       mall: false,
+      handoff: 'send',
     },
   },
 };

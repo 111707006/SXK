@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy } from 'react';
 import { Child, DimensionScore, MallOrder, AssessmentRecord } from './types';
 import { DIMENSIONS_DATA } from './data';
 import { PRODUCT } from './productConfig';
@@ -49,10 +49,12 @@ import {
   Activity, ShoppingBag, BarChart3, User, RefreshCw, 
   Heart, HeartHandshake, FileText, CheckCircle2, ListFilter,
   ChevronDown, Truck, Package, LogOut, ArrowRight, UserCheck,
-  BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck
+  BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck, Loader2
 } from 'lucide-react';
 import { TRAINING_PAGE } from './t2/trainingCopy';
 import { latestT1ReportFor } from './utils/reportResume';
+import { readHandoffCode } from './handoff/fragment';
+import { HANDOFF_LANDING } from './handoff/handoffCopy';
 
 export default function App() {
   /** 孩子檔案，**照存下來的樣子**。上面的 `ageMonth` 是寫入當下的值，會過期。 */
@@ -158,6 +160,20 @@ export default function App() {
    */
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
+  /**
+   * B→A 交接的落地（ADR-0009、docs/specs/b-to-a-handoff.md §5）：B 的家長按了「到 A 做深度評估」，
+   * 瀏覽器帶著 `/handoff#code=…` 來。只有 A 接收；開頁那一刻讀一次，之後網址就換成 `/`。
+   *
+   * 兌換期間整個主畫面換成「正在把筛查结果带过来…」—— 不先畫這台裝置上舊的登入狀態，
+   * 否則家長會先看到別人的（或上一次的）孩子閃一下。
+   */
+  const [handoffCode] = useState<string | null>(() =>
+    PRODUCT.features.handoff === 'receive' ? readHandoffCode(window.location.pathname, window.location.hash) : null,
+  );
+  const [handoffRedeeming, setHandoffRedeeming] = useState(() => handoffCode !== null);
+  // StrictMode 會把掛載的 effect 跑兩次；交接碼是一次性的，第二次兌換一定失敗，會把第一次的成功蓋掉。
+  const handoffStartedRef = useRef(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
 
   // authHeaders 已移到 src/utils/api.ts —— 深度評估端點現在也要帶 token，
@@ -277,36 +293,42 @@ export default function App() {
     let localHistory: AssessmentRecord[] = [];
 
     // 1. Initial hydration from localStorage (instant rendering)
-    try {
-      const storedChild = localStorage.getItem('senxinkang_child');
-      if (storedChild) {
-        localChild = JSON.parse(storedChild);
-        setChildProfile(localChild);
-      }
+    //
+    // 交接落地時先不做：兌換成功會整份換掉，先畫出來的是這台裝置上上一位家長的孩子（頁首會閃一下）。
+    const hydrateLocal = () => {
+      try {
+        const storedChild = localStorage.getItem('senxinkang_child');
+        if (storedChild) {
+          localChild = JSON.parse(storedChild);
+          setChildProfile(localChild);
+        }
 
-      const storedScores = localStorage.getItem('senxinkang_scores');
-      if (storedScores) {
-        localScores = JSON.parse(storedScores);
-        setCompletedScores(localScores);
-      }
+        const storedScores = localStorage.getItem('senxinkang_scores');
+        if (storedScores) {
+          localScores = JSON.parse(storedScores);
+          setCompletedScores(localScores);
+        }
 
-      const storedOrders = localStorage.getItem('senxinkang_orders');
-      if (storedOrders) {
-        localOrders = JSON.parse(storedOrders);
-        setOrders(localOrders);
-      }
+        const storedOrders = localStorage.getItem('senxinkang_orders');
+        if (storedOrders) {
+          localOrders = JSON.parse(storedOrders);
+          setOrders(localOrders);
+        }
 
-      const storedHistory = localStorage.getItem('senxinkang_history');
-      if (storedHistory) {
-        localHistory = JSON.parse(storedHistory);
-        setReportHistory(localHistory);
+        const storedHistory = localStorage.getItem('senxinkang_history');
+        if (storedHistory) {
+          localHistory = JSON.parse(storedHistory);
+          setReportHistory(localHistory);
+        }
+      } catch (e) {
+        console.error('Error hydrating state from localStorage:', e);
       }
-    } catch (e) {
-      console.error('Error hydrating state from localStorage:', e);
-    }
+    };
 
     // 2. Fetch connection status & sync with Database
-    const initCloudSync = async () => {
+    //
+    // `statusOnly`：交接剛登入完（資料由兌換的回應帶來），只讀連線狀態，不再讀一次家長資料。
+    const initCloudSync = async (statusOnly = false) => {
       try {
         const statusResp = await fetch('/api/db/status');
         if (!statusResp.ok) return;
@@ -316,6 +338,7 @@ export default function App() {
         
         setDbConfigured(statusData.configured);
         setDbEnvId(statusData.envId);
+        if (statusOnly) return;
 
         const activeToken = localStorage.getItem('senxinkang_token');
         const deviceId = getOrCreateDeviceId();
@@ -365,6 +388,21 @@ export default function App() {
       }
     };
 
+    // B→A 交接：先兌換，成功就是登入（覆蓋這台裝置上原本的狀態）；失敗才照一般開頁讀資料 ——
+    // 這台裝置上本來登入著的 A 家長不因為一條用過的連結被登出。
+    if (handoffCode) {
+      if (handoffStartedRef.current) return;
+      handoffStartedRef.current = true;
+      // 碼不留在網址列、瀏覽紀錄與之後的 Referer 裡。
+      window.history.replaceState(null, '', '/');
+      redeemHandoff(handoffCode).then(ok => {
+        if (!ok) hydrateLocal();
+        initCloudSync(ok);
+      });
+      return;
+    }
+
+    hydrateLocal();
     initCloudSync();
   }, []);
 
@@ -660,6 +698,44 @@ export default function App() {
     setFocusBooking(false);
     setFocusT2(true);
     setCurrentView('report');
+  };
+
+  /**
+   * 兌換交接碼（A 的 `POST /api/handoff/redeem`）。成功＝照一般登入處理，然後打開即時 T1 報告並捲到
+   * T2 入口（與付費回來同一條 `focusT2`）；帶過來的報告接得上就直接顯示，接不上（B 那邊還沒生成）就一進去生成。
+   * 失敗回登入頁並說原因。回傳成功與否。
+   */
+  const redeemHandoff = async (code: string): Promise<boolean> => {
+    let notice: string = HANDOFF_LANDING.unavailable;
+    try {
+      const resp = await fetch('/api/handoff/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const data = await resp.json().catch(() => null);
+      if (resp.ok && data?.success === true && typeof data.token === 'string' && typeof data.phone === 'string') {
+        handleAuthSuccess(
+          data.phone,
+          data.token,
+          data.child ?? null,
+          Array.isArray(data.completedScores) ? data.completedScores : [],
+          Array.isArray(data.orders) ? data.orders : [],
+          Array.isArray(data.reportHistory) ? data.reportHistory : [],
+        );
+        goToT2Entrance();
+        setT1ReportGenerate(true);
+        setHandoffRedeeming(false);
+        return true;
+      }
+      // 410＝B 說這個碼不算數（用過、過期、不存在）；其餘（502、503、500）是伺服器之間不通。
+      if (resp.status === 410) notice = HANDOFF_LANDING.invalid;
+    } catch {
+      // 網路斷了：同「不通」。
+    }
+    setSessionNotice(notice);
+    setHandoffRedeeming(false);
+    return false;
   };
 
   // Find active dimension config
@@ -1039,7 +1115,13 @@ export default function App() {
 
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
-        {!userIdentity ? (
+        {handoffRedeeming ? (
+          <div id="handoff-landing" role="status" className="py-24 flex flex-col items-center gap-3 text-center">
+            <Loader2 size={28} className="animate-spin text-brand-moss" />
+            <p className="text-sm font-extrabold text-brand-forest">{HANDOFF_LANDING.loading}</p>
+            <p className="text-[11px] text-brand-charcoal/60">{HANDOFF_LANDING.hint}</p>
+          </div>
+        ) : !userIdentity ? (
           <div className="w-full flex flex-col items-center gap-5">
             {/* 被登出這件事必須讀得到，不能只有頁首那個 9px 的徽章。 */}
             {sessionNotice && (
@@ -1206,6 +1288,8 @@ export default function App() {
                     onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     // T2 入口只掛在即時報告上（票 #56）；B 沒有 T2。
                     t2={PRODUCT.features.tier2And3 ? { access: t2Access, priceFen: unlockPriceFen, onUnlock: enterT2, onStart: enterT2 } : undefined}
+                    // B 在同一個位置放「到 A 做深度評估」（ADR-0009）；卡自己問伺服器交接開了沒。
+                    handoff={PRODUCT.features.handoff === 'send' ? { onShowPrivacy: () => setShowPrivacyModal(true) } : undefined}
                     historicalRecord={null}
                     resumeFrom={liveReportResume}
                     generateOnOpen={t1ReportGenerate}

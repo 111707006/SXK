@@ -91,3 +91,19 @@ describe('兩個產品共用的條款內文', () => {
     expect(code).toContain('PRODUCT.brand.ipHolder');
   });
 });
+
+/**
+ * B→A 交接（ADR-0009）：B 報告頁那張「到森心康做深度评估」的卡。卡本身兩個產品都會打包進去，
+ * 而那個名字**只在交接開啟時**才該出現在 B 的畫面上（開啟＝合作公司同意放這顆按鈕）。
+ * 所以名字由伺服器的 `GET /api/handoff/config` 給，前端的字與卡都不准寫死它。
+ */
+describe('交接卡與它的字', () => {
+  it.each(['src/handoff/handoffCopy.ts', 'src/components/HandoffCard.tsx', 'src/handoff/fragment.ts'])('%s 沒有寫死品牌名', rel => {
+    const code = stripComments(read(rel));
+    for (const word of BRAND_WORDS) expect(code).not.toContain(word);
+  });
+
+  it('名字從 config 來：卡讀 targetName', () => {
+    expect(read('src/components/HandoffCard.tsx')).toContain('data.targetName');
+  });
+});

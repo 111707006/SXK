@@ -7,6 +7,9 @@
 import crypto from 'crypto';
 import type { AssessmentRecord, DimensionScore } from '../types';
 import { latestT1ReportFor } from '../utils/reportResume';
+import { HANDOFF_LANDING_PATH, isHandoffCodeShape } from './fragment';
+
+export { isHandoffCodeShape };
 
 export type HandoffKind = 'button' | 'sms';
 export const HANDOFF_KINDS: ReadonlyArray<HandoffKind> = ['button', 'sms'];
@@ -16,6 +19,14 @@ export const HANDOFF_TTL_SEC: Readonly<Record<HandoffKind, number>> = { button: 
 
 /** 家長按下時看到的同意文字版本。改了同意文字就改這個（或設 HANDOFF_CONSENT_VERSION）。 */
 export const DEFAULT_CONSENT_VERSION = 'handoff-consent-v1';
+
+/**
+ * 接收端的名字，B 畫面上那張卡由 `GET /api/handoff/config` 拿到它再組句子。
+ *
+ * 放在伺服器、不寫進前端：B 的建置產物裡不准有這個品牌名（`test/brandIsolation.test.ts`），
+ * 而那張卡只在交接開啟時才出現 —— 開啟＝合作公司同意在他們的報告頁放這顆按鈕（ADR-0009 待定第 1 項）。
+ */
+export const HANDOFF_TARGET_NAME = '森心康';
 
 // ── 交接碼 ────────────────────────────────────────────────────────
 
@@ -31,10 +42,6 @@ export function generateHandoffCode(): { code: string; hash: string } {
  */
 export function hashHandoffCode(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex');
-}
-
-export function isHandoffCodeShape(value: unknown): value is string {
-  return typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
 }
 
 /** 內部端點的密鑰比對：常數時間，長度不同也不提早回（先各自雜湊再比）。 */
@@ -116,7 +123,7 @@ export function resolveHandoffTargetConfig(env: NodeJS.ProcessEnv): HandoffTarge
 
 /** 交接連結：碼放在網址片段，不送到伺服器、不進 nginx 日誌、不隨 Referer 外流。 */
 export function handoffUrl(targetOrigin: string, code: string): string {
-  return `${targetOrigin}/handoff#code=${code}`;
+  return `${targetOrigin}${HANDOFF_LANDING_PATH}#code=${code}`;
 }
 
 // ── 兩端之間那一包 ────────────────────────────────────────────────

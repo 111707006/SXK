@@ -62,6 +62,26 @@ export const MOOD_LABEL: Readonly<Record<CheckinMood, string>> = {
   reluctant: '不太想玩',
 };
 
+// ── 獨立頁（2026-09-28 使用者：線上干預不放在報告裡，從導覽列另外開）───────────
+// 內容與 Keep 規格 §3.1 的入口相同（`ENTRY`），只是換了位置：導覽列「线上干预」→ `TrainingPage`。
+// 報告第六段只留一行連結過來（`REPORT_TRAINING_LINK`）。
+
+export const TRAINING_PAGE = {
+  navLabel: '线上干预',
+  loading: '正在读取深度评估报告…',
+  noReport: '完成深度评估、生成报告之后，这里会按结果安排每周的家庭活动，附示范片与打卡。',
+  noReportAction: '去做深度评估',
+  locked: '线上干预跟着深度评估一起开放。解锁深度评估、生成报告之后，这里会按结果安排每周的家庭活动。',
+  lockedAction: '去解锁深度评估',
+  error: '报告暂时读不出来，请稍后再打开这一页。',
+  retry: '再试一次',
+} as const;
+
+export const REPORT_TRAINING_LINK = {
+  text: '按这份报告安排的每周家庭活动、示范片与打卡，都在「线上干预」。',
+  action: '打开线上干预',
+} as const;
+
 // ── 報告入口（§3.1） ───────────────────────────────────────────────────
 
 export const ENTRY = {

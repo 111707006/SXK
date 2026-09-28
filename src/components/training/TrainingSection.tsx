@@ -1,12 +1,12 @@
 /**
- * 報告第六段「线上干预」（Keep 規格 K11、K12）：取代票 #60 的 `T2WeeklyPlan`。
+ * 「线上干预」（Keep 規格 K11、K12）：取代票 #60 的 `T2WeeklyPlan`。2026-09-28 起不放在報告裡，由導覽列那一頁 `TrainingPage` 掛。
  *
- * `T2Report.tsx` 只掛這一個元件。它持有三樣東西，交給底下每一頁：
+ * `TrainingPage.tsx` 只掛這一個元件。它持有三樣東西，交給底下每一頁：
  * - 資料（`useTrainingData`）：每週活動與打卡，一份。
  * - 頁面堆疊（`useLayerStack`）：推一層＝推一格歷史，返回鍵關最上面那一層。
  * - 報告快照、孩子名字、預約與重新評估兩個出口。
  *
- * 畫在報告裡的是入口（`ReportEntry`）；計劃頁、詳情、抽屜蓋在報告上（`TrainingOverlay`）。
+ * 畫在頁面上的是入口（`ReportEntry`）；計劃頁、詳情、抽屜蓋在上面（`TrainingOverlay`）。
  *
  * 【給票 7、8】
  * 新頁：在 `layerStack.ts` 的 `Route` 加（或用已列好的 detail／library／calendar），在

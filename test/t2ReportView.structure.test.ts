@@ -80,10 +80,13 @@ describe('段落順序（§6.3）', () => {
     expect(view).not.toContain(RETEST_SENTENCE);
   });
 
-  it('第六段嵌的是線上干預（Keep 規格 K11，取代票 #60 的清單），weeklyPlanIntro 在它上面', () => {
+  // 2026-09-28 使用者：線上干預不放在報告裡（內容在導覽列那一頁，trainingView.structure 驗）。第六段只留一行連結。
+  it('第六段只是連到「线上干预」那一頁的一行，weeklyPlanIntro 在它上面', () => {
     const weekly = view.slice(view.indexOf('id="t2-weekly"'), view.indexOf('</section>', view.indexOf('id="t2-weekly"')));
-    expect(weekly).toMatch(/<TrainingSection findings=\{findings\} childName=\{childName\} onBookService=\{onBookService\}/);
-    expect(weekly.indexOf('prose.weeklyPlanIntro')).toBeLessThan(weekly.indexOf('<TrainingSection'));
+    expect(weekly).toContain('onClick={onOpenTraining}');
+    expect(weekly).toContain('{REPORT_TRAINING_LINK.action}');
+    expect(weekly.indexOf('prose.weeklyPlanIntro')).toBeLessThan(weekly.indexOf('onOpenTraining'));
+    expect(view).not.toContain('TrainingSection');
     expect(view).not.toContain('T2WeeklyPlan');
   });
 });

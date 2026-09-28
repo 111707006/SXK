@@ -35,9 +35,10 @@
 │   │   ├── T1Screening.tsx          # T1筛查
 │   │   ├── T2Entrance.tsx           # T2 入口（题量、诊断方向、开始作答；挂在即时 T1 报告上，#56）
 │   │   ├── T2Assessment.tsx         # T2 逐支作答：工具清单（已完成／加测提示）＋ 作答表单（#58）；底下「生成报告／查看上次的报告」（#61）
-│   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段嵌线上干预、可摺叠作答回顾（#61）
-│   │   ├── training/                # 线上干预（Keep 式，Keep 规格 K11 起）：报告第六段的入口＋盖在报告上的计划页、详情、抽屉
-│   │   │   ├── TrainingSection.tsx  # T2Report 只挂它：资料（useTrainingData）＋页面堆叠（useLayerStack）＋context
+│   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段只留一行连到「线上干预」页（2026-09-28 起线上干预不在报告里）、可摺叠作答回顾（#61）
+│   │   ├── training/                # 线上干预（Keep 式，Keep 规格 K11 起）：导览列「线上干预」那一页（2026-09-28 使用者：不放在报告里）＋盖在上面的计划页、详情、抽屉
+│   │   │   ├── TrainingPage.tsx     # 导览列「线上干预」那一页：自己读最新报告快照（没报告／没解锁时说要先做什么、带到 T2 入口），挂 TrainingSection
+│   │   │   ├── TrainingSection.tsx  # TrainingPage 只挂它：资料（useTrainingData）＋页面堆叠（useLayerStack）＋context
 │   │   │   ├── layerStack.ts        # 页面堆叠：推一层＝pushState 一格，返回键／实体返回键关最上面那一层；Route、SheetState 型别；打卡后「回到计划」走 returnTo
 │   │   │   ├── useTrainingData.ts   # 读 weekly-plan 与 checkins（checkinRanges 切 62 天）；reloadCheckins 给打卡后刷新；提醒 prefs 用到才读（loadPrefs）
 │   │   │   ├── trainingData.ts      # 纯函式：第几周、打卡要查哪几段、换着玩排序、评估结果（走 gridDimensions）、12 周打卡格；详情的系列列／年龄提醒（ageFit）；打卡成功的数字（checkinSummary）

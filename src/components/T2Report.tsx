@@ -36,7 +36,7 @@ import {
   stripSafetyPrefix,
 } from '../t2/reportCopy';
 import type { DimensionCode, DimensionFinding, T2Findings } from '../t2/types';
-import TrainingSection from './training/TrainingSection';
+import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
 
 /** `POST /api/t2/findings` 與 `GET /api/t2/findings/latest` 回的一份快照。 */
 interface FindingsEntry {
@@ -57,8 +57,8 @@ interface T2ReportProps {
   childName?: string;
   /** 進來就按「生成」（從作答清單的按鈕來），而不是先讀最新那一份。 */
   generateOnOpen?: boolean;
-  /** 第六段計劃頁的「重新评估」→ T2 入口（Keep 規格 §3.2）。沒給就不出那顆按鈕。 */
-  onReassess?: () => void;
+  /** 第六段的連結 → 導覽列那一頁「线上干预」（2026-09-28 起線上干預不放在報告裡）。沒給就不出連結。 */
+  onOpenTraining?: () => void;
 }
 
 /** 「9 月 12 日」。 */
@@ -93,7 +93,7 @@ const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', string> 
  * 【段落順序】（§6.3）
  * `safety_concern` 橫幅（有才有）→ 總覽（overview ＋ 九個維度的狀態）→ 逐維度（只有 watch／refer）
  * → 沒有問卷的維度（no_tool 的專屬段落，導向專家）→ 氣質（有標籤才有）→ 目標 → 线上干预
- * （Keep 規格 K11：`training/TrainingSection`，取代票 #60 的清單）→ 三个月后重评（v2.1 S14）→ closing
+ * （2026-09-28 起只是一行連結，內容在導覽列「线上干预」那一頁：`training/TrainingPage`）→ 三个月后重评（v2.1 S14）→ closing
  * → 作答回顧（可摺疊）。
  *
  * 逐維度卡片裡、caveats 之前另有「若持续不处理」與「建议后续项目」兩段（規格 v2.1 §6.3，S09）：
@@ -122,7 +122,7 @@ const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', string> 
  * band 只走 `statusWording.ts`（經 `reportCopy.ts`）；tier 的內部名稱一個都不出現（快照裡有，
  * 畫面不讀它）。題目原文只在回顧那一段（`reviewGroups`），敘述段不引用。
  */
-export default function T2Report({ onBack, onBookService, childName, generateOnOpen, onReassess }: T2ReportProps) {
+export default function T2Report({ onBack, onBookService, childName, generateOnOpen, onOpenTraining }: T2ReportProps) {
   const [entry, setEntry] = useState<FindingsEntry | null>(null);
   const [status, setStatus] = useState<'loading' | 'generating' | 'ready' | 'none' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -494,10 +494,25 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
         </section>
       )}
 
-      {/* 6. 线上干预（Keep 規格 K11、K12：報告入口，計劃頁與詳情蓋在報告上） */}
+      {/*
+        6. 线上干预：2026-09-28 起不放在報告裡（使用者），內容搬到導覽列「线上干预」那一頁
+        （`training/TrainingPage`）。這裡只留一行連結過去。
+      */}
       <section className="space-y-3" id="t2-weekly">
         {prose && <p className="text-xs text-brand-charcoal leading-relaxed">{prose.weeklyPlanIntro}</p>}
-        <TrainingSection findings={findings} childName={childName} onBookService={onBookService} onReassess={onReassess} />
+        {onOpenTraining && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-2xl bg-brand-forest text-white px-5 py-4">
+            <p className="text-xs leading-relaxed">{REPORT_TRAINING_LINK.text}</p>
+            <button
+              type="button"
+              id="t2-open-training-btn"
+              onClick={onOpenTraining}
+              className="shrink-0 px-4 py-2 rounded-xl bg-white text-brand-forest text-xs font-bold hover:bg-brand-cream active:scale-[0.98] transition cursor-pointer"
+            >
+              {REPORT_TRAINING_LINK.action}
+            </button>
+          </div>
+        )}
       </section>
 
       {/* 6 之後：三个月后重评（v2.1 S14）。規則輸出、不經 AI；沒有打卡紀錄的判斷，一律出現 */}

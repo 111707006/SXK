@@ -30,6 +30,7 @@ const SpecializedReportView = lazy(() => import('./components/SpecializedReportV
 const Paywall = lazy(() => import('./components/Paywall'));
 const T2Assessment = lazy(() => import('./components/T2Assessment'));
 const T2Report = lazy(() => import('./components/T2Report'));
+const TrainingPage = lazy(() => import('./components/training/TrainingPage'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
@@ -48,8 +49,9 @@ import {
   Activity, ShoppingBag, BarChart3, User, RefreshCw, 
   Heart, HeartHandshake, FileText, CheckCircle2, ListFilter,
   ChevronDown, Truck, Package, LogOut, ArrowRight, UserCheck,
-  BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles
+  BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck
 } from 'lucide-react';
+import { TRAINING_PAGE } from './t2/trainingCopy';
 
 export default function App() {
   /** 孩子檔案，**照存下來的樣子**。上面的 `ageMonth` 是寫入當下的值，會過期。 */
@@ -70,7 +72,7 @@ export default function App() {
   const child = useMemo(() => refreshChildAge(childProfile, today), [childProfile, today]);
 
   // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'
-  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report' | 'training'>('dashboard');
   // T2 報告頁（票 #61）是從作答清單的「生成报告」還是「查看上次的报告」進來的：前者一進去就打 POST。
   const [t2ReportGenerate, setT2ReportGenerate] = useState(false);
   
@@ -650,6 +652,19 @@ export default function App() {
     setCurrentView('report');
   };
 
+  /**
+   * 送到 T2 入口：入口只掛在即時 T1 報告上（票 #56），回去並捲到那張卡。
+   * 「线上干预」那一頁的「重新评估」、還沒報告／還沒解鎖時的按鈕都走這裡。
+   */
+  const goToT2Entrance = () => {
+    setViewingLiveT1(true);
+    setT1ReportGenerate(false);
+    setActiveT1Record(null);
+    setFocusBooking(false);
+    setFocusT2(true);
+    setCurrentView('report');
+  };
+
   // Find active dimension config
   const activeDimension = DIMENSIONS_DATA.find(d => d.id === selectedDimensionId);
 
@@ -733,6 +748,7 @@ export default function App() {
           {/* Navigation and switch views controls */}
           {child ? (
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {/* 手機寬度放四個分頁：小螢幕收掉圖示、縮一點邊距、字不換行（2026-09-28 加「线上干预」之後會擠成兩行） */}
               <nav className="flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40">
                 <button
                   id="nav-dashboard-btn"
@@ -740,13 +756,13 @@ export default function App() {
                     setCurrentView('dashboard');
                     setSelectedDimensionId(null);
                   }}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                  className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
                     currentView === 'dashboard' || currentView === 'assessment'
                       ? 'bg-white text-brand-forest shadow-sm font-extrabold'
                       : 'text-brand-charcoal/80 hover:text-brand-forest'
                   }`}
                 >
-                  <BarChart3 size={12} />
+                  <BarChart3 size={12} className="hidden sm:block" />
                   评估面板 (9维)
                 </button>
                 <button
@@ -763,7 +779,7 @@ export default function App() {
                     // 自己捲到最底下的預約區塊 —— 而家長沒有要求過那件事。
                     setFocusBooking(false); setFocusT2(false);
                   }}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                  className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
                     completedScores.length === 0 ? 'opacity-40 cursor-not-allowed' : ''
                   } ${
                     currentView === 'report'
@@ -771,9 +787,33 @@ export default function App() {
                       : 'text-brand-charcoal/80 hover:text-brand-forest'
                   }`}
                 >
-                  <FileText size={12} />
+                  <FileText size={12} className="hidden sm:block" />
                   评估报告
                 </button>
+                {/*
+                  线上干预（2026-09-28 使用者：不放在報告裡，從這裡另外開）。只有專案 A 有深度評估，
+                  也就只有 A 有這一頁；沒解鎖、沒報告時頁面自己說要先做什麼。
+                */}
+                {PRODUCT.features.tier2And3 && (
+                  <button
+                    id="nav-training-btn"
+                    disabled={completedScores.length === 0}
+                    onClick={() => {
+                      setCurrentView('training');
+                      setSelectedDimensionId(null);
+                    }}
+                    className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
+                      completedScores.length === 0 ? 'opacity-40 cursor-not-allowed' : ''
+                    } ${
+                      currentView === 'training'
+                        ? 'bg-white text-brand-forest shadow-sm font-extrabold'
+                        : 'text-brand-charcoal/80 hover:text-brand-forest'
+                    }`}
+                  >
+                    <CalendarCheck size={12} className="hidden sm:block" />
+                    {TRAINING_PAGE.navLabel}
+                  </button>
+                )}
                 {PRODUCT.features.mall && (
                   <button
                     id="nav-mall-btn"
@@ -781,13 +821,13 @@ export default function App() {
                       setCurrentView('mall');
                       setSelectedDimensionId(null);
                     }}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                    className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
                       currentView === 'mall'
                         ? 'bg-white text-brand-forest shadow-sm font-extrabold'
                         : 'text-brand-charcoal/80 hover:text-brand-forest'
                     }`}
                   >
-                    <ShoppingBag size={12} />
+                    <ShoppingBag size={12} className="hidden sm:block" />
                     商城
                   </button>
                 )}
@@ -1395,15 +1435,19 @@ export default function App() {
                     generateOnOpen={t2ReportGenerate}
                     onBack={() => setCurrentView('t2_assessment')}
                     onBookService={type => goToExpertBooking(type)}
-                    onReassess={() => {
-                      // 計劃頁「重新评估」→ T2 入口：入口只掛在即時 T1 報告上（票 #56），回去並捲到那張卡
-                      setViewingLiveT1(true);
-                      setT1ReportGenerate(false);
-                      setActiveT1Record(null);
-                      setFocusBooking(false);
-                      setFocusT2(true);
-                      setCurrentView('report');
-                    }}
+                    onOpenTraining={() => setCurrentView('training')}
+                  />
+                </LazyBoundary>
+              </div>
+            ) : currentView === 'training' && PRODUCT.features.tier2And3 ? (
+              /* 线上干预（2026-09-28 起從導覽列開，不在報告裡）。沒解鎖時不擋路由：頁面自己說要先解鎖 */
+              <div className="animate-fade-in">
+                <LazyBoundary>
+                  <TrainingPage
+                    childName={child?.name}
+                    locked={isRouteBlocked}
+                    onBookService={type => goToExpertBooking(type)}
+                    onGoToT2={goToT2Entrance}
                   />
                 </LazyBoundary>
               </div>

@@ -86,11 +86,30 @@ describe('導覽只經過 layerStack', () => {
     expect(source).not.toMatch(/popstate/);
   });
 
-  it('T2Report 只掛 TrainingSection（入口＋蓋在上面的幾層）', () => {
+  // 2026-09-28 使用者：線上干預不放在報告裡，從導覽列另外開。內容（TrainingSection）一行都沒改，只換了掛的地方。
+  it('線上干預是導覽列開的獨立頁：TrainingPage 掛 TrainingSection，報告不掛', () => {
     const report = stripComments(read('src/components/T2Report.tsx'));
-    expect(report).toContain("import TrainingSection from './training/TrainingSection'");
+    expect(report).not.toContain('TrainingSection');
     expect(report).not.toContain('T2WeeklyPlan');
     expect(fs.existsSync(path.join(ROOT, 'src/components/T2WeeklyPlan.tsx'))).toBe(false);
+
+    const page = stripComments(read(`${DIR}/TrainingPage.tsx`));
+    expect(page).toContain("import TrainingSection from './TrainingSection'");
+    expect(page).toMatch(/<TrainingSection findings=\{findings\} childName=\{childName\} onBookService=\{onBookService\} onReassess=\{onGoToT2\} \/>/);
+
+    const app = stripComments(read('src/App.tsx'));
+    expect(app).toContain("lazy(() => import('./components/training/TrainingPage'))");
+    expect(app).toContain('id="nav-training-btn"');
+    expect(app).toMatch(/currentView === 'training' && PRODUCT\.features\.tier2And3/);
+    // 報告第六段的連結帶到同一頁
+    expect(app).toContain("onOpenTraining={() => setCurrentView('training')}");
+  });
+
+  it('沒報告、沒解鎖時頁面自己說要先做什麼，並帶到 T2 入口（不是一頁空白）', () => {
+    const page = stripComments(read(`${DIR}/TrainingPage.tsx`));
+    expect(page).toContain("resp.status === 404) return setStatus('none')");
+    expect(page).toContain("resp.status === 403) return setStatus('locked')");
+    expect(page).toMatch(/onClick=\{status === 'error' \? retry : onGoToT2\}/);
   });
 });
 

@@ -13,6 +13,10 @@
  * - 一位展示家長 `DEMO_PARENT_PHONE`：30 個月的「小安」，T1 動作發展需關注、T1 報告已生成，T2 粗大動作量表做完
  *   （爬站不穩、走跑跳與平衡偏弱），報告已生成，本週活動已配好 —— 登入後直接看得到 T2 報告與居家訓練
  *
+ * 專案 B 的展示站（`sxk-demo-b`，`APP_MODE=t1only`，2026-09-28）另一份：一家示範合作機構、同一組後台帳號，
+ * 三位家長 —— `DEMO_PARENT_PHONE`（T1 做完、報告生成了：報告頁那張「到森心康做深度评估」的卡按下去就到 sxk-demo）、
+ * 再一位做完 T1 的（後台「发送邀请简讯」勾得到）、一位還沒做篩查的（勾不到）。
+ *
  * 用法（bake.sh 會帶好環境變數）：`npx tsx deploy/demo/seed.ts`
  */
 import fs from 'fs';
@@ -92,9 +96,9 @@ async function importTags(adminToken: string): Promise<void> {
   console.log(`[seed] 示范片标签汇入 ${report.imported} 支`);
 }
 
-async function parentLogin(): Promise<string> {
-  await call('POST', '/api/auth/sms/request', { phone: PARENT_PHONE });
-  const { token } = await call('POST', '/api/auth/sms/verify', { phone: PARENT_PHONE, code: CODE });
+async function parentLogin(phone = PARENT_PHONE, companySlug?: string): Promise<string> {
+  await call('POST', '/api/auth/sms/request', { phone, ...(companySlug ? { companySlug } : {}) });
+  const { token } = await call('POST', '/api/auth/sms/verify', { phone, code: CODE, ...(companySlug ? { companySlug } : {}) });
   return token;
 }
 
@@ -173,10 +177,48 @@ async function seedParent(): Promise<void> {
   if (picks.length === 0) throw new Error('本周活动是空的 —— 标签没汇进去，或配对没吃到');
 }
 
+/** 一位 B 的家長：從合作機構的進站連結登入、存孩子檔案；`withT1` 再做完 T1 並生成報告（同 seedParent 的前半）。 */
+async function seedBParent(phone: string, name: string, companySlug: string, withT1: boolean): Promise<void> {
+  const token = await parentLogin(phone, companySlug);
+  const child = { name, gender: 'girl', birthDate: birthDateMonthsAgo(CHILD_AGE_MONTH), ageMonth: CHILD_AGE_MONTH };
+  if (!withT1) {
+    await call('POST', '/api/db/save', { child, completedScores: [], orders: [], reportHistory: [] }, token);
+    console.log(`[seed] B 家长 ${phone}「${name}」：还没做筛查`);
+    return;
+  }
+  const scores = t1Scores();
+  const generated = await call('POST', '/api/report', { child, scores });
+  const t1Report = {
+    id: `rec_${Date.now()}_${phone}`,
+    type: 'T1_SCREENING',
+    child,
+    scores,
+    aiReport: generated.report,
+    isAiGenerated: generated.isAiGenerated === true,
+    createdAt: new Date().toISOString(),
+  };
+  await call('POST', '/api/db/save', { child, completedScores: scores, orders: [], reportHistory: [t1Report] }, token);
+  console.log(`[seed] B 家长 ${phone}「${name}」：T1 做完、报告已生成`);
+}
+
+/** 專案 B（`sxk-demo-b`）：示範合作機構＋三位家長。沒有活動庫標籤、沒有 T2（B 沒有這些）。 */
+async function seedB(adminToken: string): Promise<void> {
+  const slug = 'demo';
+  await call('POST', '/api/admin/companies', { name: '示范合作机构', slug }, adminToken);
+  const base = Number(PARENT_PHONE);
+  await seedBParent(PARENT_PHONE, '小安', slug, true);
+  await seedBParent(String(base + 1), '小乐', slug, true);
+  await seedBParent(String(base + 2), '小宁', slug, false);
+}
+
 async function main() {
   const adminToken = await seedAdmin();
-  await importTags(adminToken);
-  await seedParent();
+  if (process.env.APP_MODE === 't1only') {
+    await seedB(adminToken);
+  } else {
+    await importTags(adminToken);
+    await seedParent();
+  }
   console.log('[seed] 完成');
 }
 

@@ -147,3 +147,34 @@ services:
     envVars:
       - key: SESSION_SECRET
         generateValue: true
+      # B→A 交接（ADR-0009）：向 sxk-demo-b 兌換交接碼。兩個展示站走公開網址（免費方案收不到私網流量）；
+      # Render 若替 sxk-demo-b 配了別的子網域，把這一行改成那個網址。
+      - key: HANDOFF_SOURCE_ORIGIN
+        value: https://sxk-demo-b.onrender.com
+      - fromGroup: sxk-demo-handoff
+
+  # ── 專案 B 的展示站（假資料庫，2026-09-28）──────────────────────────────
+  # 看 B→A 交接用：B 報告頁「到森心康做深度评估」按下去到 sxk-demo；B 後台「发送邀请简讯」
+  # （簡訊不真的發，連結印在這個服務的 Logs）。做法同 sxk-demo，Dockerfile 只差在 ENV（deploy/demo/Dockerfile.b）。
+  - type: web
+    name: sxk-demo-b
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./deploy/demo/Dockerfile.b
+    dockerContext: .
+    healthCheckPath: /api/db/status
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      # 交接連結指去 sxk-demo。同上，子網域不同就改這一行。
+      - key: HANDOFF_TARGET_ORIGIN
+        value: https://sxk-demo.onrender.com
+      - fromGroup: sxk-demo-handoff
+
+# 兩個展示站共用的交接密鑰：只放在這個群組裡，由 Render 產生一次、兩邊讀同一串。
+envVarGroups:
+  - name: sxk-demo-handoff
+    envVars:
+      - key: HANDOFF_SECRET
+        generateValue: true

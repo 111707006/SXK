@@ -1,0 +1,12 @@
+# deploy/demo/Dockerfile（Render 的 sxk-demo）用。建置時自己裝相依、自己建 dist/。
+node_modules
+dist
+.git
+.env
+.env.*
+media
+# 客戶原始檔（zip／docx）：程式碼只讀 src/ 裡抽好的常數，不需要它們
+NEWT2
+files
+files1
+*.pdf

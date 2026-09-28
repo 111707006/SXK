@@ -129,3 +129,21 @@ services:
       - key: WECOM_WEBHOOK_URL
         sync: false
       # B 刻意沒有任何 WECHATPAY_* —— 付費路由在 APP_MODE=t1only 下根本不註冊。
+
+  # ── 專案 A 的展示站（假資料庫，2026-09-28）──────────────────────────────
+  # 不接阿里雲、不接正式庫、不申請簡訊：MariaDB 跟著服務一起跑，假資料在建置時烤好
+  # （deploy/demo/：Dockerfile、bake.sh、seed.ts）。其餘設定都寫在 Dockerfile 裡，這裡只放
+  # 不能進版控的簽章金鑰。登入用固定展示碼（src/demoLogin.ts，只在資料庫是本機時收）；
+  # 示範片由伺服器向正式站拿（MEDIA_UPSTREAM）。閒置休眠後醒來資料回到烤好的那一份。
+  # 新加坡離正式站（上海）與家長都最近。
+  - type: web
+    name: sxk-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./deploy/demo/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/db/status
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true

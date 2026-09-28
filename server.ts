@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 import * as mysqlDb from './src/db/mysql';
 import { createAdminRouter } from './src/admin/routes';
 import { notifyExpertBooking } from './src/notify';
-import { sendVerificationCode } from './src/sms';
+import { inviteChannelStatus, sendHandoffInvite, sendVerificationCode } from './src/sms';
 import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
 import {
   generateReportLinkToken,
@@ -54,9 +54,9 @@ import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
 import { resolveDemoLoginCode } from './src/demoLogin';
-import { resolveHandoffSourceConfig, resolveHandoffTargetConfig } from './src/handoff/core';
+import { handoffInviteUrl, resolveHandoffSourceConfig, resolveHandoffTargetConfig } from './src/handoff/core';
 import { createHandoffSourceRouter, createHandoffTargetRouter, type ParentData as HandoffParentData } from './src/handoff/routes';
-import { consumeHandoffCode, createHandoffCode, recordHandoffImport } from './src/db/handoffs';
+import { createHandoffCode, recordHandoffImport, redeemHandoffCode } from './src/db/handoffs';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -3191,7 +3191,7 @@ multiCompanyOnly.use(createHandoffSourceRouter({
     return company ? { id: Number(company.id), slug: company.slug, name: company.name } : null;
   },
   createCode: input => withTimeout(createHandoffCode(input), 2000),
-  consumeCode: codeHash => withTimeout(consumeHandoffCode(codeHash), 2000),
+  redeemCode: codeHash => withTimeout(redeemHandoffCode(codeHash), 2000),
 }));
 
 tier2Only.use(createHandoffTargetRouter({
@@ -3540,6 +3540,15 @@ app.use(
       onParentDeleted: parentId => {
         offlineUserData.delete(String(parentId));
       },
+      // B→A 交接的邀請簡訊（ADR-0009）：只有 B 發、而且交接開著才有。連結指向 A（`HANDOFF_TARGET_ORIGIN`）。
+      handoffInvite: HANDOFF_SOURCE_CONFIG
+        ? {
+            consentVersion: HANDOFF_SOURCE_CONFIG.consentVersion,
+            channel: inviteChannelStatus,
+            send: (phone, code) =>
+              sendHandoffInvite(phone, code, handoffInviteUrl(HANDOFF_SOURCE_CONFIG.targetOrigin, code)),
+          }
+        : undefined,
     }
   )
 );

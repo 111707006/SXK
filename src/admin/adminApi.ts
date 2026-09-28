@@ -50,6 +50,22 @@ export interface AdminParentListItem {
   screenedAt: string | null;
   registeredAt: string | null;
   hasBooking: boolean;
+  /** B→A 交接的邀請（ADR-0009）：最近一次送出成功的邀請簡訊、交接碼最近一次被用（＝到過 A）。A 兩個都是 null。 */
+  lastInvitedAt: string | null;
+  handoffUsedAt: string | null;
+}
+
+export interface AdminInviteConfig {
+  enabled: boolean;
+  /** 邀請範本設好沒；沒好時 `missing` 列出缺的環境變數。 */
+  ready?: boolean;
+  missing?: string[];
+}
+
+export interface AdminInviteReport {
+  sent: number[];
+  skipped: Array<{ userId: number; reason: string }>;
+  failed: Array<{ userId: number; detail: string }>;
 }
 
 export interface AdminParentDetail extends AdminParentListItem {
@@ -232,6 +248,13 @@ export const adminApi = {
    * 後者是「找得到但不准刪」，而使用者的下一步完全不同。
    */
   deleteParent: (id: number) => request<{ ok: true }>(`/parents/${id}`, { method: 'DELETE' }),
+
+  /** B→A 交接的邀請簡訊（ADR-0009）：只有專案 B 的全域管理員叫得到。 */
+  inviteConfig: () => request<AdminInviteConfig>('/handoff-invites/config'),
+
+  /** 一批最多 `INVITE_BATCH_MAX` 位；伺服器照規則再判一次誰能收（`src/handoff/invite.ts`）。 */
+  sendInvites: (userIds: number[]) =>
+    request<AdminInviteReport>('/handoff-invites', { method: 'POST', body: JSON.stringify({ userIds }) }),
 
   specialists: () => request<{ specialists: AdminSpecialist[] }>('/specialists'),
 

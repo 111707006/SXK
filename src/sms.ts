@@ -117,18 +117,18 @@ export function buildAliyunSmsRequest(input: AliyunSmsRequestInput): {
   return { url: ALIYUN_ENDPOINT, form, stringToSign };
 }
 
-/** 缺哪幾項設定。回空陣列代表通道可用。 */
-function missingAliyunConfig(): string[] {
+/** 缺哪幾項設定。回空陣列代表通道可用。`templateEnv` 決定用哪一個範本（登入驗證碼或交接邀請）。 */
+function missingAliyunConfig(templateEnv: string = 'ALI_SMS_TEMPLATE_CODE'): string[] {
   return [
     'ALI_SMS_ACCESS_KEY_ID',
     'ALI_SMS_ACCESS_KEY_SECRET',
     'ALI_SMS_SIGN_NAME',
-    'ALI_SMS_TEMPLATE_CODE',
+    templateEnv,
   ].filter(key => !process.env[key]);
 }
 
-async function sendViaAliyun(phone: string, code: string): Promise<SmsResult> {
-  const missing = missingAliyunConfig();
+async function sendViaAliyun(phone: string, code: string, templateEnv: string = 'ALI_SMS_TEMPLATE_CODE'): Promise<SmsResult> {
+  const missing = missingAliyunConfig(templateEnv);
   if (missing.length > 0) {
     return {
       ok: false,
@@ -144,7 +144,7 @@ async function sendViaAliyun(phone: string, code: string): Promise<SmsResult> {
     accessKeyId: process.env.ALI_SMS_ACCESS_KEY_ID as string,
     accessKeySecret: process.env.ALI_SMS_ACCESS_KEY_SECRET as string,
     signName: process.env.ALI_SMS_SIGN_NAME as string,
-    templateCode: process.env.ALI_SMS_TEMPLATE_CODE as string,
+    templateCode: process.env[templateEnv] as string,
   });
 
   try {
@@ -204,5 +204,49 @@ export async function sendVerificationCode(phone: string, code: string): Promise
   if (!result.ok) {
     console.error(`[SMS] 验证码未送达 ${phone}（${result.provider}/${result.reason}）：${result.detail}`);
   }
+  return result;
+}
+
+// ── B→A 交接的邀請簡訊（ADR-0009 第二期） ──
+
+/** 邀請用的範本另外審（它帶連結、是推廣類），所以是另一個環境變數；簽名與金鑰與登入共用。 */
+const INVITE_TEMPLATE_ENV = 'ALI_SMS_INVITE_TEMPLATE_CODE';
+
+/**
+ * 邀請簡訊的通道能不能用。後台據此決定「發送」那顆按鈕能不能按，並說出缺什麼 ——
+ * 範本還在審核時，按鈕按下去一則都送不出去，不如一開始就說清楚。
+ */
+export function inviteChannelStatus(): { ready: boolean; missing: string[] } {
+  let provider: SmsProvider;
+  try {
+    provider = resolveSmsProvider();
+  } catch {
+    return { ready: false, missing: ['SMS_PROVIDER'] };
+  }
+  if (provider === 'console') return { ready: true, missing: [] };
+  const missing = missingAliyunConfig(INVITE_TEMPLATE_ENV);
+  return { ready: missing.length === 0, missing };
+}
+
+/**
+ * 送一則「到森心康做深度評估」的邀請。範本裡網址是寫死的文字，只有交接碼是變數 `${code}`
+ * （例：`…点击 https://sxkscreen.com/handoff#invite=${code} …`）。**永不丟例外。**
+ *
+ * `linkForConsole` 只給本機的 console 通道印出來看；阿里雲那一條用不到它。
+ * 交接碼本身不進一般日誌：它是一把能替那位家長在 A 登入的鑰匙（不過期）。
+ */
+export async function sendHandoffInvite(phone: string, code: string, linkForConsole: string): Promise<SmsResult> {
+  let provider: SmsProvider;
+  try {
+    provider = resolveSmsProvider();
+  } catch (err: any) {
+    return { ok: false, provider: 'unknown', reason: 'not_configured', detail: err.message };
+  }
+  if (provider === 'console') {
+    console.warn(`[SMS/console] 邀请简讯为本机模式，未送出真实短信。${phone} 的连结：${linkForConsole}`);
+    return { ok: true, provider: 'console', detail: 'logged to console (SMS_PROVIDER=console)' };
+  }
+  const result = await sendViaAliyun(phone, code, INVITE_TEMPLATE_ENV);
+  if (!result.ok) console.error(`[SMS] 邀请未送达 ${phone}（${result.provider}/${result.reason}）：${result.detail}`);
   return result;
 }

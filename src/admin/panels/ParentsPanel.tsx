@@ -15,13 +15,22 @@
  * 列表的燈號來自篩查結果（現況），詳情的報告是快照。家長重測而沒有再生成報告時
  * 兩者分岔，此時詳情頂端會說出來，底下的「九维筛查结果」表就是現況那一份。
  */
-import { useCallback, useState } from 'react';
-import { AlertTriangle, Calendar, FileText, Phone, Printer, Trash2, User, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Calendar, FileText, MessageSquare, Phone, Printer, Trash2, User, X } from 'lucide-react';
 import {
   adminApi,
+  type AdminInviteConfig,
+  type AdminInviteReport,
   type AdminParentDetail,
   type AdminParentListItem,
 } from '../adminApi';
+import {
+  INVITE_COOLDOWN_DAYS,
+  INVITE_STATUS_LABEL,
+  inviteBatches,
+  inviteStatus,
+  type InviteStatus,
+} from '../../handoff/invite';
 import {
   byScreeningTotalAsc,
   deletionChallenge,
@@ -60,7 +69,11 @@ import {
 type Sort = 'newest' | 'oldest' | 'score_low';
 type Booked = 'all' | 'booked' | 'not_booked';
 
-export default function ParentsPanel({ onError }: { onError: (view: AdminErrorView) => void }) {
+/**
+ * @param canInvite 這位後台成員能不能發 B→A 的邀請簡訊（ADR-0009：只有專案 B 的全域管理員）。
+ *   能的話再問伺服器交接開了沒（`/handoff-invites/config`），開了才出現勾選欄與「发送邀请简讯」。
+ */
+export default function ParentsPanel({ onError, canInvite = false }: { onError: (view: AdminErrorView) => void; canInvite?: boolean }) {
   const [sort, setSort] = useState<Sort>('newest');
   const [booked, setBooked] = useState<Booked>('all');
   const [openId, setOpenId] = useState<number | null>(null);
@@ -70,6 +83,49 @@ export default function ParentsPanel({ onError }: { onError: (view: AdminErrorVi
   const { data, loading, failure, reload } = useAsyncData(load, [serverSort, booked], onError);
   const loaded = data?.parents ?? [];
   const parents = sort === 'score_low' ? [...loaded].sort(byScreeningTotalAsc) : loaded;
+
+  const [inviteConfig, setInviteConfig] = useState<AdminInviteConfig | null>(null);
+  useEffect(() => {
+    if (!canInvite) return;
+    let cancelled = false;
+    adminApi
+      .inviteConfig()
+      .then(config => {
+        if (!cancelled) setInviteConfig(config);
+      })
+      .catch(() => {
+        // 問不到就當作沒開：少一欄，不是一個錯誤。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canInvite]);
+  const inviting = inviteConfig?.enabled === true;
+
+  // 每一列的邀請狀態算一次：列表、勾選、「全选可邀请」都看同一份。
+  const statuses = useMemo(() => {
+    const now = new Date();
+    return new Map(
+      parents.map(p => [
+        p.id,
+        inviteStatus(
+          { phone: p.phone, hasScreening: p.screeningTotal !== null, lastInvitedAt: p.lastInvitedAt, handoffUsedAt: p.handoffUsedAt },
+          now,
+        ),
+      ]),
+    );
+  }, [parents]);
+  const eligibleIds = parents.filter(p => statuses.get(p.id) === 'eligible').map(p => p.id);
+
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const toggle = (id: number) =>
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const allEligibleSelected = eligibleIds.length > 0 && eligibleIds.every(id => selected.has(id));
 
   return (
     <>
@@ -91,6 +147,18 @@ export default function ParentsPanel({ onError }: { onError: (view: AdminErrorVi
           </div>
         }
       >
+        {/* 不跟著列表的載入狀態開關：送完會重讀列表，這一條要是跟著卸掉，送出的結果就跟著不見了。 */}
+        {inviting && (
+          <InviteBar
+            config={inviteConfig!}
+            selectedIds={[...selected].filter(id => statuses.get(id) === 'eligible')}
+            eligibleCount={eligibleIds.length}
+            onDone={() => {
+              setSelected(new Set());
+              reload();
+            }}
+          />
+        )}
         {loading ? (
           <Spinner />
         ) : failure ? (
@@ -105,18 +173,40 @@ export default function ParentsPanel({ onError }: { onError: (view: AdminErrorVi
             <table className="w-full min-w-[800px] text-left text-xs">
               <thead>
                 <tr className="border-b border-brand-stone text-[10px] uppercase tracking-wide text-brand-charcoal/45">
+                  {inviting && (
+                    <th className="py-2 pr-2 font-bold">
+                      <input
+                        type="checkbox"
+                        aria-label="全选可邀请的家长"
+                        title="全选可邀请的家长"
+                        checked={allEligibleSelected}
+                        disabled={eligibleIds.length === 0}
+                        onChange={() => setSelected(allEligibleSelected ? new Set() : new Set(eligibleIds))}
+                      />
+                    </th>
+                  )}
                   <th className="py-2 pr-3 font-bold">孩子</th>
                   <th className="py-2 pr-3 font-bold">月龄</th>
                   <th className="py-2 pr-3 font-bold">筛查总分</th>
                   <th className="py-2 pr-3 font-bold">被标记的维度</th>
                   <th className="py-2 pr-3 font-bold">最近筛查</th>
                   <th className="py-2 pr-3 font-bold">预约</th>
+                  {inviting && <th className="py-2 pr-3 font-bold">深度评估邀请</th>}
                   <th className="py-2 font-bold" />
                 </tr>
               </thead>
               <tbody>
                 {parents.map(p => (
-                  <ParentRow key={p.id} parent={p} onOpen={() => setOpenId(p.id)} />
+                  <ParentRow
+                    key={p.id}
+                    parent={p}
+                    onOpen={() => setOpenId(p.id)}
+                    invite={
+                      inviting
+                        ? { status: statuses.get(p.id)!, selected: selected.has(p.id), onToggle: () => toggle(p.id) }
+                        : undefined
+                    }
+                  />
                 ))}
               </tbody>
             </table>
@@ -144,9 +234,127 @@ export default function ParentsPanel({ onError }: { onError: (view: AdminErrorVi
   );
 }
 
-function ParentRow({ parent, onOpen }: { parent: AdminParentListItem; onOpen: () => void }) {
+/**
+ * 「发送邀请简讯」那一條（ADR-0009；使用者 2026-09-28：後台一次發送）。按下先確認一次（會真的發簡訊、
+ * 要付費），確認後把勾選的人切成一批一批送，最後說清楚送了幾位、跳過幾位（為什麼）、失敗幾位。
+ */
+function InviteBar({
+  config,
+  selectedIds,
+  eligibleCount,
+  onDone,
+}: {
+  config: AdminInviteConfig;
+  selectedIds: number[];
+  eligibleCount: number;
+  onDone: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<AdminInviteReport | null>(null);
+  const [error, setError] = useState('');
+
+  const send = async () => {
+    setSending(true);
+    setError('');
+    const total: AdminInviteReport = { sent: [], skipped: [], failed: [] };
+    try {
+      for (const batch of inviteBatches(selectedIds)) {
+        const report = await adminApi.sendInvites(batch);
+        total.sent.push(...report.sent);
+        total.skipped.push(...report.skipped);
+        total.failed.push(...report.failed);
+      }
+    } catch (err: any) {
+      setError(err?.message || '发送失败。');
+    }
+    setResult(total);
+    setSending(false);
+    setConfirming(false);
+    onDone();
+  };
+
+  const skippedReasons = result
+    ? Object.entries(
+        result.skipped.reduce<Record<string, number>>((acc, s) => {
+          acc[s.reason] = (acc[s.reason] ?? 0) + 1;
+          return acc;
+        }, {}),
+      )
+        .map(([reason, n]) => `${INVITE_STATUS_LABEL[reason as InviteStatus] ?? '不在这个视野'} ${n} 位`)
+        .join('、')
+    : '';
+
+  return (
+    <div className="mb-4 rounded-2xl border border-brand-stone bg-brand-cream/40 p-3 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-brand-charcoal/70">
+          <MessageSquare size={12} className="mr-1 inline text-brand-moss" />
+          勾选家长后发一则简讯，邀请到深度评估（连结点开就登入、带着筛查结果，不过期）。可邀请 {eligibleCount} 位；
+          同一位家长 {INVITE_COOLDOWN_DAYS} 天内只发一封，已经去过的不再发。
+        </p>
+        <Button
+          variant="primary"
+          disabled={!config.ready || selectedIds.length === 0 || sending}
+          onClick={() => setConfirming(true)}
+        >
+          发送邀请简讯（{selectedIds.length} 位）
+        </Button>
+      </div>
+      {!config.ready && (
+        <p className="mt-2 font-bold text-amber-800">
+          邀请简讯还不能发：缺少 {(config.missing ?? []).join('、')}。范本要先在阿里云审核通过，再设进伺服器的 .env。
+        </p>
+      )}
+      {confirming && (
+        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+          <p className="font-bold text-amber-900">
+            确定要发 {selectedIds.length} 则简讯吗？简讯会真的送出、按条计费，送出后收不回来。
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button variant="primary" busy={sending} disabled={sending} onClick={send}>
+              确定发送
+            </Button>
+            <Button variant="ghost" disabled={sending} onClick={() => setConfirming(false)}>
+              取消
+            </Button>
+          </div>
+        </div>
+      )}
+      {result && (
+        <p className="mt-2 text-brand-charcoal/80" role="status">
+          已送出 {result.sent.length} 位
+          {result.skipped.length > 0 && `；跳过 ${result.skipped.length} 位（${skippedReasons}）`}
+          {result.failed.length > 0 && `；失败 ${result.failed.length} 位（${result.failed[0].detail}）`}。
+        </p>
+      )}
+      {error && <p className="mt-2 font-bold text-amber-800">{error}</p>}
+    </div>
+  );
+}
+
+function ParentRow({
+  parent,
+  onOpen,
+  invite,
+}: {
+  parent: AdminParentListItem;
+  onOpen: () => void;
+  invite?: { status: InviteStatus; selected: boolean; onToggle: () => void };
+}) {
   return (
     <tr className="border-b border-brand-stone/60 last:border-0">
+      {invite && (
+        <td className="py-2.5 pr-2">
+          <input
+            type="checkbox"
+            aria-label="选取这位家长"
+            checked={invite.selected}
+            disabled={invite.status !== 'eligible'}
+            onChange={invite.onToggle}
+          />
+        </td>
+      )}
       <td className="py-2.5 pr-3">
         <span className="font-bold text-brand-forest">{parent.childName || '未填姓名'}</span>
         <span className="ml-1.5 text-brand-charcoal/40">{genderLabel(parent.childGender)}</span>
@@ -182,6 +390,16 @@ function ParentRow({ parent, onOpen }: { parent: AdminParentListItem; onOpen: ()
           <span className="text-brand-charcoal/40">—</span>
         )}
       </td>
+      {invite && (
+        <td className="py-2.5 pr-3 whitespace-nowrap">
+          <span className={invite.status === 'eligible' ? 'font-bold text-brand-moss' : 'text-brand-charcoal/50'}>
+            {INVITE_STATUS_LABEL[invite.status]}
+          </span>
+          {parent.lastInvitedAt && (
+            <span className="ml-1 text-[10px] text-brand-charcoal/40">上次 {formatDateTime(parent.lastInvitedAt)}</span>
+          )}
+        </td>
+      )}
       <td className="py-2.5 text-right">
         <Button variant="ghost" onClick={onOpen}>
           查看

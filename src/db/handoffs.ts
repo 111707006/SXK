@@ -1,8 +1,9 @@
 /**
  * `handoff_codes`（發出端 B）與 `handoff_imports`（接收端 A）的資料層（ADR-0009）。
  *
- * 到期與「已用」都交給資料庫的時鐘（`NOW()`），不拿 Node 的時間去比 —— 與 `sms_codes` 同一個理由：
- * 兩個時鐘不保證對得上。兌換是一句條件式 UPDATE：兩個請求同時拿同一個碼來，只有一個改得到那一列。
+ * 交接碼**不過期、可以重複用**（使用者 2026-09-28）：`expires_at` 一律 NULL，每兌換一次記次數與最後一次的時間
+ * （後台據此知道這位家長已經到過 A）。欄位留著：哪天要加時效，只改寫入的那一句。
+ * 時間一律交給資料庫的時鐘（`NOW()`），同 `sms_codes`。
  */
 import type { ResultSetHeader } from 'mysql2/promise';
 import { getPool } from './mysql';
@@ -18,29 +19,30 @@ export async function createHandoffCode(input: {
   userId: number;
   codeHash: string;
   kind: HandoffKind;
-  ttlSec: number;
   consentVersion: string | null;
 }): Promise<number> {
   const [result] = await pool().execute(
-    `INSERT INTO handoff_codes (code_hash, user_id, kind, consent_version, expires_at)
-     VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
-    [input.codeHash, input.userId, input.kind, input.consentVersion, input.ttlSec],
+    `INSERT INTO handoff_codes (code_hash, user_id, kind, consent_version) VALUES (?, ?, ?, ?)`,
+    [input.codeHash, input.userId, input.kind, input.consentVersion],
   );
   return (result as ResultSetHeader).insertId;
 }
 
-export interface ConsumedHandoff {
+export interface RedeemedHandoff {
   userId: number;
   kind: HandoffKind;
   consentVersion: string | null;
 }
 
-/** 兌換：沒用過、沒過期才標成已用並回那一列；其餘一律 `null`（不分辨是哪一種不成立）。 */
-export async function consumeHandoffCode(codeHash: string): Promise<ConsumedHandoff | null> {
+/**
+ * 兌換：碼存在（而且沒設到期、或還沒到）就記一次使用並回那一列；其餘一律 `null`（不分辨原因）。
+ * 可以重複兌換 —— 同一條連結再點一次，A 再登入一次同一個帳號。
+ */
+export async function redeemHandoffCode(codeHash: string): Promise<RedeemedHandoff | null> {
   const p = pool();
   const [result] = await p.execute(
-    `UPDATE handoff_codes SET redeemed_at = NOW()
-      WHERE code_hash = ? AND redeemed_at IS NULL AND expires_at > NOW()`,
+    `UPDATE handoff_codes SET use_count = use_count + 1, last_used_at = NOW()
+      WHERE code_hash = ? AND (expires_at IS NULL OR expires_at > NOW())`,
     [codeHash],
   );
   if ((result as ResultSetHeader).affectedRows !== 1) return null;

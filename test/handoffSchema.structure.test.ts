@@ -4,7 +4,7 @@ import path from 'path';
 import { HANDOFF_KINDS } from '../src/handoff/core';
 
 /**
- * `handoff_codes`、`handoff_imports` 的形狀（ADR-0009、docs/specs/b-to-a-handoff.md §3）——
+ * `handoff_codes`、`handoff_imports`、`handoff_invites` 的形狀（ADR-0009、docs/specs/b-to-a-handoff.md §3）——
  * schema、遷移與程式碼必須說同一件事。
  */
 
@@ -21,22 +21,39 @@ function tableBlock(sql: string, table: string): string {
   return sql.slice(start, end);
 }
 
-describe.each(['handoff_codes', 'handoff_imports'])('%s', table => {
+describe.each(['handoff_codes', 'handoff_imports', 'handoff_invites'])('%s', table => {
   it('schema 與遷移的 CREATE TABLE 一字不差', () => {
     expect(tableBlock(migration, table)).toBe(tableBlock(schema, table));
   });
 
-  it('kind 的 ENUM 就是 HANDOFF_KINDS', () => {
-    expect(tableBlock(schema, table)).toContain(`\`kind\` ENUM(${HANDOFF_KINDS.map(k => `'${k}'`).join(',')}) NOT NULL`);
-  });
-
-  // ADR-0006：刪家長是硬刪，靠外鍵連帶刪掉這兩張表的列。
+  // ADR-0006：刪家長是硬刪，靠外鍵連帶刪掉這三張表的列。
   it('家長資料：外鍵 ON DELETE CASCADE', () => {
     expect(tableBlock(schema, table)).toMatch(/FOREIGN KEY \(`user_id`\) REFERENCES `users` \(`id`\) ON DELETE CASCADE/);
   });
 });
 
+describe.each(['handoff_codes', 'handoff_imports'])('%s 的 kind', table => {
+  it('ENUM 就是 HANDOFF_KINDS', () => {
+    expect(tableBlock(schema, table)).toContain(`\`kind\` ENUM(${HANDOFF_KINDS.map(k => `'${k}'`).join(',')}) NOT NULL`);
+  });
+});
+
 describe('handoff_codes', () => {
+  // 使用者 2026-09-28：不過期、可以重複用。到期欄位留著但可以是 NULL；沒有「已用」這種會擋第二次的欄位。
+  it('不過期、可重複：expires_at 可為 NULL、記使用次數與最後一次', () => {
+    const block = tableBlock(schema, 'handoff_codes');
+    expect(block).toContain('`expires_at` DATETIME NULL,');
+    expect(block).toContain('`use_count` INT UNSIGNED NOT NULL DEFAULT 0,');
+    expect(block).toContain('`last_used_at` DATETIME NULL,');
+    expect(block).not.toContain('redeemed_at');
+  });
+
+  it('同一天較早那一版（還沒上線過）的表，遷移會補成現在的樣子', () => {
+    expect(migration).toContain('ALTER TABLE `handoff_codes` MODIFY COLUMN `expires_at` DATETIME NULL;');
+    expect(migration).toMatch(/COLUMN_NAME = 'use_count'[\s\S]*ADD COLUMN `use_count`/);
+    expect(migration).toMatch(/COLUMN_NAME = 'last_used_at'[\s\S]*ADD COLUMN `last_used_at`/);
+  });
+
   it('只存雜湊（CHAR(64)、唯一），沒有放明碼的欄位', () => {
     const block = tableBlock(schema, 'handoff_codes');
     expect(block).toContain('`code_hash` CHAR(64) NOT NULL');

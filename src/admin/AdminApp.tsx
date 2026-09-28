@@ -320,7 +320,10 @@ function AdminCenter() {
         // key 讓分頁在切換視野時整個重掛。沿用舊 state 會把上一家公司的家長
         // 留在畫面上直到新請求回來，而那不是閃爍，是外洩。
         <div key={scopeKey(current, ADMIN_SHAPE)}>
-          {activeTab === 'parents' && <ParentsPanel onError={handleError} />}
+          {activeTab === 'parents' && (
+            // B→A 交接的邀請簡訊（ADR-0009）只有專案 B 的全域管理員發得了，合作公司帳號看不到。
+            <ParentsPanel onError={handleError} canInvite={current.role === 'global_admin' && ADMIN_SHAPE.multiCompany} />
+          )}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
           {activeTab === 'company' && <CompanySettingsPanel onError={handleError} />}
           {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} />}

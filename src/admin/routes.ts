@@ -27,6 +27,8 @@ import {
 } from '../utils/activityAdmin';
 import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
+import { generateHandoffCode } from '../handoff/core';
+import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -78,6 +80,23 @@ function issueToken(identity: AdminIdentity): string {
 export interface AdminRouterHooks {
   /** 一位家長被刪除之後呼叫。丟例外不會讓那次刪除失敗 —— 資料庫那邊已經提交了。 */
   onParentDeleted?: (parentId: number) => void;
+  /**
+   * B→A 交接的邀請簡訊（ADR-0009）。只有專案 B、而且交接開啟（`HANDOFF_SECRET`）時才有；
+   * 沒有就是關閉（發送那一支回 404）。簡訊通道與交接連結在 `server.ts` 組好傳進來。
+   */
+  handoffInvite?: {
+    consentVersion: string;
+    /** 邀請範本設好沒（範本還在審核時，按鈕不該按得下去）。 */
+    channel: () => { ready: boolean; missing: string[] };
+    /** 送一則邀請；**永不丟例外**（`src/sms.ts` 的 `sendHandoffInvite`）。 */
+    send: (phone: string, code: string) => Promise<{ ok: boolean; detail: string }>;
+  };
+}
+
+export interface HandoffInviteReport {
+  sent: number[];
+  skipped: Array<{ userId: number; reason: Exclude<InviteStatus, 'eligible'> | 'not_found' }>;
+  failed: Array<{ userId: number; detail: string }>;
 }
 
 /**
@@ -635,6 +654,92 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       return;
     }
     res.json({ ok: true });
+  });
+
+  // ── B→A 交接的邀請簡訊（ADR-0009；使用者 2026-09-28：後台一次發送）──
+  //
+  // 只有專案 B（`multiCompanyOnly`）、只有全域管理員（ADR：合作公司帳號看不到），而且只發給**當下視野**裡的家長 ——
+  // 查詢與寫入都經過公司條件，換一個 id 也發不到視野外。誰能收到照 `inviteStatus` 再判一次（畫面上的勾選不算數）：
+  // 有手機號、做過 T1、還沒到過 A、7 天內沒收過。連結不過期（見 `src/handoff/core.ts`）。
+  multiCompanyOnly.get('/handoff-invites/config', (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    if (!hooks.handoffInvite) {
+      res.json({ enabled: false });
+      return;
+    }
+    res.json({ enabled: true, ...hooks.handoffInvite.channel() });
+  });
+
+  multiCompanyOnly.post('/handoff-invites', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    const invite = hooks.handoffInvite;
+    if (!invite) {
+      res.status(404).json({ error: '交接功能没有开启（HANDOFF_SECRET），不能发邀请。', code: 'HANDOFF_DISABLED' });
+      return;
+    }
+    const condition = withScope(req, res);
+    if (!condition) return;
+    const raw = req.body?.userIds;
+    if (
+      !Array.isArray(raw) || raw.length === 0 || raw.length > INVITE_BATCH_MAX ||
+      !raw.every(id => Number.isSafeInteger(id) && id > 0)
+    ) {
+      res.status(400).json({ error: `userIds 要是 1–${INVITE_BATCH_MAX} 个家长 id。` });
+      return;
+    }
+    const channel = invite.channel();
+    if (!channel.ready) {
+      res.status(503).json({
+        error: `邀请简讯还不能发：缺少 ${channel.missing.join('、')}（范本要先在阿里云审核通过）。`,
+        code: 'INVITE_CHANNEL_NOT_READY',
+      });
+      return;
+    }
+    const ids = [...new Set(raw as number[])];
+    const report: HandoffInviteReport = { sent: [], skipped: [], failed: [] };
+    try {
+      const targets = new Map((await store.listInviteTargets(condition, ids)).map(t => [t.id, t]));
+      const now = new Date();
+      for (const userId of ids) {
+        const target = targets.get(userId);
+        // 視野外與不存在回同一個原因 —— 同詳情路由，不當「這個 id 存在嗎」的查詢機。
+        if (!target) {
+          report.skipped.push({ userId, reason: 'not_found' });
+          continue;
+        }
+        const status = inviteStatus(target, now);
+        if (status !== 'eligible') {
+          report.skipped.push({ userId, reason: status });
+          continue;
+        }
+        const { code, hash } = generateHandoffCode();
+        const codeId = await store.createInviteCode(condition, { userId, codeHash: hash, consentVersion: invite.consentVersion });
+        if (codeId === null) {
+          report.skipped.push({ userId, reason: 'not_found' });
+          continue;
+        }
+        const delivery = await invite.send(target.phone!, code);
+        await store.recordInvite(condition, {
+          userId,
+          codeId,
+          adminUserId: req.admin!.adminUserId,
+          status: delivery.ok ? 'sent' : 'failed',
+          detail: delivery.ok ? null : delivery.detail,
+        });
+        if (delivery.ok) report.sent.push(userId);
+        else report.failed.push({ userId, detail: delivery.detail });
+      }
+    } catch (err: any) {
+      // 已經送出去的那幾則照樣回報：回 500 會讓人以為一則都沒送而整批重送。
+      console.error('[Admin] handoff invites failed:', err.message);
+      res.status(500).json({ error: '发送中途失败，下面是已经处理的部分；请重新整理列表再看一次。', ...report });
+      return;
+    }
+    console.log(
+      `[Admin] handoff invites by ${req.admin?.email ?? 'unknown'}: sent ${report.sent.length}, ` +
+        `skipped ${report.skipped.length}, failed ${report.failed.length}`,
+    );
+    res.json(report);
   });
 
   /**

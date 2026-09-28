@@ -9,8 +9,8 @@ import { createHandoffSourceRouter } from '../src/handoff/routes';
  * B→A 交接的發出端（專案 B；ADR-0009、docs/specs/b-to-a-handoff.md §4）。
  *
  * 要釘住的：
- * 1. 發碼要登入、要同意、要有 T1 成績；連結指向 A、碼在網址片段、2 分鐘。
- * 2. 內部兌換要密鑰、一次性、會過期；**任何一種不成立都是同一個 404**（不當查詢機）。
+ * 1. 發碼要登入、要同意、要有 T1 成績；連結指向 A、碼在網址片段；不過期（使用者 2026-09-28）。
+ * 2. 內部兌換要密鑰、**可以重複兌換**、每次記一次使用；**任何一種不成立都是同一個 404**（不當查詢機）。
  * 3. 交出去的只有規格 §1 那一包：T1 成績、對得上的那一份 T1 報告、來源公司 —— 沒有預約與聯絡人。
  * 4. A 的那一支（`/api/handoff/redeem`）在 B 不存在。
  */
@@ -52,18 +52,19 @@ vi.mock('../src/db/mysql', () => ({
   findCompanyBySlug: async () => null,
 }));
 
-interface CodeRow { hash: string; userId: number; kind: string; consentVersion: string | null; expiresAt: number; redeemed: boolean }
+interface CodeRow { hash: string; userId: number; kind: string; consentVersion: string | null; uses: number }
 const codes: CodeRow[] = [];
 
 vi.mock('../src/db/handoffs', () => ({
   createHandoffCode: async (input: any) => {
-    codes.push({ hash: input.codeHash, userId: input.userId, kind: input.kind, consentVersion: input.consentVersion, expiresAt: Date.now() + input.ttlSec * 1000, redeemed: false });
+    expect(Object.keys(input).sort()).toEqual(['codeHash', 'consentVersion', 'kind', 'userId']);
+    codes.push({ hash: input.codeHash, userId: input.userId, kind: input.kind, consentVersion: input.consentVersion, uses: 0 });
     return codes.length;
   },
-  consumeHandoffCode: async (hash: string) => {
-    const row = codes.find(c => c.hash === hash && !c.redeemed && c.expiresAt > Date.now());
+  redeemHandoffCode: async (hash: string) => {
+    const row = codes.find(c => c.hash === hash);
     if (!row) return null;
-    row.redeemed = true;
+    row.uses += 1;
     return { userId: row.userId, kind: row.kind, consentVersion: row.consentVersion };
   },
   recordHandoffImport: async () => {},
@@ -117,13 +118,14 @@ describe('POST /api/handoff/start', () => {
     expect((await res.json()).code).toBe('SCREENING_REQUIRED');
   });
 
-  it('成功：連結指向 A、碼在網址片段；只存雜湊、2 分鐘、記同意版本；不快取', async () => {
+  it('成功：連結指向 A、碼在網址片段；只存雜湊、記同意版本；不過期；不快取', async () => {
     const res = await client.postJson('/api/handoff/start', { consent: true }, bearer(PARENT));
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
-    const { url, expiresInSec } = await res.json();
-    expect(url).toMatch(/^https:\/\/sxkscreen\.com\/handoff#code=[A-Za-z0-9_-]{43}$/);
-    expect(expiresInSec).toBe(120);
+    const body = await res.json();
+    expect(Object.keys(body)).toEqual(['url']);
+    const { url } = body;
+    expect(url).toMatch(/^https:\/\/sxkscreen\.com\/handoff#code=[A-Za-z0-9_-]{32}$/);
     const code = url.split('#code=')[1];
     expect(codes).toHaveLength(1);
     expect(codes[0]).toMatchObject({ hash: hashHandoffCode(code), userId: PARENT, kind: 'button', consentVersion: 'test-v1' });
@@ -147,28 +149,23 @@ describe('POST /internal/handoff/redeem', () => {
     });
   });
 
-  it('一次性：第二次 404', async () => {
+  it('可以重複兌換：同一條連結再點一次照樣交出，每次記一次使用', async () => {
     const code = await start();
     expect((await internal(code)).status).toBe(200);
-    expect((await internal(code)).status).toBe(404);
+    expect((await internal(code)).status).toBe(200);
+    expect(codes[0].uses).toBe(2);
   });
 
-  it('過期：404', async () => {
-    const code = await start();
-    codes[0].expiresAt = Date.now() - 1;
-    expect((await internal(code)).status).toBe(404);
-  });
-
-  it('密鑰錯、格式錯、不存在：都是同一個 404，而且密鑰錯時碼沒有被用掉', async () => {
+  it('密鑰錯、格式錯、不存在：都是同一個 404，而且密鑰錯時不記使用', async () => {
     const code = await start();
     const wrong = await internal(code, 'w'.repeat(40));
     const malformed = await internal('nope');
-    const unknown = await internal('A'.repeat(43));
+    const unknown = await internal('A'.repeat(32));
     for (const r of [wrong, malformed, unknown]) {
       expect(r.status).toBe(404);
       expect(await r.json()).toEqual({ error: 'not found' });
     }
-    expect(codes[0].redeemed).toBe(false);
+    expect(codes[0].uses).toBe(0);
     expect((await internal(code)).status).toBe(200);
   });
 
@@ -180,7 +177,7 @@ describe('POST /internal/handoff/redeem', () => {
 
 describe('專案 B 沒有 A 的那一支', () => {
   it('POST /api/handoff/redeem 不存在', async () => {
-    const res = await client.postJson('/api/handoff/redeem', { code: 'A'.repeat(43) });
+    const res = await client.postJson('/api/handoff/redeem', { code: 'A'.repeat(32) });
     expect(res.status).toBe(404);
   });
 });
@@ -196,13 +193,13 @@ describe('沒設密鑰（功能關閉）', () => {
       loadParent: async () => null,
       loadCompany: async () => null,
       createCode: async () => { throw new Error('should not be called'); },
-      consumeCode: async () => { throw new Error('should not be called'); },
+      redeemCode: async () => { throw new Error('should not be called'); },
     }));
     const off = await startTestApp(app);
     try {
       expect(await (await off.get('/api/handoff/config')).json()).toEqual({ enabled: false });
       expect((await off.postJson('/api/handoff/start', { consent: true })).status).toBe(404);
-      expect((await off.postJson('/internal/handoff/redeem', { code: 'A'.repeat(43) }, { Authorization: `Bearer ${SECRET}` })).status).toBe(404);
+      expect((await off.postJson('/internal/handoff/redeem', { code: 'A'.repeat(32) }, { Authorization: `Bearer ${SECRET}` })).status).toBe(404);
     } finally {
       await off.close();
     }

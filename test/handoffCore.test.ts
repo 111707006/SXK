@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildHandoffPayload,
   generateHandoffCode,
+  handoffInviteUrl,
   handoffUrl,
   hashHandoffCode,
   isHandoffCodeShape,
@@ -40,7 +41,7 @@ const report = (id: string, scores: DimensionScore[], createdAt: string, withAi 
 });
 
 describe('交接碼', () => {
-  it('32 位元組亂數、base64url 43 字；雜湊是 SHA-256 hex；兩次不一樣', () => {
+  it('24 位元組亂數、base64url 32 字；雜湊是 SHA-256 hex；兩次不一樣', () => {
     const a = generateHandoffCode();
     const b = generateHandoffCode();
     expect(isHandoffCodeShape(a.code)).toBe(true);
@@ -50,13 +51,14 @@ describe('交接碼', () => {
   });
 
   it('形狀不對的一律不收（不拿去查資料庫）', () => {
-    for (const v of ['', 'short', 'a'.repeat(44), 'a'.repeat(42) + '!', null, 123]) {
+    for (const v of ['', 'short', 'a'.repeat(33), 'a'.repeat(43), 'a'.repeat(31) + '!', null, 123]) {
       expect(isHandoffCodeShape(v)).toBe(false);
     }
   });
 
-  it('連結把碼放在網址片段，不放查詢字串', () => {
+  it('連結把碼放在網址片段，不放查詢字串；按鈕是 code、簡訊邀請是 invite', () => {
     expect(handoffUrl('https://sxkscreen.com', 'abc')).toBe('https://sxkscreen.com/handoff#code=abc');
+    expect(handoffInviteUrl('https://sxkscreen.com', 'abc')).toBe('https://sxkscreen.com/handoff#invite=abc');
   });
 
   it('密鑰比對：對的才過，長度不同也不丟錯', () => {

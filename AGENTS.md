@@ -66,8 +66,9 @@
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
 │   │   ├── core.ts        # 产码、杂凑、设定（HANDOFF_*）、两端之间那一包的形状（伺服器专用）
 │   │   ├── routes.ts      # 发出端三支（B）＋接收端一支（A）；server.ts 只注册、注入依赖
-│   │   ├── fragment.ts    # `/handoff#code=` 的形状（前端与伺服器共用）
-│   │   └── handoffCopy.ts # 卡与落地画面的字；**不写品牌名**（进 B 的建置），名字由 config 给
+│   │   ├── fragment.ts    # `/handoff#code=`（按钮）与 `#invite=`（简讯）的形状（前端与伺服器共用）
+│   │   ├── invite.ts      # 后台邀请简讯的规则：谁能收（有手机、做过 T1、没到过 A、7 天一封）、一批几位（前端与伺服器共用）
+│   │   └── handoffCopy.ts # 卡、落地、简讯同意画面的字；**不写品牌名**（进 B 的建置），名字由 config 或 PRODUCT 给
 │   ├── t2/
 │   │   ├── toolkit/       # T2 题库：22 支工具的题目、选项、分段（脚本产出，勿手改）
 │   │   ├── types.ts       # 规则引擎的型别（规格 v2 附录 A）
@@ -99,7 +100,7 @@
 │   │   ├── activities.ts  # 一列 activities → Activity（后台与家长端共用，只认受控词汇里的标签）
 │   │   ├── t2Checkins.ts  # t2_checkins：打卡一笔一列，读改都带 user_id（Keep 票 4）
 │   │   ├── t2PracticePrefs.ts # t2_practice_prefs：提醒的星期与时间，一位家长一列
-│   │   └── handoffs.ts    # handoff_codes（B 发的交接码，只存杂凑、条件式 UPDATE 兑换）、handoff_imports（A 记转入）
+│   │   └── handoffs.ts    # handoff_codes（B 发的交接码，只存杂凑、不过期、每次兑换记一次使用）、handoff_imports（A 记转入）
 │   └── utils/
 │       ├── dateUtils.ts   # 日期工具函数
 │       ├── reportUtils.ts # 报告生成工具
@@ -244,7 +245,9 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `/api/t2/practice-prefs/ics-link` | POST | 换一条上面那一支的短时效连结（Keep 票 7）：回 `{url: "/api/t2/practice-prefs.ics?t=…"}`，10 分钟内有效、`Cache-Control: no-store`；没设提醒 404 `REMINDER_NOT_SET`。前端拿到用 `location.href` 开（手机「加入日历」那一次请求带不了 Bearer） | `Authorization: Bearer <token>` |
 | `/api/handoff/config` | GET | 专案 B：交接开了没（`{enabled, targetName}`／`{enabled: false}`）；B 报告页据此画不画那张卡 | 无 |
 | `/api/handoff/start` | POST | 专案 B：家长按「到森心康做深度评估」。回 `{url: "<A>/handoff#code=…", expiresInSec: 120}`（`no-store`）。没同意 400 `CONSENT_REQUIRED`、没手机号或没做 T1 409、没开 404 | `consent: true`；`Authorization: Bearer <token>` |
-| `/internal/handoff/redeem` | POST | 专案 B，**只给 A 的伺服器**：兑换交接码（一次性、2 分钟），交出手机、来源公司、孩子、T1 成绩、对得上的那份 T1 报告。任何失败都是同一个 404 | `code`；`Authorization: Bearer <HANDOFF_SECRET>` |
+| `/internal/handoff/redeem` | POST | 专案 B，**只给 A 的伺服器**：兑换交接码（**不过期、可重复**，每次记一次使用），交出手机、来源公司、孩子、T1 成绩、对得上的那份 T1 报告。任何失败都是同一个 404 | `code`；`Authorization: Bearer <HANDOFF_SECRET>` |
+| `/api/admin/handoff-invites/config` | GET | 专案 B 后台：邀请简讯开了没（`{enabled:false}` 或 `{enabled:true, ready, missing}`）；只有全域管理员 | `Authorization: Bearer <后台 token>` |
+| `/api/admin/handoff-invites` | POST | 专案 B 后台：一次发 T2 邀请简讯给勾选的家长（一批 ≤50，只发当下视野）。伺服器再判一次谁能收（有手机、做过 T1、没到过 A、7 天内没收过），每位一组新交接码（`kind=sms`）；回 `{sent, skipped:[{userId, reason}], failed:[{userId, detail}]}`。交接没开 404、范本没设 503 `INVITE_CHANNEL_NOT_READY` | `userIds`；`Authorization: Bearer <后台 token>`（全域管理员） |
 | `/api/handoff/redeem` | POST | 专案 A：家长的浏览器带交接码来 → 向 B 兑换 → 以（未归属，手机号）找或建帐号 → A 还没有 T1 才带入 → 回与 `/api/auth/sms/verify` 同形状的登入结果＋`handoff: {imported, sourceName}`。B 说无效 410、B 连不上 502、没开 503 | `code` |
 | `/api/admin/activities/import` | POST | 活动批量汇入（v2.1 S25，格式见 v2.1 附录 C）：**逐列独立**，坏列整列不入库、其他列照写；只更新已有的活动（不新增）；`dryRun: true` 只验不写。回 `{imported, failed: [{row, id?, error}], warnings: [{row, field}]}`（列号从 1 起）。形状不对（非阵列、空的、超过 500 列、`dryRun` 非布林）整份 400；只有全域管理员（`requireGlobal`，不经 `withScope`） | `rows`, `dryRun`（选填）；`Authorization: Bearer <后台 token>` |
 
@@ -273,16 +276,21 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > 拿不到自己的、未付费 403、只开这一支）、`test/t2PracticeProjectB.http.test.ts`（B 是 404）。
 
 > B→A 交接（ADR-0009，规格 `docs/specs/b-to-a-handoff.md`）：**资料库不合并**。B 的家长在即时报告上按那张卡，
-> B 发一个 2 分钟的一次性交接码，浏览器带着 `https://<A>/handoff#code=…`（码在网址片段，不进日志）到 A；
+> B 发一个交接码（**不过期、可重复用**，使用者 2026-09-28：「只要登入 B 的就不用限制时间」；B 帐号删掉就失效），
+> 浏览器带着 `https://<A>/handoff#code=…`（码在网址片段，不进日志）到 A；
 > A 的前端把网址换成 `/`、打 `POST /api/handoff/redeem`，A 的伺服器拿密钥向 B 的 `/internal/handoff/redeem`
 > 兑换（同一台主机 127.0.0.1:5001），照一般登入处理后打开即时 T1 报告、捲到 T2 入口。A 已经有 T1 的家长不覆盖，
 > 只记一笔 `imported=0`。发出端的路由挂在 `multiCompanyOnly`、接收端挂在 `tier2Only`（对方那几支都是 404）；
 > 前端哪一半由 `PRODUCT.features.handoff`（B `send`、A `receive`）决定。**没设 `HANDOFF_SECRET` ＝ 关闭**，
 > 设一半或设错程序起不来。B 的建置不写「森心康」（`test/brandIsolation.test.ts`）：卡上的名字由 config 回。
-> 第二期（简讯邀请、确认页、后台来源栏）等 ADR「待定」四项。部署见 `deploy/README.md`「B→A 交接」。
-> ⚠️ `handoff_codes`、`handoff_imports` 由 `deploy/migrations/2026-09-28-handoffs.sql` 建立（A、B 两个库都要跑），**先于新版程式码部署**。
+> 简讯邀请（2026-09-28 使用者：后台一次发送）：B 后台家长列表的勾选栏与「深度评估邀请」状态栏，只有全域管理员、只发当下视野；
+> 规则在 `src/handoff/invite.ts`（伺服器与画面共用）；简讯连结 `https://<A>/handoff#invite=…`，A 先给同意画面、按下才兑换。
+> 范本 `ALI_SMS_INVITE_TEMPLATE_CODE` 要另外送审。还没做：B 登入页的简讯同意勾选、A 后台来源栏（ADR 待定第 2 项）。
+> 部署见 `deploy/README.md`「B→A 交接」。
+> ⚠️ `handoff_codes`、`handoff_imports`、`handoff_invites` 由 `deploy/migrations/2026-09-28-handoffs.sql` 建立（A、B 两个库都要跑），**先于新版程式码部署**。
 > 护栏：`test/handoffCore.test.ts`、`test/handoffStore.test.ts`、`test/handoffSchema.structure.test.ts`、
-> `test/handoffSource.http.test.ts`、`test/handoffTarget.http.test.ts`、`test/handoffFrontend.structure.test.ts`。
+> `test/handoffSource.http.test.ts`、`test/handoffTarget.http.test.ts`、`test/handoffFrontend.structure.test.ts`、
+> `test/handoffInvites.http.test.ts`（后台邀请）、`test/smsSender.test.ts`（邀请范本）。
 
 > 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／
 > `offline_training`／`offline_consult` 之一，定义在 `src/utils/serviceTypes.ts`。
@@ -339,6 +347,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `HANDOFF_SECRET` | B→A 交接（ADR-0009）：A、B 两边填**同一串**（`openssl rand -hex 32`，至少 32 字）。没设＝交接关闭 | 否 |
 | `HANDOFF_TARGET_ORIGIN` | 只在专案 B：A 的对外网址（`https://sxkscreen.com`），交接连结指去那里。设了密钥就必填 | 否 |
 | `HANDOFF_SOURCE_ORIGIN` | 只在专案 A：B 的内部网址（`http://127.0.0.1:5001`），A 从这里兑换、不经公网。设了密钥就必填 | 否 |
+| `ALI_SMS_INVITE_TEMPLATE_CODE` | 只在专案 B：后台 T2 邀请简讯的范本代码（推广类，要另外在阿里云送审）；金钥与签名与登入共用。范本里网址写死、只有交接码是变数 `${code}`（例见 `docs/specs/b-to-a-handoff.md`）。没设时后台的发送按钮不能按 | 否 |
 | `HANDOFF_CONSENT_VERSION` | 只在专案 B：按钮下那行同意文字的版本（预设 `handoff-consent-v1`），记在每一个交接码与转入纪录上；改了同意文字就换 | 否 |
 | `SMS_IP_DAILY_MAX` | 同一来源每日索取上限（预设 50）。按号码算的上限（10）挡不住换号码，这是按来源算的那一半；来源是收敛过的键（IPv6 截到 /64）。**设成 0 即停止发送**，遭滥用时最快的一道闸门 | 否 |
 

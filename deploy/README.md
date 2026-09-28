@@ -155,7 +155,8 @@ scp -r media/activities root@你的IP:/var/www/sxk/media/
 ### B→A 交接（ADR-0009；规格 `docs/specs/b-to-a-handoff.md`）
 
 B 的家长在报告页按「到森心康做深度评估」，不用再登入就到 A、带着孩子档案与 T1 成绩停在 T2 入口。
-两个数据库**不合并**：A 在那一刻用一次性的交接码向 B（`127.0.0.1:5001`，不经公网）拿资料。
+两个数据库**不合并**：A 在那一刻用交接码向 B（`127.0.0.1:5001`，不经公网）拿资料。交接码不过期、可以重复用
+（使用者 2026-09-28），B 的帐号删掉就失效。后台另有「发送邀请简讯」：全域管理员勾选家长一次发送（见下）。
 
 **没设 `HANDOFF_SECRET` ＝ 功能关闭**：B 的报告页不出现那张卡、A 的 `/handoff` 回登入页。
 ADR-0009「待定」第 1 项（合作公司同意在他们的报告页放这颗按钮）有答案之前，**先不要设**。
@@ -182,6 +183,13 @@ HANDOFF_TARGET_ORIGIN=https://sxkscreen.com
 # HANDOFF_CONSENT_VERSION=handoff-consent-v1   # 改了按钮下那行同意文字才换
 ```
 
+```ini
+# /var/www/sxk-b/.env（专案 B）——后台的「发送邀请简讯」要用：阿里云另外审过的推广范本
+# 范本里网址写死、只有交接码是变数，例：
+#   您好，孩子的筛查结果可以带到森心康继续做深度评估，点击 https://sxkscreen.com/handoff#invite=${code} 进入，不用重新登录。拒收请回复R
+ALI_SMS_INVITE_TEMPLATE_CODE=SMS_xxxxxxx
+```
+
 ③ nginx 的 B 那一段要有 `location /internal/ { return 404; }`（见 `deploy/nginx.conf`；A 直接打 5001，不受影响）。
 ④ 两边都重新部署（`deploy-app.sh a`、`deploy-app.sh b`）。
 
@@ -192,7 +200,11 @@ HANDOFF_TARGET_ORIGIN=https://sxkscreen.com
 > `curl -X POST https://t1.sxkscreen.com/internal/handoff/redeem` 回 nginx 的 404；
 > 用一位 B 的测试家长做完筛查、按那颗按钮，应该直接落在 sxkscreen.com 的 T1 报告、捲到 T2 入口。
 >
-> 关掉：两边的 `.env` 拿掉 `HANDOFF_SECRET` 再重启。已经转过去的家长留在 A（那是他们自己的帐号了）。
+> 关掉：两边的 `.env` 拿掉 `HANDOFF_SECRET` 再重启（已经发出去的连结跟着失效）。已经转过去的家长留在 A（那是他们自己的帐号了）。
+>
+> 后台发邀请：B 的管理中心用全域管理员登入 → 选定一家合作公司（或未归属）→ 家长列表勾选 →「发送邀请简讯」。
+> 同一位家长 7 天一封；没手机、没做筛查、已经去过 A 的勾不起来。**简讯按条计费、送出收不回。**
+> ADR-0009 待定第 2 项（没勾过同意的旧家长能不能发）法务答复之前，建议先不要对旧家长发。
 
 主机上各跑一次（脚本会检查 `.env` 与 `dist/` 在不在，缺了就地停下）：
 

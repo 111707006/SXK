@@ -1,17 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { readHandoffCode } from '../src/handoff/fragment';
-import { handoffUrl } from '../src/handoff/core';
+import { readHandoffLink } from '../src/handoff/fragment';
+import { handoffInviteUrl, handoffUrl } from '../src/handoff/core';
 
 /**
  * B→A 交接的前端（ADR-0009、docs/specs/b-to-a-handoff.md §5）。專案沒有 jsdom，畫面怎麼接只能讀原始碼；
  * 讀網址那一段是純函式，直接測。
  *
  * 要釘住的：
- * 1. A 只認 `/handoff#code=<43 字>`，而且發出端產的連結 A 讀得回來（兩邊同一個形狀）。
+ * 1. A 只認 `/handoff#code=<32 字>`（按鈕）與 `/handoff#invite=<32 字>`（簡訊邀請），發出端產的連結 A 讀得回來。
  * 2. A 讀到碼就把網址換成 `/`（碼不留在網址列與瀏覽紀錄），兌換只打一次（StrictMode 跑兩次 effect）。
  * 3. 兌換成功走一般登入那一條（`handleAuthSuccess`），然後去 T2 入口；失敗回登入頁並說原因。
+ *    簡訊邀請先停在同意畫面，按「同意并继续」才兌換（按鈕那一條在 B 按下時已經同意過）。
  * 4. B 的卡只掛在即時報告上、要 `consent: true`、錯誤畫在卡上；哪一半掛哪一邊由 `PRODUCT.features.handoff` 決定。
  */
 
@@ -20,16 +21,18 @@ const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const stripComments = (source: string) =>
   source.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
-const CODE = 'aB3_-'.repeat(8) + 'xyz';
+const CODE = 'aB3_-'.repeat(6) + 'xy';
 
-describe('readHandoffCode', () => {
-  it('發出端產的連結，A 讀得回同一個碼', () => {
-    const url = new URL(handoffUrl('https://sxkscreen.com', CODE));
-    expect(readHandoffCode(url.pathname, url.hash)).toBe(CODE);
+describe('readHandoffLink', () => {
+  it('發出端產的連結，A 讀得回同一個碼：按鈕是 button、簡訊是 invite', () => {
+    const button = new URL(handoffUrl('https://sxkscreen.com', CODE));
+    expect(readHandoffLink(button.pathname, button.hash)).toEqual({ code: CODE, via: 'button' });
+    const invite = new URL(handoffInviteUrl('https://sxkscreen.com', CODE));
+    expect(readHandoffLink(invite.pathname, invite.hash)).toEqual({ code: CODE, via: 'invite' });
   });
 
   it('結尾斜線也算', () => {
-    expect(readHandoffCode('/handoff/', `#code=${CODE}`)).toBe(CODE);
+    expect(readHandoffLink('/handoff/', `#code=${CODE}`)).toEqual({ code: CODE, via: 'button' });
   });
 
   it.each([
@@ -37,10 +40,11 @@ describe('readHandoffCode', () => {
     ['別的路徑（前綴相同）', '/handoff-x', `#code=${CODE}`],
     ['沒有片段', '/handoff', ''],
     ['碼太短', '/handoff', '#code=abc'],
-    ['碼有不合法的字', '/handoff', `#code=${CODE.slice(0, 42)}!`],
+    ['碼有不合法的字', '/handoff', `#code=${CODE.slice(0, 31)}!`],
+    ['舊的 43 字', '/handoff', `#code=${CODE}${'a'.repeat(11)}`],
     ['放在別的鍵', '/handoff', `#token=${CODE}`],
   ])('%s：null', (_label, pathname, hash) => {
-    expect(readHandoffCode(pathname, hash)).toBeNull();
+    expect(readHandoffLink(pathname, hash)).toBeNull();
   });
 });
 
@@ -48,9 +52,18 @@ describe('A 的落地（App.tsx）', () => {
   const app = stripComments(read('src/App.tsx'));
 
   it('只有接收端讀網址；讀到就換成 /、只兌換一次', () => {
-    expect(app).toMatch(/PRODUCT\.features\.handoff === 'receive' \? readHandoffCode\(window\.location\.pathname, window\.location\.hash\)/);
+    expect(app).toMatch(/PRODUCT\.features\.handoff === 'receive' \? readHandoffLink\(window\.location\.pathname, window\.location\.hash\)/);
     expect(app).toContain("window.history.replaceState(null, '', '/')");
     expect(app).toMatch(/if \(handoffStartedRef\.current\) return;\s*handoffStartedRef\.current = true;/);
+  });
+
+  it('簡訊邀請先停在同意畫面：按下才兌換，不同意就照一般開頁', () => {
+    expect(app).toContain("handoffLink.via === 'invite' ? 'confirm' : 'redeeming'");
+    expect(app).toMatch(/if \(handoffLink\.via === 'invite'\) \{\s*initCloudSync\(true\);\s*return;/);
+    const accept = app.slice(app.indexOf('const acceptHandoffInvite'), app.indexOf('const declineHandoffInvite'));
+    expect(accept).toContain('redeemHandoff(handoffLink.code)');
+    expect(app).toMatch(/id="handoff-invite-accept-btn"[\s\S]*onClick=\{acceptHandoffInvite\}/);
+    expect(app).toContain('HANDOFF_INVITE.consent(');
   });
 
   it('兌換成功走一般登入那一條，然後去 T2 入口', () => {
@@ -65,7 +78,7 @@ describe('A 的落地（App.tsx）', () => {
   });
 
   it('兌換期間不畫舊的登入狀態', () => {
-    expect(app).toMatch(/\{handoffRedeeming \? \(\s*<div id="handoff-landing"/);
+    expect(app).toMatch(/\{handoffStage === 'redeeming' \? \(\s*<div id="handoff-landing"/);
   });
 });
 

@@ -4,13 +4,13 @@
  *
  * 發出端（B）
  * - `GET  /api/handoff/config`         前端決定要不要畫按鈕
- * - `POST /api/handoff/start`          B 家長按下按鈕：要登入、要同意、要有 T1 成績 → 交接連結（2 分鐘）
- * - `POST /internal/handoff/redeem`    A 的伺服器來兌換（密鑰）：一次性，交出規格 §1 那一包
+ * - `POST /api/handoff/start`          B 家長按下按鈕：要登入、要同意、要有 T1 成績 → 交接連結（不過期）
+ * - `POST /internal/handoff/redeem`    A 的伺服器來兌換（密鑰）：可重複，交出規格 §1 那一包
  *
  * 接收端（A）
  * - `POST /api/handoff/redeem`         家長的瀏覽器帶著交接碼來：向 B 兌換 → 找或建帳號 → 帶入 → 登入
  *
- * 錯誤一律不分辨原因（找不到、用過、過期、密鑰錯都是同一句）：這幾支不能變成「這個碼存不存在」的查詢機。
+ * 錯誤一律不分辨原因（找不到、密鑰錯、資料不全都是同一句）：這幾支不能變成「這個碼存不存在」的查詢機。
  */
 import express from 'express';
 import type { AssessmentRecord, DimensionScore } from '../types';
@@ -20,14 +20,13 @@ import {
   handoffUrl,
   hashHandoffCode,
   HANDOFF_TARGET_NAME,
-  HANDOFF_TTL_SEC,
   isHandoffCodeShape,
   readHandoffPayload,
   secretMatches,
   type HandoffSourceConfig,
   type HandoffTargetConfig,
 } from './core';
-import type { ConsumedHandoff } from '../db/handoffs';
+import type { RedeemedHandoff } from '../db/handoffs';
 import type { HandoffKind } from './core';
 
 export interface ParentData {
@@ -46,8 +45,8 @@ export interface HandoffSourceDeps {
   requireParent: (req: express.Request, res: express.Response) => Promise<number | null>;
   loadParent: (userId: number) => Promise<{ phone: string | null; data: ParentData | null } | null>;
   loadCompany: (userId: number) => Promise<{ id: number; slug: string; name: string } | null>;
-  createCode: (input: { userId: number; codeHash: string; kind: HandoffKind; ttlSec: number; consentVersion: string | null }) => Promise<number>;
-  consumeCode: (codeHash: string) => Promise<ConsumedHandoff | null>;
+  createCode: (input: { userId: number; codeHash: string; kind: HandoffKind; consentVersion: string | null }) => Promise<number>;
+  redeemCode: (codeHash: string) => Promise<RedeemedHandoff | null>;
 }
 
 const hasT1 = (scores: unknown): scores is DimensionScore[] =>
@@ -93,12 +92,11 @@ export function createHandoffSourceRouter(deps: HandoffSourceDeps): express.Rout
         userId,
         codeHash: hash,
         kind: 'button',
-        ttlSec: HANDOFF_TTL_SEC.button,
         consentVersion: deps.config!.consentVersion,
       });
-      // 連結本身就是一把 2 分鐘的鑰匙：不讓任何一層快取留著它。
+      // 連結本身就是一把 A 的鑰匙（不過期）：不讓任何一層快取留著它。
       res.set('Cache-Control', 'no-store');
-      res.json({ url: handoffUrl(deps.config!.targetOrigin, code), expiresInSec: HANDOFF_TTL_SEC.button });
+      res.json({ url: handoffUrl(deps.config!.targetOrigin, code) });
     } catch (err: any) {
       console.error('[Handoff] start failed:', err.message);
       res.status(500).json({ error: `暂时无法前往${HANDOFF_TARGET_NAME}，请稍后再试。` });
@@ -111,25 +109,25 @@ export function createHandoffSourceRouter(deps: HandoffSourceDeps): express.Rout
       if (!enabled() || !secretMatches(bearerOf(req), deps.config!.secret)) return invalid();
       const code = req.body?.code;
       if (!isHandoffCodeShape(code)) return invalid();
-      const consumed = await deps.consumeCode(hashHandoffCode(code));
-      if (!consumed) return invalid();
-      const parent = await deps.loadParent(consumed.userId);
+      const redeemed = await deps.redeemCode(hashHandoffCode(code));
+      if (!redeemed) return invalid();
+      const parent = await deps.loadParent(redeemed.userId);
       if (!parent?.phone || !parent.data?.child || !hasT1(parent.data.completedScores)) {
-        // 發碼時都有，兌換時沒了：兩分鐘內重做篩查或帳號被刪。碼已經用掉，當成無效。
-        console.warn(`[Handoff] 交接码对应的家长资料不完整（user ${consumed.userId}），不交出。`);
+        // 發碼時都有，現在沒了（清掉了檔案）：當成無效，不交出半份。
+        console.warn(`[Handoff] 交接码对应的家长资料不完整（user ${redeemed.userId}），不交出。`);
         return invalid();
       }
-      const company = await deps.loadCompany(consumed.userId);
+      const company = await deps.loadCompany(redeemed.userId);
       res.set('Cache-Control', 'no-store');
       res.json(buildHandoffPayload({
         phone: parent.phone,
-        sourceUserId: consumed.userId,
+        sourceUserId: redeemed.userId,
         source: company ? { companyId: company.id, slug: company.slug, name: company.name } : null,
         child: parent.data.child,
         completedScores: parent.data.completedScores,
         reportHistory: parent.data.reportHistory,
-        kind: consumed.kind,
-        consentVersion: consumed.consentVersion,
+        kind: redeemed.kind,
+        consentVersion: redeemed.consentVersion,
       }));
     } catch (err: any) {
       console.error('[Handoff] internal redeem failed:', err.message);

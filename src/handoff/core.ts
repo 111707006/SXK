@@ -14,8 +14,11 @@ export { isHandoffCodeShape };
 export type HandoffKind = 'button' | 'sms';
 export const HANDOFF_KINDS: ReadonlyArray<HandoffKind> = ['button', 'sms'];
 
-/** 時效（秒）：按鈕是家長正在看、按下就走，2 分鐘；簡訊是事後觸達，72 小時（第二期）。 */
-export const HANDOFF_TTL_SEC: Readonly<Record<HandoffKind, number>> = { button: 120, sms: 72 * 3600 };
+/*
+ * 時效：**沒有**，也不是一次性（使用者 2026-09-28：「只要登入 B 的就不用限制時間」）。
+ * 連結在 B 那個帳號還在的時候都有效 —— 帳號刪掉，外鍵連帶刪掉它的交接碼。
+ * 代價：連結本身就是一把 A 的鑰匙，轉傳出去等於讓對方登入（同 #22 的報告連結，產品端的取捨）。
+ */
 
 /** 家長按下時看到的同意文字版本。改了同意文字就改這個（或設 HANDOFF_CONSENT_VERSION）。 */
 export const DEFAULT_CONSENT_VERSION = 'handoff-consent-v1';
@@ -30,14 +33,14 @@ export const HANDOFF_TARGET_NAME = '森心康';
 
 // ── 交接碼 ────────────────────────────────────────────────────────
 
-/** 32 位元組亂數，base64url 43 字。回傳明碼（只給家長的瀏覽器）與雜湊（只進資料庫）。 */
+/** 24 位元組（192 位元）亂數，base64url 32 字。回傳明碼（只給家長）與雜湊（只進資料庫）。 */
 export function generateHandoffCode(): { code: string; hash: string } {
-  const code = crypto.randomBytes(32).toString('base64url');
+  const code = crypto.randomBytes(24).toString('base64url');
   return { code, hash: hashHandoffCode(code) };
 }
 
 /**
- * 交接碼的 SHA-256（hex）。不用 bcrypt：碼本身是 256 位元亂數，猜不到，也就不需要慢雜湊；
+ * 交接碼的 SHA-256（hex）。不用 bcrypt：碼本身是 192 位元亂數，猜不到，也就不需要慢雜湊；
  * 而兌換時要**用雜湊去查那一列**，bcrypt 的鹽讓它查不了。
  */
 export function hashHandoffCode(code: string): string {
@@ -121,9 +124,17 @@ export function resolveHandoffTargetConfig(env: NodeJS.ProcessEnv): HandoffTarge
   return { secret, sourceOrigin: readOrigin('HANDOFF_SOURCE_ORIGIN', env.HANDOFF_SOURCE_ORIGIN, true) };
 }
 
-/** 交接連結：碼放在網址片段，不送到伺服器、不進 nginx 日誌、不隨 Referer 外流。 */
+/** 按鈕的交接連結：碼放在網址片段，不送到伺服器、不進 nginx 日誌、不隨 Referer 外流。 */
 export function handoffUrl(targetOrigin: string, code: string): string {
   return `${targetOrigin}${HANDOFF_LANDING_PATH}#code=${code}`;
+}
+
+/**
+ * 簡訊邀請的連結。阿里雲的範本裡網址是**寫死的文字**，只有碼是變數（`${code}`）——
+ * 這一支給本機的 console 通道印出來、給文件對照範本長什麼樣。
+ */
+export function handoffInviteUrl(targetOrigin: string, code: string): string {
+  return `${targetOrigin}${HANDOFF_LANDING_PATH}#invite=${code}`;
 }
 
 // ── 兩端之間那一包 ────────────────────────────────────────────────

@@ -49,6 +49,12 @@ export interface ParentListItem {
   screenedAt: string | null;
   registeredAt: string | null;
   hasBooking: boolean;
+  /**
+   * B→A 交接的邀請（ADR-0009）：最近一次送出成功的邀請簡訊、他的交接碼最近一次被用（＝到過 A）。
+   * 專案 A 兩個都是 null（A 不發邀請）。能不能再邀請照 `src/handoff/invite.ts` 的 `inviteStatus` 判。
+   */
+  lastInvitedAt: string | null;
+  handoffUsedAt: string | null;
 }
 
 export interface ParentBooking {
@@ -225,6 +231,8 @@ function rowToListItem(row: any): ParentListItem {
     screenedAt: toIso(row.screened_at),
     registeredAt: toIso(row.created_at),
     hasBooking: Number(row.booking_count) > 0,
+    lastInvitedAt: toIso(row.last_invited_at),
+    handoffUsedAt: toIso(row.handoff_used_at),
   };
 }
 
@@ -287,7 +295,9 @@ export async function listParents(
   const [rows] = await p.execute(
     `SELECT u.id, u.email, u.phone, u.company_id, u.created_at,
             ud.child, ud.completed_scores, ud.updated_at AS screened_at,
-            (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count
+            (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count,
+            (SELECT MAX(i.sent_at) FROM handoff_invites i WHERE i.user_id = u.id AND i.status = 'sent') AS last_invited_at,
+            (SELECT MAX(c.last_used_at) FROM handoff_codes c WHERE c.user_id = u.id) AS handoff_used_at
        FROM users u
        LEFT JOIN user_data ud ON ud.user_id = u.id
       WHERE ${scope.sql}
@@ -316,7 +326,9 @@ export async function getParentDetail(
   const [rows] = await p.execute(
     `SELECT u.id, u.email, u.phone, u.company_id, u.created_at,
             ud.child, ud.completed_scores, ud.report_history, ud.updated_at AS screened_at,
-            (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count
+            (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count,
+            (SELECT MAX(i.sent_at) FROM handoff_invites i WHERE i.user_id = u.id AND i.status = 'sent') AS last_invited_at,
+            (SELECT MAX(c.last_used_at) FROM handoff_codes c WHERE c.user_id = u.id) AS handoff_used_at
        FROM users u
        LEFT JOIN user_data ud ON ud.user_id = u.id
       WHERE ${scope.sql} AND u.id = ?
@@ -463,6 +475,73 @@ export async function deleteParent(
     conn.release();
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+// B→A 交接的邀請簡訊（ADR-0009）—— 同樣每一句都帶公司條件：寫入用
+// `INSERT … SELECT … FROM users u WHERE u.id = ? AND 條件`，視野外的家長一列都寫不進去。
+// ══════════════════════════════════════════════════════════════
+
+export interface InviteTarget {
+  id: number;
+  phone: string | null;
+  hasScreening: boolean;
+  lastInvitedAt: string | null;
+  handoffUsedAt: string | null;
+}
+
+/** 這一批 id 裡、在這個視野內的家長，附判斷能不能邀請要的事實。視野外的直接不在結果裡。 */
+export async function listInviteTargets(condition: CompanyCondition, ids: number[]): Promise<InviteTarget[]> {
+  if (ids.length === 0) return [];
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const [rows] = await p.execute(
+    `SELECT u.id, u.phone, ud.completed_scores,
+            (SELECT MAX(i.sent_at) FROM handoff_invites i WHERE i.user_id = u.id AND i.status = 'sent') AS last_invited_at,
+            (SELECT MAX(c.last_used_at) FROM handoff_codes c WHERE c.user_id = u.id) AS handoff_used_at
+       FROM users u
+       LEFT JOIN user_data ud ON ud.user_id = u.id
+      WHERE ${scope.sql} AND u.id IN (${ids.map(() => '?').join(', ')})`,
+    [...scope.params, ...ids]
+  );
+  return (rows as any[]).map(row => ({
+    id: Number(row.id),
+    phone: row.phone ?? null,
+    hasScreening: parseJson<DimensionScore[]>(row.completed_scores, []).some(s => s?.tierId === 'T1'),
+    lastInvitedAt: toIso(row.last_invited_at),
+    handoffUsedAt: toIso(row.handoff_used_at),
+  }));
+}
+
+/** 為這位家長建一組邀請用的交接碼（只存雜湊）。視野外回 `null`。 */
+export async function createInviteCode(
+  condition: CompanyCondition,
+  input: { userId: number; codeHash: string; consentVersion: string | null }
+): Promise<number | null> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const [result] = await p.execute(
+    `INSERT INTO handoff_codes (code_hash, user_id, kind, consent_version)
+     SELECT ?, u.id, 'sms', ? FROM users u WHERE u.id = ? AND ${scope.sql}`,
+    [input.codeHash, input.consentVersion, input.userId, ...scope.params]
+  );
+  const header = result as ResultSetHeader;
+  return header.affectedRows === 1 ? header.insertId : null;
+}
+
+/** 記一則邀請（送出或失敗）。視野外寫不進去。 */
+export async function recordInvite(
+  condition: CompanyCondition,
+  input: { userId: number; codeId: number | null; adminUserId: number; status: 'sent' | 'failed'; detail: string | null }
+): Promise<void> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  await p.execute(
+    `INSERT INTO handoff_invites (user_id, code_id, admin_user_id, status, detail)
+     SELECT u.id, ?, ?, ?, ? FROM users u WHERE u.id = ? AND ${scope.sql}`,
+    [input.codeId, input.adminUserId, input.status, input.detail?.slice(0, 255) ?? null, input.userId, ...scope.params]
+  );
+}
+
 // ══════════════════════════════════════════════════════════════
 // 專家名單（後台維護）—— 同樣帶公司條件
 // ══════════════════════════════════════════════════════════════

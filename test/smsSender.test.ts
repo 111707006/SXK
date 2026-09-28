@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import crypto from 'crypto';
-import { sendVerificationCode, buildAliyunSmsRequest, resolveSmsProvider } from '../src/sms';
+import { sendVerificationCode, buildAliyunSmsRequest, resolveSmsProvider, sendHandoffInvite, inviteChannelStatus } from '../src/sms';
 
 /**
  * 簡訊通道（#25）。
@@ -46,6 +46,7 @@ beforeEach(() => {
   axiosThrows = null;
   process.env.SMS_PROVIDER = '';
   for (const key of ALI_ENV) process.env[key] = '';
+  process.env.ALI_SMS_INVITE_TEMPLATE_CODE = '';
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -195,5 +196,50 @@ describe('簽名的規範化字串', () => {
     for (const key of form.keys()) {
       expect(key.startsWith('__')).toBe(false);
     }
+  });
+});
+
+/**
+ * B→A 交接的邀請簡訊（ADR-0009）：另一個範本（帶連結的推廣類，要另外審），金鑰與簽名與登入共用。
+ * 同一條紀律：範本沒設好就說沒設好，不假裝送出。
+ */
+describe('邀請簡訊', () => {
+  const CODE = 'a'.repeat(32);
+  const LINK = `https://sxkscreen.com/handoff#invite=${CODE}`;
+
+  it('只設了登入範本：通道說還不能發、缺邀請範本，發送回 not_configured、一則都沒打', async () => {
+    configureAliyun();
+    expect(inviteChannelStatus()).toEqual({ ready: false, missing: ['ALI_SMS_INVITE_TEMPLATE_CODE'] });
+    const result = await sendHandoffInvite('13800138000', CODE, LINK);
+    expect(result).toMatchObject({ ok: false, reason: 'not_configured' });
+    expect(posts).toHaveLength(0);
+  });
+
+  it('設好了：用邀請範本送，變數只有交接碼（網址在範本裡是寫死的文字）', async () => {
+    configureAliyun();
+    process.env.ALI_SMS_INVITE_TEMPLATE_CODE = 'SMS_999';
+    expect(inviteChannelStatus()).toEqual({ ready: true, missing: [] });
+    const result = await sendHandoffInvite('13800138000', CODE, LINK);
+    expect(result.ok).toBe(true);
+    const form = new URLSearchParams(posts[0].body);
+    expect(form.get('TemplateCode')).toBe('SMS_999');
+    expect(JSON.parse(form.get('TemplateParam')!)).toEqual({ code: CODE });
+    expect(form.get('PhoneNumbers')).toBe('13800138000');
+  });
+
+  it('登入驗證碼照舊用登入範本（兩個範本不會互相蓋掉）', async () => {
+    configureAliyun();
+    process.env.ALI_SMS_INVITE_TEMPLATE_CODE = 'SMS_999';
+    await sendVerificationCode('13800138000', '123456');
+    expect(new URLSearchParams(posts[0].body).get('TemplateCode')).toBe('SMS_123456');
+  });
+
+  it('console 通道：印出連結、不打阿里雲', async () => {
+    process.env.SMS_PROVIDER = 'console';
+    expect(inviteChannelStatus().ready).toBe(true);
+    const result = await sendHandoffInvite('13800138000', CODE, LINK);
+    expect(result).toMatchObject({ ok: true, provider: 'console' });
+    expect(posts).toHaveLength(0);
+    expect(vi.mocked(console.warn).mock.calls.flat().join(' ')).toContain(LINK);
   });
 });

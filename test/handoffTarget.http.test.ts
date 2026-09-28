@@ -18,10 +18,10 @@ import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 const SECRET = 't'.repeat(40);
 const NEW_PHONE = '13800138000';
 const EXISTING_PHONE = '13900139000';
-const GOOD = 'G'.repeat(43);
-const EXISTING = 'E'.repeat(43);
-const MALFORMED = 'M'.repeat(43);
-const BROKEN = 'X'.repeat(43);
+const GOOD = 'G'.repeat(32);
+const EXISTING = 'E'.repeat(32);
+const MALFORMED = 'M'.repeat(32);
+const BROKEN = 'X'.repeat(32);
 
 const t1 = [
   { dimensionId: 'gross_motor', dimensionName: '动作发展', tierId: 'T1', score: 4, maxScore: 8, status: 'delay', completedAt: '2026-09-28T01:00:00.000Z' },
@@ -174,7 +174,7 @@ describe('A 已經有篩查的家長', () => {
 
 describe('B 說不行、B 壞了', () => {
   it('B 說無效（用過、過期、不存在）：410', async () => {
-    const res = await redeem('Z'.repeat(43));
+    const res = await redeem('Z'.repeat(32));
     expect(res.status).toBe(410);
     expect((await res.json()).code).toBe('HANDOFF_INVALID');
     expect(imports).toHaveLength(0);

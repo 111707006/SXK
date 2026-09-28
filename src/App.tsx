@@ -53,8 +53,8 @@ import {
 } from 'lucide-react';
 import { TRAINING_PAGE } from './t2/trainingCopy';
 import { latestT1ReportFor } from './utils/reportResume';
-import { readHandoffCode } from './handoff/fragment';
-import { HANDOFF_LANDING } from './handoff/handoffCopy';
+import { readHandoffLink } from './handoff/fragment';
+import { HANDOFF_INVITE, HANDOFF_LANDING } from './handoff/handoffCopy';
 
 export default function App() {
   /** 孩子檔案，**照存下來的樣子**。上面的 `ageMonth` 是寫入當下的值，會過期。 */
@@ -162,16 +162,20 @@ export default function App() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   /**
-   * B→A 交接的落地（ADR-0009、docs/specs/b-to-a-handoff.md §5）：B 的家長按了「到 A 做深度評估」，
-   * 瀏覽器帶著 `/handoff#code=…` 來。只有 A 接收；開頁那一刻讀一次，之後網址就換成 `/`。
+   * B→A 交接的落地（ADR-0009、docs/specs/b-to-a-handoff.md §5）：B 的家長按了「到 A 做深度評估」
+   * （`/handoff#code=…`），或點了後台發的邀請簡訊（`/handoff#invite=…`）。只有 A 接收；開頁那一刻讀一次，
+   * 之後網址就換成 `/`。
    *
+   * 簡訊那一條先停在同意畫面（`confirm`），家長按下才兌換；按鈕那一條在 B 已經同意過，直接兌換。
    * 兌換期間整個主畫面換成「正在把筛查结果带过来…」—— 不先畫這台裝置上舊的登入狀態，
    * 否則家長會先看到別人的（或上一次的）孩子閃一下。
    */
-  const [handoffCode] = useState<string | null>(() =>
-    PRODUCT.features.handoff === 'receive' ? readHandoffCode(window.location.pathname, window.location.hash) : null,
+  const [handoffLink] = useState(() =>
+    PRODUCT.features.handoff === 'receive' ? readHandoffLink(window.location.pathname, window.location.hash) : null,
   );
-  const [handoffRedeeming, setHandoffRedeeming] = useState(() => handoffCode !== null);
+  const [handoffStage, setHandoffStage] = useState<'confirm' | 'redeeming' | null>(() =>
+    handoffLink === null ? null : handoffLink.via === 'invite' ? 'confirm' : 'redeeming',
+  );
   // StrictMode 會把掛載的 effect 跑兩次；交接碼是一次性的，第二次兌換一定失敗，會把第一次的成功蓋掉。
   const handoffStartedRef = useRef(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
@@ -389,13 +393,18 @@ export default function App() {
     };
 
     // B→A 交接：先兌換，成功就是登入（覆蓋這台裝置上原本的狀態）；失敗才照一般開頁讀資料 ——
-    // 這台裝置上本來登入著的 A 家長不因為一條用過的連結被登出。
-    if (handoffCode) {
+    // 這台裝置上本來登入著的 A 家長不因為一條不能用的連結被登出。簡訊那一條先等家長在同意畫面按下
+    // （`acceptHandoffInvite`），這裡只讀連線狀態。
+    if (handoffLink) {
       if (handoffStartedRef.current) return;
       handoffStartedRef.current = true;
-      // 碼不留在網址列、瀏覽紀錄與之後的 Referer 裡。
+      // 碼不留在網址列、瀏覽紀錄與之後的 Referer 裡（還要用的那一份在 state 裡）。
       window.history.replaceState(null, '', '/');
-      redeemHandoff(handoffCode).then(ok => {
+      if (handoffLink.via === 'invite') {
+        initCloudSync(true);
+        return;
+      }
+      redeemHandoff(handoffLink.code).then(ok => {
         if (!ok) hydrateLocal();
         initCloudSync(ok);
       });
@@ -725,17 +734,42 @@ export default function App() {
         );
         goToT2Entrance();
         setT1ReportGenerate(true);
-        setHandoffRedeeming(false);
+        setHandoffStage(null);
         return true;
       }
-      // 410＝B 說這個碼不算數（用過、過期、不存在）；其餘（502、503、500）是伺服器之間不通。
+      // 410＝B 說這個碼不算數（不存在、帳號刪了）；其餘（502、503、500）是伺服器之間不通。
       if (resp.status === 410) notice = HANDOFF_LANDING.invalid;
     } catch {
       // 網路斷了：同「不通」。
     }
     setSessionNotice(notice);
-    setHandoffRedeeming(false);
+    setHandoffStage(null);
     return false;
+  };
+
+  /**
+   * 簡訊邀請的同意畫面按下「同意并继续」。失敗就退回一般開頁（讀這台裝置上本來的狀態）。
+   * 不用重新讀一次網址：碼在 `handoffLink` 裡，網址早就換成 `/` 了。
+   */
+  const acceptHandoffInvite = async () => {
+    if (!handoffLink) return;
+    setHandoffStage('redeeming');
+    const ok = await redeemHandoff(handoffLink.code);
+    if (!ok) reloadAfterDeclinedHandoff();
+  };
+
+  /** 同意畫面按「不用了」：不兌換，照一般開頁走（本來登入著的就還登入著，沒有就到登入頁）。 */
+  const declineHandoffInvite = () => {
+    setHandoffStage(null);
+    reloadAfterDeclinedHandoff();
+  };
+
+  /**
+   * 交接沒成（不同意、或兌換失敗）時，補做開頁本來會做的事：這台裝置上本來登入著的家長照常顯示。
+   * 掛載時那一輪刻意跳過了（見上面的 effect），這裡用整頁重新整理補上 —— 網址已經是 `/`，不會再進交接。
+   */
+  const reloadAfterDeclinedHandoff = () => {
+    if (localStorage.getItem('senxinkang_token')) window.location.reload();
   };
 
   // Find active dimension config
@@ -1115,11 +1149,37 @@ export default function App() {
 
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
-        {handoffRedeeming ? (
+        {handoffStage === 'redeeming' ? (
           <div id="handoff-landing" role="status" className="py-24 flex flex-col items-center gap-3 text-center">
             <Loader2 size={28} className="animate-spin text-brand-moss" />
             <p className="text-sm font-extrabold text-brand-forest">{HANDOFF_LANDING.loading}</p>
             <p className="text-[11px] text-brand-charcoal/60">{HANDOFF_LANDING.hint}</p>
+          </div>
+        ) : handoffStage === 'confirm' ? (
+          <div id="handoff-invite" className="w-full max-w-md bg-white rounded-3xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-6 shadow-sm text-left space-y-4">
+            <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+              <Layers size={10} /> {HANDOFF_INVITE.badge}
+            </span>
+            <h2 className="text-base font-extrabold text-brand-forest">{HANDOFF_INVITE.title(PRODUCT.brand.welcomeName ?? '')}</h2>
+            <p className="text-xs text-brand-charcoal/75 leading-relaxed">{HANDOFF_INVITE.body}</p>
+            <button
+              id="handoff-invite-accept-btn"
+              type="button"
+              onClick={acceptHandoffInvite}
+              className="w-full px-6 py-3 rounded-xl bg-brand-moss hover:bg-brand-moss/90 text-white text-sm font-extrabold transition shadow-md shadow-brand-moss/20 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              {HANDOFF_INVITE.accept}
+              <ChevronRight size={14} />
+            </button>
+            <p className="text-[10px] text-brand-charcoal/55 leading-relaxed">
+              {HANDOFF_INVITE.consent(PRODUCT.brand.welcomeName ?? '')}，
+              <button type="button" onClick={() => setShowPrivacyModal(true)} className="underline underline-offset-2 hover:text-brand-forest cursor-pointer">
+                {HANDOFF_INVITE.privacy}
+              </button>
+            </p>
+            <button type="button" onClick={declineHandoffInvite} className="w-full text-[11px] text-brand-charcoal/50 hover:text-brand-forest cursor-pointer">
+              {HANDOFF_INVITE.decline}
+            </button>
           </div>
         ) : !userIdentity ? (
           <div className="w-full flex flex-col items-center gap-5">

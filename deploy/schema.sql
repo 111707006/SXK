@@ -602,7 +602,7 @@ CREATE TABLE IF NOT EXISTS `report_links` (
 -- ============================================================
 -- B 的家长免登入转到 A 做 T2（ADR-0009、docs/specs/b-to-a-handoff.md）
 -- ============================================================
--- 两边都建：handoff_codes 只有专案 B（发出端）用，handoff_imports 只有专案 A（接收端）用。
+-- 两边都建：handoff_codes、handoff_invites 只有专案 B（发出端）用，handoff_imports 只有专案 A（接收端）用。
 -- 来源与说明见 deploy/migrations/2026-09-28-handoffs.sql。
 
 CREATE TABLE IF NOT EXISTS `handoff_codes` (
@@ -610,13 +610,15 @@ CREATE TABLE IF NOT EXISTS `handoff_codes` (
   -- 交接码的 SHA-256（hex）。
   `code_hash` CHAR(64) NOT NULL,
   `user_id` INT UNSIGNED NOT NULL,
-  -- button＝B 报告页的按钮（2 分钟）；sms＝简讯邀请（72 小时，第二期）。
+  -- button＝B 报告页的按钮；sms＝后台发的邀请简讯。
   `kind` ENUM('button','sms') NOT NULL,
   -- 家长按下时看到的同意文字版本。
   `consent_version` VARCHAR(32) NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `expires_at` DATETIME NOT NULL,
-  `redeemed_at` DATETIME NULL,
+  -- NULL＝不过期（现在全部都是）。
+  `expires_at` DATETIME NULL,
+  `use_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  `last_used_at` DATETIME NULL,
   UNIQUE KEY `uk_handoff_code_hash` (`code_hash`),
   INDEX `idx_handoff_codes_user` (`user_id`, `created_at`),
   CONSTRAINT `fk_handoff_codes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
@@ -639,6 +641,23 @@ CREATE TABLE IF NOT EXISTS `handoff_imports` (
   INDEX `idx_handoff_imports_user` (`user_id`, `created_at`),
   INDEX `idx_handoff_imports_company` (`source_company_id`, `created_at`),
   CONSTRAINT `fk_handoff_imports_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `handoff_invites` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  -- 这一则简讯里的那组交接码；送失败就没有码（NULL）。
+  `code_id` INT UNSIGNED NULL,
+  -- 谁按的（后台帐号）；帐号删掉留 NULL，纪录还在。
+  `admin_user_id` INT UNSIGNED NULL,
+  `status` ENUM('sent','failed') NOT NULL,
+  -- 失败时简讯通道回的原因（截短）。
+  `detail` VARCHAR(255) NULL,
+  `sent_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_handoff_invites_user` (`user_id`, `sent_at`),
+  CONSTRAINT `fk_handoff_invites_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_handoff_invites_code` FOREIGN KEY (`code_id`) REFERENCES `handoff_codes` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_handoff_invites_admin` FOREIGN KEY (`admin_user_id`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================

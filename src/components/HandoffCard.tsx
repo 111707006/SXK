@@ -10,7 +10,7 @@ import { HANDOFF_CARD } from '../handoff/handoffCopy';
  * 畫不畫由伺服器決定：`GET /api/handoff/config` 回 `enabled` 才畫（交接關著、沒登入就整張不出現，
  * 不留一顆按不動的按鈕）。接收端的名字也從那裡來 —— B 的建置不寫品牌名（見 `handoffCopy.ts`）。
  *
- * 按下 → `POST /api/handoff/start {consent: true}` → 整頁換到回來的連結（碼在網址片段裡，2 分鐘）。
+ * 按下 → `POST /api/handoff/start {consent: true}` → 整頁換到回來的連結（碼在網址片段裡；不過期、可重複用）。
  */
 export default function HandoffCard({ onShowPrivacy }: { onShowPrivacy: () => void }) {
   const [targetName, setTargetName] = useState<string | null>(null);

@@ -24,6 +24,8 @@ function detail(overrides: Partial<ParentDetail> = {}): ParentDetail {
     screenedAt: '2026-01-05T09:00:00.000Z',
     registeredAt: '2025-12-01T09:00:00.000Z',
     hasBooking: false,
+    lastInvitedAt: null,
+    handoffUsedAt: null,
     scores: [
       {
         dimensionId: 'language',

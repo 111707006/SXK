@@ -82,7 +82,7 @@ describe('設定', () => {
     expect(resolveHandoffSourceConfig({ HANDOFF_SECRET: SECRET, HANDOFF_TARGET_ORIGIN: 'https://sxkscreen.com/' })).toEqual({
       secret: SECRET,
       targetOrigin: 'https://sxkscreen.com',
-      consentVersion: '2026-09-28',
+      consentVersion: 'handoff-consent-v1',
     });
   });
 

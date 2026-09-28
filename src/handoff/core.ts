@@ -15,7 +15,7 @@ export const HANDOFF_KINDS: ReadonlyArray<HandoffKind> = ['button', 'sms'];
 export const HANDOFF_TTL_SEC: Readonly<Record<HandoffKind, number>> = { button: 120, sms: 72 * 3600 };
 
 /** 家長按下時看到的同意文字版本。改了同意文字就改這個（或設 HANDOFF_CONSENT_VERSION）。 */
-export const DEFAULT_CONSENT_VERSION = '2026-09-28';
+export const DEFAULT_CONSENT_VERSION = 'handoff-consent-v1';
 
 // ── 交接碼 ────────────────────────────────────────────────────────
 

@@ -97,7 +97,7 @@ A 前端 ── 照一般登入成功處理 → 打開 T1 報告並捲到 T2 入
 | `HANDOFF_SECRET` | A、B | 同一個長亂數。沒設＝功能關閉 |
 | `HANDOFF_TARGET_ORIGIN` | B | A 的對外網址，例 `https://sxkscreen.com` |
 | `HANDOFF_SOURCE_ORIGIN` | A | B 的內部網址，例 `http://127.0.0.1:5001` |
-| `HANDOFF_CONSENT_VERSION` | B | 同意文字版本，預設 `2026-09-28` |
+| `HANDOFF_CONSENT_VERSION` | B | 同意文字版本，預設 `handoff-consent-v1`（改了同意文字就換一個） |
 
 ## 7. 安全
 

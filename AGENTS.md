@@ -311,6 +311,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `SMS_PROVIDER` | `aliyun`（预设）或 `console`（本机开发，只印不送） | 否 |
 | `MEDIA_DIR` | 示范片与封面的目录（预设 `<cwd>/media`，正式站 A 即 `/var/www/sxk/media`），`server.ts` 挂在 `/media`，只在专案 A。**不要指到 `dist/` 里面**：每次部署会整个换掉 | 否 |
 | `MEDIA_UPSTREAM` | 只给 Render 展示环境：`/media` 本机找不到的片与封面改由伺服器向这个主机拿（例 `https://sxkscreen.com`，`src/mediaProxy.ts`；只代理 `/activities/A001.mp4\|jpg`，Range 原样转）。浏览器不能直接嵌正式站的片 —— 正式站回 `Cross-Origin-Resource-Policy: same-origin`。只收 https 的「协定＋主机」，认不得的值让程序起不来；**正式站 A 不要设** | 否 |
+| `DEMO_LOGIN_CODE` | 只给 Render 展示站 `sxk-demo`（`deploy/demo/`、`deploy/render-demo.md`）：6 位数字的固定验证码，索取验证码不送简讯、不套防刷（`src/demoLogin.ts`）。**只在 `MYSQL_HOST` 是 127.0.0.1／localhost 时收**，否则程序起不来 —— 正式站绝对不可以设 | 否 |
 | `SMS_IP_DAILY_MAX` | 同一来源每日索取上限（预设 50）。按号码算的上限（10）挡不住换号码，这是按来源算的那一半；来源是收敛过的键（IPv6 截到 /64）。**设成 0 即停止发送**，遭滥用时最快的一道闸门 | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

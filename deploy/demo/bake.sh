@@ -10,17 +10,13 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 source deploy/demo/db.sh
 
-rm -rf "$DEMO_DB_DIR"
-mkdir -p "$DEMO_DB_DIR"
-chown mysql:mysql "$DEMO_DB_DIR"
-mariadb-install-db --no-defaults --user=mysql --datadir="$DEMO_DB_DIR" \
-  --auth-root-authentication-method=socket --skip-test-db > /dev/null
+db_init
 db_start
 
 db_root -e "
   CREATE DATABASE \`$MYSQL_DATABASE\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-  CREATE USER '$MYSQL_USER'@'127.0.0.1' IDENTIFIED BY '$MYSQL_PASSWORD';
-  CREATE USER '$MYSQL_USER'@'localhost' IDENTIFIED BY '$MYSQL_PASSWORD';
+  CREATE USER '$MYSQL_USER'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY '$MYSQL_PASSWORD';
+  CREATE USER '$MYSQL_USER'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_PASSWORD';
   GRANT ALL PRIVILEGES ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'127.0.0.1';
   GRANT ALL PRIVILEGES ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'localhost';"
 db_root "$MYSQL_DATABASE" < deploy/schema.sql

@@ -10,13 +10,13 @@
  * 寫進去的東西：
  * - 後台全域管理員 `DEMO_ADMIN_EMAIL`／`DEMO_ADMIN_PASSWORD`（展示用，資料是假的、重啟就回原樣）
  * - 17 支示範片的目標月齡與標籤：用後台的批量匯入端點匯 `deploy/activity-tags/2026-09-27-module1-videos.json`
- * - 一位展示家長 `DEMO_PARENT_PHONE`：30 個月的「小安」，T1 動作發展需關注，T2 粗大動作量表做完
- *   （走跑跳、平衡偏弱），報告已生成，本週活動已配好 —— 登入後直接看得到 T2 報告與居家訓練
+ * - 一位展示家長 `DEMO_PARENT_PHONE`：30 個月的「小安」，T1 動作發展需關注、T1 報告已生成，T2 粗大動作量表做完
+ *   （爬站不穩、走跑跳與平衡偏弱），報告已生成，本週活動已配好 —— 登入後直接看得到 T2 報告與居家訓練
  *
  * 用法（bake.sh 會帶好環境變數）：`npx tsx deploy/demo/seed.ts`
  */
 import fs from 'fs';
-import path from 'path';
+import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import mysql from 'mysql2/promise';
 import { askedItems } from '../../src/t2/scoring';
@@ -83,7 +83,7 @@ async function seedAdmin(): Promise<string> {
 }
 
 async function importTags(adminToken: string): Promise<void> {
-  const file = path.resolve(__dirname, '../activity-tags/2026-09-27-module1-videos.json');
+  const file = fileURLToPath(new URL('../activity-tags/2026-09-27-module1-videos.json', import.meta.url));
   const { rows } = JSON.parse(fs.readFileSync(file, 'utf8'));
   const report = await call('POST', '/api/admin/activities/import', { rows, dryRun: false }, adminToken);
   if (report.failed.length || report.warnings.length) {
@@ -116,9 +116,17 @@ function t1Scores() {
   });
 }
 
-/** 粗大動作量表：臥、坐、爬站都會（2），走跑跳、平衡偏弱 —— 報告會帶出「移動」「平衡」兩個標籤。 */
+/**
+ * 粗大動作量表：臥、坐都會（2）；爬與站有一半還不穩；走跑跳、平衡大多還不會。
+ * 算出來是動作發展**需關注**，帶「姿勢控制」「移動」「平衡」標籤 —— 30 個月需關注往前取 6–12 個月，
+ * 正好落在 17 支示範片裡 18–24 個月的那幾支。只弱走跑跳與平衡兩段的話，總分仍在「沒事」（2026-09-28 試過）。
+ */
 function gmAnswers(): Record<string, number> {
-  const weak: Record<string, number[]> = { P4: [1, 1, 0, 2, 1], P5: [1, 0, 1, 2] };
+  const weak: Record<string, number[]> = {
+    P3: [2, 1, 2, 1, 1, 1, 2, 1],
+    P4: [0, 0, 0, 1, 0],
+    P5: [0, 0, 1, 0],
+  };
   const out: Record<string, number> = {};
   const seen: Record<string, number> = {};
   for (const a of askedItems('sxk-gm', CHILD_AGE_MONTH)) {
@@ -130,12 +138,23 @@ function gmAnswers(): Record<string, number> {
 
 async function seedParent(): Promise<void> {
   const token = await parentLogin();
-  await call('POST', '/api/db/save', {
-    child: { name: '小安', gender: 'girl', birthDate: birthDateMonthsAgo(CHILD_AGE_MONTH), ageMonth: CHILD_AGE_MONTH },
-    completedScores: t1Scores(),
-    orders: [],
-    reportHistory: [],
-  }, token);
+  const child = { name: '小安', gender: 'girl', birthDate: birthDateMonthsAgo(CHILD_AGE_MONTH), ageMonth: CHILD_AGE_MONTH };
+  const scores = t1Scores();
+
+  // T1 的 AI 報告：家長按「一键生成 AI 发展报告」打的就是這一支（展示站沒有 AI 金鑰，回本地模板）。
+  // T2 入口掛在這份報告裡面（ReportBody 的 t2Slot），沒有它就看不到 T2。紀錄的形狀照
+  // AnalysisReport 的 handleGenerateReport；分數要是**同一份**，App 才認得它是「現在這份結果」的報告。
+  const generated = await call('POST', '/api/report', { child, scores });
+  const t1Report = {
+    id: `rec_${Date.now()}`,
+    type: 'T1_SCREENING',
+    child,
+    scores,
+    aiReport: generated.report,
+    isAiGenerated: generated.isAiGenerated === true,
+    createdAt: new Date().toISOString(),
+  };
+  await call('POST', '/api/db/save', { child, completedScores: scores, orders: [], reportHistory: [t1Report] }, token);
 
   const submitted = await call('POST', '/api/t2/tool-results', {
     toolId: 'sxk-gm',
@@ -148,7 +167,8 @@ async function seedParent(): Promise<void> {
 
   await call('POST', '/api/t2/findings', {}, token);
   const plan = await call('GET', '/api/t2/weekly-plan', undefined, token);
-  const picks = (plan?.activities?.picks ?? plan?.picks ?? []).map((p: any) => p.id ?? p.activity?.id);
+  // 回應是 `{ activities: [{ activity, dimension, reason }], preparing, alternates? }`（server.ts 的 weeklyPlanResponse）。
+  const picks = (plan?.activities ?? []).map((p: any) => p.activity.id);
   console.log(`[seed] 展示家长 ${PARENT_PHONE}：报告已生成，本周活动 ${JSON.stringify(picks)}`);
   if (picks.length === 0) throw new Error('本周活动是空的 —— 标签没汇进去，或配对没吃到');
 }

@@ -427,7 +427,7 @@ CREATE TABLE IF NOT EXISTS `t2_intake` (
 -- latestCompleteResults），不是写的时候盖的。
 --
 -- 原始答案（pre、answers）与算出来的结果（result ＝ ToolResult）都存；**result 由伺服器算**
---（src/t2/scoring），前端送上来的只有答案。pre／answers 与 result 里的是同一份，另外拆成
+-- （src/t2/scoring），前端送上来的只有答案。pre／answers 与 result 里的是同一份，另外拆成
 -- 两栏只是为了不解开 result 也查得到原始作答 —— 读的一律以 result 为准。
 --
 -- child_snapshot 是交卷当下孩子档案的快照（名字、出生日期、性别、当天的实足月龄）：
@@ -475,7 +475,7 @@ CREATE TABLE IF NOT EXISTS `t2_tool_results` (
 -- prose ＝ 整份 T2ReportProse（§6.3）；可为 NULL，见迁移档档头。
 --
 -- ai_engine：is_ai_generated = 1 时是产出这份文字的模型代号；= 0 时记退路的来源
---（'template:<引擎>' ＝ 那个引擎写了但没过验证器；'template:all_engines_failed' ＝ 三段全挂）。
+-- （'template:<引擎>' ＝ 那个引擎写了但没过验证器；'template:all_engines_failed' ＝ 三段全挂）。
 -- 排查「家长为什么拿到模板报告」时这一栏是唯一的线索。
 --
 -- 完整的迁移与验证语句见：deploy/migrations/2026-09-12-t2-findings.sql

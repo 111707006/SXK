@@ -126,6 +126,19 @@ const ALREADY_DONE = new Set([
 ]);
 
 /**
+ * MariaDB 對「外鍵名稱已存在」回的不是 MySQL 的 `ER_FK_DUP_NAME`，而是
+ * `ER_CANT_CREATE_TABLE`（errno 121，Duplicate key on write or update）。Render 展示站
+ * （`deploy/demo/`）用的就是 MariaDB：先套 `schema.sql` 再跑遷移時，2026-08-06 那份的
+ * `ADD CONSTRAINT fk_users_company` 會撞這一個。只認「加外鍵」那一句配 errno 121 —— 同一個
+ * 錯誤碼的其他原因（表真的建不起來）照樣中止。
+ */
+function isMariaDbDuplicateForeignKey(err, sql) {
+  return err.code === 'ER_CANT_CREATE_TABLE'
+    && /errno: 121/.test(err.message)
+    && /ADD\s+CONSTRAINT\s+\S+\s+FOREIGN\s+KEY/i.test(sql);
+}
+
+/**
  * 把一份遷移拆成「要執行的」與「驗證用的」。
  *
  * 驗證句一律是唯讀的 `SELECT`，兩種模式都跑得；只檢查模式跑的就只有它們。
@@ -274,7 +287,7 @@ async function main() {
         await conn.query(sql);
         console.log(`    ✓ ${short(sql)}`);
       } catch (err) {
-        if (ALREADY_DONE.has(err.code)) {
+        if (ALREADY_DONE.has(err.code) || isMariaDbDuplicateForeignKey(err, sql)) {
           console.log(`    · 已存在，略過：${short(sql)}`);
           continue;
         }

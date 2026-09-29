@@ -55,6 +55,8 @@ import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/bra
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
 import { resolveDemoLoginCode } from './src/demoLogin';
 import { handoffInviteUrl, resolveHandoffSourceConfig, resolveHandoffTargetConfig } from './src/handoff/core';
+import { SINGLE_FORM_PER_DIMENSION, singleFormPlan } from './src/t2/interimPlan';
+import { isTrainingPath, resolveTrainingPriceFen } from './src/t2/trainingGate';
 import { createHandoffSourceRouter, createHandoffTargetRouter, type ParentData as HandoffParentData } from './src/handoff/routes';
 import { createHandoffCode, recordHandoffImport, redeemHandoffCode } from './src/db/handoffs';
 import axios from 'axios';
@@ -1033,6 +1035,29 @@ function t2IcsRequestUserId(req: express.Request): UserId | null {
   return typeof link === 'string' ? readIcsLinkToken(link, SESSION_SECRET) : null;
 }
 
+/**
+ * 「线上干预」的收費站（`src/t2/trainingGate.ts`，使用者 2026-09-29）：從報告轉到線上干預再收一次，
+ * 現在 0 元、直接通過。沒設或 0 以外的值讓程序起不來（線上干預的訂單與權益還沒做）。
+ */
+const TRAINING_PRICE_FEN = resolveTrainingPriceFen(process.env.TRAINING_PRICE_FEN);
+
+/**
+ * 線上干預那幾支（週活動、片庫、單支活動、打卡、提醒）的閘門。要登入；價錢是 0 就放行，**不看 T2 買了沒** ——
+ * 線上干預是自己的一站，不再跟著 T2 一起賣。記憶體模式、展示開關同 T2 閘門放行。
+ */
+async function denyIfTrainingLocked(userId: UserId | null): Promise<UnlockDenial | null> {
+  if (!mysqlDb.isConfigured()) return null;
+  if (PAYWALL_DEMO_OPEN) return null;
+
+  if (!userId) return { status: 401, body: { error: '请先登录后再使用线上干预。', code: 'UNAUTHENTICATED' } };
+  const user = await findSessionUser(userId);
+  if (!user) return { status: 401, body: { error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' } };
+
+  // 現在免費：收費時在這裡看線上干預的權益（見 trainingGate.ts 檔頭）。
+  if (TRAINING_PRICE_FEN === 0) return null;
+  return { status: 403, body: { error: '尚未开通线上干预。', code: 'TRAINING_LOCKED' } };
+}
+
 // Mounted on tier2Only rather than paidOnly: in project B these paths must not
 // exist at all (B has no T2), and a guard that answered 403 there would confirm
 // the endpoint exists. Same never-mounted-Router trick as the rest of tier 2.
@@ -1043,7 +1068,8 @@ tier2Only.use('/api/t2', async (req: express.Request, res: express.Response, nex
       return;
     }
     const userId = isT2IcsPath(req.path) ? t2IcsRequestUserId(req) : currentUserId(req);
-    const denial = await denyIfT2Locked(req, userId);
+    // 線上干預走自己的收費站（現在免費），不走 T2 的；其餘照舊要買 T2。
+    const denial = isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : await denyIfT2Locked(req, userId);
     if (denial) {
       res.status(denial.status).json(denial.body);
       return;
@@ -1158,8 +1184,16 @@ tier2Only.get('/api/t2/plan', async (req, res) => {
 
     const diagnosis = override ? override.value : await loadT2Diagnosis(userId);
     const t1Flags = t1FlagsFromScores(t1Scores);
-    const plan = planT2(t1Flags, ageMonth, diagnosis);
-    res.json({ ...plan, t1Flags, diagnosisDirection: diagnosis, entrance: entranceState(plan, t1Flags) });
+    // 暫行（使用者 2026-09-29）：每個被標記的維度只列一份、全部必做；選做／加測／補充問卷先不出（src/t2/interimPlan.ts）
+    const full = planT2(t1Flags, ageMonth, diagnosis);
+    const plan = SINGLE_FORM_PER_DIMENSION ? singleFormPlan(full, t1Flags) : full;
+    res.json({
+      ...plan,
+      t1Flags,
+      diagnosisDirection: diagnosis,
+      entrance: entranceState(plan, t1Flags),
+      singleForm: SINGLE_FORM_PER_DIMENSION,
+    });
   } catch (err: any) {
     console.error('[T2] plan failed:', err.message);
     res.status(500).json({ error: '暂时无法读取深度评估的安排，请稍后重试。' });

@@ -3,6 +3,7 @@ import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 import { bearer } from './helpers/session';
 import { planT2 } from '../src/t2/routing';
 import { entranceState, t1FlagsFromScores } from '../src/t2/entrance';
+import { singleFormPlan } from '../src/t2/interimPlan';
 import type { DiagnosisDirection } from '../src/t2/types';
 
 /**
@@ -11,6 +12,9 @@ import type { DiagnosisDirection } from '../src/t2/types';
  * 寫法比照 `t2Gate.http.test.ts`：真的對 Express 發 HTTP 請求，資料層以替身供應。
  * 兩支都在 T2 閘門的白名單上 —— 付費牆要在**付費前**顯示題量，診斷方向會改題量，
  * 所以未解鎖的家長也要打得到。但**未登入**仍是 401：plan 是依這位家長的孩子與篩查算的。
+ *
+ * 【暫行規則】2026-09-29 起回給畫面的是 `singleFormPlan(planT2(...))`：每個被標記的維度只列一份、全部必做，
+ * 選做／加測／補充問卷先不出（`src/t2/interimPlan.ts`，使用者：表單來之前先這樣）。規則引擎本身的逐格測試不動。
  *
  * 【固定日期】
  * 實足月齡由出生日期與「今天」算，測試把今天釘住，孩子才不會在測試寫完的下個月長大一個月。
@@ -102,13 +106,13 @@ const put = (path: string, body: unknown, headers?: Record<string, string>) =>
   });
 
 describe('GET /api/t2/plan', () => {
-  it('有 T1 結果的家長 → 200，內容與 planT2 對同一輸入的結果相同', async () => {
+  it('有 T1 結果的家長 → 200，內容是 planT2 對同一輸入的結果套上暫行規則', async () => {
     const resp = await client.get('/api/t2/plan', bearer(UNLOCKED));
     expect(resp.status).toBe(200);
     const body = await resp.json();
 
     const flags = t1FlagsFromScores(SCORES_48 as any);
-    const expected = planT2(flags, 48);
+    const expected = singleFormPlan(planT2(flags, 48), flags);
     expect(body.ageMonth).toBe(48);
     expect(body.required).toEqual(expected.required);
     expect(body.optional).toEqual(expected.optional);
@@ -121,13 +125,18 @@ describe('GET /api/t2/plan', () => {
     expect(body.t1Flags).toEqual(flags);
     expect(body.diagnosisDirection).toBeNull();
     expect(body.entrance).toBe(entranceState(expected, flags));
+    expect(body.singleForm).toBe(true);
   });
 
-  it('§4.4 的固定輸入：必做 sxk-lang 49 ＋ sxk-ab 41、選做 sxk-spa 75', async () => {
+  it('§4.4 的固定輸入：每個被標記的維度一份、全部必做（原本的選做 sxk-spa 也列必做）；沒有選做、加測、補充問卷', async () => {
     const body = await (await client.get('/api/t2/plan', bearer(UNLOCKED))).json();
-    expect(body.required.map((i: any) => [i.toolId, i.askedCount])).toEqual([['sxk-lang', 49], ['sxk-ab', 41]]);
-    expect(body.optional.map((i: any) => [i.toolId, i.askedCount])).toEqual([['sxk-spa', 75]]);
-    expect(body.estimatedItems).toEqual({ required: 90, optional: 75, followup: 30 });
+    expect(body.required.map((i: any) => [i.toolId, i.askedCount, i.role])).toEqual([
+      ['sxk-lang', 49, 'required'], ['sxk-ab', 41, 'required'], ['sxk-spa', 75, 'required'],
+    ]);
+    expect(body.optional).toEqual([]);
+    expect(body.followup).toEqual([]);
+    expect(body.extras).toEqual([]);
+    expect(body.estimatedItems).toEqual({ required: 165, optional: 0, followup: 0 });
     expect(body.entrance).toBe('show');
   });
 
@@ -148,17 +157,15 @@ describe('GET /api/t2/plan', () => {
     expect((await resp.json()).code).toBe('UNAUTHENTICATED');
   });
 
-  it('帶診斷方向查詢 → 該疾病的工具全為 required', async () => {
+  it('帶診斷方向查詢 → 暫行規則下不多加工具（題量不變），只帶回功能處理順序', async () => {
     const resp = await client.get('/api/t2/plan?diagnosis=asd', bearer(UNLOCKED));
     expect(resp.status).toBe(200);
     const body = await resp.json();
     const flags = t1FlagsFromScores(SCORES_48 as any);
-    const expected = planT2(flags, 48, 'asd');
-    expect(body.required).toEqual(expected.required);
-    expect(body.required.map((i: any) => i.toolId)).toEqual(
-      expect.arrayContaining(['sxk-asb', 'sxk-asr', 'sxk-lang', 'sxk-dev', 'sxk-soc', 'sxk-adp']),
-    );
-    expect(body.functionOrder).toEqual(expected.functionOrder);
+    // 完整規則下自閉症會加 sxk-asb、sxk-asr、sxk-dev……；暫行規則每個被標記的維度只留那一份
+    expect(planT2(flags, 48, 'asd').required.map(i => i.toolId)).toEqual(expect.arrayContaining(['sxk-asb', 'sxk-asr']));
+    expect(body.required.map((i: any) => i.toolId)).toEqual(['sxk-lang', 'sxk-ab', 'sxk-spa']);
+    expect(body.functionOrder).toEqual(planT2(flags, 48, 'asd').functionOrder);
     expect(body.diagnosisDirection).toBe('asd');
   });
 
@@ -215,7 +222,8 @@ describe('PUT /api/t2/diagnosis', () => {
     await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(UNLOCKED));
     const body = await (await client.get('/api/t2/plan', bearer(UNLOCKED))).json();
     expect(body.diagnosisDirection).toBe('asd');
-    expect(body.required.map((i: any) => i.toolId)).toContain('sxk-asb');
+    // 暫行規則下診斷方向不改題量；用得到它的是報告的先後（功能處理順序）
+    expect(body.functionOrder).toEqual(planT2(t1FlagsFromScores(SCORES_48 as any), 48, 'asd').functionOrder);
   });
 
   /** 查詢字串蓋過存的：畫面上家長換選項時即時重算，還沒存也算得出來。 */
@@ -223,7 +231,9 @@ describe('PUT /api/t2/diagnosis', () => {
     await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(UNLOCKED));
     const body = await (await client.get('/api/t2/plan?diagnosis=cp', bearer(UNLOCKED))).json();
     expect(body.diagnosisDirection).toBe('cp');
-    expect(body.required.map((i: any) => i.toolId)).toContain('sxk-gm');
+    const flags = t1FlagsFromScores(SCORES_48 as any);
+    expect(planT2(flags, 48, 'cp').functionOrder).not.toEqual(planT2(flags, 48, 'asd').functionOrder);
+    expect(body.functionOrder).toEqual(planT2(flags, 48, 'cp').functionOrder);
   });
 
   it('清掉：null 與空字串都存成 null', async () => {
@@ -239,7 +249,8 @@ describe('PUT /api/t2/diagnosis', () => {
 
     const body = await (await client.get('/api/t2/plan', bearer(UNLOCKED))).json();
     expect(body.diagnosisDirection).toBeNull();
-    expect(body.required.map((i: any) => i.toolId)).toEqual(['sxk-lang', 'sxk-ab']);
+    expect(body.functionOrder).toBeNull();
+    expect(body.required.map((i: any) => i.toolId)).toEqual(['sxk-lang', 'sxk-ab', 'sxk-spa']);
   });
 
   it('不認得的值 → 400，沒有寫進去', async () => {

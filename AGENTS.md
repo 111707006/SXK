@@ -81,6 +81,8 @@
 │   │   ├── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
 │   │   ├── activityContent.ts # 客户手册 300 张卡＋模组一 20 支脚本的原文（脚本产出，勿手改；Keep 规格 K03）
 │   │   ├── activityMedia.ts # 示范片清单 17 支：网址、封面、片长、sha256（脚本产出，勿手改；Keep 规格 K05）
+│   │   ├── interimPlan.ts # 暂行题量（使用者 2026-09-29）：每个被标记的维度只列一份（星号工具）、全部必做；选做／加测／补充问卷先不出，只套在 `GET /api/t2/plan`
+│   │   ├── trainingGate.ts # 「线上干预」自己的收费站（2026-09-29）：哪几支算线上干预、`TRAINING_PRICE_FEN`（现在只能 0＝免费）
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）、没有工具的维度怎么讲（6 岁以上认知／语言／动作用客户固定句，v2.1 S05）
 │   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
 │   │   ├── weeklyCopy.ts  # 每周活动画面的句子：「因为……所以练……」、年龄段、准备中（#60）
@@ -253,13 +255,24 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 
 > T2 入口的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
 > 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量，诊断方向会改题量。
-> 仍要登入。`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）—— 交卷的两支（#57）就在后面，
-> 片库与单支活动（Keep K09，处理函式在 `src/t2/libraryRoutes.ts`，`server.ts` 只注册）也在后面。
+> 仍要登入。`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）—— 交卷的两支（#57）、报告（findings）就在后面。
+> **线上干预那几支例外**（2026-09-29，使用者：线上干预跟报告分开，从报告转过去「再收一个收费站，但目前先不要收任何钱」）：
+> 周活动、片库、单支活动（Keep K09，`src/t2/libraryRoutes.ts`）、打卡与提醒走自己的一站 `denyIfTrainingLocked`
+> —— 要登入、**不看 T2 买了没**、`TRAINING_PRICE_FEN` 现在只能 0（设别的程序起不来：线上干预的订单与权益还没做）。
+> 哪几支算线上干预看第一段路径（`src/t2/trainingGate.ts` 的 `isTrainingPath`）；`test/t2TrainingGate.test.ts`
+> 把 `/api/t2` 底下每一支路由点名归类，新加一支没归类就红 —— T2 的端点认错成线上干预，就是没付钱也拿得到深度评估。
+> 画面上「线上干预」那一页也不再吃 T2 的锁（`TrainingPage` 没有 `locked`），挡得住的只有「还没有报告」。
+>
+> T2 的题量**暂行规则**（使用者 2026-09-29：「补测与加测先隐藏，之后给每维度每年龄一个表单」）：`GET /api/t2/plan`
+> 回的是 `singleFormPlan(planT2(...))`（`src/t2/interimPlan.ts`）—— 每个被 T1 标记（红或黄）的维度只列那一支星号工具、
+> 全部必做；选做、之后可能加测、补充问卷、诊断方向多加的都不出（诊断方向只剩报告里维度的先后）。回应带 `singleForm: true`，
+> 入口据此不说「选了会重新计算题量」。`planT2` 本身与它逐格对规格的测试一行没动；表来了照新表改路由表并把
+> `SINGLE_FORM_PER_DIMENSION` 关掉。报告判定不受影响（黄灯那一份没做照旧是「没做」）。护栏：`test/t2InterimPlan.test.ts`（窮举月龄×诊断×T1）。
 > ⚠️ `t2_intake` 表由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立、`t2_tool_results` 表由
 > `deploy/migrations/2026-09-12-t2-tool-results.sql` 建立，**都必须先于新版程式码部署**。
 
 > 打卡与提醒（Keep 票 4，K06、K07、K10；票 7 加 `.ics` 连结）：七支都在 `src/t2/practiceRoutes.ts`，`server.ts` 只把 Router 挂在
-> `tier2Only` 上、T2 闸门之后（**不在** `T2_OPEN_PATHS`：未付费 403 `LOCKED`、未登入 401、B 是 404）。
+> `tier2Only` 上、线上干预的收费站之后（2026-09-29 起不看 T2：现在免费；未登入 401、B 是 404）。
 > 身分取自 token，body／query 里的 `userId` 不采信。心情与进步**现在只记录**，配对不看（规格 §9 第 6 题）；
 > 统计（x/4、连续天数、完成率）在 `src/t2/practiceStats.ts`，时区与周界照 `weeks.ts`。
 > ⚠️ `progress` 存的是脚本「怎么看出有进步」的**第几条**：后台改了那几条的顺序或删一条，旧打卡会对错条。
@@ -270,10 +283,10 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > `.ics` 的短时效连结（Keep 票 7，`src/t2/icsLink.ts`）：AES-256-GCM 加密 `{使用者 id, 到期}`，钥匙由
 > `SESSION_SECRET` 以 HMAC 导出（另一个用途字串，与通行证分开）——同时是签章（改一个位元就解不开）与不透明
 > （网址里看不出是谁，同一位家长签两次也不一样）。只有时效（10 分钟），不是一次性。**只开 `.ics` 这一支**：
-> 闸门（`server.ts` 的 `t2IcsRequestUserId`）只在路径恰为 `/practice-prefs.ics` 时从连结认人，照样检查付费
-> （连结上的家长没买 403）；别的端点带 `?t=` 不算登入。`SESSION_SECRET` 换了旧连结全部作废。
+> 闸门（`server.ts` 的 `t2IcsRequestUserId`）只在路径恰为 `/practice-prefs.ics` 时从连结认人（连结上的帐号不在 401，
+> 不退回 Bearer）；别的端点带 `?t=` 不算登入。`SESSION_SECRET` 换了旧连结全部作废。
 > 护栏：`test/t2IcsLink.test.ts`、`test/t2IcsLink.http.test.ts`（Bearer 可、连结可、过期／窜改 401、别人的连结
-> 拿不到自己的、未付费 403、只开这一支）、`test/t2PracticeProjectB.http.test.ts`（B 是 404）。
+> 拿不到自己的、连结上是谁就拿谁的、只开这一支）、`test/t2PracticeProjectB.http.test.ts`（B 是 404）。
 
 > B→A 交接（ADR-0009，规格 `docs/specs/b-to-a-handoff.md`）：**资料库不合并**。B 的家长在即时报告上按那张卡，
 > B 发一个交接码（**不过期、可重复用**，使用者 2026-09-28：「只要登入 B 的就不用限制时间」；B 帐号删掉就失效），
@@ -349,6 +362,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `HANDOFF_SOURCE_ORIGIN` | 只在专案 A：B 的内部网址（`http://127.0.0.1:5001`），A 从这里兑换、不经公网。设了密钥就必填 | 否 |
 | `ALI_SMS_INVITE_TEMPLATE_CODE` | 只在专案 B：后台 T2 邀请简讯的范本代码（推广类，要另外在阿里云送审）；金钥与签名与登入共用。范本里网址写死、只有交接码是变数 `${code}`（例见 `docs/specs/b-to-a-handoff.md`）。没设时后台的发送按钮不能按 | 否 |
 | `HANDOFF_CONSENT_VERSION` | 只在专案 B：按钮下那行同意文字的版本（预设 `handoff-consent-v1`），记在每一个交接码与转入纪录上；改了同意文字就换 | 否 |
+| `TRAINING_PRICE_FEN` | 「线上干预」那一站的价钱（分）。**现在只能不设或 0**（免费、直接通过）；其他值程序起不来 —— 线上干预的订单与权益还没做（`src/t2/trainingGate.ts`） | 否 |
 | `SMS_IP_DAILY_MAX` | 同一来源每日索取上限（预设 50）。按号码算的上限（10）挡不住换号码，这是按来源算的那一半；来源是收敛过的键（IPv6 截到 /64）。**设成 0 即停止发送**，遭滥用时最快的一道闸门 | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

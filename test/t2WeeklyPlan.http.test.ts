@@ -320,11 +320,9 @@ describe('GET /api/t2/weekly-plan', () => {
     expect(weeklyTable).toHaveLength(0);
   });
 
-  it('無 t2 權益 → 403 LOCKED，零筆', async () => {
+  it('沒買 T2 也不擋（線上干預 2026-09-29 起是自己一站、現在免費）', async () => {
     const resp = await client.get(`${URL}?week=${WEEK}`, bearer(LOCKED));
-    expect(resp.status).toBe(403);
-    expect((await resp.json()).code).toBe('LOCKED');
-    expect(weeklyTable).toHaveLength(0);
+    expect(resp.status).not.toBe(403);
   });
 
   it('未登入 → 401', async () => {

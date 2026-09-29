@@ -1581,12 +1581,14 @@ export default function App() {
                 </LazyBoundary>
               </div>
             ) : currentView === 'training' && PRODUCT.features.tier2And3 ? (
-              /* 线上干预（2026-09-28 起從導覽列開，不在報告裡）。沒解鎖時不擋路由：頁面自己說要先解鎖 */
+              /*
+                线上干预（2026-09-28 起從導覽列開，不在報告裡）。它是報告之後的另一站（src/t2/trainingGate.ts，
+                2026-09-29：現在免費、直接通過），不看 T2 買了沒；沒有報告時頁面自己說要先做什麼。
+              */
               <div className="animate-fade-in">
                 <LazyBoundary>
                   <TrainingPage
                     childName={child?.name}
-                    locked={isRouteBlocked}
                     onBookService={type => goToExpertBooking(type)}
                     onGoToT2={goToT2Entrance}
                   />

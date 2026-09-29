@@ -14,6 +14,11 @@ interface PlanResponse extends T2Plan {
   t1Flags: Record<DimensionCode, T1Flag>;
   diagnosisDirection: DiagnosisDirection | null;
   entrance: EntranceState;
+  /**
+   * 暫行規則（`src/t2/interimPlan.ts`，使用者 2026-09-29）：每個被標記的維度只列一份、全部必做。
+   * 這時候診斷方向不會改題量（只影響報告裡維度的先後），選項旁邊就不說「会重新计算题量」。
+   */
+  singleForm?: boolean;
 }
 
 interface T2EntranceProps {
@@ -211,7 +216,7 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
       <div className="rounded-xl border border-brand-stone/60 bg-brand-cream/30 p-3 space-y-2">
         <label htmlFor="t2-diagnosis" className="text-[11px] font-bold text-brand-charcoal/80 block">
           {DIAGNOSIS_QUESTION}
-          <span className="font-medium text-brand-charcoal/50">（可不填；选了会重新计算题量）</span>
+          <span className="font-medium text-brand-charcoal/50">{plan.singleForm ? '（可不填）' : '（可不填；选了会重新计算题量）'}</span>
         </label>
         <div className="relative max-w-xs">
           <select

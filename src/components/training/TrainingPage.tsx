@@ -5,8 +5,11 @@
  * 換的只是位置：導覽列「线上干预」→ 這一頁。報告第六段改成一行連結過來。
  *
  * 這一頁自己讀最新的報告快照（`GET /api/t2/findings/latest`）—— 評估結果、第幾週、換著玩都要它。
- * 還沒生成報告（404）、還沒解鎖（403 或 App 已知道是 locked）時，說清楚要先做什麼，並帶到 T2 入口
+ * 還沒生成報告（404）、還沒解鎖深度評估（報告在 T2 閘門後面，403）時，說清楚要先做什麼，並帶到 T2 入口
  * （與計劃頁「重新评估」同一個出口：即時 T1 報告、捲到 T2 入口那張卡）。
+ *
+ * 線上干預本身是另一站（`src/t2/trainingGate.ts`，使用者 2026-09-29：從報告轉過來再收一次，現在免費、直接通過），
+ * 所以這一頁不看 T2 買了沒 —— App 不再把 T2 的鎖傳進來；擋得住的只有「還沒有報告」。
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -18,8 +21,6 @@ import TrainingSection from './TrainingSection';
 
 export interface TrainingPageProps {
   childName?: string;
-  /** App 已經知道 T2 沒解鎖（`t2Access === 'locked'`）：不必打 API，直接說要先解鎖。 */
-  locked: boolean;
   onBookService: (type: ServiceType) => void;
   /** 去 T2 入口（即時 T1 報告並捲到那張卡）。沒報告、沒解鎖、計劃頁「重新评估」都走它。 */
   onGoToT2: () => void;
@@ -27,16 +28,12 @@ export interface TrainingPageProps {
 
 type Status = 'loading' | 'ready' | 'none' | 'locked' | 'error';
 
-export default function TrainingPage({ childName, locked, onBookService, onGoToT2 }: TrainingPageProps) {
-  const [status, setStatus] = useState<Status>(locked ? 'locked' : 'loading');
+export default function TrainingPage({ childName, onBookService, onGoToT2 }: TrainingPageProps) {
+  const [status, setStatus] = useState<Status>('loading');
   const [findings, setFindings] = useState<T2Findings | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (locked) {
-      setStatus('locked');
-      return;
-    }
     let cancelled = false;
     setStatus('loading');
     (async () => {
@@ -57,7 +54,7 @@ export default function TrainingPage({ childName, locked, onBookService, onGoToT
       }
     })();
     return () => { cancelled = true; };
-  }, [locked, attempt]);
+  }, [attempt]);
 
   const retry = useCallback(() => setAttempt(n => n + 1), []);
 

@@ -531,7 +531,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
    */
   const t2Slot = t2 && !historicalRecord ? (
     // scroll-margin：頂上有固定的導覽列，捲到 start 時卡片標題會被它蓋住
-    <div ref={t2SlotRef} style={{ scrollMarginTop: 128 }}>
+    // 頁首在手機是三列（約 169px）、平板兩列（約 127px）、電腦一列（約 73px），捲到的位置要讓開它。
+    <div ref={t2SlotRef} className="scroll-mt-44 lg:scroll-mt-24">
       <T2Entrance
         access={t2.access}
         priceFen={t2.priceFen}

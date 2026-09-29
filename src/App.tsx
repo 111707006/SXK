@@ -816,7 +816,11 @@ export default function App() {
       
       {/* Top Professional Master Header Navbar */}
       <header className="sticky top-0 z-40 w-full bg-white border-b border-brand-stone/60 shadow-sm backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        {/*
+          平板（640–1023px）也上下兩列：標題一列、導覽＋孩子一列。原本 sm 就並排，820px 寬時標題擠成兩行、
+          孩子的選單掉到導覽底下（2026-09-29 三種寬度截圖時看到的）。
+        */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 bg-brand-moss rounded-xl flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-moss/10 scale-105">
               <BrandMark />

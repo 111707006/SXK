@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { planT2, notScreened, routeFor } from '../src/t2/routing';
+import { DIS_ROUTES, planT2, notScreened, routeFor } from '../src/t2/routing';
 import { singleFormPlan } from '../src/t2/interimPlan';
-import { DIAGNOSIS_OPTIONS } from '../src/t2/diagnosisOptions';
 import { DIMENSION_CODES, type DimensionCode, type T1Flag } from '../src/t2/types';
 
 /**
@@ -18,7 +17,8 @@ const FLAG_SETS = [
   flagsOf(() => 1),
   flagsOf((_d, i) => ([0, 1, 2] as const)[i % 3]),
 ];
-const DIAGNOSES = [null, ...DIAGNOSIS_OPTIONS.map(o => o.value)];
+// 畫面上的診斷方向 2026-09-29 拿掉了，規則引擎仍收這個參數（客戶的表）；照樣窮舉，證明暫行規則不管它。
+const DIAGNOSES = [null, ...(Object.keys(DIS_ROUTES) as Array<keyof typeof DIS_ROUTES>)];
 
 describe('每個被標記的維度一份、全部必做', () => {
   it('窮舉月齡 × 診斷方向 × T1 標記：性質都成立', () => {

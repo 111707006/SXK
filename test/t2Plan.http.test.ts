@@ -4,13 +4,12 @@ import { bearer } from './helpers/session';
 import { planT2 } from '../src/t2/routing';
 import { entranceState, t1FlagsFromScores } from '../src/t2/entrance';
 import { singleFormPlan } from '../src/t2/interimPlan';
-import type { DiagnosisDirection } from '../src/t2/types';
 
 /**
- * `GET /api/t2/plan` 與 `PUT /api/t2/diagnosis`（票 #56，規格 §9.2）。
+ * `GET /api/t2/plan`（票 #56，規格 §9.2）；`PUT /api/t2/diagnosis` 2026-09-29 拿掉了（最後一段證明它不在）。
  *
  * 寫法比照 `t2Gate.http.test.ts`：真的對 Express 發 HTTP 請求，資料層以替身供應。
- * 兩支都在 T2 閘門的白名單上 —— 付費牆要在**付費前**顯示題量，診斷方向會改題量，
+ * plan 在 T2 閘門的白名單上 —— 付費牆要在**付費前**顯示題量，
  * 所以未解鎖的家長也要打得到。但**未登入**仍是 401：plan 是依這位家長的孩子與篩查算的。
  *
  * 【暫行規則】2026-09-29 起回給畫面的是 `singleFormPlan(planT2(...))`：每個被標記的維度只列一份、全部必做，
@@ -64,9 +63,10 @@ const userData: Record<number, { child: any; completedScores: any[] }> = {
   [NO_BIRTHDATE]: { child: { name: '小舊', ageMonth: 48, gender: 'girl' }, completedScores: SCORES_48 },
 };
 
-/** 替身的 t2_intake：`saveT2Diagnosis` 寫進來、`getT2Diagnosis` 讀出去。 */
-const intake = new Map<number, DiagnosisDirection | null>();
-const saveCalls: Array<[number, DiagnosisDirection | null]> = [];
+/**
+ * 診斷方向 2026-09-29 前後端一起拿掉：`t2_intake` 不再讀寫。替身留著這兩支，只為了證明**一次都沒被叫到**。
+ */
+const intakeCalls: string[] = [];
 
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
@@ -77,8 +77,8 @@ vi.mock('../src/db/mysql', () => ({
   getUserDataByDevice: async () => null,
   parseUserDataRow: (row: any) => (row ? { child: row.child, completedScores: row.completedScores, orders: [], reportHistory: [] } : null),
   saveUserData: async () => {},
-  getT2Diagnosis: async (id: number) => intake.get(id) ?? null,
-  saveT2Diagnosis: async (id: number, d: DiagnosisDirection | null) => { saveCalls.push([id, d]); intake.set(id, d); },
+  getT2Diagnosis: async () => { intakeCalls.push('get'); return 'asd'; },
+  saveT2Diagnosis: async () => { intakeCalls.push('save'); },
   createPayment: async () => 1,
   findPaymentByOutTradeNo: async () => null,
   markPaymentSuccess: async () => false,
@@ -121,11 +121,11 @@ describe('GET /api/t2/plan', () => {
     expect(body.noTool).toEqual(expected.noTool);
     expect(body.estimatedItems).toEqual(expected.estimatedItems);
     expect(body.functionOrder).toBeNull();
-    // 前端要的三樣附帶資料
+    // 前端要的兩樣附帶資料；診斷方向（與暫行規則的 singleForm 提示）已經拿掉
     expect(body.t1Flags).toEqual(flags);
-    expect(body.diagnosisDirection).toBeNull();
     expect(body.entrance).toBe(entranceState(expected, flags));
-    expect(body.singleForm).toBe(true);
+    expect(body).not.toHaveProperty('diagnosisDirection');
+    expect(body).not.toHaveProperty('singleForm');
   });
 
   it('§4.4 的固定輸入：每個被標記的維度一份、全部必做（原本的選做 sxk-spa 也列必做）；沒有選做、加測、補充問卷', async () => {
@@ -157,29 +157,16 @@ describe('GET /api/t2/plan', () => {
     expect((await resp.json()).code).toBe('UNAUTHENTICATED');
   });
 
-  it('帶診斷方向查詢 → 暫行規則下不多加工具（題量不變），只帶回功能處理順序', async () => {
-    const resp = await client.get('/api/t2/plan?diagnosis=asd', bearer(UNLOCKED));
-    expect(resp.status).toBe(200);
-    const body = await resp.json();
-    const flags = t1FlagsFromScores(SCORES_48 as any);
-    // 完整規則下自閉症會加 sxk-asb、sxk-asr、sxk-dev……；暫行規則每個被標記的維度只留那一份
-    expect(planT2(flags, 48, 'asd').required.map(i => i.toolId)).toEqual(expect.arrayContaining(['sxk-asb', 'sxk-asr']));
-    expect(body.required.map((i: any) => i.toolId)).toEqual(['sxk-lang', 'sxk-ab', 'sxk-spa']);
-    expect(body.functionOrder).toEqual(planT2(flags, 48, 'asd').functionOrder);
-    expect(body.diagnosisDirection).toBe('asd');
-  });
-
-  /** 查詢字串上帶了、但不是十個代號之一 → 400，不能安靜地當成沒填。 */
-  it('診斷方向不認得 → 400', async () => {
-    const resp = await client.get('/api/t2/plan?diagnosis=autism', bearer(UNLOCKED));
-    expect(resp.status).toBe(400);
-    expect((await resp.json()).code).toBe('DIAGNOSIS_INVALID');
-  });
-
-  it('查詢字串是空字串 → 視同沒填（中控台「未定」）', async () => {
-    const resp = await client.get('/api/t2/plan?diagnosis=', bearer(UNLOCKED));
-    expect(resp.status).toBe(200);
-    expect((await resp.json()).diagnosisDirection).toBeNull();
+  /** 診斷方向拿掉了：舊版前端若還帶著 `?diagnosis=`，一律不看（不 400、不改題量、不改順序）。 */
+  it('帶 ?diagnosis= 也不看', async () => {
+    const plain = await (await client.get('/api/t2/plan', bearer(UNLOCKED))).json();
+    for (const q of ['asd', 'autism', '']) {
+      const resp = await client.get(`/api/t2/plan?diagnosis=${q}`, bearer(UNLOCKED));
+      expect(resp.status, q).toBe(200);
+      const body = await resp.json();
+      expect(body.required, q).toEqual(plain.required);
+      expect(body.functionOrder, q).toBeNull();
+    }
   });
 
   /** 80 個月、只有 LANG 紅：LANG no_tool、什麼都不用答 → 入口不顯示、導向專家。 */
@@ -204,60 +191,18 @@ describe('GET /api/t2/plan', () => {
   });
 });
 
-describe('PUT /api/t2/diagnosis', () => {
-  it('未登入 → 401', async () => {
-    const resp = await put('/api/t2/diagnosis', { diagnosis: 'asd' });
-    expect(resp.status).toBe(401);
+describe('診斷方向（2026-09-29 前後端一起拿掉）', () => {
+  // `/api/t2` 的付費閘門在路由之前：沒登入 401、沒買 403，與任何一條不存在的 `/api/t2/…` 一樣；
+  // 登入又買了的家長才走得到「沒有這條路」—— 404。它不再是付費前開放的路徑。
+  it('PUT /api/t2/diagnosis 不存在了：登入又買了的家長 404；沒買的 403（不再是付費前開放的路徑）', async () => {
+    expect((await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(UNLOCKED))).status).toBe(404);
+    expect((await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(LOCKED))).status).toBe(403);
   });
 
-  it('未解鎖也能存 —— 付費前就要能改題量', async () => {
-    const resp = await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(LOCKED));
-    expect(resp.status).toBe(200);
-    expect((await resp.json()).diagnosisDirection).toBe('asd');
-    expect(saveCalls).toContainEqual([LOCKED, 'asd']);
-  });
-
-  /** 存了之後，沒帶查詢字串的 plan 用存的那一個 —— 之後生成報告要帶（#59）。 */
-  it('存了之後 plan 用存的那一個', async () => {
+  it('t2_intake 一次都沒被讀、沒被寫（資料庫裡就算有舊值也不影響題量）', async () => {
+    intakeCalls.length = 0;
+    await client.get('/api/t2/plan', bearer(UNLOCKED));
     await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(UNLOCKED));
-    const body = await (await client.get('/api/t2/plan', bearer(UNLOCKED))).json();
-    expect(body.diagnosisDirection).toBe('asd');
-    // 暫行規則下診斷方向不改題量；用得到它的是報告的先後（功能處理順序）
-    expect(body.functionOrder).toEqual(planT2(t1FlagsFromScores(SCORES_48 as any), 48, 'asd').functionOrder);
-  });
-
-  /** 查詢字串蓋過存的：畫面上家長換選項時即時重算，還沒存也算得出來。 */
-  it('查詢字串蓋過存的那一個', async () => {
-    await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(UNLOCKED));
-    const body = await (await client.get('/api/t2/plan?diagnosis=cp', bearer(UNLOCKED))).json();
-    expect(body.diagnosisDirection).toBe('cp');
-    const flags = t1FlagsFromScores(SCORES_48 as any);
-    expect(planT2(flags, 48, 'cp').functionOrder).not.toEqual(planT2(flags, 48, 'asd').functionOrder);
-    expect(body.functionOrder).toEqual(planT2(flags, 48, 'cp').functionOrder);
-  });
-
-  it('清掉：null 與空字串都存成 null', async () => {
-    await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(UNLOCKED));
-    const resp = await put('/api/t2/diagnosis', { diagnosis: null }, bearer(UNLOCKED));
-    expect(resp.status).toBe(200);
-    expect((await resp.json()).diagnosisDirection).toBeNull();
-    expect(intake.get(UNLOCKED)).toBeNull();
-
-    await put('/api/t2/diagnosis', { diagnosis: 'asd' }, bearer(UNLOCKED));
-    await put('/api/t2/diagnosis', { diagnosis: '' }, bearer(UNLOCKED));
-    expect(intake.get(UNLOCKED)).toBeNull();
-
-    const body = await (await client.get('/api/t2/plan', bearer(UNLOCKED))).json();
-    expect(body.diagnosisDirection).toBeNull();
-    expect(body.functionOrder).toBeNull();
-    expect(body.required.map((i: any) => i.toolId)).toEqual(['sxk-lang', 'sxk-ab', 'sxk-spa']);
-  });
-
-  it('不認得的值 → 400，沒有寫進去', async () => {
-    const before = saveCalls.length;
-    const resp = await put('/api/t2/diagnosis', { diagnosis: 'autism' }, bearer(UNLOCKED));
-    expect(resp.status).toBe(400);
-    expect((await resp.json()).code).toBe('DIAGNOSIS_INVALID');
-    expect(saveCalls.length).toBe(before);
+    expect(intakeCalls).toEqual([]);
   });
 });

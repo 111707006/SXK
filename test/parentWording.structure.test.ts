@@ -38,10 +38,6 @@ import { BRAIN_NODES, REHAB_SUGGESTIONS } from '../src/dimensionContent';
  * - `src/dimensionContent.ts` 整檔：`DIMENSION_DETAILS` 裡是量表的正式名稱
  *   （「物理治疗 PT」「CRRC 语言发育迟缓检查法」），而且沒有任何地方渲染它。
  *   真的會進報告的兩張表（`REHAB_SUGGESTIONS`、`BRAIN_NODES`）改成直接 import 檢查值。
- * - `src/t2/diagnosisOptions.ts`（票 #56）：診斷方向的十個選項（「脑瘫」「自闭症」……）與問句
- *   「医生是否已告知诊断方向」。它們是**醫師講出口的名稱**，家長從裡面挑出醫師講過的那一個；
- *   主語是醫師，不是系統在說孩子。改寫成別的字，家長反而對不上醫師講的。這些字集中在那一檔，
- *   畫面元件只 import 不手抄 —— `test/t2EntranceCopy.structure.test.ts` 釘住。
  * - 客戶的活動內容（手冊的「练什么」「需要什么」「小提醒」、模組一腳本；`src/t2/activityContent.ts`
  *   由腳本產出、活動庫裡存的是同一份）：Keep 規格 §7「客戶的內容照原文」，要不要改是客戶的決定
  *  （§9 第 3 題）。其中含《用语对照表》禁字的句子多數不是在講孩子（「障碍」是障礙物），另有一些

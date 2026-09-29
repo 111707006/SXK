@@ -15,7 +15,7 @@
 /**
  * 線上干預的端點（相對 `/api/t2`）看第一段。與 T2 閘門的分流只看這一份：
  * 認錯方向是安全的 —— 沒認出來的路徑落回 T2 閘門（更嚴）；而這幾段與 T2 自己的路徑
- * （`plan`、`diagnosis`、`tool-results`、`findings`）沒有交集，T2 的端點不會被當成線上干預放出去。
+ * （`plan`、`tool-results`、`findings`）沒有交集，T2 的端點不會被當成線上干預放出去。
  * 比對照 Express 的路由規則：不分大小寫、容許結尾斜線（同 `server.ts` 的 `isT2IcsPath`）。
  */
 const TRAINING_SEGMENTS: ReadonlySet<string> = new Set([

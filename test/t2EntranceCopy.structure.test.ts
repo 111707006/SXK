@@ -1,19 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { DIAGNOSIS_OPTIONS, DIAGNOSIS_QUESTION, NO_DIAGNOSIS_LABEL } from '../src/t2/diagnosisOptions';
 
 /**
  * T2 入口畫面的結構護欄（票 #56）。專案沒有 jsdom，畫面上出現什麼字只能讀原始碼。
  *
- * 釘三件事：
- * 1. 診斷方向的十個名稱與問句**只存在於** `src/t2/diagnosisOptions.ts`，元件只 import。
- *    那一檔刻意不進家長用字掃描（理由在它檔頭）；元件進。少了這一條，下一個人在元件裡
- *    順手寫一個「自闭症」，掃描會抓到 —— 但把整個元件加進豁免清單也就一行的事，這一條
- *    讓那一行變成看得見的動作。
- * 2. 沒填診斷方向不是缺漏（§4.3）：畫面上沒有「未提供」「未填写」「缺少」這種字樣，
- *    第十一個選項就是「未告知」。
- * 3. `no_tool` 的文案是規格 §4.5 的原話，而且入口掛在報告本體的雷達圖之後、語言專項之前。
+ * 釘兩件事：
+ * 1. 診斷方向（「医生是否已告知诊断方向」十選一）2026-09-29 依使用者要求前後端一起拿掉：
+ *    入口不再問、不再打 `/api/t2/diagnosis`、伺服器也沒有那一支，付費前開放的只剩 `/plan`。
+ * 2. `no_tool` 的文案是規格 §4.5 的原話，而且入口掛在報告本體的雷達圖之後、語言專項之前。
  *    6 歲以上的認知、語言、動作換成客戶的固定句（v2.1 S05）。兩句都在 `src/t2/entrance.ts`（固定句本身在
  *    `report/sentences.ts`，與報告同一個常數），元件只走 `noToolNotes`／`expertOnlyCopy`、不手抄。
  */
@@ -32,31 +27,20 @@ function stripComments(source: string): string {
 const entrance = stripComments(read('src/components/T2Entrance.tsx'));
 const entranceCopy = stripComments(read('src/t2/entrance.ts'));
 
-describe('診斷方向的字只在 diagnosisOptions.ts', () => {
-  it('元件 import 那一檔', () => {
-    expect(entrance).toMatch(/from '\.\.\/t2\/diagnosisOptions'/);
-    for (const name of ['DIAGNOSIS_OPTIONS', 'DIAGNOSIS_QUESTION', 'NO_DIAGNOSIS_LABEL']) {
-      expect(entrance, name).toContain(name);
+describe('診斷方向拿掉了（2026-09-29）', () => {
+  it('入口不再問：沒有那一格、不打 /api/t2/diagnosis、讀 plan 不帶 ?diagnosis=', () => {
+    expect(entrance).not.toContain('t2-diagnosis');
+    expect(entrance).not.toContain('<select');
+    expect(entrance).not.toContain('/api/t2/diagnosis');
+    expect(entrance).not.toContain('?diagnosis=');
+    expect(entrance).not.toMatch(/diagnosis/i);
+    for (const word of ['医生是否已告知诊断方向', '未告知', '自闭症', '脑瘫']) {
+      expect(entrance, word).not.toContain(word);
     }
   });
 
-  it('元件裡沒有手抄任何一個診斷名，也沒有手抄問句', () => {
-    for (const o of DIAGNOSIS_OPTIONS) {
-      expect(entrance, `「${o.label}」不該出現在元件裡`).not.toContain(o.label);
-    }
-    expect(entrance).not.toContain(DIAGNOSIS_QUESTION);
-    expect(entrance).not.toContain(NO_DIAGNOSIS_LABEL);
-  });
-});
-
-describe('沒填不是缺漏（§4.3）', () => {
-  it.each(['未提供', '未填写', '未填寫', '缺少', '尚未选择', '请选择'])('畫面上沒有「%s」', word => {
-    expect(entrance).not.toContain(word);
-  });
-
-  it('第十一個選項是「未告知」，它是 select 的空值那一項', () => {
-    expect(NO_DIAGNOSIS_LABEL).toBe('未告知');
-    expect(entrance).toMatch(/<option value="">\{NO_DIAGNOSIS_LABEL\}<\/option>/);
+  it('選項那一檔也刪了', () => {
+    expect(fs.existsSync(path.join(ROOT, 'src/t2/diagnosisOptions.ts'))).toBe(false);
   });
 });
 
@@ -97,16 +81,18 @@ describe('no_tool 的文案與位置', () => {
 });
 
 describe('伺服器那一側', () => {
-  it('plan 與 diagnosis 兩條路徑在 T2 閘門的白名單上，而且只有這兩條', () => {
+  it('付費前開放的只剩 plan（diagnosis 那一條拿掉了）', () => {
     const server = stripComments(read('server.ts'));
-    expect(server).toMatch(/const T2_OPEN_PATHS = new Set\(\['\/plan', '\/diagnosis'\]\);/);
+    expect(server).toMatch(/const T2_OPEN_PATHS = new Set\(\['\/plan'\]\);/);
   });
 
-  it('兩支端點都掛在 tier2Only 上（B 模式不存在）', () => {
+  it('plan 掛在 tier2Only 上（B 模式不存在）；沒有 /api/t2/diagnosis、不讀 ?diagnosis=、不讀寫 t2_intake', () => {
     const server = stripComments(read('server.ts'));
     expect(server).toContain("tier2Only.get('/api/t2/plan'");
-    expect(server).toContain("tier2Only.put('/api/t2/diagnosis'");
     expect(server).not.toContain("app.get('/api/t2/plan'");
-    expect(server).not.toContain("app.put('/api/t2/diagnosis'");
+    expect(server).not.toContain("'/api/t2/diagnosis'");
+    expect(server).not.toContain('req.query.diagnosis');
+    expect(server).not.toMatch(/getT2Diagnosis|saveT2Diagnosis/);
+    expect(stripComments(read('src/db/mysql.ts'))).not.toMatch(/t2_intake/);
   });
 });

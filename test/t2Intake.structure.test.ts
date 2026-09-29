@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { DIAGNOSIS_OPTIONS } from '../src/t2/diagnosisOptions';
 
 /**
  * `t2_intake` 的形狀 —— schema、遷移與型別必須說同一件事（票 #56）。
+ *
+ * ⚠️ 2026-09-29 起診斷方向前後端都拿掉了，程式不再讀寫這張表；表與舊資料留在資料庫裡不動
+ * （刪表是動資料，不在這次的範圍）。這裡守的只剩「schema 與遷移還是同一張表」，全新的庫與既有的庫長得一樣。
  *
  * 寫法比照 `unlockScope.structure.test.ts`：測試連不到資料庫，證得了的是**三份東西有沒有
  * 講同一件事**。全新的庫從 `schema.sql` 建，既有的庫靠 `migrations/` 追上去；ENUM 的十個值
@@ -26,7 +28,9 @@ function tableBlock(sql: string, table: string): string {
   return sql.slice(start, end);
 }
 
-const ENUM_LITERAL = `ENUM(${DIAGNOSIS_OPTIONS.map(o => `'${o.value}'`).join(',')})`;
+/** 規格 §4.3 的十個代號（畫面上的選項 2026-09-29 刪了，表裡的 ENUM 照舊）。 */
+const DIAGNOSIS_CODES = ['cp', 'dd', 'id', 'ld', 'adhd', 'lang', 'emo', 'psych', 'tic', 'asd'];
+const ENUM_LITERAL = `ENUM(${DIAGNOSIS_CODES.map(c => `'${c}'`).join(',')})`;
 
 describe('t2_intake', () => {
   it('schema 與遷移的 CREATE TABLE 一字不差', () => {

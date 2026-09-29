@@ -1,8 +1,6 @@
 import mysql from 'mysql2/promise';
 import type { ServiceType } from '../utils/serviceTypes';
 import type { UnlockScope } from '../types';
-import type { DiagnosisDirection } from '../t2/types';
-import { isDiagnosisDirection } from '../t2/diagnosisOptions';
 
 let pool: mysql.Pool | null = null;
 
@@ -622,39 +620,8 @@ export async function hasT2Unlock(userId: number): Promise<boolean> {
 
 // ---- T2 intake（票 #56）----
 //
-// 家長這一輪 T2 的狀態，目前只有一個欄位：入口選的診斷方向（規格 §4.3）。一位家長一列、
-// 改了就覆蓋、沒有歷史 —— 歷史在 `t2_findings` 的快照裡（#59 生成報告時把它帶進
-// `T2Findings.diagnosisDirection`，寫下後不改）。不放進 `user_data`：那一列是前端整包同步的
-// （child／completed_scores／orders／report_history），T2 的東西混進去，每一次存檔都可能
-// 把它蓋掉。
-
-/**
- * 這位家長存的診斷方向；沒存過、或存的是「未告知」都回 `null`。
- * 資料庫裡若有一個程式碼認不得的值（ENUM 改過、手動改過），也回 `null` —— 不能讓一個壞值
- * 把整份 plan 弄成 500。
- */
-export async function getT2Diagnosis(userId: number): Promise<DiagnosisDirection | null> {
-  const p = getPool();
-  if (!p) return null;
-  const [rows] = await p.execute(
-    'SELECT diagnosis_direction FROM t2_intake WHERE user_id = ? LIMIT 1',
-    [userId]
-  );
-  const value = (rows as any[])[0]?.diagnosis_direction ?? null;
-  return isDiagnosisDirection(value) ? value : null;
-}
-
-/** 存（或清掉）診斷方向。一位家長一列，重複存只是覆蓋。 */
-export async function saveT2Diagnosis(userId: number, diagnosis: DiagnosisDirection | null): Promise<void> {
-  const p = getPool();
-  if (!p) throw new Error('MySQL not configured');
-  await p.execute(
-    `INSERT INTO t2_intake (user_id, diagnosis_direction)
-     VALUES (?, ?)
-     ON DUPLICATE KEY UPDATE diagnosis_direction = VALUES(diagnosis_direction)`,
-    [userId, diagnosis]
-  );
-}
+// 原本存入口選的診斷方向（`t2_intake`）。2026-09-29 依使用者要求診斷方向前後端一起拿掉，
+// 這裡不再讀寫；表與舊資料留在資料庫裡不動。
 
 // ---- Expert booking operations ----
 

@@ -3,13 +3,6 @@ import { planT2 } from '../src/t2/routing';
 import { DIMENSION_CODES } from '../src/t2/types';
 import type { DimensionCode, T1Flag } from '../src/t2/types';
 import {
-  DIAGNOSIS_OPTIONS,
-  DIAGNOSIS_QUESTION,
-  NO_DIAGNOSIS_LABEL,
-  isDiagnosisDirection,
-  readDiagnosisDirection,
-} from '../src/t2/diagnosisOptions';
-import {
   describePlan,
   describePlanItem,
   entranceState,
@@ -307,40 +300,3 @@ describe('describePlanItem：一支工具在清單上怎麼講', () => {
   });
 });
 
-describe('診斷方向的選項（§4.3 十選一）', () => {
-  it('恰好十個，值與 DiagnosisDirection 逐一對應，順序照規格', () => {
-    expect(DIAGNOSIS_OPTIONS.map(o => o.value)).toEqual([
-      'cp', 'dd', 'id', 'ld', 'adhd', 'lang', 'emo', 'psych', 'tic', 'asd',
-    ]);
-    expect(DIAGNOSIS_OPTIONS.map(o => o.label)).toEqual([
-      '脑瘫', '发展迟缓', '智力障碍', '学习障碍', '多动症', '语言障碍', '情绪障碍', '心理疾病', '抽动症', '自闭症',
-    ]);
-  });
-
-  it('問法是「醫師是否已告知」，不是「你覺得孩子有什麼問題」', () => {
-    expect(DIAGNOSIS_QUESTION).toBe('医生是否已告知诊断方向');
-    expect(NO_DIAGNOSIS_LABEL).toBe('未告知');
-  });
-
-  it('isDiagnosisDirection 只認十個代號', () => {
-    expect(isDiagnosisDirection('asd')).toBe(true);
-    expect(isDiagnosisDirection('自闭症')).toBe(false);
-    expect(isDiagnosisDirection('')).toBe(false);
-    expect(isDiagnosisDirection(null)).toBe(false);
-    expect(isDiagnosisDirection(3)).toBe(false);
-  });
-
-  /**
-   * API 進來的值：沒帶、`null`、空字串（中控台「未定」）都是「沒填」；
-   * 十個代號照收；其餘是錯（不能安靜地當成沒填 —— 家長選了自閉症、前端送錯了字，
-   * 題量會安靜地少掉六支）。
-   */
-  it('readDiagnosisDirection：沒填三種寫法都是 null，錯的值回 invalid', () => {
-    expect(readDiagnosisDirection(undefined)).toEqual({ ok: true, value: null });
-    expect(readDiagnosisDirection(null)).toEqual({ ok: true, value: null });
-    expect(readDiagnosisDirection('')).toEqual({ ok: true, value: null });
-    expect(readDiagnosisDirection('asd')).toEqual({ ok: true, value: 'asd' });
-    expect(readDiagnosisDirection('自闭症')).toEqual({ ok: false });
-    expect(readDiagnosisDirection(['asd'])).toEqual({ ok: false });
-  });
-});

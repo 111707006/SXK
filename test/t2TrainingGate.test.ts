@@ -25,8 +25,8 @@ const TRAINING_ROUTES = [
   '/api/t2/practice-prefs.ics',
   '/api/t2/practice-prefs/ics-link',
 ];
-/** T2 本身（付費前開放的兩支在 T2_OPEN_PATHS，其餘要買 T2）。 */
-const T2_ROUTES = ['/api/t2/plan', '/api/t2/diagnosis', '/api/t2/tool-results', '/api/t2/findings', '/api/t2/findings/latest'];
+/** T2 本身（付費前開放的 `/plan` 在 T2_OPEN_PATHS，其餘要買 T2；`/diagnosis` 2026-09-29 拿掉了）。 */
+const T2_ROUTES = ['/api/t2/plan', '/api/t2/tool-results', '/api/t2/findings', '/api/t2/findings/latest'];
 
 const rel = (route: string) => route.replace(/^\/api\/t2/, '').replace(':id', '123');
 

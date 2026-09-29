@@ -33,7 +33,7 @@
 │   │   ├── DimensionGrid.tsx        # 维度网格展示
 │   │   ├── AssessmentPanel.tsx      # 评估面板（只剩 T3；T2 五题占位在 #58 拿掉）
 │   │   ├── T1Screening.tsx          # T1筛查
-│   │   ├── T2Entrance.tsx           # T2 入口（题量、诊断方向、开始作答；挂在即时 T1 报告上，#56）
+│   │   ├── T2Entrance.tsx           # T2 入口（题量、开始作答；挂在即时 T1 报告上，#56）；诊断方向那一格 2026-09-29 拿掉
 │   │   ├── T2Assessment.tsx         # T2 逐支作答：工具清单（已完成／加测提示）＋ 作答表单（#58）；底下「生成报告／查看上次的报告」（#61）
 │   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段只留一行连到「线上干预」页（2026-09-28 起线上干预不在报告里）、可摺叠作答回顾（#61）
 │   │   ├── training/                # 线上干预（Keep 式，Keep 规格 K11 起）：导览列「线上干预」那一页（2026-09-28 使用者：不放在报告里）＋盖在上面的计划页、详情、抽屉
@@ -95,8 +95,7 @@
 │   │   ├── practiceStats.ts # 打卡统计纯函式：本周次数、本周练过的计划活动 x/4、连续天数、本月天数、完成率（§8 暂采，未接配对）
 │   │   ├── ics.ts         # 提醒的 .ics：每周重复、TZID=Asia/Shanghai＋VTIMEZONE、CRLF、按位元组折行（RFC 5545）
 │   │   ├── icsLink.ts     # .ics 的短时效连结（Keep 票 7）：AES-256-GCM 加密 {使用者 id, 到期}，钥匙由 SESSION_SECRET 导出；10 分钟、不透明（伺服器专用）
-│   │   ├── practiceRoutes.ts # 打卡与提醒的七支端点（Express Router，server.ts 只挂上去；含记忆体模式退路；.ics 认 Bearer 或连结）
-│   │   └── diagnosisOptions.ts # 诊断方向十选一的名称与问句；刻意不进家长用字扫描（理由见档头）
+│   │   └── practiceRoutes.ts # 打卡与提醒的七支端点（Express Router，server.ts 只挂上去；含记忆体模式退路；.ics 认 Bearer 或连结）
 │   ├── db/
 │   │   ├── mysql.ts       # 连线池与家长端资料层
 │   │   ├── activities.ts  # 一列 activities → Activity（后台与家长端共用，只认受控词汇里的标签）
@@ -232,8 +231,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `/api/report-link` | POST | 取得该份报告的扫码连结与二维码 | `reportId`；`Authorization: Bearer <token>` |
 | `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**） | 无 |
 | `/api/expert-booking` | POST | 送出专家预约（四种服务共用） | `specialistId`, `parentName`, `parentPhone`；`serviceType` 选填 |
-| `/api/t2/plan` | GET | T2 题量预估：依这位家长的孩子与最新筛查算 `planT2()`，附 `t1Flags`／`diagnosisDirection`／`entrance` | `Authorization: Bearer <token>`；`diagnosis` (query) 选填，带了就盖过存的 |
-| `/api/t2/diagnosis` | PUT | 存入口选的诊断方向（十选一或 null）；#59 生成报告时读它 | `diagnosis`；`Authorization: Bearer <token>` |
+| `/api/t2/plan` | GET | T2 题量预估：依这位家长的孩子与最新筛查算 `planT2()`（套暂行规则），附 `t1Flags`／`entrance` | `Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | POST | 交一支工具的答案；**伺服器算分**（`scoreTool`），窗口外／缺答／多题／值域外 400 且不落表；每次交卷一笔不覆盖。回 `{id, createdAt, result, bands}` | `toolId`, `assessedAgeMonth`, `rater`, `pre`, `answers`；`Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | GET | 这位家长每支工具**最新且完整**的一笔，各附该支对它喂的维度的 band（加测提示用） | `Authorization: Bearer <token>` |
 | `/api/t2/weekly-plan` | GET | 这一周的四支活动（#60，一周一笔：没有就用最新快照配一份存起来）。Keep K08／§5.1 起另回 `alternates`（换着玩：维度 → 最多 5 支备选的完整活动，只放有备选的维度；**K08 之前存的旧周次不回这一栏**）与 `plan: {weekIndex, totalWeeks: 12, firstWeekStart}`（第 1 周＝同一个 `findings_id` 最早的一周）；报告生成之前、没存过的周次 400 `WEEK_OUT_OF_RANGE`，不补一列 | `Authorization: Bearer <token>`；`week` (query，`YYYY-MM-DD`) 选填 |
@@ -253,9 +251,13 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `/api/handoff/redeem` | POST | 专案 A：家长的浏览器带交接码来 → 向 B 兑换 → 以（未归属，手机号）找或建帐号 → A 还没有 T1 才带入 → 回与 `/api/auth/sms/verify` 同形状的登入结果＋`handoff: {imported, sourceName}`。B 说无效 410、B 连不上 502、没开 503 | `code` |
 | `/api/admin/activities/import` | POST | 活动批量汇入（v2.1 S25，格式见 v2.1 附录 C）：**逐列独立**，坏列整列不入库、其他列照写；只更新已有的活动（不新增）；`dryRun: true` 只验不写。回 `{imported, failed: [{row, id?, error}], warnings: [{row, field}]}`（列号从 1 起）。形状不对（非阵列、空的、超过 500 列、`dryRun` 非布林）整份 400；只有全域管理员（`requireGlobal`，不经 `withScope`） | `rows`, `dryRun`（选填）；`Authorization: Bearer <后台 token>` |
 
-> T2 入口的两支（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
-> 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量，诊断方向会改题量。
-> 仍要登入。`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）—— 交卷的两支（#57）、报告（findings）就在后面。
+> T2 入口的 `/api/t2/plan`（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的
+> 白名单上（`server.ts` 的 `T2_OPEN_PATHS`）：付费墙要在付费前显示题量。仍要登入。
+> **诊断方向**（「医生是否已告知诊断方向」十选一、`PUT /api/t2/diagnosis`、`?diagnosis=`）2026-09-29 依使用者要求
+> 前后端一起拿掉：入口不再问、题量与新生成的报告都不带它（`src/t2/diagnosisOptions.ts` 删了）。`t2_intake` 表与旧资料
+> 留在资料库里不动、不再读写；规则引擎 `planT2` 的第三个参数（客户的诊断方向表）也还在，只是没有人传。
+> 以前存下的报告快照若带着诊断方向，照存的样子读（报告里维度的先后）。护栏：`test/t2EntranceCopy.structure.test.ts`、`test/t2Plan.http.test.ts`。
+>`/api/t2/*` 底下其余路径预设都在闸门后面（403 `LOCKED`）—— 交卷的两支（#57）、报告（findings）就在后面。
 > **线上干预那几支例外**（2026-09-29，使用者：线上干预跟报告分开，从报告转过去「再收一个收费站，但目前先不要收任何钱」）：
 > 周活动、片库、单支活动（Keep K09，`src/t2/libraryRoutes.ts`）、打卡与提醒走自己的一站 `denyIfTrainingLocked`
 > —— 要登入、**不看 T2 买了没**、`TRAINING_PRICE_FEN` 现在只能 0（设别的程序起不来：线上干预的订单与权益还没做）。
@@ -265,10 +267,9 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 >
 > T2 的题量**暂行规则**（使用者 2026-09-29：「补测与加测先隐藏，之后给每维度每年龄一个表单」）：`GET /api/t2/plan`
 > 回的是 `singleFormPlan(planT2(...))`（`src/t2/interimPlan.ts`）—— 每个被 T1 标记（红或黄）的维度只列那一支星号工具、
-> 全部必做；选做、之后可能加测、补充问卷、诊断方向多加的都不出（诊断方向只剩报告里维度的先后）。回应带 `singleForm: true`，
-> 入口据此不说「选了会重新计算题量」。`planT2` 本身与它逐格对规格的测试一行没动；表来了照新表改路由表并把
-> `SINGLE_FORM_PER_DIMENSION` 关掉。报告判定不受影响（黄灯那一份没做照旧是「没做」）。护栏：`test/t2InterimPlan.test.ts`（窮举月龄×诊断×T1）。
-> ⚠️ `t2_intake` 表由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立、`t2_tool_results` 表由
+> 全部必做；选做、之后可能加测、补充问卷都不出。`planT2` 本身与它逐格对规格的测试一行没动；表来了照新表改路由表并把
+> `SINGLE_FORM_PER_DIMENSION` 关掉。报告判定不受影响（黄灯那一份没做照旧是「没做」）。护栏：`test/t2InterimPlan.test.ts`（穷举月龄×诊断×T1）。
+> ⚠️ `t2_intake` 表（2026-09-29 起不再读写）由 `deploy/migrations/2026-09-12-t2-intake.sql` 建立、`t2_tool_results` 表由
 > `deploy/migrations/2026-09-12-t2-tool-results.sql` 建立，**都必须先于新版程式码部署**。
 
 > 打卡与提醒（Keep 票 4，K06、K07、K10；票 7 加 `.ics` 连结）：七支都在 `src/t2/practiceRoutes.ts`，`server.ts` 只把 Router 挂在

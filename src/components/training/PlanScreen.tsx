@@ -545,7 +545,7 @@ export default function PlanScreen() {
                   <UserRound size={13} className="shrink-0 text-brand-moss" />
                   {c.descriptor.label}
                 </p>
-                <p className="mt-1 text-[11px] text-brand-charcoal/55 leading-snug line-clamp-2">{c.descriptor.description}</p>
+                <p className="mt-1 text-[11px] text-brand-charcoal/55 leading-snug line-clamp-2">{c.description}</p>
                 <ServiceNote state={c.state} className="mt-1.5 text-brand-moss" />
               </button>
             ))}

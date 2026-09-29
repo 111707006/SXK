@@ -613,6 +613,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
       <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-brand-sage/20 rounded-full blur-2xl" />
 
+      {PRODUCT.features.tier2And3 ? (
+      <>
       <div className="relative z-10">
         <div className="space-y-2">
           {/*
@@ -629,7 +631,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       </div>
 
       {/*
-        四種並列（使用者 2026-09-29），不再是一顆「预约专家」預設成其中一種。能不能按照 `serviceChoices`：
+        專案 A：四種並列（使用者 2026-09-29），不再是一顆「预约专家」預設成其中一種。能不能按照 `serviceChoices`：
         線上諮詢說明開預約表、线上干预训练指导去「线上干预」那一頁、還沒做的灰掉寫「暂未开放」。
       */}
       <div className="relative z-10 mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -647,6 +649,34 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           </button>
         ))}
       </div>
+      </>
+      ) : (
+      /* 專案 B 照舊（使用者 2026-09-29：「不要動到 B，B 又沒有 T2」）：一顆按鈕，四種在預約表第一步選。 */
+      <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+        <div className="space-y-2">
+          {/*
+            入口不再只講線上（issue #21）。四種服務走同一顆按鈕、同一張
+            表單，這裡若還寫死「线上」，要約線下訓練的家長根本不會點進去 ——
+            而選類型的那一步就在點進去之後的第一格。
+          */}
+          <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
+            专家咨询与干预训练
+          </span>
+          <h3 className="text-lg font-bold">预约 1 对 1 专家，线上或到机构都可以</h3>
+          <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
+            四种可选：线上咨询说明、线上干预训练指导、线下干预训练、线下咨询。
+            由儿童发展评估专家为您逐项说明这份报告，并给出接下来可以怎么做。
+          </p>
+        </div>
+
+        <button
+          onClick={() => openBookingModal()}
+          className="px-6 py-3 bg-brand-sage text-brand-forest font-bold text-xs rounded-xl hover:bg-white transition duration-200 shadow-lg shrink-0 w-full md:w-auto text-center active:scale-95 cursor-pointer"
+        >
+          预约专家
+        </button>
+      </div>
+      )}
     </div>
   );
 
@@ -917,7 +947,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                             onOpenTraining();
                           }
                         : undefined,
-                    }).map(({ descriptor: d, state, onSelect }) => {
+                    }).map(({ descriptor: d, description, state, onSelect }) => {
                       const isSelected = serviceType === d.type;
                       return (
                         <button
@@ -943,7 +973,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                             <ServiceNote state={state} className="text-brand-charcoal/60" />
                           </span>
                           <span className="mt-1 block text-[10px] leading-relaxed text-brand-charcoal/60">
-                            {d.description}
+                            {description}
                           </span>
                         </button>
                       );

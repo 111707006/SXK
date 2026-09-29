@@ -25,10 +25,15 @@ export type ServiceChoiceState = 'book' | 'training' | 'here' | 'soon';
 
 export interface ServiceChoice {
   descriptor: ServiceTypeDescriptor;
+  /** 卡片上那一句說明：线上干预训练指导在 A 講的是「线上干预」那一頁，不是預約表上那一句。 */
+  description: string;
   state: ServiceChoiceState;
   /** 按下去做什麼；`null` ＝ 不能按（還沒做，或人就在那一頁上）。 */
   onSelect: (() => void) | null;
 }
+
+/** 线上干预训练指导在 A 的說明（它就是「线上干预」那一頁）。B 照舊用 `serviceTypes.ts` 那一句。 */
+export const TRAINING_PAGE_DESCRIPTION = '每周几个在家陪孩子做的活动：看示范、跟着做、记下每一次。';
 
 /** 按鈕上那一個小字；開預約表的那一種不用多說。 */
 export const SERVICE_NOTES: Record<ServiceChoiceState, string | null> = {
@@ -51,14 +56,15 @@ export function serviceChoices(on: {
 }): ServiceChoice[] {
   return serviceTypeDescriptors().map(descriptor => {
     const availability = serviceAvailability(descriptor.type, PRODUCT.features.tier2And3);
+    const description = availability === 'training' ? TRAINING_PAGE_DESCRIPTION : descriptor.description;
     if (availability === 'book') {
-      return { descriptor, state: 'book', onSelect: () => on.book(descriptor.type) };
+      return { descriptor, description, state: 'book', onSelect: () => on.book(descriptor.type) };
     }
     if (availability === 'training') {
-      if (on.inTraining) return { descriptor, state: 'here', onSelect: null };
-      if (on.openTraining) return { descriptor, state: 'training', onSelect: on.openTraining };
+      if (on.inTraining) return { descriptor, description, state: 'here', onSelect: null };
+      if (on.openTraining) return { descriptor, description, state: 'training', onSelect: on.openTraining };
     }
-    return { descriptor, state: 'soon', onSelect: null };
+    return { descriptor, description, state: 'soon', onSelect: null };
   });
 }
 

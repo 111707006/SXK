@@ -6,8 +6,8 @@ import { SERVICE_TYPES, serviceAvailability } from '../src/utils/serviceTypes';
 /**
  * 四種服務並列、沒做的先不給按（使用者 2026-09-29）。
  *
- * 1. 規則（`serviceAvailability`）：線上諮詢說明開預約表；线上干预训练指导就是「线上干预」那一頁（只有 A 有）；
- *    線下兩種「暂未开放」。
+ * 1. 規則（`serviceAvailability`）：專案 A 線上諮詢說明開預約表；线上干预训练指导就是「线上干预」那一頁；
+ *    線下兩種「暂未开放」。**專案 B 照舊**（「不要動到 B，B 又沒有 T2」）：四種都開預約表。
  * 2. 接到畫面（`serviceChoices`）：去那一頁要有人給出口，沒給就灰掉；人已經在那一頁上就寫「就是这一页」。
  * 3. 每一處列服務的畫面都走 `serviceChoices` —— 自己 map `serviceTypeDescriptors()` 的畫面不會知道哪幾種不能按。
  */
@@ -15,15 +15,15 @@ import { SERVICE_TYPES, serviceAvailability } from '../src/utils/serviceTypes';
 const product = vi.hoisted(() => ({ PRODUCT: { features: { tier2And3: true } } }));
 vi.mock('../src/productConfig', () => product);
 
-const { serviceChoices, SERVICE_NOTES } = await import('../src/components/serviceChoices');
+const { serviceChoices, SERVICE_NOTES, TRAINING_PAGE_DESCRIPTION } = await import('../src/components/serviceChoices');
 
 describe('serviceAvailability', () => {
   it('專案 A：諮詢開表、线上干预训练指导去那一頁、線下兩種還沒做', () => {
     expect(SERVICE_TYPES.map(t => serviceAvailability(t, true))).toEqual(['book', 'training', 'soon', 'soon']);
   });
 
-  it('專案 B 沒有「线上干预」那一頁：只剩諮詢開表', () => {
-    expect(SERVICE_TYPES.map(t => serviceAvailability(t, false))).toEqual(['book', 'soon', 'soon', 'soon']);
+  it('專案 B 沒有 T2：照舊，四種都開預約表', () => {
+    expect(SERVICE_TYPES.map(t => serviceAvailability(t, false))).toEqual(['book', 'book', 'book', 'book']);
   });
 });
 
@@ -71,9 +71,21 @@ describe('serviceChoices', () => {
     expect(book).not.toHaveBeenCalled();
   });
 
-  it('專案 B：线上干预训练指导也灰掉（就算給了出口）', () => {
+  it('專案 B：照舊四種都開預約表、帶著各自的類型，說明也是原本那幾句', () => {
     product.PRODUCT.features.tier2And3 = false;
-    expect(serviceChoices({ book: () => {}, openTraining: () => {} }).map(c => c.state)).toEqual(['book', 'soon', 'soon', 'soon']);
+    const book = vi.fn();
+    const choices = serviceChoices({ book });
+    expect(choices.map(c => c.state)).toEqual(['book', 'book', 'book', 'book']);
+    for (const c of choices) {
+      expect(c.description, c.descriptor.type).toBe(c.descriptor.description);
+      c.onSelect!();
+    }
+    expect(book.mock.calls.map(([t]) => t)).toEqual([...SERVICE_TYPES]);
+    expect(choices[1].description).toBe('专家连线带您做一次训练动作，看着孩子的反应即时调整做法。');
+  });
+
+  it('專案 A 的线上干预训练指导講的是「线上干预」那一頁', () => {
+    expect(serviceChoices({ book: () => {}, openTraining: () => {} })[1].description).toBe(TRAINING_PAGE_DESCRIPTION);
   });
 });
 
@@ -125,6 +137,20 @@ describe('每一處列服務的畫面都走 serviceChoices', () => {
     const app = stripComments(read('src/App.tsx'));
     expect(app.split("onOpenTraining={PRODUCT.features.tier2And3 ? () => setCurrentView('training') : undefined}").length - 1).toBe(2);
     expect(app).toContain("onOpenTraining={() => setCurrentView('training')}");
+  });
+
+  it('報告的預約卡：A 四顆並列，B 照舊一顆「预约专家」與原本的字', () => {
+    const report = stripComments(read('src/components/AnalysisReport.tsx'));
+    const a = report.indexOf('{PRODUCT.features.tier2And3 ? (');
+    const b = report.indexOf(') : (', a);
+    expect(a).toBeGreaterThan(-1);
+    expect(report.slice(a, b)).toContain('serviceChoices({ book: openBookingModal, openTraining: onOpenTraining })');
+    const bBranch = report.slice(b, report.indexOf('\n  );', b));
+    expect(bBranch).toContain('预约 1 对 1 专家，线上或到机构都可以');
+    expect(bBranch).toContain('四种可选：线上咨询说明、线上干预训练指导、线下干预训练、线下咨询。');
+    expect(bBranch).toContain('onClick={() => openBookingModal()}');
+    expect(bBranch).toContain('预约专家');
+    expect(bBranch).not.toContain('serviceChoices');
   });
 
   it('預約表只為開得了表的那一種打開（別處帶來的其他種落回預設）', () => {

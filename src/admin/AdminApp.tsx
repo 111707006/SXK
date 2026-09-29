@@ -322,7 +322,11 @@ function AdminCenter() {
         <div key={scopeKey(current, ADMIN_SHAPE)}>
           {activeTab === 'parents' && (
             // B→A 交接的邀請簡訊（ADR-0009）只有專案 B 的全域管理員發得了，合作公司帳號看不到。
-            <ParentsPanel onError={handleError} canInvite={current.role === 'global_admin' && ADMIN_SHAPE.multiCompany} />
+            <ParentsPanel
+              onError={handleError}
+              canInvite={current.role === 'global_admin' && ADMIN_SHAPE.multiCompany}
+              showSource={PRODUCT.features.handoff === 'receive'}
+            />
           )}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
           {activeTab === 'company' && <CompanySettingsPanel onError={handleError} />}

@@ -299,7 +299,8 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > 设一半或设错程序起不来。B 的建置不写「森心康」（`test/brandIsolation.test.ts`）：卡上的名字由 config 回。
 > 简讯邀请（2026-09-28 使用者：后台一次发送）：B 后台家长列表的勾选栏与「深度评估邀请」状态栏，只有全域管理员、只发当下视野；
 > 规则在 `src/handoff/invite.ts`（伺服器与画面共用）；简讯连结 `https://<A>/handoff#invite=…`，A 先给同意画面、按下才兑换。
-> 范本 `ALI_SMS_INVITE_TEMPLATE_CODE` 要另外送审。还没做：B 登入页的简讯同意勾选、A 后台来源栏（ADR 待定第 2 项）。
+> 范本 `ALI_SMS_INVITE_TEMPLATE_CODE` 要另外送审。A 后台家长列表有「来源」栏（2026-09-29）：从筛查系统转入的写第一次转入的合作公司与时间，
+> 读 `handoff_imports`（列表与详情各一个子查询，`adminScope` 护栏把它列为带公司条件的表）。还没做：B 登入页的简讯同意勾选（ADR 待定第 2 项）。
 > 部署见 `deploy/README.md`「B→A 交接」。
 > ⚠️ `handoff_codes`、`handoff_imports`、`handoff_invites` 由 `deploy/migrations/2026-09-28-handoffs.sql` 建立（A、B 两个库都要跑），**先于新版程式码部署**。
 > 护栏：`test/handoffCore.test.ts`、`test/handoffStore.test.ts`、`test/handoffSchema.structure.test.ts`、

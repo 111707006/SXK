@@ -72,8 +72,17 @@ type Booked = 'all' | 'booked' | 'not_booked';
 /**
  * @param canInvite 這位後台成員能不能發 B→A 的邀請簡訊（ADR-0009：只有專案 B 的全域管理員）。
  *   能的話再問伺服器交接開了沒（`/handoff-invites/config`），開了才出現勾選欄與「发送邀请简讯」。
+ * @param showSource 列「来源」欄（ADR-0009：專案 A 看得出誰是從篩查系統轉進來的、那時是哪一家合作公司）。
  */
-export default function ParentsPanel({ onError, canInvite = false }: { onError: (view: AdminErrorView) => void; canInvite?: boolean }) {
+export default function ParentsPanel({
+  onError,
+  canInvite = false,
+  showSource = false,
+}: {
+  onError: (view: AdminErrorView) => void;
+  canInvite?: boolean;
+  showSource?: boolean;
+}) {
   const [sort, setSort] = useState<Sort>('newest');
   const [booked, setBooked] = useState<Booked>('all');
   const [openId, setOpenId] = useState<number | null>(null);
@@ -192,6 +201,7 @@ export default function ParentsPanel({ onError, canInvite = false }: { onError: 
                   <th className="py-2 pr-3 font-bold">最近筛查</th>
                   <th className="py-2 pr-3 font-bold">预约</th>
                   {inviting && <th className="py-2 pr-3 font-bold">深度评估邀请</th>}
+                  {showSource && <th className="py-2 pr-3 font-bold">来源</th>}
                   <th className="py-2 font-bold" />
                 </tr>
               </thead>
@@ -201,6 +211,7 @@ export default function ParentsPanel({ onError, canInvite = false }: { onError: 
                     key={p.id}
                     parent={p}
                     onOpen={() => setOpenId(p.id)}
+                    showSource={showSource}
                     invite={
                       inviting
                         ? { status: statuses.get(p.id)!, selected: selected.has(p.id), onToggle: () => toggle(p.id) }
@@ -336,10 +347,12 @@ function InviteBar({
 function ParentRow({
   parent,
   onOpen,
+  showSource,
   invite,
 }: {
   parent: AdminParentListItem;
   onOpen: () => void;
+  showSource: boolean;
   invite?: { status: InviteStatus; selected: boolean; onToggle: () => void };
 }) {
   return (
@@ -400,12 +413,34 @@ function ParentRow({
           )}
         </td>
       )}
+      {showSource && (
+        <td className="py-2.5 pr-3 whitespace-nowrap">
+          <SourceCell source={parent.handoffSource} />
+        </td>
+      )}
       <td className="py-2.5 text-right">
         <Button variant="ghost" onClick={onOpen}>
           查看
         </Button>
       </td>
     </tr>
+  );
+}
+
+/**
+ * 「来源」一格（ADR-0009）：從篩查系統轉進來的，寫那時的合作公司與第一次轉入的時間；
+ * 那邊的家長沒有合作公司就只寫「从筛查系统转入」。自己在這裡登入註冊的寫「直接注册」。
+ */
+function SourceCell({ source }: { source: AdminParentListItem['handoffSource'] }) {
+  if (!source) return <span className="text-brand-charcoal/40">直接注册</span>;
+  return (
+    <span className="flex flex-col">
+      <span className="font-bold text-brand-moss">从筛查系统转入</span>
+      <span className="text-[10px] text-brand-charcoal/50">
+        {source.companyName ? `${source.companyName} · ` : ''}
+        {formatDateTime(source.at)}
+      </span>
+    </span>
   );
 }
 

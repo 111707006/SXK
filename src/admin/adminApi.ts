@@ -53,6 +53,8 @@ export interface AdminParentListItem {
   /** B→A 交接的邀請（ADR-0009）：最近一次送出成功的邀請簡訊、交接碼最近一次被用（＝到過 A）。A 兩個都是 null。 */
   lastInvitedAt: string | null;
   handoffUsedAt: string | null;
+  /** 從專案 B 轉進來的（ADR-0009，只有 A 會有）：第一次轉入的時間與那時的合作公司；自己進站的是 null。 */
+  handoffSource: { at: string; companyName: string | null } | null;
 }
 
 export interface AdminInviteConfig {

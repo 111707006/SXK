@@ -14,6 +14,7 @@ import { handoffInviteUrl, handoffUrl } from '../src/handoff/core';
  * 3. 兌換成功走一般登入那一條（`handleAuthSuccess`），然後去 T2 入口；失敗回登入頁並說原因。
  *    簡訊邀請先停在同意畫面，按「同意并继续」才兌換（按鈕那一條在 B 按下時已經同意過）。
  * 4. B 的卡只掛在即時報告上、要 `consent: true`、錯誤畫在卡上；哪一半掛哪一邊由 `PRODUCT.features.handoff` 決定。
+ * 5. A 後台家長列表的「来源」欄（2026-09-29）：只在接收端出現，讀的是第一次轉入那一筆。
  */
 
 const ROOT = path.resolve(__dirname, '..');
@@ -108,5 +109,25 @@ describe('B 的卡（HandoffCard／AnalysisReport）', () => {
     const t1only = config.slice(config.indexOf('t1only: {'), config.indexOf('\n};', config.indexOf('t1only: {')));
     expect(full).toContain("handoff: 'receive'");
     expect(t1only).toContain("handoff: 'send'");
+  });
+});
+
+describe('A 後台的「来源」欄', () => {
+  it('只有接收端（A）列這一欄', () => {
+    const adminApp = stripComments(read('src/admin/AdminApp.tsx'));
+    expect(adminApp).toContain("showSource={PRODUCT.features.handoff === 'receive'}");
+    const panel = stripComments(read('src/admin/panels/ParentsPanel.tsx'));
+    expect(panel).toMatch(/\{showSource && <th[^>]*>来源<\/th>\}/);
+    expect(panel).toContain('<SourceCell source={parent.handoffSource} />');
+  });
+
+  it('列表與詳情都讀第一次轉入那一筆（時間取最早、公司取最早那一列的快照）', () => {
+    const store = stripComments(read('src/admin/adminStore.ts'));
+    for (const fn of ['export async function listParents', 'export async function getParentDetail']) {
+      const start = store.indexOf(fn);
+      const body = store.slice(start, store.indexOf('export async function', start + fn.length));
+      expect(body, fn).toContain('(SELECT MIN(h.created_at) FROM handoff_imports h WHERE h.user_id = u.id) AS handoff_first_at');
+      expect(body, fn).toMatch(/SELECT h\.source_company_name FROM handoff_imports h WHERE h\.user_id = u\.id\s+ORDER BY h\.created_at, h\.id LIMIT 1\) AS handoff_first_company/);
+    }
   });
 });

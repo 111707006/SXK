@@ -37,8 +37,13 @@ function stripComments(source: string): string {
  * `handoff_codes`、`handoff_invites` 2026-09-28 加入（ADR-0009 的邀請簡訊）：後台替家長建交接碼、
  * 記邀請。兩張都沒有 company_id，寫入一律是 `INSERT … SELECT … FROM users u WHERE u.id = ? AND 條件`，
  * 視野外的家長一列都寫不進去。
+ *
+ * `handoff_imports` 2026-09-29 加入（ADR-0009 的「来源」欄，專案 A）：只在家長列表與詳情裡當子查詢讀，
+ * 以 `h.user_id = u.id` 掛在外層那句已帶條件的 `users` 上。
  */
-const SCOPED_TABLES = ['users', 'user_data', 'expert_bookings', 'specialists', 'payments', 'handoff_codes', 'handoff_invites'];
+const SCOPED_TABLES = [
+  'users', 'user_data', 'expert_bookings', 'specialists', 'payments', 'handoff_codes', 'handoff_invites', 'handoff_imports',
+];
 
 /**
  * 不帶公司條件的表，每一張都要寫明為什麼它不是家長資料。

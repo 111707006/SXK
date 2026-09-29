@@ -26,6 +26,7 @@ function detail(overrides: Partial<ParentDetail> = {}): ParentDetail {
     hasBooking: false,
     lastInvitedAt: null,
     handoffUsedAt: null,
+    handoffSource: null,
     scores: [
       {
         dimensionId: 'language',

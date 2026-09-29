@@ -55,6 +55,12 @@ export interface ParentListItem {
    */
   lastInvitedAt: string | null;
   handoffUsedAt: string | null;
+  /**
+   * 從專案 B 轉進來的（ADR-0009 的「來源欄」，只有專案 A 會有）：第一次轉入的時間與那時 B 那邊的合作公司
+   * （`handoff_imports` 當下的快照；B 的家長未歸屬就是 null）。自己進站的家長整個是 null。
+   * 取第一次：同一支手機在 B 的兩家合作公司是兩位家長，都轉過來會落在 A 的同一個帳號，最早的那一次才是他怎麼來的。
+   */
+  handoffSource: { at: string; companyName: string | null } | null;
 }
 
 export interface ParentBooking {
@@ -233,7 +239,13 @@ function rowToListItem(row: any): ParentListItem {
     hasBooking: Number(row.booking_count) > 0,
     lastInvitedAt: toIso(row.last_invited_at),
     handoffUsedAt: toIso(row.handoff_used_at),
+    handoffSource: handoffSourceOf(row),
   };
+}
+
+function handoffSourceOf(row: any): ParentListItem['handoffSource'] {
+  const at = toIso(row.handoff_first_at);
+  return at === null ? null : { at, companyName: row.handoff_first_company ?? null };
 }
 
 function rowToSpecialist(row: any): SpecialistRecord {
@@ -297,7 +309,10 @@ export async function listParents(
             ud.child, ud.completed_scores, ud.updated_at AS screened_at,
             (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count,
             (SELECT MAX(i.sent_at) FROM handoff_invites i WHERE i.user_id = u.id AND i.status = 'sent') AS last_invited_at,
-            (SELECT MAX(c.last_used_at) FROM handoff_codes c WHERE c.user_id = u.id) AS handoff_used_at
+            (SELECT MAX(c.last_used_at) FROM handoff_codes c WHERE c.user_id = u.id) AS handoff_used_at,
+            (SELECT MIN(h.created_at) FROM handoff_imports h WHERE h.user_id = u.id) AS handoff_first_at,
+            (SELECT h.source_company_name FROM handoff_imports h WHERE h.user_id = u.id
+              ORDER BY h.created_at, h.id LIMIT 1) AS handoff_first_company
        FROM users u
        LEFT JOIN user_data ud ON ud.user_id = u.id
       WHERE ${scope.sql}
@@ -328,7 +343,10 @@ export async function getParentDetail(
             ud.child, ud.completed_scores, ud.report_history, ud.updated_at AS screened_at,
             (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count,
             (SELECT MAX(i.sent_at) FROM handoff_invites i WHERE i.user_id = u.id AND i.status = 'sent') AS last_invited_at,
-            (SELECT MAX(c.last_used_at) FROM handoff_codes c WHERE c.user_id = u.id) AS handoff_used_at
+            (SELECT MAX(c.last_used_at) FROM handoff_codes c WHERE c.user_id = u.id) AS handoff_used_at,
+            (SELECT MIN(h.created_at) FROM handoff_imports h WHERE h.user_id = u.id) AS handoff_first_at,
+            (SELECT h.source_company_name FROM handoff_imports h WHERE h.user_id = u.id
+              ORDER BY h.created_at, h.id LIMIT 1) AS handoff_first_company
        FROM users u
        LEFT JOIN user_data ud ON ud.user_id = u.id
       WHERE ${scope.sql} AND u.id = ?

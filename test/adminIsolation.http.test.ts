@@ -45,10 +45,10 @@ vi.mock('../src/admin/adminStore', async () => {
       { id: 40, email: 'left@jia.com', role: 'company_member' as const, companyId: 1, active: false, createdAt: null, passwordHash: hash('pw-left-123') },
     ],
     parents: [
-      { id: 101, email: 'p1@x.com', phone: null, companyId: 1, childName: '甲家孩子', childAgeMonth: 36, childGender: 'boy', flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: true, lastInvitedAt: null, handoffUsedAt: null },
-      { id: 202, email: 'p2@x.com', phone: null, companyId: 2, childName: '乙家孩子', childAgeMonth: 30, childGender: 'girl', flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: false, lastInvitedAt: null, handoffUsedAt: null },
-      { id: 303, email: 'p3@x.com', phone: null, companyId: null, childName: '没有归属的孩子', childAgeMonth: 24, childGender: 'boy', flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: false, lastInvitedAt: null, handoffUsedAt: null },
-      { id: 111, email: null, phone: '13800001234', companyId: 1, childName: '付过钱的孩子', childAgeMonth: 40, childGender: 'girl', flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: false, lastInvitedAt: null, handoffUsedAt: null },
+      { id: 101, email: 'p1@x.com', phone: null, companyId: 1, childName: '甲家孩子', childAgeMonth: 36, childGender: 'boy', flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: true, lastInvitedAt: null, handoffUsedAt: null, handoffSource: null },
+      { id: 202, email: 'p2@x.com', phone: null, companyId: 2, childName: '乙家孩子', childAgeMonth: 30, childGender: 'girl', flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: false, lastInvitedAt: null, handoffUsedAt: null, handoffSource: null },
+      { id: 303, email: 'p3@x.com', phone: null, companyId: null, childName: '没有归属的孩子', childAgeMonth: 24, childGender: 'boy', flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: false, lastInvitedAt: null, handoffUsedAt: null, handoffSource: null },
+      { id: 111, email: null, phone: '13800001234', companyId: 1, childName: '付过钱的孩子', childAgeMonth: 40, childGender: 'girl', flaggedDimensions: [], screeningTotal: null, screenedAt: null, registeredAt: null, hasBooking: false, lastInvitedAt: null, handoffUsedAt: null, handoffSource: null },
     ],
     /** 有付款紀錄的家長刪不得（ADR-0006）。替身只需要知道「有沒有」。 */
     paidParentIds: [111],

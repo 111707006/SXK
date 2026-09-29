@@ -3,7 +3,8 @@ import { ChevronRight, Layers, Loader2, Lock, UserRound } from 'lucide-react';
 import { authFetch } from '../utils/api';
 import { formatFen } from '../utils/price';
 import type { DimensionAccess } from '../utils/access';
-import { serviceTypeDescriptors, type ServiceType } from '../utils/serviceTypes';
+import type { ServiceType } from '../utils/serviceTypes';
+import { ServiceNote, serviceChoices } from './serviceChoices';
 import { describePlan, describePlanItem, expertOnlyCopy, noToolNotes, type EntranceState } from '../t2/entrance';
 import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import type { DimensionCode, PlanItem, T1Flag, T2Plan } from '../t2/types';
@@ -25,6 +26,8 @@ interface T2EntranceProps {
   onStart: () => void;
   /** 沒有工具的維度導向四種服務：開預約表、預選那一種。 */
   onBookService: (type: ServiceType) => void;
+  /** 「线上干预训练指导」那一顆 → 導覽列那一頁「线上干预」（2026-09-29：四種並列，它就是那一頁）。 */
+  onOpenTraining?: () => void;
 }
 
 /**
@@ -46,7 +49,7 @@ interface T2EntranceProps {
  * 已解鎖的家長在這裡看到同一份清單，CTA 是「開始作答」→ 逐支作答畫面（`T2Assessment.tsx`，票 #58），
  * 那邊的工具清單就是這份 plan。
  */
-export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBookService }: T2EntranceProps) {
+export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
 
@@ -110,15 +113,17 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
 
   const serviceButtons = (
     <div className="grid grid-cols-2 gap-2">
-      {serviceTypeDescriptors().map(d => (
+      {serviceChoices({ book: onBookService, openTraining: onOpenTraining }).map(c => (
         <button
-          key={d.type}
+          key={c.descriptor.type}
           type="button"
-          onClick={() => onBookService(d.type)}
-          className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5"
+          disabled={!c.onSelect}
+          onClick={c.onSelect ?? undefined}
+          className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-sage/10 disabled:active:scale-100"
         >
           <UserRound size={12} className="shrink-0" />
-          {d.label}
+          <span className="flex-1">{c.descriptor.label}</span>
+          <ServiceNote state={c.state} className="text-brand-charcoal/60" />
         </button>
       ))}
     </div>

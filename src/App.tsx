@@ -1360,6 +1360,8 @@ export default function App() {
                     focusT2={focusT2}
                     focusBooking={focusBooking}
                     focusBookingService={focusBookingService}
+                    // 「线上干预训练指导」＝導覽列那一頁「线上干预」（2026-09-29）；B 沒有那一頁
+                    onOpenTraining={PRODUCT.features.tier2And3 ? () => setCurrentView('training') : undefined}
                   />
                 </div>
               ) : activeT1Record ? (
@@ -1380,6 +1382,8 @@ export default function App() {
                     // 那一支生效，而那一支正好是區塊還沒出現的那一支。
                     focusBooking={focusBooking}
                     focusBookingService={focusBookingService}
+                    // 「线上干预训练指导」＝導覽列那一頁「线上干预」（2026-09-29）；B 沒有那一頁
+                    onOpenTraining={PRODUCT.features.tier2And3 ? () => setCurrentView('training') : undefined}
                   />
                 </div>
               ) : (

@@ -57,7 +57,8 @@ const DESCRIPTORS: readonly ServiceTypeDescriptor[] = [
     venue: 'online',
     topic: 'training',
     label: '线上干预训练指导',
-    description: '专家连线带您做一次训练动作，看着孩子的反应即时调整做法。',
+    // 2026-09-29 使用者：「线上干预训练指导」就是「线上干预」那一頁（見 `serviceAvailability`），說明跟著那一頁講。
+    description: '每周几个在家陪孩子做的活动：看示范、跟着做、记下每一次。',
   },
   {
     type: 'offline_training',
@@ -104,6 +105,28 @@ export function serviceTypeLabel(type: ServiceType | string | null | undefined):
 export function serviceTypeDescriptors(): readonly ServiceTypeDescriptor[] {
   return DESCRIPTORS;
 }
+
+/**
+ * 四種服務在家長端各自接到哪裡（使用者 2026-09-29：「四種並列，沒做的按鈕先不給按」）。
+ *
+ * - `book`：開預約表。只有線上諮詢說明 —— 另外三種在 #21 只多了一個標籤，沒有各自的做法。
+ * - `training`：「线上干预训练指导」就是導覽列那一頁「线上干预」（使用者 2026-09-29），按下去到那一頁。
+ *   那一頁只有專案 A 有；B 沒有，所以在 B 它也是 `soon`。
+ * - `soon`：還沒做，按鈕灰掉、寫「暂未开放」。線下兩種：據點與時間都還沒定。
+ *
+ * **只管畫面上能不能按。** 伺服器照舊收四種（`readServiceType`）：舊的預約單、後台、通知都還會遇到
+ * 另外三種，名字與線下那一行照舊。
+ */
+export type ServiceAvailability = 'book' | 'training' | 'soon';
+
+export function serviceAvailability(type: ServiceType, hasTrainingPage: boolean): ServiceAvailability {
+  if (type === 'online_consult') return 'book';
+  if (type === 'online_training' && hasTrainingPage) return 'training';
+  return 'soon';
+}
+
+/** 還沒做的那幾種，按鈕上寫的字。 */
+export const SERVICE_SOON_NOTE = '暂未开放';
 
 /**
  * 這一筆要不要多說一句「地點由客服安排」。

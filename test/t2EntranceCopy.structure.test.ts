@@ -59,9 +59,9 @@ describe('no_tool 的文案與位置', () => {
     expect(entranceCopy).toContain('SCHOOL_AGE_NO_TOOL_SENTENCE');
   });
 
-  it('四種服務都導得到（走 serviceTypeDescriptors，不在這裡重抄四個名字）', () => {
-    expect(entrance).toContain('serviceTypeDescriptors()');
-    expect(entrance).toContain('onBookService(d.type)');
+  it('四種服務並列（走 serviceChoices，不在這裡重抄四個名字、不自己判斷哪幾種能按）', () => {
+    expect(entrance).toContain('serviceChoices({ book: onBookService, openTraining: onOpenTraining })');
+    expect(entrance).toContain('disabled={!c.onSelect}');
   });
 
   it('入口掛在報告本體的雷達圖之後、語言專項入口之前', () => {

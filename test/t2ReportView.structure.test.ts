@@ -104,7 +104,8 @@ describe('哪些維度有段落', () => {
     expect(noToolSection).toContain('{serviceButtons}');
     // 標題旁那一句與九宮格同一支（v2.1 S05：6 歲以上的認知、語言、動作換成客戶的固定句）
     expect(noToolSection).toContain('dimensionStatus(d, ageMonth).tag');
-    expect(view).toContain('serviceTypeDescriptors()');
+    // 四種並列、沒做的灰掉（2026-09-29）：走 serviceChoices；线上干预训练指导去「线上干预」那一頁
+    expect(view).toContain('serviceChoices({ book: onBookService, openTraining: onOpenTraining })');
   });
 });
 

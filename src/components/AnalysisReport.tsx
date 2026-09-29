@@ -14,9 +14,10 @@ import { peekDeviceId } from '../utils/deviceId';
 import {
   DEFAULT_SERVICE_TYPE,
   describeServiceType,
-  serviceTypeDescriptors,
+  serviceAvailability,
   type ServiceType,
 } from '../utils/serviceTypes';
+import { ServiceNote, serviceChoices } from './serviceChoices';
 import {
   emptySpecialistsMessage,
   useReportSpecialists,
@@ -235,9 +236,14 @@ interface AnalysisReportProps {
    * 家長剛在那張卡上按了「解鎖」，回來應該停在同一張卡上看到它變成「開始作答」，不該從頁首再滑一次。
    */
   focusT2?: boolean;
+  /**
+   * 「线上干预训练指导」那一顆 → 導覽列那一頁「线上干预」（2026-09-29 使用者：四種並列，线上干预训练指导
+   * 就是那一頁）。只有專案 A 有那一頁；沒給的話那一顆灰掉（`serviceChoices`）。
+   */
+  onOpenTraining?: () => void;
 }
 
-export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, handoff, historicalRecord, focusBooking, focusBookingService, resumeFrom, generateOnOpen, focusT2 }: AnalysisReportProps) {
+export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, handoff, historicalRecord, focusBooking, focusBookingService, resumeFrom, generateOnOpen, focusT2, onOpenTraining }: AnalysisReportProps) {
   const resumed = !historicalRecord && resumeFrom?.aiReport ? resumeFrom : null;
   const [loading, setLoading] = useState(false);
   const [aiReport, setAiReport] = useState<AssessmentRecord['aiReport'] | null>(() => resumed?.aiReport ?? null);
@@ -509,8 +515,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
    *
    * 沒指定就回到預設的那一種 —— 留著上一次的選擇，家長會在一個他沒有再選過的類型上
    * 按下送出。T2 入口導向四種服務時會指定（票 #56：沒有工具的維度直接約專家）。
+   * 指定的那一種現在不開預約表（2026-09-29：只有線上諮詢說明開；舊的連結或別處帶來的）也落回預設，
+   * 不在一張把它灰掉的表上預選它。
    */
-  const openBookingModal = (type: ServiceType = DEFAULT_SERVICE_TYPE) => {
+  const openBookingModal = (requested: ServiceType = DEFAULT_SERVICE_TYPE) => {
+    const type = serviceAvailability(requested, PRODUCT.features.tier2And3) === 'book' ? requested : DEFAULT_SERVICE_TYPE;
     // 滚动到预约模块并居中
     bookingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     // 延迟打开弹窗，等待滚动完成
@@ -539,6 +548,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         onUnlock={t2.onUnlock}
         onStart={t2.onStart}
         onBookService={openBookingModal}
+        onOpenTraining={onOpenTraining}
       />
     </div>
   ) : handoff && !historicalRecord ? (
@@ -603,29 +613,39 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
       <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-brand-sage/20 rounded-full blur-2xl" />
 
-      <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+      <div className="relative z-10">
         <div className="space-y-2">
           {/*
-            入口不再只講線上（issue #21）。四種服務走同一顆按鈕、同一張
-            表單，這裡若還寫死「线上」，要約線下訓練的家長根本不會點進去 ——
-            而選類型的那一步就在點進去之後的第一格。
+            入口不只講線上（issue #21）：四種服務都列在下面，這裡的標題不寫死「线上」。
           */}
           <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
             专家咨询与干预训练
           </span>
-          <h3 className="text-lg font-bold">预约 1 对 1 专家，线上或到机构都可以</h3>
+          <h3 className="text-lg font-bold">预约 1 对 1 专家</h3>
           <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
-            四种可选：线上咨询说明、线上干预训练指导、线下干预训练、线下咨询。
             由儿童发展评估专家为您逐项说明这份报告，并给出接下来可以怎么做。
           </p>
         </div>
+      </div>
 
-        <button
-          onClick={() => openBookingModal()}
-          className="px-6 py-3 bg-brand-sage text-brand-forest font-bold text-xs rounded-xl hover:bg-white transition duration-200 shadow-lg shrink-0 w-full md:w-auto text-center active:scale-95 cursor-pointer"
-        >
-          预约专家
-        </button>
+      {/*
+        四種並列（使用者 2026-09-29），不再是一顆「预约专家」預設成其中一種。能不能按照 `serviceChoices`：
+        線上諮詢說明開預約表、线上干预训练指导去「线上干预」那一頁、還沒做的灰掉寫「暂未开放」。
+      */}
+      <div className="relative z-10 mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+        {serviceChoices({ book: openBookingModal, openTraining: onOpenTraining }).map(c => (
+          <button
+            key={c.descriptor.type}
+            type="button"
+            id={`booking-cta-${c.descriptor.type}`}
+            disabled={!c.onSelect}
+            onClick={c.onSelect ?? undefined}
+            className="px-3 py-3 rounded-xl bg-brand-sage text-brand-forest font-bold text-xs text-left flex flex-col gap-1 hover:bg-white transition duration-200 shadow-lg active:scale-95 cursor-pointer disabled:bg-white/10 disabled:text-white/60 disabled:shadow-none disabled:cursor-not-allowed disabled:hover:bg-white/10 disabled:active:scale-100"
+          >
+            {c.descriptor.label}
+            <ServiceNote state={c.state} className={c.state === 'soon' ? 'text-white/60' : 'text-brand-forest/70'} />
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -888,7 +908,16 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     第一步: 选择服务类型
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {serviceTypeDescriptors().map(d => {
+                    {serviceChoices({
+                      book: setServiceType,
+                      // 去「线上干预」那一頁之前先把表關掉：換頁之後它不該還開著等人回來。
+                      openTraining: onOpenTraining
+                        ? () => {
+                            setShowBookingModal(false);
+                            onOpenTraining();
+                          }
+                        : undefined,
+                    }).map(({ descriptor: d, state, onSelect }) => {
                       const isSelected = serviceType === d.type;
                       return (
                         <button
@@ -896,11 +925,12 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                           type="button"
                           id={`service-type-${d.type}`}
                           aria-pressed={isSelected}
-                          onClick={() => setServiceType(d.type)}
-                          className={`rounded-2xl border p-3 text-left transition ${
+                          disabled={!onSelect}
+                          onClick={onSelect ?? undefined}
+                          className={`rounded-2xl border p-3 text-left transition disabled:opacity-50 disabled:cursor-not-allowed ${
                             isSelected
                               ? 'border-brand-moss bg-brand-sage/15 ring-1 ring-brand-moss/30 shadow-sm'
-                              : 'border-brand-stone hover:bg-brand-cream/25'
+                              : 'border-brand-stone hover:bg-brand-cream/25 disabled:hover:bg-transparent'
                           }`}
                         >
                           <span className="flex items-center gap-1.5 text-xs font-bold text-brand-forest">
@@ -909,7 +939,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                                 d.venue === 'online' ? 'bg-brand-moss' : 'bg-brand-clay'
                               }`}
                             />
-                            {d.label}
+                            <span className="flex-1">{d.label}</span>
+                            <ServiceNote state={state} className="text-brand-charcoal/60" />
                           </span>
                           <span className="mt-1 block text-[10px] leading-relaxed text-brand-charcoal/60">
                             {d.description}

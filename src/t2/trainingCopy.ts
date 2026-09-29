@@ -209,7 +209,8 @@ export const PLAN_PAGE = {
   step4Caption: `实心的是练过的日子；最后一格是第 ${PLAN_TOTAL_WEEKS} 周末，提醒你再评估一次`,
 
   expertTitle: '有疑问 随时约专家',
-  expertSub: '线上、线下都有，时间由客服和你确认',
+  // 2026-09-29：線下兩種「暂未开放」，不再說「线上、线下都有」
+  expertSub: '先约线上咨询，时间由客服和你确认',
 
   barLabel: '本周练过的活动',
   start: '开始今天的活动',
@@ -251,7 +252,8 @@ export const COMING_SOON = {
 
 export const EXPERT_SHEET = {
   title: '约专家',
-  sub: '线上、线下都有；线下的地点和时间由客服打电话和你确认。',
+  // 2026-09-29：四種並列，線下兩種「暂未开放」（`serviceChoices`），這一句不再說「线上、线下都有」
+  sub: '现在可以先约线上咨询，时间由客服打电话和你确认；线下的还没开放。',
 } as const;
 
 // ══ 活動詳情、播放器、打卡成功、抽屜（Keep 票 7） ═══════════════════════════

@@ -9,7 +9,7 @@
  * - 本週四支、佔比、「本周练：……」：每週活動那一份。
  * - 評估結果：報告快照（`resultSummary`，狀態經 `dimensionStatus` → `statusWording.ts`）。
  * - 已練幾次、x/4、12 週的打卡格：打卡（`practiceStats.ts`）；讀不出來時這些數字整個不出。
- * - 四種服務：`serviceTypeDescriptors()` → 既有的預約表。
+ * - 四種服務：`serviceChoices()` 並列（2026-09-29）→ 線上諮詢說明開既有的預約表，线上干预训练指导就是這一頁，其餘「暂未开放」。
  *
  * 【改過的地方】樣品寫 4 週的全改 12 週；「难度 入门」換成「从做得到的开始」；STEP 3 第三條不再說
  * 「下周安排会参考」（配對不看心情）；頭圖、常見問題的人像不上（來源與授權不明，§9 第 4 題）。
@@ -17,7 +17,7 @@
 import { useRef, type ReactNode } from 'react';
 import { ChevronRight, CircleCheck, Clock, Crown, MessagesSquare, Play, UserRound } from 'lucide-react';
 import { STATUS_WORDING } from '../../utils/statusWording';
-import { serviceTypeDescriptors } from '../../utils/serviceTypes';
+import { ServiceNote, serviceChoices } from '../serviceChoices';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { dimensionStatus } from '../../t2/reportCopy';
 import { weekRangeLabel } from '../../t2/weeklyCopy';
@@ -531,18 +531,22 @@ export default function PlanScreen() {
           <h3 className="text-[19px] font-bold text-brand-forest">{PLAN_PAGE.expertTitle}</h3>
           <p className="mt-1 text-[13px] text-brand-charcoal/55">{PLAN_PAGE.expertSub}</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {serviceTypeDescriptors().map(s => (
+            {serviceChoices({ book: onBookService, inTraining: true }).map(c => (
               <button
-                key={s.type}
+                key={c.descriptor.type}
                 type="button"
-                onClick={() => onBookService(s.type)}
-                className="rounded-xl bg-brand-cream px-3 py-3 text-left cursor-pointer"
+                disabled={!c.onSelect}
+                onClick={c.onSelect ?? undefined}
+                className={`rounded-xl bg-brand-cream px-3 py-3 text-left cursor-pointer disabled:cursor-default ${
+                  c.state === 'soon' ? 'disabled:opacity-50' : ''
+                }`}
               >
                 <p className="text-[14px] font-bold text-brand-forest flex items-center gap-1">
                   <UserRound size={13} className="shrink-0 text-brand-moss" />
-                  {s.label}
+                  {c.descriptor.label}
                 </p>
-                <p className="mt-1 text-[11px] text-brand-charcoal/55 leading-snug line-clamp-2">{s.description}</p>
+                <p className="mt-1 text-[11px] text-brand-charcoal/55 leading-snug line-clamp-2">{c.descriptor.description}</p>
+                <ServiceNote state={c.state} className="mt-1.5 text-brand-moss" />
               </button>
             ))}
           </div>

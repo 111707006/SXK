@@ -17,7 +17,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import { CalendarDays, ChevronRight, LayoutGrid, ListVideo, Loader2, MessageCircle, Play, Shuffle, UserRound, X } from 'lucide-react';
-import { serviceTypeDescriptors } from '../../utils/serviceTypes';
+import { ServiceNote, serviceChoices } from '../serviceChoices';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { PREPARING_SENTENCE, ageBandLabel, weekRangeLabel } from '../../t2/weeklyCopy';
 import {
@@ -215,15 +215,19 @@ export default function ReportEntry() {
             「{plan.preparing.map(d => SITE_DIMENSION_NAME[d]).join('、')}」{PREPARING_SENTENCE}。
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
-            {serviceTypeDescriptors().map(d => (
+            {serviceChoices({ book: onBookService, inTraining: true }).map(c => (
               <button
-                key={d.type}
+                key={c.descriptor.type}
                 type="button"
-                onClick={() => onBookService(d.type)}
-                className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-white/70 hover:bg-white text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5"
+                disabled={!c.onSelect}
+                onClick={c.onSelect ?? undefined}
+                className={`px-3 py-2 rounded-xl border border-brand-moss/30 bg-white/70 hover:bg-white text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:cursor-default disabled:hover:bg-white/70 disabled:active:scale-100 ${
+                  c.state === 'soon' ? 'disabled:opacity-50' : ''
+                }`}
               >
                 <UserRound size={12} className="shrink-0" />
-                {d.label}
+                {c.descriptor.label}
+                <ServiceNote state={c.state} className="text-brand-charcoal/60" />
               </button>
             ))}
           </div>

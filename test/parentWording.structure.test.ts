@@ -104,6 +104,9 @@ const PARENT_FACING_FILES = [
   // 2026-09-28（ADR-0009）：B→A 交接那張卡與 A 的落地畫面、它們的句子。
   'src/components/HandoffCard.tsx',
   'src/handoff/handoffCopy.ts',
+  // 2026-09-29：四種服務的名稱與說明、按鈕上的小字（「去线上干预」「暂未开放」）—— 七處畫面共用。
+  'src/utils/serviceTypes.ts',
+  'src/components/serviceChoices.tsx',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

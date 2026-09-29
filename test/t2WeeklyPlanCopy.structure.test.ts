@@ -130,7 +130,8 @@ describe('配不到活動時', () => {
   it('說「準備中」並導向專家（四種服務），不是往上取一支', () => {
     expect(PREPARING_SENTENCE).toContain('准备中');
     expect(entry).toContain('PREPARING_SENTENCE');
-    expect(entry).toContain('serviceTypeDescriptors');
+    // 四種並列（2026-09-29）：人就在「线上干预」頁上，线上干预训练指导那一顆寫「就是这一页」
+    expect(entry).toContain('serviceChoices({ book: onBookService, inTraining: true })');
     expect(entry).toContain('onBookService');
   });
 

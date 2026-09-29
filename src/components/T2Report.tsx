@@ -16,7 +16,8 @@ import {
 import { authFetch } from '../utils/api';
 import { reportSourceLabel } from '../utils/reportSource';
 import { STATUS_WORDING } from '../utils/statusWording';
-import { serviceTypeDescriptors, type ServiceType } from '../utils/serviceTypes';
+import type { ServiceType } from '../utils/serviceTypes';
+import { ServiceNote, serviceChoices } from './serviceChoices';
 import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import { buildSmartGoals } from '../t2/goals';
 import { hasSafetyConcern } from '../t2/report/prose';
@@ -287,15 +288,17 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
 
   const serviceButtons = (
     <div className="flex flex-wrap gap-2 pt-1">
-      {serviceTypeDescriptors().map(d => (
+      {serviceChoices({ book: onBookService, openTraining: onOpenTraining }).map(c => (
         <button
-          key={d.type}
+          key={c.descriptor.type}
           type="button"
-          onClick={() => onBookService(d.type)}
-          className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5"
+          disabled={!c.onSelect}
+          onClick={c.onSelect ?? undefined}
+          className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-sage/10 disabled:active:scale-100"
         >
           <UserRound size={12} className="shrink-0" />
-          {d.label}
+          {c.descriptor.label}
+          <ServiceNote state={c.state} className="text-brand-charcoal/60" />
         </button>
       ))}
     </div>

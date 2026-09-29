@@ -36,6 +36,7 @@ import type { Activity, DimensionCode } from '../../t2/types';
 import { useTraining } from './TrainingContext';
 import { alternateRows, hasClip, weekDimensions } from './trainingData';
 import { Cover, Tag } from './ui';
+import { SHOW_LIBRARY } from './visibility';
 
 /**
  * 橫向捲動的那兩排（篩選、換著玩）伸到報告卡片的邊緣，與樣品伸到螢幕邊緣同一個意思。
@@ -142,7 +143,7 @@ export default function ReportEntry() {
             <span className="relative z-10">{ENTRY.title}</span>
             <span aria-hidden="true" className="absolute left-0 right-0 -bottom-0.5 h-2.5 rounded-sm bg-brand-moss/50" />
           </h3>
-          <TabWord label={ENTRY.tabs.library} onClick={() => nav.openPage({ name: 'library' })} />
+          {SHOW_LIBRARY && <TabWord label={ENTRY.tabs.library} onClick={() => nav.openPage({ name: 'library' })} />}
           <TabWord label={ENTRY.tabs.calendar} onClick={() => nav.openPage({ name: 'calendar' })} />
           <TabWord label={ENTRY.tabs.expert} onClick={() => nav.openSheet({ kind: 'expert' })} />
         </div>
@@ -263,19 +264,21 @@ export default function ReportEntry() {
         </section>
       ))}
 
-      {/* 6. 示範片庫入口 */}
-      <button
-        type="button"
-        onClick={() => nav.openPage({ name: 'library' })}
-        className="w-full rounded-xl bg-brand-cream px-4 py-3.5 flex items-center gap-3 text-left cursor-pointer active:scale-[0.99] transition"
-      >
-        <ListVideo size={22} className="text-brand-moss shrink-0" />
-        <span className="flex-1 min-w-0">
-          <span className="block text-[15px] font-bold text-brand-forest">{ENTRY.libraryTitle}</span>
-          <span className="block text-[12px] text-brand-charcoal/55">{ENTRY.librarySub}</span>
-        </span>
-        <ChevronRight size={18} className="shrink-0 text-brand-charcoal/40" />
-      </button>
+      {/* 6. 示範片庫入口（2026-09-29 先藏起來，見 visibility.ts） */}
+      {SHOW_LIBRARY && (
+        <button
+          type="button"
+          onClick={() => nav.openPage({ name: 'library' })}
+          className="w-full rounded-xl bg-brand-cream px-4 py-3.5 flex items-center gap-3 text-left cursor-pointer active:scale-[0.99] transition"
+        >
+          <ListVideo size={22} className="text-brand-moss shrink-0" />
+          <span className="flex-1 min-w-0">
+            <span className="block text-[15px] font-bold text-brand-forest">{ENTRY.libraryTitle}</span>
+            <span className="block text-[12px] text-brand-charcoal/55">{ENTRY.librarySub}</span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-brand-charcoal/40" />
+        </button>
+      )}
 
       {/* 7. 可關的橫幅 → 問專家（四種服務 → 既有的預約表） */}
       {bannerOpen && (

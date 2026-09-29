@@ -132,6 +132,13 @@ describe('規格點名的幾件事在畫面上', () => {
     expect(entry).not.toContain('comingSoon');
   });
 
+  // 使用者 2026-09-29：「示範片庫不用吧，可以先隱藏」。兩個入口都掛在同一個開關上，開關現在是關的。
+  it('示範片庫先藏起來：兩個入口都看 SHOW_LIBRARY，而它是 false', () => {
+    expect(entry).toMatch(/\{SHOW_LIBRARY && <TabWord label=\{ENTRY\.tabs\.library\}/);
+    expect(entry).toMatch(/\{SHOW_LIBRARY && \(\s*<button\s+type="button"\s+onClick=\{\(\) => nav\.openPage\(\{ name: 'library' \}\)\}/);
+    expect(read(`${DIR}/visibility.ts`)).toContain('export const SHOW_LIBRARY = false;');
+  });
+
   it('計劃頁的第幾週與「已满 12 周」走 planWeekLabel，12 週的格子走 planGrid', () => {
     expect(plan).toContain('planWeekLabel(position)');
     expect(plan).toContain('planGrid(firstWeekStart)');

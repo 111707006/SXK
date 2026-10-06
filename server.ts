@@ -141,6 +141,10 @@ const PAYWALL_DEMO_OPEN = resolvePaywallSwitch('PAYWALL_DEMO_OPEN', process.env.
 // 同樣 fail-closed：沒設、空字串、'0'/'false' 是收費，認不得的值起不來。微信支付接上之後拿掉這一行。
 const PAYWALL_FREE = resolvePaywallSwitch('PAYWALL_FREE', process.env.PAYWALL_FREE);
 
+// 示範片模式（使用者 2026-10-06：「正式站先 17 支即可」）：每週活動只從有示範片的活動裡挑，不看模組群與月齡
+// （`src/t2/activityMatch.ts` 的 `MatchOptions.sampleOnly`）。同一套 fail-closed 解析；客戶的片子補齊後拿掉。
+const TRAINING_SAMPLE_ONLY = resolvePaywallSwitch('TRAINING_SAMPLE_ONLY', process.env.TRAINING_SAMPLE_ONLY);
+
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
 
@@ -1439,6 +1443,7 @@ tier2Only.post('/api/t2/findings', async (req, res) => {
         context.liveAgeMonth,
         recentWeeks.flatMap(p => p.activities.picks.map(x => x.id)),
         await loadActivityLibrary(),
+        { sampleOnly: TRAINING_SAMPLE_ONLY },
       ),
       goals: buildSmartGoals(findings, { childName }),
       childName,
@@ -1675,7 +1680,7 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
       }
       const recent = await loadRecentWeeklyPlans(userId, weekStart);
       const recentIds = recent.flatMap(p => p.activities.picks.map(x => x.id));
-      const matched = matchWeeklyActivities(snapshot.findings, ageMonth, recentIds, library);
+      const matched = matchWeeklyActivities(snapshot.findings, ageMonth, recentIds, library, { sampleOnly: TRAINING_SAMPLE_ONLY });
       const alternates: Partial<Record<DimensionCode, string[]>> = {};
       for (const [dimension, list] of Object.entries(matched.alternates) as Array<[DimensionCode, Activity[]]>) {
         alternates[dimension] = list.map(a => a.id);

@@ -221,6 +221,7 @@ function stateFor(
   ageMonth: number,
   usable: ReadonlyArray<Activity>,
   recent: ReadonlySet<string>,
+  sampleOnly = false,
 ): DimState {
   const window = windowFor(band, ageMonth);
   const stars = new Set<ActivityTag>(finding.tags.filter(isActivityTag));
@@ -228,7 +229,12 @@ function stateFor(
   const inWindow: Scored[] = [];
   const below: Scored[] = [];
   for (const activity of usable) {
-    const targetMonth = activity.targetMonth as number;
+    const targetMonth = activity.targetMonth ?? 0;
+    // 示範片模式（`MatchOptions.sampleOnly`）：不看模組群、不看窗口，全部當窗口內的候選。
+    if (sampleOnly) {
+      inWindow.push({ activity, targetMonth, ...scoreActivity(activity, stars, recent) });
+      continue;
+    }
     if (!modules.includes(activity.moduleNo) || targetMonth > window.hi) continue;
     const scored = { activity, targetMonth, ...scoreActivity(activity, stars, recent) };
     (targetMonth >= window.lo ? inWindow : below).push(scored);
@@ -248,12 +254,23 @@ function stateFor(
  *
  * 回傳的 `picks` 與 `reason` 都是新物件；`activity` 與 `alternates` 裡的是活動庫裡的原物件。
  */
+export interface MatchOptions {
+  /**
+   * 示範片模式（使用者 2026-10-06：「正式站先 17 支即可」）。只從**有示範片**的啟用活動裡挑，
+   * 不看模組群、不看月齡窗口、不看 `targetMonth` 有沒有填 —— 讓每個孩子這一週都看得到有片子的活動。
+   * 名額、打分、同分、換著玩照舊。由伺服器的 `TRAINING_SAMPLE_ONLY=1` 打開；客戶的片子補齊後拿掉。
+   */
+  sampleOnly?: boolean;
+}
+
 export function matchWeeklyActivities(
   findings: T2Findings,
   ageMonth: number,
   recentIds: ReadonlyArray<string>,
   library: ReadonlyArray<Activity>,
+  options: MatchOptions = {},
 ): WeeklyMatch {
+  const sampleOnly = options.sampleOnly === true;
   assertAge(ageMonth);
   // 九個、不多不少：同一個維度出現兩次會有兩個 state，那個維度就能拿到四支
   const seen = new Set(findings.dimensions.map(d => d.dimensionId));
@@ -264,16 +281,18 @@ export function matchWeeklyActivities(
   const recent = new Set(recentIds);
   const childTags = new Set<FindingTag>(findings.dimensions.flatMap(d => d.tags));
   // 跟維度無關的三個條件先過一次：啟用、有 targetMonth、avoidIf 沒對上孩子任何一個標籤
-  const usable = library.filter(a => a.active && a.targetMonth !== null && !a.avoidIf.some(t => childTags.has(t)));
+  const usable = sampleOnly
+    ? library.filter(a => a.active && a.videoUrl !== null && !a.avoidIf.some(t => childTags.has(t)))
+    : library.filter(a => a.active && a.targetMonth !== null && !a.avoidIf.some(t => childTags.has(t)));
 
   const states: DimState[] = [];
   for (const f of prioritizeDimensions(findings)) {
-    if (f.band === 'watch' || f.band === 'refer') states.push(stateFor(f, f.band, ageMonth, usable, recent));
+    if (f.band === 'watch' || f.band === 'refer') states.push(stateFor(f, f.band, ageMonth, usable, recent, sampleOnly));
   }
   // 檔頭 3a：一個有標記的維度都沒有 → 配 clear 的維度，窗口用 `clear` 那一列。
   if (states.length === 0) {
     for (const f of prioritizeDimensions(findings)) {
-      if (f.band === 'clear') states.push(stateFor(f, 'clear', ageMonth, usable, recent));
+      if (f.band === 'clear') states.push(stateFor(f, 'clear', ageMonth, usable, recent, sampleOnly));
     }
   }
 

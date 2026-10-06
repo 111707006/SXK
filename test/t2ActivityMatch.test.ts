@@ -375,6 +375,30 @@ describe('配額（§7.3 第 3 條）', () => {
   });
 });
 
+describe('示範片模式 sampleOnly（使用者 2026-10-06）', () => {
+  it('只從有示範片的活動挑；不看模組群、月齡窗口、targetMonth 有沒有填', () => {
+    const f = findings({ LANG: LANG_REFER, ATT: ATT_WATCH });
+    const library = [
+      act('A001', 1, null, { videoUrl: '/media/activities/A001.mp4' }),
+      act('A002', 1, 200, { videoUrl: '/media/activities/A002.mp4' }),
+      act('A003', 1, 5, { videoUrl: '/media/activities/A003.mp4' }),
+      act('A004', 1, 30, { videoUrl: '/media/activities/A004.mp4', active: false }),
+      act('A121', 7, 30),
+      act('A165', 8, 30, { targets: ['lang.expression'] }),
+    ];
+    const got = matchWeeklyActivities(f, 48, [], library, { sampleOnly: true });
+    expect(got.picks.map(p => p.activity.id).sort()).toEqual(['A001', 'A002', 'A003']);
+    expect(got.picks.every(p => p.activity.videoUrl !== null && !p.reason.belowWindow)).toBe(true);
+    expect(got.preparing).toEqual([]);
+  });
+
+  it('不帶選項時照舊（沒片子的照配、有片子的不特別優先）', () => {
+    const f = findings({ LANG: LANG_REFER });
+    const library = [act('A165', 8, 30, { targets: ['lang.expression'] }), act('A001', 1, null, { videoUrl: '/x.mp4' })];
+    expect(match(f, library).picks.map(p => p.activity.id)).toEqual(['A165']);
+  });
+});
+
 describe('可重現（§7.3 第 4 條）', () => {
   it('同輸入跑兩次結果相同；輸入陣列的順序也不影響', () => {
     const library = [

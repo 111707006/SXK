@@ -32,6 +32,8 @@ process.env.APP_MODE = '';
 // 漏進來，`paywallGate.http.test.ts` 會全部變成綠燈卻什麼都沒驗到 ——
 // 需要「開關打開」的測試自己設定它（見 `paywallDemoSwitch.http.test.ts`）。
 process.env.PAYWALL_DEMO_OPEN = '';
+// 免費期間的開關同理（見 `paywallFree.http.test.ts`）。
+process.env.PAYWALL_FREE = '';
 
 // 固定的簽章密鑰，讓測試簽出來的 token 在同一支測試裡穩定可用。
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-session-secret';

@@ -64,6 +64,9 @@ export const BELOW_WINDOW_NOTE = '这一支比同龄的一般安排再往前一�
 export function reasonSentence(dimension: DimensionCode, reason: PickReason): string {
   const name = SITE_DIMENSION_NAME[dimension];
   const describe = STATUS_WORDING[STATUS_OF_BAND[reason.band]].describe;
+  // 九個維度都穩定時配的是 clear 的維度（`activityMatch.ts` 檔頭 3a）：「因为发展稳定，所以来练」讀起來像在補救，
+  // 換成「保持下去」的說法。
+  if (reason.band === 'clear') return `${name}${describe}，这周安排这一支一起玩，保持下去。`;
   const tag = reason.matchedTags[0] as ActivityTag | undefined;
   // `TAG_SENTENCES` 是完整的句子（自己帶句號）。嵌進括號裡時把句號去掉，
   // 否則畫面上會出現「……句子也短一些。），所以」這種兩個標點疊在一起的讀法。

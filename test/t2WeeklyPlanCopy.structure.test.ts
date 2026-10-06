@@ -82,6 +82,11 @@ describe('「因為……所以練……」', () => {
     expect(STATUS_OF_BAND).toEqual({ clear: 'normal', watch: 'borderline', refer: 'delay' });
   });
 
+  it('clear（九個都穩定時配的）：說「保持下去」，不說「因为……所以练」', () => {
+    const sentence = reasonSentence('LANG', reason({ band: 'clear' }));
+    expect(sentence).toBe(`语言沟通${STATUS_WORDING.normal.describe}，这周安排这一支一起玩，保持下去。`);
+  });
+
   it('每一個 ★ 標籤都查得到句子（配對只吐得出這些）', () => {
     for (const tag of ACTIVITY_TAGS) {
       const sentence = reasonSentence('LANG', reason({ matchedTags: [tag] }));

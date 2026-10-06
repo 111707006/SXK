@@ -26,6 +26,10 @@
  * 4. 每個名額取分數最高者；同分取 `targetMonth` 高者；再同分取編號小者（v2.1 S13，客戶 9/21 工作單
  *    #16。v2 原本的第二鍵是 `|targetMonth − 窗口中點|` 小者）。已存的每週活動不回頭重配（v2.1 §10）。
  * 5. 每支附 reason：`{ band, window, matchedTags, belowWindow }`。
+ * 3a. **一個有標記的維度都沒有**（九個全 clear 等）時，改配 clear 的維度（使用者 2026-10-06：「全部正常的
+ *    孩子也要有活動」）：窗口用客戶表裡 `clear` 那一列（實足月齡上下各幾個月，不往前取），每個 clear 維度
+ *    一個名額、照 §8 排序發、同一維度 ≤ 2，其餘規則（打分、同分、退路、換著玩）照舊。只要有一個 watch／refer，
+ *    clear 的維度就照舊一支都不配 —— 名額是給有事的維度的。`partial`／`not_assessed`／`no_tool` 永遠不配。
  * 6. 換著玩（Keep 規格 K08、§5.2）：每個有標記的維度，第 1 條的窗口內候選照第 4 條排好，
  *    扣掉本週四支取前 `ALTERNATES_PER_DIMENSION` 支。**跟主配對用同一份排好的清單**，不另排一次 ——
  *    同分規則改了（v2.1 S13），兩邊一起變。
@@ -70,7 +74,7 @@ export const DIM_MOD: Readonly<Record<DimensionCode, ReadonlyArray<ModuleNo>>> =
 
 /**
  * 依判定往前取（§7.2 `OFFSET[band][ageKey]`，單位月、相對實足月齡，原樣）。
- * `clear` 那一列照客戶表抄著，§7.3 沒有用到它（只配 watch／refer）；留著讓窗口函式對三級都答得出來。
+ * `clear` 那一列照客戶表抄著；§7.3 只配 watch／refer，一個有標記的維度都沒有時才用到它（檔頭 3a）。
  */
 export const OFFSET: Readonly<Record<Band, Readonly<Record<AgeKey, readonly [number, number]>>>> = {
   clear: { '<12': [-1, 1], '12-36': [-3, 3], '36-72': [-6, 6], '72+': [-12, 12] },
@@ -82,8 +86,8 @@ export const OFFSET: Readonly<Record<Band, Readonly<Record<AgeKey, readonly [num
 export const WEEKLY_SLOTS = 4;
 /** 同一維度一週最多幾支。 */
 export const MAX_PER_DIMENSION = 2;
-/** refer 的維度佔幾個名額、watch 佔幾個。 */
-export const SLOTS_BY_BAND: Readonly<Record<'refer' | 'watch', number>> = { refer: 2, watch: 1 };
+/** refer 的維度佔幾個名額、watch 佔幾個；clear 只在一個有標記的維度都沒有時才配（檔頭 3a）。 */
+export const SLOTS_BY_BAND: Readonly<Record<Band, number>> = { refer: 2, watch: 1, clear: 1 };
 /** 打分（§7.3 第 2 條）。 */
 export const SCORE = { perTag: 3, dimensionOnly: 1, recent: -2 } as const;
 /** 換著玩：每個維度最多幾支備選（Keep 規格 K08、§5.2）。 */
@@ -186,7 +190,7 @@ interface Scored {
 /** 一個有標記的維度這週的狀態：窗口內的候選（排好）、窗口下方的候選（排好）、已拿幾支。 */
 interface DimState {
   dimension: DimensionCode;
-  band: 'watch' | 'refer';
+  band: Band;
   window: MonthWindow;
   inWindow: Scored[];
   below: Scored[];
@@ -213,7 +217,7 @@ function belowOrder(a: Scored, b: Scored): number {
 
 function stateFor(
   finding: DimensionFinding,
-  band: 'watch' | 'refer',
+  band: Band,
   ageMonth: number,
   usable: ReadonlyArray<Activity>,
   recent: ReadonlySet<string>,
@@ -265,6 +269,12 @@ export function matchWeeklyActivities(
   const states: DimState[] = [];
   for (const f of prioritizeDimensions(findings)) {
     if (f.band === 'watch' || f.band === 'refer') states.push(stateFor(f, f.band, ageMonth, usable, recent));
+  }
+  // 檔頭 3a：一個有標記的維度都沒有 → 配 clear 的維度，窗口用 `clear` 那一列。
+  if (states.length === 0) {
+    for (const f of prioritizeDimensions(findings)) {
+      if (f.band === 'clear') states.push(stateFor(f, 'clear', ageMonth, usable, recent));
+    }
   }
 
   const picked = new Set<string>();

@@ -278,7 +278,7 @@ describe('配額（§7.3 第 3 條）', () => {
   it('常數：每週 4 支、同維度 ≤ 2、refer 2 個名額、watch 1 個', () => {
     expect(WEEKLY_SLOTS).toBe(4);
     expect(MAX_PER_DIMENSION).toBe(2);
-    expect(SLOTS_BY_BAND).toEqual({ refer: 2, watch: 1 });
+    expect(SLOTS_BY_BAND).toEqual({ refer: 2, watch: 1, clear: 1 });
   });
 
   it('LANG refer、ATT watch → LANG 2 支、ATT 1 支、第 4 支輪給有標記的維度（ATT 還有位子）', () => {
@@ -340,17 +340,38 @@ describe('配額（§7.3 第 3 條）', () => {
     expect(got.picks.map(p => p.dimension)).toEqual(['LANG', 'ATT']);
   });
 
-  it('clear／partial／not_assessed／no_tool 的維度一支都不配，也不算準備中', () => {
+  it('有一個有標記的維度時，clear／partial／not_assessed／no_tool 的維度一支都不配，也不算準備中', () => {
     const f = findings({
       LANG: { band: 'partial' },
       SOC: { band: 'not_assessed', t1Flag: 1 },
       MOT: { band: 'no_tool' },
       COG: { band: 'clear', t1Flag: 2 },
+      EMO: { band: 'watch' },
     });
-    const library = [act('A', 8, 30), act('B', 12, 30), act('C', 1, 30), act('D', 13, 48)];
+    // 模組 10 只屬於 EMO；48 個月 watch 的窗口是 [36, 42]
+    const library = [act('A', 8, 30), act('B', 12, 30), act('C', 1, 30), act('D', 13, 48), act('E', 10, 40)];
     const got = match(f, library);
-    expect(got.picks).toEqual([]);
+    expect(got.picks.map(p => [p.activity.id, p.dimension])).toEqual([['E', 'EMO']]);
     expect(got.preparing).toEqual([]);
+  });
+
+  it('一個有標記的維度都沒有 → 配 clear 的維度（窗口用 clear 那一列），partial 等仍不配（使用者 2026-10-06）', () => {
+    const f = findings({ LANG: { band: 'partial' }, MOT: { band: 'no_tool' } });
+    // 48 個月 clear 的窗口是 [42, 54]；模組 8 只屬於 LANG（partial）、模組 1 只屬於 MOT（no_tool）
+    const library = [
+      act('A1', 8, 48), act('A2', 1, 48),
+      act('B1', 12, 48), act('B2', 13, 50), act('B3', 6, 44), act('B4', 10, 52), act('B5', 3, 60),
+    ];
+    const got = match(f, library);
+    expect(got.picks).toHaveLength(WEEKLY_SLOTS);
+    expect(got.picks.every(p => p.reason.band === 'clear' && !p.reason.belowWindow)).toBe(true);
+    expect(got.picks.every(p => p.reason.window.lo === 42 && p.reason.window.hi === 54)).toBe(true);
+    const ids = got.picks.map(p => p.activity.id);
+    expect(ids).not.toContain('A1');
+    expect(ids).not.toContain('A2');
+    // 60 個月在窗口上方，不往上取
+    expect(ids).not.toContain('B5');
+    expect(got.picks.every(p => p.dimension !== 'LANG' && p.dimension !== 'MOT')).toBe(true);
   });
 });
 

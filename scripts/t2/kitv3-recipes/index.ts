@@ -2,5 +2,6 @@
 
 import type { V3Recipe } from '../kitv3';
 import { PCT_RECIPES } from './pct';
+import { LQ_RECIPES } from './lq';
 
-export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES];
+export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES];

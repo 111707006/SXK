@@ -122,6 +122,19 @@ export function isPureData(raw: string): boolean {
       if (c === quote) quote = null;
       continue;
     }
+    // 註解跳過（完整版 LQ 的 `/* ===== L1 语言理解 ===== */` 夾在陣列裡）
+    if (c === '/' && raw[i + 1] === '*') {
+      const e = raw.indexOf('*/', i + 2);
+      if (e < 0) return false;
+      i = e + 1;
+      continue;
+    }
+    if (c === '/' && raw[i + 1] === '/') {
+      const e = raw.indexOf('\n', i);
+      if (e < 0) return false;
+      i = e;
+      continue;
+    }
     // 樣板字串的 `${…}` 可以夾任何運算式，不算字面量 —— 工具包的資料裡也沒有。
     if (c === '`') return false;
     if (c === '"' || c === "'") { quote = c; continue; }
@@ -144,6 +157,24 @@ export function isPureData(raw: string): boolean {
     }
   }
   return quote === null;
+}
+
+/**
+ * 在 script 的**任何位置**找 `var|let|const NAME = <字面量>` 並取值（完整版有 13 支把資料宣告放在函式後面，
+ * 例 LQ 的 `ITEMS`、`RESP`）。一樣過純資料檢查才求值；找不到、或初始值不是純資料就回 `undefined`，由呼叫端決定要不要停。
+ * 同名宣告出現兩次以上視為歧義，丟錯 —— 不猜是哪一個。
+ */
+export function namedLiteral(script: string, name: string): unknown {
+  const re = new RegExp(`(?:^|[;\\s])(?:var|let|const)\\s+${name}\\s*=\\s*`, 'g');
+  const hits = [...script.matchAll(re)];
+  if (hits.length === 0) return undefined;
+  if (hits.length > 1) throw new Error(`literals：${name} 宣告了 ${hits.length} 次`);
+  const start = hits[0].index! + hits[0][0].length;
+  const end = scanInitializer(script, start);
+  if (end < 0) return undefined;
+  const raw = script.slice(start, end).trim();
+  if (!isPureData(raw)) return undefined;
+  return evaluateLiteral(raw);
 }
 
 function evaluateLiteral(raw: string): unknown {

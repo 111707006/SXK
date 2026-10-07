@@ -22,6 +22,8 @@ export interface KitV3Option {
 export interface KitV3Item {
   key: string;
   text: string;
+  /** 題目底下的小字（LQ 的「怎么观察」）。 */
+  hint?: string;
   /** 題目月齡（「约 N 个月」）：實足月齡 ≥ 它才出、才計分。沒有＝不看月齡。 */
   month?: number;
   /** 反向計分（選項值要倒過來算）。 */
@@ -36,6 +38,8 @@ export interface KitV3Section {
   /** 用哪一組選項（`KitV3Bank.options` 的鍵）。 */
   options: string;
   items: KitV3Item[];
+  /** 選答的一段（LQ 的口腔進食）：沒答不算缺答、不進分級。 */
+  optional?: boolean;
 }
 
 /** 一個表（月齡題組、年級題組、ITQ／TTS／BSQ……）。只有一個表的工具就一個 `main`。 */

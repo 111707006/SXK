@@ -53,6 +53,9 @@ describe('達成率族：題目與月齡', () => {
   it('實足月齡 ≥ 題目月齡的全部出（盤點逐月數的：GM 12／36／60 月 39／68／81、SOC 25／54／78）', () => {
     expect([12, 36, 60].map(m => asked(GM, m).length)).toEqual([39, 68, 81]);
     expect([12, 36, 60].map(m => asked(SOC, m).length)).toEqual([25, 54, 78]);
+    expect([12, 36, 60].map(m => asked(ADP, m).length)).toEqual([22, 45, 80]);
+    expect([12, 36, 60].map(m => asked(PLC, m).length)).toEqual([36, 78, 84]);
+    expect([12, 36, 60].map(m => asked(LANG, m).length)).toEqual([22, 59, 92]);
     expect(asked(GM, 84)).toHaveLength(84);
   });
 

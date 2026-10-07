@@ -29,6 +29,8 @@ export interface FacetResult {
   value: number | null;
   /** 頁面分段的索引（好 → 壞，0 起）；不判時 `null`。 */
   band: number | null;
+  /** 這一族多算的數字（LQ 的最高穩定達成帶 `lv`、帶差 `gap`……），只進後台與測試。 */
+  detail?: Record<string, number | null>;
 }
 
 export interface KitV3Score {
@@ -112,12 +114,83 @@ function scorePct(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): Ki
   };
 }
 
+// ── LQ（帶差）──
+
+export interface LqScoring {
+  dim: DimensionCode;
+  /** 月齡參考帶 B1–B7。 */
+  bands: Array<{ level: number; min: number; max: number }>;
+  /** 題 → 它屬於第幾帶。 */
+  itemBand: Record<string, number>;
+  maxValue: number;
+  /** 頁面結論名稱：g0、g1、g2、紅旗。 */
+  rules: [string, string, string, string];
+}
+
+/** 實足月齡所在的帶；12 以下回 0、72 以上回 8（頁面 `ageBand`）。 */
+export function lqAgeBand(s: LqScoring, ageM: number): number {
+  if (ageM < s.bands[0].min) return 0;
+  if (ageM > s.bands[s.bands.length - 1].max) return 8;
+  return s.bands.find(b => ageM >= b.min && ageM <= b.max)?.level ?? 0;
+}
+
+function scoreLq(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as LqScoring;
+  const form = bank.forms[0];
+  const required = form.sections.filter(sec => !sec.optional);
+  const missing = required.flatMap(sec => sec.items.filter(it => answers[it.key] === undefined).map(it => it.key));
+  const ab = lqAgeBand(s, ctx.ageM);
+  const dimSecs = form.sections.filter(sec => sec.options === 'main');
+
+  const facets = dimSecs.map(sec => {
+    let sum = 0;
+    let tested = 0;
+    let done = 0;
+    for (const it of sec.items) {
+      const v = answers[it.key];
+      if (v === undefined) continue;
+      done++;
+      if (v === null) continue; // 不确定：不進分母
+      tested++;
+      sum += v;
+    }
+    const pct = tested > 0 ? Math.round((sum / (tested * s.maxValue)) * 100) : null;
+    // 最高穩定達成帶：該帶與以下每一題都是 MAXV
+    let lv = 0;
+    for (let L = 1; L <= s.bands.length; L++) {
+      const ok = sec.items.filter(it => s.itemBand[it.key] <= L).every(it => answers[it.key] === s.maxValue);
+      if (!ok) break;
+      lv = L;
+    }
+    const gap = ab === 0 || ab === 8 || done === 0 ? null : Math.max(0, ab - lv);
+    return { key: sec.key, name: sec.name, n: sec.items.length, value: pct, band: gap === null ? null : Math.min(3, gap), detail: { lv, gap } };
+  });
+
+  const gaps = facets.map(f => f.detail!.gap).filter((g): g is number => g !== null);
+  const maxGap = gaps.length ? Math.max(...gaps) : null;
+  const flagged = form.sections.filter(sec => sec.key === 'FLAGS').some(sec => sec.items.some(it => answers[it.key] === 1));
+  // 頁面結論：紅旗凌駕；否則 0／1／≥2
+  const ruleIdx = flagged ? 3 : maxGap === null ? null : Math.min(2, maxGap);
+  let grade: Grade03 | null = maxGap === null ? null : (Math.min(3, maxGap) as Grade03);
+  if (flagged) grade = Math.max(grade ?? 0, 2) as Grade03;
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value: maxGap, band: ruleIdx, bandName: ruleIdx === null ? null : s.rules[ruleIdx] },
+    grade03: grade === null ? {} : { [s.dim]: grade },
+    missing,
+  };
+}
+
 // ── 入口 ──
 
 export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
   switch (bank.family) {
     case 'pct':
       return scorePct(bank, answers, ctx);
+    case 'lq':
+      return scoreLq(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

@@ -12,7 +12,7 @@
  * 上層提示家長重做一次 T1 推薦會更準（待問表 R-11）。
  */
 
-import { T1_AGE_BANDS } from '../../t1Data';
+import { getT1AgeBand } from '../../t1Data';
 import { SITE_DIMENSION_ID } from '../dimensionMap';
 import { DIMENSION_CODES } from '../types';
 import type { DimensionCode } from '../types';
@@ -54,11 +54,6 @@ export function levelOf(score: number, redFlagCannot: boolean): Level {
   return redFlagCannot && base < 2 ? 2 : base;
 }
 
-/** 這個月齡用的是 T1 哪一段的題目（`t1Data.ts` 的 A–E；E 段之後照 E，待問表 R-5）。 */
-function t1BandOf(ageM: number) {
-  return T1_AGE_BANDS.find(b => ageM >= b.minAge && ageM <= b.maxAge) ?? (ageM < T1_AGE_BANDS[0].minAge ? T1_AGE_BANDS[0] : T1_AGE_BANDS[T1_AGE_BANDS.length - 1]);
-}
-
 export interface BuiltInput {
   input: RecommendInput;
   /** 至少一維有分數、但沒有逐題作答（舊的 T1）。 */
@@ -76,7 +71,7 @@ export function buildRecommendInput(args: {
   doneCodes?: ReadonlyArray<string>;
 }): BuiltInput {
   const ageM = correctedAgeMonth(args.ageM, args.child.gestationWeeks);
-  const band = t1BandOf(args.ageM); // 題目是照當時的實足月齡出的
+  const band = getT1AgeBand(args.ageM); // 題目是照當時的實足月齡出的（範圍外落到最近一段；E 段之後照 E，待問表 R-5）
   const levels = {} as Record<DimensionCode, Level>;
   const rfdims: DimensionCode[] = [];
   const items: Record<string, 0 | 1 | 2> = {};

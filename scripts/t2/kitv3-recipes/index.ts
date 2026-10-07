@@ -11,5 +11,6 @@ import { QOL_RECIPES } from './qol';
 import { ATTENTION_RECIPES } from './attention';
 import { SNAP_CHEXI_RECIPES } from './snapchexi';
 import { LD_RECIPES } from './ld';
+import { SP_RECIPES } from './sp';
 
-export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES, ...MCHAT_RECIPES, ...ASQ3_RECIPES, ...VOC_RECIPES, ...CONCERN_RECIPES, ...QOL_RECIPES, ...ATTENTION_RECIPES, ...SNAP_CHEXI_RECIPES, ...LD_RECIPES];
+export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES, ...MCHAT_RECIPES, ...ASQ3_RECIPES, ...VOC_RECIPES, ...CONCERN_RECIPES, ...QOL_RECIPES, ...ATTENTION_RECIPES, ...SNAP_CHEXI_RECIPES, ...LD_RECIPES, ...SP_RECIPES];

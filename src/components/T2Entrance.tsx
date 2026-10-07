@@ -7,6 +7,8 @@ import type { ServiceType } from '../utils/serviceTypes';
 import { ServiceNote, serviceChoices } from './serviceChoices';
 import { describePlan, describePlanItem, expertOnlyCopy, noToolNotes, type EntranceState } from '../t2/entrance';
 import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
+import type { ParentPlanV3 } from '../t2/recommend/parentPlan';
+import T2EntranceV3 from './T2EntranceV3';
 import type { DimensionCode, PlanItem, T1Flag, T2Plan } from '../t2/types';
 
 /** `GET /api/t2/plan` 的回應：`planT2()` 的結果加兩樣附帶資料。 */
@@ -50,7 +52,7 @@ interface T2EntranceProps {
  * 那邊的工具清單就是這份 plan。
  */
 export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
-  const [plan, setPlan] = useState<PlanResponse | null>(null);
+  const [plan, setPlan] = useState<PlanResponse | ParentPlanV3 | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
 
   const enabled = access !== 'needs_login';
@@ -59,13 +61,13 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
    * 讀 plan。401／404（沒篩查）都當「這裡沒東西好顯示」—— 報告頁本來就是篩查之後才到得了的地方，
    * 真的碰到只代表資料還沒同步，不是要對家長解釋的事。
    */
-  const fetchPlan = async (): Promise<PlanResponse | null> => {
+  const fetchPlan = async (): Promise<PlanResponse | ParentPlanV3 | null> => {
     const resp = await authFetch('/api/t2/plan');
     const ct = resp.headers.get('content-type');
     if (!ct || !ct.includes('application/json')) throw new Error('bad content type');
     if (resp.status === 401 || resp.status === 404) return null;
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return (await resp.json()) as PlanResponse;
+    return (await resp.json()) as PlanResponse | ParentPlanV3;
   };
 
   useEffect(() => {
@@ -109,8 +111,6 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
     );
   }
 
-  if (plan.entrance === 'none') return null;
-
   const serviceButtons = (
     <div className="grid grid-cols-2 gap-2">
       {serviceChoices({ book: onBookService, openTraining: onOpenTraining }).map(c => (
@@ -129,9 +129,25 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
     </div>
   );
 
+  /** 伺服器開了 `T2_RECOMMEND_V3`：plan 是量表推薦，整塊改畫完整版（`T2EntranceV3`）。 */
+  if ('version' in plan && plan.version === 'v3') {
+    return (
+      <T2EntranceV3
+        plan={plan}
+        locked={access === 'locked' || access === 'demo'}
+        priceFen={priceFen}
+        onUnlock={onUnlock}
+        onStart={onStart}
+        serviceButtons={serviceButtons}
+      />
+    );
+  }
+  const planV2 = plan as PlanResponse;
+  if (planV2.entrance === 'none') return null;
+
   /** 全部被標記的維度都沒有工具：不顯示入口，只剩專家導向（§4.5）。 */
-  if (plan.entrance === 'expert_only') {
-    const copy = expertOnlyCopy(plan);
+  if (planV2.entrance === 'expert_only') {
+    const copy = expertOnlyCopy(planV2);
     return (
       <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left space-y-3">
         <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
@@ -139,7 +155,7 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
         </span>
         <h3 className="text-sm font-extrabold text-brand-forest">{copy.headline}</h3>
         <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">
-          筛查中被标记的方面：{plan.noTool.map(d => SITE_DIMENSION_NAME[d]).join('、')}。
+          筛查中被标记的方面：{planV2.noTool.map(d => SITE_DIMENSION_NAME[d]).join('、')}。
           {copy.notes.map(note => <React.Fragment key={note}>{note}</React.Fragment>)}
           四种服务都可以约，专家会照这份报告逐项说明接下来可以怎么做。
         </p>
@@ -148,12 +164,12 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
     );
   }
 
-  const text = describePlan(plan);
+  const text = describePlan(planV2);
   const groups: Array<{ title: string; items: PlanItem[] }> = [
-    { title: '必做', items: plan.required },
-    { title: '选做', items: plan.optional },
-    { title: '之后可能加测', items: plan.followup },
-    { title: '补充问卷（不出判定）', items: plan.extras },
+    { title: '必做', items: planV2.required },
+    { title: '选做', items: planV2.optional },
+    { title: '之后可能加测', items: planV2.followup },
+    { title: '补充问卷（不出判定）', items: planV2.extras },
   ].filter(g => g.items.length > 0);
   const locked = access === 'locked' || access === 'demo';
 
@@ -188,9 +204,9 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
       </div>
 
       {/* 有工具的維度照上面走；沒工具的維度在入口就說清楚，直接導向四種服務（§4.5）。 */}
-      {plan.noTool.length > 0 && (
+      {planV2.noTool.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
-          {noToolNotes(plan).map(note => (
+          {noToolNotes(planV2).map(note => (
             <p key={note.sentence} className="text-[11px] text-brand-charcoal/80 leading-relaxed">{note.text}</p>
           ))}
           {serviceButtons}

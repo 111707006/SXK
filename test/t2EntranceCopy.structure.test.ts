@@ -52,8 +52,8 @@ describe('no_tool 的文案與位置', () => {
 
   // v2.1 S05：6 歲以上的認知、語言、動作用客戶的固定句 —— 清單下方與「只導專家」兩處都走句子層
   it('沒有工具的那幾段走 noToolNotes，只導專家時的標題走 expertOnlyCopy；固定句不在元件裡手抄', () => {
-    expect(entrance).toContain('noToolNotes(plan)');
-    expect(entrance).toContain('expertOnlyCopy(plan)');
+    expect(entrance).toMatch(/noToolNotes\(planV2\)/);
+    expect(entrance).toMatch(/expertOnlyCopy\(planV2\)/);
     expect(entrance).not.toContain('家长自填工具');
     expect(entranceCopy).not.toContain('家长自填工具');
     expect(entranceCopy).toContain('SCHOOL_AGE_NO_TOOL_SENTENCE');
@@ -94,5 +94,35 @@ describe('伺服器那一側', () => {
     expect(server).not.toContain('req.query.diagnosis');
     expect(server).not.toMatch(/getT2Diagnosis|saveT2Diagnosis/);
     expect(stripComments(read('src/db/mysql.ts'))).not.toMatch(/t2_intake/);
+  });
+});
+
+describe('完整版入口（T2 v3，T2EntranceV3）', () => {
+  const v3 = stripComments(read('src/components/T2EntranceV3.tsx'));
+
+  it('plan 是 v3 才換過去；四種服務仍由 T2Entrance 走 serviceChoices 組好傳進去', () => {
+    expect(entrance).toMatch(/plan\.version === 'v3'/);
+    expect(entrance).toMatch(/<T2EntranceV3/);
+    expect(entrance).toMatch(/serviceButtons=\{serviceButtons\}/);
+    expect(v3).not.toMatch(/serviceChoices/);
+  });
+
+  it('只畫、不組句：理由、誰填、提示、缺口、NO_T2 那一句都讀 plan 上的字', () => {
+    for (const field of ['t.reason', 't.rater', 'n.text', 'g.text', 'plan.noT2Text']) expect(v3, field).toContain(field);
+    expect(v3).not.toMatch(/from '\.\.\/t2\/recommend\/engine'/);
+    expect(v3).not.toContain('目前不需要第二层检查');
+  });
+
+  it('第一次／第二次分組、合計分鐘、兩次才說「建议分 2 次」；NO_T2 不出 CTA', () => {
+    expect(v3).toContain('第一次填写');
+    expect(v3).toContain('第二次填写');
+    expect(v3).toMatch(/plan\.totalMinutes/);
+    expect(v3).toMatch(/plan\.sessions === 2 && <>\{' '\}问卷比较多，建议分 2 次填写/);
+    const noT2 = v3.slice(v3.indexOf("plan.status === 'NO_T2'"), v3.indexOf('plan.tools.length === 0'));
+    expect(noT2).not.toMatch(/onUnlock|onStart/);
+  });
+
+  it('新檔案在家長用字掃描的清單上', () => {
+    expect(read('test/parentWording.structure.test.ts')).toContain("'src/components/T2EntranceV3.tsx'");
   });
 });

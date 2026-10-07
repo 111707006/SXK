@@ -9,7 +9,7 @@
  */
 
 import type { DimensionCode } from '../types';
-import type { KitV3Bank, KitV3Form, KitV3Item } from './types';
+import type { KitV3Bank, KitV3Form, KitV3Item, KitV3Section } from './types';
 
 export type Grade03 = 0 | 1 | 2 | 3;
 /** 作答：題 `key` → 選項值（`null`＝不确定這一類）。 */
@@ -207,10 +207,15 @@ export function bandByRange(bands: ReadonlyArray<{ min?: number; max?: number }>
   return i < 0 ? bands.length - 1 : i;
 }
 
-/** 這次有出、必答（`optional` 的段不算）卻沒答的題。 */
+/** 整段勾了「無法觀察」（只認有 `naLabel` 的段）。 */
+export function sectionIsNa(sec: KitV3Section, answers: KitV3Answers): boolean {
+  return sec.naLabel !== undefined && answers[`${sec.key}.na`] === 1;
+}
+
+/** 這次有出、必答（`optional` 的段、勾了「無法觀察」的段不算）卻沒答的題。 */
 function missingOf(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): string[] {
   const form = formFor(bank, ctx.ageM);
-  const optional = new Set(form.sections.filter(s => s.optional).map(s => s.key));
+  const optional = new Set(form.sections.filter(s => s.optional || sectionIsNa(s, answers)).map(s => s.key));
   return askedItems(bank, ctx)
     .filter(a => !optional.has(a.section) && answers[a.item.key] === undefined)
     .map(a => a.item.key);
@@ -338,7 +343,7 @@ function scoreVoc(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): Ki
   };
 }
 
-// ── 關切率族（ASB、ASR）──
+// ── 關切率族（ASB、ASR、AB、ATT）──
 
 export interface ConcernScoring {
   dim: DimensionCode;
@@ -352,10 +357,16 @@ export interface ConcernScoring {
 
 const REG_SECTION = 'REG';
 
+/**
+ * 只有選項組是 `main` 的段計分；能力倒退（`REG`，有／没有）改分段，功能影響（`IMP`，AB／ATT）要答、不計分也不改分段
+ *（頁面 `impMax` 只進建議文字）。勾了「無法觀察」的段整段不算。
+ */
 function scoreConcern(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
   const s = bank.scoring as ConcernScoring;
   const form = formFor(bank, ctx.ageM);
-  const asked = askedItems(bank, ctx).filter(a => a.section !== REG_SECTION);
+  const scoredSecs = form.sections.filter(sec => sec.options === 'main' && !sectionIsNa(sec, answers));
+  const scoredKeys = new Set(scoredSecs.map(sec => sec.key));
+  const asked = askedItems(bank, ctx).filter(a => scoredKeys.has(a.section));
   const pctOf = (keys: string[]) => {
     const scored = keys.filter(k => typeof answers[k] === 'number');
     return scored.length ? Math.round((scored.reduce((n, k) => n + (answers[k] as number), 0) / (scored.length * s.perItemMax)) * 100) : null;
@@ -364,18 +375,17 @@ function scoreConcern(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext)
     const i = s.levels.findIndex(l => p <= l.max);
     return i < 0 ? s.levels.length - 1 : i;
   };
-  const facets = form.sections
-    .filter(sec => sec.key !== REG_SECTION)
-    .map(sec => {
-      const keys = asked.filter(a => a.section === sec.key).map(a => a.item.key);
-      const value = pctOf(keys);
-      return { key: sec.key, name: sec.name, n: keys.length, value, band: value === null ? null : byMax(value) };
-    });
+  const facets = scoredSecs.map(sec => {
+    const keys = asked.filter(a => a.section === sec.key).map(a => a.item.key);
+    const value = pctOf(keys);
+    return { key: sec.key, name: sec.name, n: keys.length, value, band: value === null ? null : byMax(value) };
+  });
   const keys = asked.map(a => a.item.key);
   const value = pctOf(keys);
   const na = keys.filter(k => answers[k] === null).length;
   const missing = missingOf(bank, answers, ctx);
-  if (s.naLimit !== null && na > s.naLimit) {
+  // 「不适用」太多，或每一段都勾了「無法觀察」（ATT 頁面：「至少需要一个情境可以作答」）→ 不給結果
+  if ((s.naLimit !== null && na > s.naLimit) || keys.length === 0) {
     return { code: bank.code, form: form.key, facets, total: { value, band: null, bandName: null }, grade03: {}, missing, flags: ['too_many_na'] };
   }
   const regressed = (form.sections.find(sec => sec.key === REG_SECTION)?.items ?? []).some(it => answers[it.key] === 1);

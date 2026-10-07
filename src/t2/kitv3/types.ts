@@ -44,6 +44,13 @@ export interface KitV3Section {
   items: KitV3Item[];
   /** 選答的一段（LQ 的口腔進食）：沒答不算缺答、不進分級。 */
   optional?: boolean;
+  /**
+   * 整段可以勾「無法觀察」（ATT 家長版的課堂、作業情境）：勾了（作答 `<key>.na` ＝ 1）這一段不出、不算缺答、
+   * 分子分母都不算。沒有這一欄＝不能整段略過。
+   */
+  naLabel?: string;
+  /** 未滿某月齡時換一個段名（ATT 學前：課堂 → 集體活動）。只是畫面上的字。 */
+  preName?: { belowM: number; name: string };
 }
 
 /** 一個表（月齡題組、年級題組、ITQ／TTS／BSQ……）。只有一個表的工具就一個 `main`。 */

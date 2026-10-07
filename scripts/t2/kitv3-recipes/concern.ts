@@ -17,7 +17,7 @@ import type { KitV3Bank, KitV3Section } from '../../../src/t2/kitv3/types';
 import type { ConcernScoring } from '../../../src/t2/kitv3/score';
 import type { DimensionCode } from '../../../src/t2/types';
 
-function later<T>(src: V3Source, name: string): T {
+export function later<T>(src: V3Source, name: string): T {
   const v = src.consts.get(name)?.value ?? namedLiteral(src.scripts.join('\n'), name);
   if (v === undefined) throw new Error(`${src.file}：找不到純資料的 ${name}`);
   return v as T;
@@ -29,7 +29,7 @@ function regressSection(src: V3Source): KitV3Section {
   return { key: 'REG', name: '能力倒退', options: 'hasnot', items: reg.map(([k, t], i) => ({ key: `reg.${i + 1}`, text: `${k}：${t}` })) };
 }
 
-function levelsOf(src: V3Source) {
+export function levelsOf(src: V3Source) {
   const levels = later<Array<{ hi: number; key: string }>>(src, 'LEVELS');
   if (levels.length !== 3) throw new Error(`${src.file}：LEVELS 應有 3 段`);
   return levels.map(l => ({ max: l.hi, name: l.key }));

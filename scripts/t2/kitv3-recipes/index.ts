@@ -8,5 +8,6 @@ import { ASQ3_RECIPES } from './asq3';
 import { VOC_RECIPES } from './voc';
 import { CONCERN_RECIPES } from './concern';
 import { QOL_RECIPES } from './qol';
+import { ATTENTION_RECIPES } from './attention';
 
-export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES, ...MCHAT_RECIPES, ...ASQ3_RECIPES, ...VOC_RECIPES, ...CONCERN_RECIPES, ...QOL_RECIPES];
+export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES, ...MCHAT_RECIPES, ...ASQ3_RECIPES, ...VOC_RECIPES, ...CONCERN_RECIPES, ...QOL_RECIPES, ...ATTENTION_RECIPES];

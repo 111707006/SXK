@@ -249,7 +249,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `/api/report-link` | POST | 取得该份报告的扫码连结与二维码 | `reportId`；`Authorization: Bearer <token>` |
 | `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**） | 无 |
 | `/api/expert-booking` | POST | 送出专家预约（四种服务共用） | `specialistId`, `parentName`, `parentPhone`；`serviceType` 选填 |
-| `/api/t2/plan` | GET | T2 题量预估：依这位家长的孩子与最新筛查算 `planT2()`（套暂行规则），附 `t1Flags`／`entrance` | `Authorization: Bearer <token>` |
+| `/api/t2/plan` | GET | T2 题量预估：依这位家长的孩子与最新筛查算 `planT2()`（套暂行规则），附 `t1Flags`／`entrance`。**开了 `T2_RECOMMEND_V3`** 改回量表推荐：回 `{version: 'v3', status, tools, totalMinutes, sessions, notices, gaps, noT2Text?, ageMonth, answerAgeMonth, context, completed}`（`PlanV3Response`，`src/t2/recommend/parentPlan.ts`），画面看 `version` 分流 | `Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | POST | 交一支工具的答案；**伺服器算分**（`scoreTool`），窗口外／缺答／多题／值域外 400 且不落表；每次交卷一笔不覆盖。回 `{id, createdAt, result, bands}` | `toolId`, `assessedAgeMonth`, `rater`, `pre`, `answers`；`Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | GET | 这位家长每支工具**最新且完整**的一笔，各附该支对它喂的维度的 band（加测提示用） | `Authorization: Bearer <token>` |
 | `/api/t2/weekly-plan` | GET | 这一周的四支活动（#60，一周一笔：没有就用最新快照配一份存起来）。Keep K08／§5.1 起另回 `alternates`（换着玩：维度 → 最多 5 支备选的完整活动，只放有备选的维度；**K08 之前存的旧周次不回这一栏**）与 `plan: {weekIndex, totalWeeks: 12, firstWeekStart}`（第 1 周＝同一个 `findings_id` 最早的一周）；报告生成之前、没存过的周次 400 `WEEK_OUT_OF_RANGE`，不补一列 | `Authorization: Bearer <token>`；`week` (query，`YYYY-MM-DD`) 选填 |

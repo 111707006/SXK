@@ -51,6 +51,9 @@ import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
 import type { ToolResultRecordV3 } from './src/db/t2ToolResultsV3';
 import { readV3Submission, scoreToolV3, type ToolResultV3, type V3ChildContext } from './src/t2/kitv3/submit';
 import { TOOLKIT_VERSION_V3 } from './src/t2/kitv3/types';
+import { recentResultsV3 } from './src/t2/findingsV3';
+import { parentPlanV3, runRecommendation } from './src/t2/recommend/parentPlan';
+import { RECOMMEND_CONFIG } from './src/t2/recommend/config';
 import type { FindingsRecord } from './src/db/t2Findings';
 import type { WeeklyPlanRecord } from './src/db/t2WeeklyPlans';
 import { DIMENSION_CODES } from './src/t2/types';
@@ -1175,6 +1178,19 @@ async function requireT2Parent(req: express.Request, res: express.Response): Pro
   return userId;
 }
 
+// T2 v3（`T2_RECOMMEND_V3`）：入口改成量表推薦引擎的輸出（客規 §13.2；推薦規格 §5）。
+// 「近 3 個月做過的」＝完整版近 90 天每支最新一筆（R-29）；家長端的字在 `parentPlanV3`，客規原句不出去；T3 不回。
+// `completed` 是近 90 天做完的（入口上標「已完成」，引擎已經不再推它們）。
+async function planV3(userId: UserId, child: any, t1Scores: any[], liveAgeMonth: number) {
+  const recent = recentResultsV3(await loadT2ToolResultsV3(userId), new Date());
+  const run = runRecommendation({ child, t1Scores, liveAgeMonth, doneCodes: recent.map(r => r.result.toolId) });
+  return {
+    ...parentPlanV3(run.rec, run.itemsMissing),
+    ageMonth: run.ageM,
+    completed: recent.map(r => ({ code: r.result.toolId, name: RECOMMEND_CONFIG.tools[r.result.toolId]?.name ?? r.result.toolId, createdAt: r.createdAt })),
+  };
+}
+
 tier2Only.get('/api/t2/plan', async (req, res) => {
   try {
     const userId = await requireT2Parent(req, res);
@@ -1189,6 +1205,11 @@ tier2Only.get('/api/t2/plan', async (req, res) => {
     const ageMonth = liveAgeMonthOf(data.child);
     if (ageMonth === null) {
       res.status(400).json({ error: '孩子档案里没有可用的月龄，请先补齐出生日期。', code: 'CHILD_AGE_REQUIRED' });
+      return;
+    }
+
+    if (T2_RECOMMEND_V3) {
+      res.json(await planV3(userId, data.child, t1Scores, ageMonth));
       return;
     }
 

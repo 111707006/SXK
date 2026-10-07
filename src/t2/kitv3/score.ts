@@ -402,6 +402,84 @@ function scoreConcern(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext)
   };
 }
 
+// ── SNAP-IV（分量表平均分對參考點）──
+
+export interface SnapScoring {
+  dim: DimensionCode;
+  /** 家長版參考點：分量表 → [關注, 診斷]，嚴格大於才算超過。 */
+  ref: Record<string, [number, number]>;
+  /** 三級名稱：低於、高於關注、高於診斷。 */
+  levels: [string, string, string];
+  grade: Grade03[];
+}
+
+function scoreSnap(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as SnapScoring;
+  const form = bank.forms[0];
+  const facets = form.sections.map(sec => {
+    const vals = sec.items.map(it => answers[it.key]).filter((v): v is number => typeof v === 'number');
+    const ari = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    const [care, diag] = s.ref[sec.key];
+    const band = ari === null ? null : ari > diag ? 2 : ari > care ? 1 : 0;
+    const sx = sec.items.filter(it => (answers[it.key] ?? 0) >= 2).length;
+    // 數值照頁面印兩位小數；分級用沒捨入的平均分比
+    return { key: sec.key, name: sec.name, n: sec.items.length, value: ari === null ? null : Math.round(ari * 100) / 100, band, detail: { sx } };
+  });
+  const bands = facets.map(f => f.band).filter((b): b is number => b !== null);
+  const band = bands.length ? Math.max(...bands) : null;
+  const aris = facets.map(f => f.value).filter((v): v is number => v !== null);
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value: aris.length ? Math.max(...aris) : null, band, bandName: band === null ? null : s.levels[band] },
+    grade03: band === null ? {} : { [s.dim]: s.grade[band] },
+    missing: missingOf(bank, answers, ctx),
+  };
+}
+
+// ── CHEXI（總分對官方總分表；因素分只進報告）──
+
+export interface ChexiScoring {
+  dim: DimensionCode;
+  /** 總分的三級，好 → 壞，`min` 是下限（含）。 */
+  levels: Array<{ min: number; name: string }>;
+  factors: Array<{ key: string; name: string; subs: string[]; cuts: Array<{ min: number; name: string }> }>;
+  subNames: Record<string, string>;
+  grade: Grade03[];
+}
+
+/** 好 → 壞、`min` 遞增的分段：最後一個 `v >= min` 的索引。 */
+function bandByAscendingMin(levels: ReadonlyArray<{ min: number }>, v: number): number {
+  let i = 0;
+  levels.forEach((l, j) => {
+    if (v >= l.min) i = j;
+  });
+  return i;
+}
+
+function scoreChexi(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as ChexiScoring;
+  const form = bank.forms[0];
+  const items = form.sections.flatMap(sec => sec.items);
+  const subSum = (sub: string) => items.filter(it => it.tags?.includes(sub)).reduce((n, it) => n + (answers[it.key] ?? 0), 0);
+  const facets = s.factors.map(f => {
+    const value = f.subs.reduce((n, sub) => n + subSum(sub), 0);
+    const n = items.filter(it => f.subs.some(sub => it.tags?.includes(sub))).length;
+    return { key: f.key, name: f.name, n, value, band: bandByAscendingMin(f.cuts, value), detail: Object.fromEntries(f.subs.map(sub => [sub, subSum(sub)])) };
+  });
+  const value = items.reduce((n, it) => n + (answers[it.key] ?? 0), 0);
+  const band = bandByAscendingMin(s.levels, value);
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value, band, bandName: s.levels[band].name },
+    grade03: { [s.dim]: s.grade[band] },
+    missing: missingOf(bank, answers, ctx),
+  };
+}
+
 // ── QOL（困擾率；沒有主維度）──
 
 export interface QolScoring {
@@ -454,6 +532,10 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
       return scoreConcern(bank, answers, ctx);
     case 'qol':
       return scoreQol(bank, answers, ctx);
+    case 'snap':
+      return scoreSnap(bank, answers, ctx);
+    case 'chexi':
+      return scoreChexi(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

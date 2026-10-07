@@ -15,7 +15,9 @@
  * 不看 `targetMonth`、`targets`、`avoidIf`、`dimensions`（§7：欄位留著，配對不讀）。
  */
 
-import type { Band, DimensionCode, DimensionFinding, T1Flag } from './types';
+import { DIM_MOD, OFFSET, ageKeyOf } from './activityMatch';
+import { DIMENSION_CODES } from './types';
+import type { Activity, Band, DimensionCode, DimensionFinding, ModuleNo, T1Flag } from './types';
 
 // ══════════════════════════════════════════════
 // 第一、二關：顏色與順序
@@ -218,4 +220,223 @@ export function interleave(quotas: ReadonlyArray<Pick<Quota, 'dimension' | 'coun
 /** 一串切成 4 週，每週 `perWeek` 格（每月名額 ÷ 4）。 */
 export function splitWeeks<T>(sequence: ReadonlyArray<T>, perWeek: number): T[][] {
   return Array.from({ length: WEEKS_PER_MONTH }, (_, w) => sequence.slice(w * perWeek, (w + 1) * perWeek));
+}
+
+// ══════════════════════════════════════════════
+// 第三關：月齡窗（客戶第三節、第七節）
+// ══════════════════════════════════════════════
+
+/** 閉區間，單位月；可以是小數（三等分）。 */
+export type MonthRange = [number, number];
+
+/** 整期的窗口：實足月齡＋`OFFSET[顏色][年齡段]`，上下都不低於 0（客戶「最低到 0 个月为止，不会算出负数」）。 */
+export function periodWindow(color: PushColor, ageMonth: number): MonthRange {
+  const [lo, hi] = OFFSET[BAND_OF_COLOR[color]][ageKeyOf(ageMonth)];
+  return [Math.max(0, ageMonth + lo), Math.max(0, ageMonth + hi)];
+}
+
+/** 三個月各一段：窗口切三等分，一個月走一份（客戶「24–36 → 24–28、28–32、32–36」）。 */
+export function monthWindows([lo, hi]: MonthRange): [MonthRange, MonthRange, MonthRange] {
+  const s = (hi - lo) / MONTHS_PER_PERIOD;
+  return [
+    [lo, lo + s],
+    [lo + s, lo + 2 * s],
+    [lo + 2 * s, hi],
+  ];
+}
+
+// ══════════════════════════════════════════════
+// 第四、五關：從模組裡依編號挑
+// ══════════════════════════════════════════════
+
+/** 活動適齡區間與窗口的距離：有重疊是 0；活動整段在窗口下方是正的「往下」距離，上方是「往上」。 */
+function distance(a: Activity, [lo, hi]: MonthRange): { gap: number; below: boolean } {
+  if (a.ageMonths.max < lo) return { gap: lo - a.ageMonths.max, below: true };
+  if (a.ageMonths.min > hi) return { gap: a.ageMonths.min - hi, below: false };
+  return { gap: 0, below: false };
+}
+
+const byIdAsc = (a: Activity, b: Activity) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * 一個能力、一個月的候選，排好的順序就是取用的順序（規格 §4.5）：
+ * 1. 窗口內（活動適齡與窗口有交集，閉區間），依編號由小到大 —— `relaxed: false`。
+ * 2. 放寬（暫採 P-1）：同模組群其餘的，依距離近→遠，同距離先往下，再同就編號小 —— `relaxed: true`。
+ *
+ * `pool` 是已經篩過「啟用」的活動。`avoid`（上一期的 36 支，`stable` 時）在兩段裡各自排到最後：先用沒練過的，不夠再用。
+ * 示範片模式（`sampleOnly`）：不看模組群、不看窗口，`pool` 全部依編號（使用者 2026-10-06「正式站先 17 支即可」）。
+ */
+export function candidatesFor(
+  dimension: DimensionCode,
+  window: MonthRange,
+  pool: ReadonlyArray<Activity>,
+  options: { avoid?: ReadonlySet<string>; sampleOnly?: boolean } = {},
+): Array<{ activity: Activity; relaxed: boolean }> {
+  const avoid = options.avoid ?? new Set<string>();
+  const avoided = (a: Activity) => (avoid.has(a.id) ? 1 : 0);
+  if (options.sampleOnly) {
+    return [...pool].sort((a, b) => avoided(a) - avoided(b) || byIdAsc(a, b)).map(activity => ({ activity, relaxed: false }));
+  }
+  const modules = DIM_MOD[dimension];
+  const inGroup = pool.filter(a => modules.includes(a.moduleNo));
+  const inside = inGroup.filter(a => distance(a, window).gap === 0).sort((a, b) => avoided(a) - avoided(b) || byIdAsc(a, b));
+  const outside = inGroup
+    .filter(a => distance(a, window).gap > 0)
+    .sort((a, b) => {
+      const da = distance(a, window);
+      const db = distance(b, window);
+      return avoided(a) - avoided(b) || da.gap - db.gap || Number(db.below) - Number(da.below) || byIdAsc(a, b);
+    });
+  return [...inside.map(activity => ({ activity, relaxed: false })), ...outside.map(activity => ({ activity, relaxed: true }))];
+}
+
+// ══════════════════════════════════════════════
+// 一期
+// ══════════════════════════════════════════════
+
+/** 期末調整（規格 §5.2）：`none` 第一期或新報告；其餘由上一期的完成率決定。 */
+export type PeriodAdjustment = 'none' | 'good' | 'stable' | 'hard';
+/** 本月做法：手冊的「简单」、標準玩法（步驟）、「难一点」。 */
+export type Variant = 'easy' | 'standard' | 'hard';
+
+/** 三個月照月份走：简单 → 标准 → 难一点（客戶第七節）；`good` 全用难一点、`hard` 全用简单（客戶第八節）。 */
+export function variantFor(monthIndex: number, adjustment: PeriodAdjustment): Variant {
+  if (adjustment === 'good') return 'hard';
+  if (adjustment === 'hard') return 'easy';
+  return (['easy', 'standard', 'hard'] as const)[monthIndex];
+}
+
+export interface PeriodDimension extends DimensionColor {
+  /**
+   * 算窗口用的顏色。期末調整「移一檔」只動這個（客戶「用橙色的规则重算」窗口）；`color` 是評估的顏色，
+   * 決定參不參加、名額多少、卡片上寫判什麼色 —— 移一檔不讓原本沒事的能力冒出來，也不讓有事的能力消失。
+   */
+  windowColor: PushColor;
+  /** 整期的窗口與三個月各自的窗口。 */
+  window: MonthRange;
+  monthWindows: [MonthRange, MonthRange, MonthRange];
+  /** 每月幾支。 */
+  quota: number;
+  modules: ModuleNo[];
+}
+
+export interface SlotReason {
+  color: PushColor;
+  source: ColorSource;
+  module: ModuleNo | null;
+  /** 這個月的窗口。 */
+  window: MonthRange;
+  /** 窗口內不夠、放寬拿到的（或示範片模式）。 */
+  relaxed: boolean;
+  /** 開期之後那支被停用、由下一支補上的（規格 §4.6）。 */
+  replaced?: boolean;
+}
+
+export interface PeriodSlot {
+  /** 第幾週，1–12。 */
+  week: number;
+  dimension: DimensionCode;
+  /** `null` ＝ 這個能力的模組群裡已經沒有可以排的（準備中）。 */
+  activityId: string | null;
+  variant: Variant;
+  reason: SlotReason;
+}
+
+export interface PeriodPlan {
+  adjustment: PeriodAdjustment;
+  ageMonth: number;
+  perWeek: number;
+  sampleOnly: boolean;
+  /** 參加分配的能力，照 `sortByPush`（補進來的接在後面）。 */
+  dimensions: PeriodDimension[];
+  /** 12 週，每週 `perWeek` 格。 */
+  weeks: PeriodSlot[][];
+}
+
+export interface PlanPeriodInput {
+  dimensions: ReadonlyArray<Pick<DimensionFinding, 'dimensionId' | 'band' | 't1Flag'>>;
+  /** T1 每維分數（0–8），給沒做量表的維度推定顏色；缺的退回 T1 標記。 */
+  t1Scores?: Partial<Record<DimensionCode, number>>;
+  /** 一期開始那週的實足月齡（整數月）。 */
+  ageMonth: number;
+  /** 活動庫全部（含停用的）；這裡自己過濾。 */
+  library: ReadonlyArray<Activity>;
+  adjustment?: PeriodAdjustment;
+  /** 上一期排過的活動（`stable` 時先避開）。 */
+  previousIds?: ReadonlyArray<string>;
+  sampleOnly?: boolean;
+}
+
+/**
+ * 排一期（規格 §4）。九個維度要剛好九筆；月齡要是非負整數。回傳全是新物件（活動只記編號）。
+ */
+export function planPeriod(input: PlanPeriodInput): PeriodPlan {
+  const { ageMonth, library } = input;
+  const adjustment = input.adjustment ?? 'none';
+  const sampleOnly = input.sampleOnly === true;
+  ageKeyOf(ageMonth); // 月齡檢查（不是非負整數就丟錯）
+  const seen = new Set(input.dimensions.map(d => d.dimensionId));
+  if (input.dimensions.length !== DIMENSION_CODES.length || DIMENSION_CODES.some(d => !seen.has(d))) {
+    throw new Error(`trainingPush：要剛好九個維度，拿到 ${JSON.stringify(input.dimensions.map(d => d.dimensionId))}`);
+  }
+
+  const shift = adjustment === 'good' ? 'lighter' : adjustment === 'hard' ? 'heavier' : null;
+  const colored = dimensionColors(input.dimensions, input.t1Scores);
+  const ranked = participants(colored);
+  const total = adjustment === 'hard' ? MONTHLY_QUOTA_HARD : MONTHLY_QUOTA;
+  const quotas = monthlyQuotas(ranked, reserveOf(colored, ranked), total);
+  const perWeek = total / WEEKS_PER_MONTH;
+
+  const dimensions: PeriodDimension[] = quotas.map(q => {
+    const windowColor = shift ? shiftColor(q.color, shift) : q.color;
+    const window = periodWindow(windowColor, ageMonth);
+    return {
+      dimension: q.dimension,
+      color: q.color,
+      source: q.source,
+      windowColor,
+      window,
+      monthWindows: monthWindows(window),
+      quota: q.count,
+      modules: [...DIM_MOD[q.dimension]],
+    };
+  });
+
+  const pool = library.filter(a => a.active && (!sampleOnly || a.videoUrl !== null));
+  const avoid = new Set(adjustment === 'stable' ? input.previousIds ?? [] : []);
+  const used = new Set<string>();
+  const weeks: PeriodSlot[][] = [];
+
+  for (let m = 0; m < MONTHS_PER_PERIOD; m++) {
+    const variant = variantFor(m, adjustment);
+    const lists = new Map(
+      dimensions.map(d => [d.dimension, candidatesFor(d.dimension, d.monthWindows[m], pool, { avoid, sampleOnly })] as const),
+    );
+    const byDimension = new Map(dimensions.map(d => [d.dimension, d] as const));
+    const sequence = interleave(dimensions.map(d => ({ dimension: d.dimension, count: d.quota })));
+    splitWeeks(sequence, perWeek).forEach((dims, w) => {
+      weeks.push(
+        dims.map(dimension => {
+          const d = byDimension.get(dimension)!;
+          const next = lists.get(dimension)!.find(c => !used.has(c.activity.id));
+          if (next) used.add(next.activity.id);
+          return {
+            week: m * WEEKS_PER_MONTH + w + 1,
+            dimension,
+            activityId: next ? next.activity.id : null,
+            variant,
+            reason: {
+              color: d.color,
+              source: d.source,
+              module: next ? next.activity.moduleNo : null,
+              window: d.monthWindows[m],
+              relaxed: next ? next.relaxed || sampleOnly : false,
+            },
+          };
+        }),
+      );
+    });
+  }
+
+  return { adjustment, ageMonth, perWeek, sampleOnly, dimensions, weeks };
 }

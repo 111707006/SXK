@@ -180,6 +180,21 @@ describe('交錯排列', () => {
     expect(seq.filter(d => d === 'SEN')).toHaveLength(2);
   });
 
+  it('兩個以上能力參加時，每週至少兩個能力（窮舉 2–3 個能力的名額組合）', () => {
+    for (let a = 1; a <= 6; a++) {
+      for (let b = 1; b <= 6; b++) {
+        const c = 12 - a - b;
+        if (c > 6 || c < 0) continue;
+        const quotas = [
+          { dimension: 'LANG' as const, count: a },
+          { dimension: 'MOT' as const, count: b },
+          ...(c > 0 ? [{ dimension: 'COG' as const, count: c }] : []),
+        ];
+        for (const week of splitWeeks(interleave(quotas), 3)) expect(new Set(week).size, `${a}/${b}/${c}`).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
   it('兩個以上能力參加時，每週至少兩個能力', () => {
     for (const [a, b] of [[6, 6], [6, 3], [4, 4], [2, 2], [6, 5], [6, 1]] as const) {
       const extra = 12 - a - b;

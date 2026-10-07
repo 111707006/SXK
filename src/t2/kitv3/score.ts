@@ -541,6 +541,40 @@ function scoreLd(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): Kit
   };
 }
 
+// ── ADL（七級，7 最好；獨立率）──
+
+export interface AdlScoring {
+  dim: DimensionCode;
+  /** 由好到壞，`min` 遞減（72／45／0）。 */
+  levels: Array<{ min: number; name: string }>;
+  /** 領域不到這麼多題不單獨判。 */
+  minItems: number;
+  grade: Grade03[];
+}
+
+function scoreAdl(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as AdlScoring;
+  const form = bank.forms[0];
+  const asked = askedItems(bank, ctx);
+  // 頁面 `overall`／`secStat`：(Σ − n) ÷ 6n，沒答的當 0（交卷時缺答已經擋掉）
+  const indep = (keys: string[]) => (keys.length ? Math.round(((keys.reduce((n, k) => n + (answers[k] ?? 0), 0) - keys.length) / (keys.length * 6)) * 100) : null);
+  const facets = form.sections.map(sec => {
+    const keys = asked.filter(a => a.section === sec.key).map(a => a.item.key);
+    const value = indep(keys);
+    return { key: sec.key, name: sec.name, n: keys.length, value, band: value === null || keys.length < s.minItems ? null : bandByMin(s.levels, value) };
+  });
+  const value = indep(asked.map(a => a.item.key));
+  const band = value === null ? null : bandByMin(s.levels, value);
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value, band, bandName: band === null ? null : s.levels[band].name },
+    grade03: band === null ? {} : { [s.dim]: s.grade[band] },
+    missing: missingOf(bank, answers, ctx),
+  };
+}
+
 // ── QOL（困擾率；沒有主維度）──
 
 export interface QolScoring {
@@ -599,6 +633,8 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
       return scoreChexi(bank, answers, ctx);
     case 'ld':
       return scoreLd(bank, answers, ctx);
+    case 'adl':
+      return scoreAdl(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

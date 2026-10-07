@@ -79,6 +79,16 @@ export function buildFindingsV3(input: BuildFindingsV3Input): T2FindingsV3 {
   };
 }
 
+/**
+ * 開關組合（server.ts 啟動時呼叫）：完整版的快照只有維度判定、沒有舊配對要的標籤，每週活動只能走 v3 推送規則 ——
+ * 開了 `T2_RECOMMEND_V3` 卻沒開 `TRAINING_PUSH_V3`，丟錯讓程序起不來，不要等第一位家長打開線上干預才 500。
+ */
+export function assertV3Switches(recommendV3: boolean, trainingPushV3: boolean): void {
+  if (recommendV3 && !trainingPushV3) {
+    throw new Error('T2_RECOMMEND_V3=1 需要同時設 TRAINING_PUSH_V3=1（完整版的報告只能用 v3 推送規則排活動）');
+  }
+}
+
 /** 讀回來的快照是哪一套（`toolkitVersion` 分流）。 */
 export function isFindingsV3(x: { toolkitVersion?: unknown }): boolean {
   return x.toolkitVersion === TOOLKIT_VERSION_V3;

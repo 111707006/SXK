@@ -51,13 +51,13 @@ import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
 import type { ToolResultRecordV3 } from './src/db/t2ToolResultsV3';
 import { readV3Submission, scoreToolV3, type ToolResultV3, type V3ChildContext } from './src/t2/kitv3/submit';
 import { TOOLKIT_VERSION_V3 } from './src/t2/kitv3/types';
-import { recentResultsV3 } from './src/t2/findingsV3';
+import { assertV3Switches, buildFindingsV3, isFindingsV3, recentResultsV3 } from './src/t2/findingsV3';
 import { parentPlanV3, runRecommendation } from './src/t2/recommend/parentPlan';
 import { RECOMMEND_CONFIG } from './src/t2/recommend/config';
 import type { FindingsRecord } from './src/db/t2Findings';
 import type { WeeklyPlanRecord } from './src/db/t2WeeklyPlans';
 import { DIMENSION_CODES } from './src/t2/types';
-import type { Activity, DimensionCode } from './src/t2/types';
+import type { Activity, DimensionCode, T2Findings } from './src/t2/types';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
@@ -168,6 +168,8 @@ const TRAINING_PUSH_V3 = resolvePaywallSwitch('TRAINING_PUSH_V3', process.env.TR
 // （body 帶 `toolkitVersion: 'kit-20260923'`，`src/t2/kitv3/submit.ts`），`GET ?kit=v3` 讀完整版的作答。
 // 關著時一行不動：完整版的工具代碼舊路徑不認得（400 TOOL_UNKNOWN）。同一套 fail-closed 解析。
 const T2_RECOMMEND_V3 = resolvePaywallSwitch('T2_RECOMMEND_V3', process.env.T2_RECOMMEND_V3);
+// 完整版的報告快照只有維度判定、沒有舊配對要的標籤：每週活動只能走 v3 推送規則。開一個沒開另一個 → 起不來。
+assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3);
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -1527,6 +1529,30 @@ function findingsEntry(record: FindingsRecord) {
   };
 }
 
+// T2 v3（`T2_RECOMMEND_V3`）：完整版的快照（題庫規格 §5.2）。「推了哪些」用同一份 T1／孩子資料、不排除做過的（R-30）；
+// 收近 90 天每支最新一筆（R-29）。報告文字（AI／模板）還沒改寫成完整版的形狀 —— 先存 `prose: null`，
+// 畫面走「未記錄」那一態，判定、旗標、活動都照快照（R3h 接報告頁）。
+async function generateFindingsV3(userId: UserId, context: T2Context): Promise<FindingsRecord> {
+  const now = new Date();
+  const records = await loadT2ToolResultsV3(userId);
+  const run = runRecommendation({
+    child: context.child,
+    t1Scores: context.t1Scores as any[],
+    liveAgeMonth: context.liveAgeMonth,
+    doneCodes: recentResultsV3(records, now).map(r => r.result.toolId),
+  });
+  const sex = context.child?.gender === 'boy' || context.child?.gender === 'girl' ? context.child.gender : undefined;
+  const findings = buildFindingsV3({
+    t1: context.t1Flags,
+    recommended: run.full.tools.map(t => t.code),
+    records,
+    ...(sex ? { sex } : {}),
+    fallbackAgeMonth: run.ageM,
+    now,
+  });
+  return storeT2Findings(userId, { findings, prose: null, isAiGenerated: false, aiEngine: null });
+}
+
 tier2Only.post('/api/t2/findings', async (req, res) => {
   try {
     const userId = await requireT2Parent(req, res);
@@ -1534,6 +1560,11 @@ tier2Only.post('/api/t2/findings', async (req, res) => {
 
     const context = await loadT2Context(userId, res);
     if (!context) return;
+
+    if (T2_RECOMMEND_V3) {
+      res.status(201).json(findingsEntry(await generateFindingsV3(userId, context)));
+      return;
+    }
 
     const records = await loadT2ToolResults(userId);
     const results = records.map(r => r.result);
@@ -1871,9 +1902,14 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
           activities: weeklyActivitiesOf(resolved.period, resolved.week, library),
         });
       } else {
+        // 完整版的快照（T2_RECOMMEND_V3 開過又關掉）沒有舊配對要的標籤：請家長重新生成一份（舊題庫的）報告
+        if (isFindingsV3(snapshot.findings)) {
+          res.status(409).json({ error: '报告的版本已经更新，请重新生成一次报告。', code: 'FINDINGS_VERSION' });
+          return;
+        }
         const recent = await loadRecentWeeklyPlans(userId, weekStart);
         const recentIds = recent.flatMap(p => p.activities.picks.map(x => x.id));
-        const matched = matchWeeklyActivities(snapshot.findings, ageMonth, recentIds, library, { sampleOnly: TRAINING_SAMPLE_ONLY });
+        const matched = matchWeeklyActivities(snapshot.findings as T2Findings, ageMonth, recentIds, library, { sampleOnly: TRAINING_SAMPLE_ONLY });
         const alternates: Partial<Record<DimensionCode, string[]>> = {};
         for (const [dimension, list] of Object.entries(matched.alternates) as Array<[DimensionCode, Activity[]]>) {
           alternates[dimension] = list.map(a => a.id);

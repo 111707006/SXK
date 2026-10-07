@@ -21,13 +21,15 @@
 import { getPool } from './mysql';
 import { DIMENSION_CODES } from '../t2/types';
 import type { T2Findings } from '../t2/types';
+import type { T2FindingsV3 } from '../t2/findingsV3';
 import type { T2ReportProse } from '../t2/report';
 
 /** 表裡的一列，讀出來的形狀。 */
 export interface FindingsRecord {
   id: number;
   createdAt: string;
-  findings: T2Findings;
+  /** 9/08 題庫的 `T2Findings`，或完整版的 `T2FindingsV3`（`toolkitVersion` 分流，`isFindingsV3`）。 */
+  findings: T2Findings | T2FindingsV3;
   /** 模板退路也是一份完整的 prose；`null` 只在「連模板都沒存成」時出現。 */
   prose: T2ReportProse | null;
   isAiGenerated: boolean;
@@ -36,7 +38,7 @@ export interface FindingsRecord {
 }
 
 export interface FindingsInsert {
-  findings: T2Findings;
+  findings: T2Findings | T2FindingsV3;
   prose: T2ReportProse | null;
   isAiGenerated: boolean;
   aiEngine: string | null;

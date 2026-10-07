@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFindingsV3, isFindingsV3, recentResultsV3, RECENT_DAYS } from '../src/t2/findingsV3';
+import { assertV3Switches, buildFindingsV3, isFindingsV3, recentResultsV3, RECENT_DAYS } from '../src/t2/findingsV3';
 import type { Grade03 } from '../src/t2/kitv3/score';
 import type { ToolResultV3 } from '../src/t2/kitv3/submit';
 import { DIMENSION_CODES } from '../src/t2/types';
@@ -85,5 +85,14 @@ describe('buildFindingsV3', () => {
   it('isFindingsV3 只看 toolkitVersion', () => {
     expect(isFindingsV3(buildFindingsV3({ ...base, records: [] }))).toBe(true);
     expect(isFindingsV3({ toolkitVersion: 'kit-20260908' })).toBe(false);
+  });
+});
+
+describe('assertV3Switches（server.ts 啟動時）', () => {
+  it('只開 T2_RECOMMEND_V3 → 丟錯指名 TRAINING_PUSH_V3；其餘組合都過', () => {
+    expect(() => assertV3Switches(true, false)).toThrow(/TRAINING_PUSH_V3/);
+    expect(() => assertV3Switches(true, true)).not.toThrow();
+    expect(() => assertV3Switches(false, true)).not.toThrow();
+    expect(() => assertV3Switches(false, false)).not.toThrow();
   });
 });

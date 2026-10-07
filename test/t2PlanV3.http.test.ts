@@ -59,11 +59,13 @@ let client: TestClient;
 
 beforeAll(async () => {
   process.env.T2_RECOMMEND_V3 = '1';
+  process.env.TRAINING_PUSH_V3 = '1'; // 完整版要 v3 推送規則（server.ts 起不來的檢查）
   client = await startTestApp(await loadApp());
 });
 
 afterAll(async () => {
   process.env.T2_RECOMMEND_V3 = '';
+  process.env.TRAINING_PUSH_V3 = '';
   await client.close();
 });
 

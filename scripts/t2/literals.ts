@@ -177,6 +177,23 @@ export function namedLiteral(script: string, name: string): unknown {
   return evaluateLiteral(raw);
 }
 
+/**
+ * `<左邊> = <字面量>` 的賦值（完整版 ASR 用 `SECS[1].items=[...]` 補面向的題目）。規則同 `namedLiteral`：
+ * 只認一處、過純資料檢查才求值，找不到或不是純資料回 `undefined`。
+ */
+export function assignedLiteral(script: string, lhs: string): unknown {
+  const esc = lhs.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const hits = [...script.matchAll(new RegExp(`${esc}\\s*=(?!=)\\s*`, 'g'))];
+  if (hits.length === 0) return undefined;
+  if (hits.length > 1) throw new Error(`literals：${lhs} 賦值了 ${hits.length} 次`);
+  const start = hits[0].index! + hits[0][0].length;
+  const end = scanInitializer(script, start);
+  if (end < 0) return undefined;
+  const raw = script.slice(start, end).trim();
+  if (!isPureData(raw)) return undefined;
+  return evaluateLiteral(raw);
+}
+
 function evaluateLiteral(raw: string): unknown {
   // 括號包起來，物件字面量才不會被當成區塊。沙箱沒有任何我們給的全域。
   return vm.runInNewContext(`(${raw})`, Object.create(null), { timeout: 1000 });

@@ -18,6 +18,8 @@ export type KitV3Answers = Readonly<Record<string, number | null>>;
 export interface ScoreContext {
   /** 實足月齡（早產 < 24 月已矯正）。 */
   ageM: number;
+  /** 有沒有上托育／園所／學校（QOL 的「园所与学校生活」只在有上學時出；沒說＝有）。 */
+  inSchool?: boolean;
 }
 
 export interface FacetResult {
@@ -67,6 +69,13 @@ export function askedItems(bank: KitV3Bank, ctx: ScoreContext): Array<{ section:
           .filter(it => ctx.ageM >= (it.month ?? 0) && (s.sectionMaxMonth[sec.key] === undefined || ctx.ageM <= s.sectionMaxMonth[sec.key]))
           .map(item => ({ section: sec.key, item })),
       );
+    }
+    case 'qol': {
+      // 「园所与学校生活」只在有上學時出（頁面 `activeSecs`）；沒說＝有上學
+      const school = (bank.scoring as QolScoring).schoolSection;
+      return form.sections
+        .filter(sec => sec.key !== school || ctx.inSchool !== false)
+        .flatMap(sec => sec.items.map(item => ({ section: sec.key, item })));
     }
     default:
       // 題目帶月齡（`month`／`maxMonth`）的照月齡出，其餘全出
@@ -329,6 +338,94 @@ function scoreVoc(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): Ki
   };
 }
 
+// ── 關切率族（ASB、ASR）──
+
+export interface ConcernScoring {
+  dim: DimensionCode;
+  /** 用上限分段（p ≤ max），好 → 壞，三段。 */
+  levels: Array<{ max: number; name: string }>;
+  perItemMax: number;
+  /** 「不适用」超過幾題頁面不給結果（ASR 12）；沒有這個選項是 null。 */
+  naLimit: number | null;
+  grade: Grade03[];
+}
+
+const REG_SECTION = 'REG';
+
+function scoreConcern(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as ConcernScoring;
+  const form = formFor(bank, ctx.ageM);
+  const asked = askedItems(bank, ctx).filter(a => a.section !== REG_SECTION);
+  const pctOf = (keys: string[]) => {
+    const scored = keys.filter(k => typeof answers[k] === 'number');
+    return scored.length ? Math.round((scored.reduce((n, k) => n + (answers[k] as number), 0) / (scored.length * s.perItemMax)) * 100) : null;
+  };
+  const byMax = (p: number) => {
+    const i = s.levels.findIndex(l => p <= l.max);
+    return i < 0 ? s.levels.length - 1 : i;
+  };
+  const facets = form.sections
+    .filter(sec => sec.key !== REG_SECTION)
+    .map(sec => {
+      const keys = asked.filter(a => a.section === sec.key).map(a => a.item.key);
+      const value = pctOf(keys);
+      return { key: sec.key, name: sec.name, n: keys.length, value, band: value === null ? null : byMax(value) };
+    });
+  const keys = asked.map(a => a.item.key);
+  const value = pctOf(keys);
+  const na = keys.filter(k => answers[k] === null).length;
+  const missing = missingOf(bank, answers, ctx);
+  if (s.naLimit !== null && na > s.naLimit) {
+    return { code: bank.code, form: form.key, facets, total: { value, band: null, bandName: null }, grade03: {}, missing, flags: ['too_many_na'] };
+  }
+  const regressed = (form.sections.find(sec => sec.key === REG_SECTION)?.items ?? []).some(it => answers[it.key] === 1);
+  let band = value === null ? null : byMax(value);
+  if (regressed) band = s.levels.length - 1;
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value, band, bandName: band === null ? null : s.levels[band].name },
+    grade03: band === null ? {} : { [s.dim]: s.grade[band] },
+    missing,
+    ...(regressed ? { flags: ['regression'] } : {}),
+  };
+}
+
+// ── QOL（困擾率；沒有主維度）──
+
+export interface QolScoring {
+  /** lo／hi 閉區間，好 → 壞，四段。 */
+  levels: Array<{ min: number; max: number; name: string }>;
+  /** 有上學才出的面向。 */
+  schoolSection: string;
+}
+
+function scoreQol(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as QolScoring;
+  const form = formFor(bank, ctx.ageM);
+  const asked = askedItems(bank, ctx);
+  const sumOf = (keys: string[]) => keys.reduce((n, k) => n + (answers[k] ?? 0), 0);
+  const facets = form.sections
+    .filter(sec => asked.some(a => a.section === sec.key))
+    .map(sec => {
+      const keys = asked.filter(a => a.section === sec.key).map(a => a.item.key);
+      const value = Math.round((sumOf(keys) / (keys.length * 3)) * 100);
+      return { key: sec.key, name: sec.name, n: keys.length, value, band: bandByRange(s.levels, value) };
+    });
+  const keys = asked.map(a => a.item.key);
+  const value = keys.length ? Math.round((sumOf(keys) / (keys.length * 3)) * 100) : null;
+  const band = value === null ? null : bandByRange(s.levels, value);
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value, band, bandName: band === null ? null : s.levels[band].name },
+    grade03: {},
+    missing: missingOf(bank, answers, ctx),
+  };
+}
+
 // ── 入口 ──
 
 export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
@@ -343,6 +440,10 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
       return scoreAsq3(bank, answers, ctx);
     case 'voc':
       return scoreVoc(bank, answers, ctx);
+    case 'concern':
+      return scoreConcern(bank, answers, ctx);
+    case 'qol':
+      return scoreQol(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

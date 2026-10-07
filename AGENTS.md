@@ -81,6 +81,8 @@
 │   │   ├── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
 │   │   ├── activityContent.ts # 客户手册 300 张卡＋脚本总册 300 支的原文（脚本产出，勿手改；Keep 规格 K03、v3 P15）
 │   │   ├── activityMedia.ts # 示范片清单 17 支：网址、封面、片长、sha256（脚本产出，勿手改；Keep 规格 K05）
+│   │   ├── trainingPush.ts # v3 推送规则（客户 10/06）：颜色（T2 分级／T1 推定）、PUSH_ORDER、每月名额、交错、月龄窗、依编号挑、一期 36 格、换着玩、停用补位、期末判档（纯函式）
+│   │   ├── trainingPeriodService.ts # v3 一期的生命周期（开期、同期取周、期末开下一期、补位）、格子 → 每周活动那一列、计划页位置；server.ts 只接资料层
 │   │   ├── interimPlan.ts # 暂行题量（使用者 2026-09-29）：每个被标记的维度只列一份（星号工具）、全部必做；选做／加测／补充问卷先不出，只套在 `GET /api/t2/plan`
 │   │   ├── trainingGate.ts # 「线上干预」自己的收费站（2026-09-29）：哪几支算线上干预、`TRAINING_PRICE_FEN`（现在只能 0＝免费）
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）、没有工具的维度怎么讲（6 岁以上认知／语言／动作用客户固定句，v2.1 S05）
@@ -101,6 +103,7 @@
 │   │   ├── activities.ts  # 一列 activities → Activity（后台与家长端共用，只认受控词汇里的标签）
 │   │   ├── t2Checkins.ts  # t2_checkins：打卡一笔一列，读改都带 user_id（Keep 票 4）
 │   │   ├── t2PracticePrefs.ts # t2_practice_prefs：提醒的星期与时间，一位家长一列
+│   │   ├── t2TrainingPeriods.ts # t2_training_periods：v3 的「一期」，plan 存 36 格编号（TRAINING_PUSH_V3 开着才读写）
 │   │   └── handoffs.ts    # handoff_codes（B 发的交接码，只存杂凑、不过期、每次兑换记一次使用）、handoff_imports（A 记转入）
 │   └── utils/
 │       ├── dateUtils.ts   # 日期工具函数
@@ -374,6 +377,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `HANDOFF_CONSENT_VERSION` | 只在专案 B：按钮下那行同意文字的版本（预设 `handoff-consent-v1`），记在每一个交接码与转入纪录上；改了同意文字就换 | 否 |
 | `TRAINING_PRICE_FEN` | 「线上干预」那一站的价钱（分）。**现在只能不设或 0**（免费、直接通过）；其他值程序起不来 —— 线上干预的订单与权益还没做（`src/t2/trainingGate.ts`） | 否 |
 | `SMS_IP_DAILY_MAX` | 同一来源每日索取上限（预设 50）。按号码算的上限（10）挡不住换号码，这是按来源算的那一半；来源是收敛过的键（IPv6 截到 /64）。**设成 0 即停止发送**，遭滥用时最快的一道闸门 | 否 |
+| `TRAINING_PUSH_V3` | 线上干预 v3 推送规则（客户 2026-10-06，规格 `docs/specs/t2-v3-training-push-2026-10-06.md`）：`1` ＝ 每周活动改由「一期 12 周 × 3 支」排（`src/t2/trainingPush.ts`、`trainingPeriodService.ts`，读写 `t2_training_periods`）；不设或 `0` ＝ 旧的每周 4 支。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-10-07-t2-training-periods.sql`** | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

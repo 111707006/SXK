@@ -66,6 +66,12 @@ describe('SXK-EMO', () => {
     expect(scoreKitV3(EMO, ans(sumFor(42, 50), 4), { ageM: 72 }).grade03).toEqual({ EMO: 3 });
   });
 
+  it('影響 ≥ 20 → impact_high（報告最上方的轉介句）；17％ 沒有', () => {
+    expect(scoreKitV3(EMO, ans(0, 4), { ageM: 72 }).flags).toEqual(['impact_high']);
+    expect(scoreKitV3(EMO, ans(sumFor(42, 50), 4), { ageM: 72 }).flags).toEqual(['impact_high']);
+    expect(scoreKitV3(EMO, ans(0, 3), { ageM: 72 }).flags).toBeUndefined();
+  });
+
   it('「未观察到」分子分母都不算', () => {
     const half = Object.fromEntries(SYM.map((k, i) => [k, i < 21 ? null : 3]));
     expect(scoreKitV3(EMO, ans(0, 0, half), { ageM: 72 }).total.value).toBe(100);

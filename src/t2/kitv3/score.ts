@@ -625,7 +625,8 @@ function scoreEmo(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): Ki
     total: { value: sym, band, bandName: band === null ? null : s.symLevels[band].name },
     grade03: grade === null ? {} : { [s.dim]: grade },
     missing: missingOf(bank, answers, ctx),
-    ...(grade === null ? { flags: ['insufficient'] } : {}),
+    // 资料不足：不給 0–3；功能影響高（≥ 20）：報告最上方出轉介句（規格 §5.3）
+    ...(grade === null ? { flags: ['insufficient'] } : imp! >= s.hiImp ? { flags: ['impact_high'] } : {}),
   };
 }
 

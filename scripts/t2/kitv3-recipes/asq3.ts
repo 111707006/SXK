@@ -38,6 +38,8 @@ function build(src: V3Source): Omit<KitV3Bank<Asq3Scoring>, 'code' | 'source'> {
   if (levels.length !== 4) throw new Error(`${src.file}：LEVELS 應有 4 段`);
 
   const intRange = (lo: number, hi: number) => ({ min: Math.ceil(lo), max: Math.ceil(hi) - 1 });
+  // 客規窗口從 1 個月起，頁面最小的題組是 3 個月（頁面預設也是它）：1–2 個月用最小那一組（R-28 暫採）
+  const fromOne = <T extends { min: number }>(r: T, first: boolean): T => (first ? { ...r, min: Math.min(r.min, 1) } : r);
   const extras = [
     {
       key: 'OVERALL',
@@ -50,14 +52,14 @@ function build(src: V3Source): Omit<KitV3Bank<Asq3Scoring>, 'code' | 'source'> {
       name: '需要特别留意的情形（有就选「有」）',
       options: 'hasnot',
       items: red.flatMap((b, bi) => {
-        const r = intRange(b.lo, b.hi);
+        const r = fromOne(intRange(b.lo, b.hi), bi === 0);
         return b.flags.map((t, i) => ({ key: `red.${bi + 1}.${i + 1}`, text: t, month: r.min, maxMonth: r.max }));
       }),
     },
   ];
 
-  const forms: KitV3Form[] = sets.map(s => {
-    const r = intRange(s.lo, s.hi);
+  const forms: KitV3Form[] = sets.map((s, si) => {
+    const r = fromOne(intRange(s.lo, s.hi), si === 0);
     return {
       key: String(s.id),
       name: `${s.label}题组`,

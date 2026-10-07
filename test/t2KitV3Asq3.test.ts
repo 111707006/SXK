@@ -25,12 +25,13 @@ function answers(ageM: number, v = 10, by: Record<string, number[]> = {}, over: 
 }
 
 describe('SXK-ASQ3：題組與題目', () => {
-  it('21 個題組；3–66 個月每個整數月剛好落在一個題組，2 與 67 個月沒有', () => {
+  it('21 個題組；1–66 個月每個整數月剛好落在一個題組（1–2 月用 3 個月那一組，R-28），0 與 67 個月沒有', () => {
     expect(ASQ3.forms).toHaveLength(21);
-    for (let m = 3; m <= 66; m++) {
+    expect(formFor(ASQ3, 1).key).toBe('3');
+    for (let m = 1; m <= 66; m++) {
       expect(ASQ3.forms.filter(f => m >= f.minM! && m <= f.maxM!), `${m}`).toHaveLength(1);
     }
-    expect(() => formFor(ASQ3, 2)).toThrow();
+    expect(() => formFor(ASQ3, 0)).toThrow();
     expect(() => formFor(ASQ3, 67)).toThrow();
   });
 

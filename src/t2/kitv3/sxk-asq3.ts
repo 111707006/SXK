@@ -56,7 +56,7 @@ export const BANK: KitV3Bank = {
     {
       "key": "3",
       "name": "3 个月题组",
-      "minM": 3,
+      "minM": 1,
       "maxM": 3,
       "sections": [
         {
@@ -268,43 +268,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -712,43 +712,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -1156,43 +1156,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -1600,43 +1600,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -2044,43 +2044,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -2488,43 +2488,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -2932,43 +2932,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -3376,43 +3376,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -3820,43 +3820,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -4264,43 +4264,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -4708,43 +4708,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -5152,43 +5152,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -5596,43 +5596,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -6040,43 +6040,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -6484,43 +6484,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -6928,43 +6928,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -7372,43 +7372,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -7816,43 +7816,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -8260,43 +8260,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -8704,43 +8704,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
@@ -9148,43 +9148,43 @@ export const BANK: KitV3Bank = {
             {
               "key": "red.1.1",
               "text": "能力倒退——原本会的现在不会了",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.2",
               "text": "满 3 个月仍不会注视人脸或对人笑",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.3",
               "text": "对大的声音完全没有反应",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.4",
               "text": "身体持续过软或过硬",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.5",
               "text": "满 4 个月头仍无法自己稳住",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.6",
               "text": "吸吮无力、喂食时间异常地长",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {
               "key": "red.1.7",
               "text": "两侧手脚的动作明显不对称",
-              "month": 3,
+              "month": 1,
               "maxMonth": 6
             },
             {

@@ -575,6 +575,96 @@ function scoreAdl(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): Ki
   };
 }
 
+// ── EMO（症狀％與影響％，判讀矩陣）──
+
+export interface EmoScoring {
+  dim: DimensionCode;
+  symptomSections: string[];
+  impactSection: string;
+  /** 症狀四段、影響三段，好 → 壞，`min` 遞增。 */
+  symLevels: Array<{ min: number; name: string }>;
+  impLevels: Array<{ min: number; name: string }>;
+  /** 矩陣的「高」：症狀 ≥ 30、影響 ≥ 20。 */
+  hiSym: number;
+  hiImp: number;
+  /** 「症狀低、影響高」那一格的 0–3 下限。 */
+  liftTo: Grade03;
+}
+
+/** 已評（不是 `null`、有答）的題的 round(Σ ÷ 已評×3 × 100)；沒有已評題是 null。 */
+function testedPct(keys: string[], answers: KitV3Answers): number | null {
+  const got = keys.filter(k => typeof answers[k] === 'number');
+  return got.length ? Math.round((got.reduce((n, k) => n + (answers[k] as number), 0) / (got.length * 3)) * 100) : null;
+}
+
+function scoreEmo(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as EmoScoring;
+  const form = bank.forms[0];
+  const keysOf = (sec: string) => form.sections.find(x => x.key === sec)!.items.map(it => it.key);
+  const facets: FacetResult[] = s.symptomSections.map(sec => {
+    const value = testedPct(keysOf(sec), answers);
+    return { key: sec, name: form.sections.find(x => x.key === sec)!.name, n: keysOf(sec).length, value, band: value === null ? null : bandByAscendingMin(s.symLevels, value) };
+  });
+  const sym = testedPct(s.symptomSections.flatMap(keysOf), answers);
+  const imp = testedPct(keysOf(s.impactSection), answers);
+  const impSec = form.sections.find(x => x.key === s.impactSection)!;
+  facets.push({ key: impSec.key, name: impSec.name, n: impSec.items.length, value: imp, band: imp === null ? null : bandByAscendingMin(s.impLevels, imp) });
+  const band = sym === null ? null : bandByAscendingMin(s.symLevels, sym);
+  // 頁面 `verdict`：症狀或影響沒有已評題 → 资料不足，不給 0–3
+  let grade: Grade03 | null = null;
+  if (band !== null && imp !== null) {
+    grade = band as Grade03;
+    if (sym! < s.hiSym && imp >= s.hiImp) grade = Math.max(grade, s.liftTo) as Grade03;
+  }
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value: sym, band, bandName: band === null ? null : s.symLevels[band].name },
+    grade03: grade === null ? {} : { [s.dim]: grade },
+    missing: missingOf(bank, answers, ctx),
+    ...(grade === null ? { flags: ['insufficient'] } : {}),
+  };
+}
+
+// ── TIC（嚴重度 0–50）──
+
+export interface TicScoring {
+  dim: DimensionCode;
+  /** 加起來就是嚴重度的段（運動型、發聲型）。 */
+  severitySections: string[];
+  impactSection: string;
+  /** 好 → 壞，`min` 遞增（0／13／26／38）。 */
+  levels: Array<{ min: number; name: string }>;
+  flagSection: string;
+  /** 勾了就出轉介句的旗標題（自傷、頸部、呼吸吞嚥、突發）。 */
+  urgent: string[];
+}
+
+function scoreTic(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as TicScoring;
+  const form = bank.forms[0];
+  const sumOf = (sec: string) => form.sections.find(x => x.key === sec)!.items.reduce((n, it) => n + (answers[it.key] ?? 0), 0);
+  const facets = [...s.severitySections, s.impactSection].map(sec => {
+    const x = form.sections.find(y => y.key === sec)!;
+    return { key: sec, name: x.name, n: x.items.length, value: sumOf(sec), band: null };
+  });
+  const sev = s.severitySections.reduce((n, sec) => n + sumOf(sec), 0);
+  const band = bandByAscendingMin(s.levels, sev);
+  const flagItems = form.sections.find(x => x.key === s.flagSection)?.items ?? [];
+  const ticked = flagItems.filter(it => answers[it.key] === 1).map(it => it.key);
+  const flags = [...(ticked.some(k => s.urgent.includes(k)) ? ['refer'] : []), ...(ticked.length ? ['priority'] : [])];
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value: sev, band, bandName: s.levels[band].name },
+    grade03: { [s.dim]: band as Grade03 },
+    missing: missingOf(bank, answers, ctx),
+    ...(flags.length ? { flags } : {}),
+  };
+}
+
 // ── QOL（困擾率；沒有主維度）──
 
 export interface QolScoring {
@@ -635,6 +725,10 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
       return scoreLd(bank, answers, ctx);
     case 'adl':
       return scoreAdl(bank, answers, ctx);
+    case 'emo':
+      return scoreEmo(bank, answers, ctx);
+    case 'tic':
+      return scoreTic(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

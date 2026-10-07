@@ -26,6 +26,8 @@ export interface KitV3Item {
   hint?: string;
   /** 題目月齡（「约 N 个月」）：實足月齡 ≥ 它才出、才計分。沒有＝不看月齡。 */
   month?: number;
+  /** 月齡上限（含）：超過就不出（ASQ3 的紅旗是分月齡段的）。 */
+  maxMonth?: number;
   /** 反向計分（選項值要倒過來算）。 */
   reverse?: boolean;
   /** 頁面標記的題型（「核心」「紅旗」「倒退」……），計分族自己認。 */

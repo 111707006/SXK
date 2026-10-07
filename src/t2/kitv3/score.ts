@@ -42,6 +42,8 @@ export interface KitV3Score {
   grade03: Partial<Record<DimensionCode, Grade03>>;
   /** 這次有出、卻沒答的題（交卷時伺服器據此 400）。 */
   missing: string[];
+  /** 不改分級、但報告最上方要出一句的情形（`refer`：ASQ3 的紅旗／聽力視力倒退／任一領域 < 55）。 */
+  flags?: string[];
 }
 
 // ── 共用 ──
@@ -67,7 +69,12 @@ export function askedItems(bank: KitV3Bank, ctx: ScoreContext): Array<{ section:
       );
     }
     default:
-      return form.sections.flatMap(sec => sec.items.map(item => ({ section: sec.key, item })));
+      // 題目帶月齡（`month`／`maxMonth`）的照月齡出，其餘全出
+      return form.sections.flatMap(sec =>
+        sec.items
+          .filter(it => ctx.ageM >= (it.month ?? -Infinity) && ctx.ageM <= (it.maxMonth ?? Infinity))
+          .map(item => ({ section: sec.key, item })),
+      );
   }
 }
 
@@ -191,9 +198,13 @@ export function bandByRange(bands: ReadonlyArray<{ min?: number; max?: number }>
   return i < 0 ? bands.length - 1 : i;
 }
 
-/** 必答題沒答的（`optional` 的段不算）。 */
-function missingOf(form: KitV3Form, answers: KitV3Answers): string[] {
-  return form.sections.filter(s => !s.optional).flatMap(s => s.items.filter(it => answers[it.key] === undefined).map(it => it.key));
+/** 這次有出、必答（`optional` 的段不算）卻沒答的題。 */
+function missingOf(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): string[] {
+  const form = formFor(bank, ctx.ageM);
+  const optional = new Set(form.sections.filter(s => s.optional).map(s => s.key));
+  return askedItems(bank, ctx)
+    .filter(a => !optional.has(a.section) && answers[a.item.key] === undefined)
+    .map(a => a.item.key);
 }
 
 // ── M-CHAT 第一階段 ──
@@ -207,7 +218,7 @@ export interface MchatScoring {
   grade: Grade03[];
 }
 
-function scoreMchat(bank: KitV3Bank, answers: KitV3Answers): KitV3Score {
+function scoreMchat(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
   const s = bank.scoring as MchatScoring;
   const form = bank.forms[0];
   const items = form.sections.flatMap(sec => sec.items);
@@ -223,7 +234,57 @@ function scoreMchat(bank: KitV3Bank, answers: KitV3Answers): KitV3Score {
     facets: [],
     total: { value: risky, band, bandName: s.bands[band].name },
     grade03: { [s.dim]: s.grade[band] },
-    missing: missingOf(form, answers),
+    missing: missingOf(bank, answers, ctx),
+  };
+}
+
+// ── ASQ3（月齡題組、領域達成率）──
+
+export interface Asq3Scoring {
+  levels: Array<{ min: number; name: string }>;
+  /** 領域 → 主維度（粗大、精細都是 MOT，取重）。 */
+  domainDim: Record<string, DimensionCode>;
+  perItemMax: number;
+  /** 整體問題答哪一邊算警示。 */
+  overallWarn: Record<string, number>;
+  /** 答了警示就轉介的整體問題（聽力、視力、倒退、動作）。 */
+  referOverall: string[];
+  /** 任一領域低於這個％就轉介。 */
+  referBelow: number;
+}
+
+function scoreAsq3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as Asq3Scoring;
+  const form = formFor(bank, ctx.ageM);
+  const asked = askedItems(bank, ctx);
+  const domainSecs = form.sections.filter(sec => sec.key in s.domainDim);
+  const facets = domainSecs.map(sec => {
+    const got = sec.items.reduce((n, it) => n + (answers[it.key] ?? 0), 0);
+    const value = Math.round((got / (sec.items.length * s.perItemMax)) * 100);
+    return { key: sec.key, name: sec.name, n: sec.items.length, value, band: bandByMin(s.levels, value), detail: { got } };
+  });
+  const total = facets.reduce((n, f) => n + (f.detail!.got ?? 0), 0);
+  const totalMax = domainSecs.reduce((n, sec) => n + sec.items.length * s.perItemMax, 0);
+  const totPct = Math.round((total / totalMax) * 100);
+  const band = bandByMin(s.levels, totPct);
+
+  const grade03: Partial<Record<DimensionCode, Grade03>> = {};
+  for (const f of facets) {
+    const dim = s.domainDim[f.key];
+    grade03[dim] = Math.max(grade03[dim] ?? 0, f.band!) as Grade03;
+  }
+  const askedKeys = new Set(asked.map(a => a.item.key));
+  const flagged = asked.some(a => a.section === 'RED' && answers[a.item.key] === 1);
+  const warn = s.referOverall.some(k => askedKeys.has(k) && answers[k] === s.overallWarn[k]);
+  const low = facets.some(f => (f.value ?? 100) < s.referBelow);
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value: totPct, band, bandName: s.levels[band].name },
+    grade03,
+    missing: missingOf(bank, answers, ctx),
+    ...(flagged || warn || low ? { flags: ['refer'] } : {}),
   };
 }
 
@@ -236,7 +297,9 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
     case 'lq':
       return scoreLq(bank, answers, ctx);
     case 'mchat':
-      return scoreMchat(bank, answers);
+      return scoreMchat(bank, answers, ctx);
+    case 'asq3':
+      return scoreAsq3(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

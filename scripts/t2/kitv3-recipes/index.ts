@@ -4,5 +4,6 @@ import type { V3Recipe } from '../kitv3';
 import { PCT_RECIPES } from './pct';
 import { LQ_RECIPES } from './lq';
 import { MCHAT_RECIPES } from './mchat';
+import { ASQ3_RECIPES } from './asq3';
 
-export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES, ...MCHAT_RECIPES];
+export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES, ...MCHAT_RECIPES, ...ASQ3_RECIPES];

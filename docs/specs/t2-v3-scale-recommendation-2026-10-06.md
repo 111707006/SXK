@@ -130,6 +130,8 @@ sources: docs/reference/client-mockups/森心康_T2量表推荐规则规格书_v
 
 引擎推的是客規代碼（`SXK-ASQ3`、`SXK-LQ`……），家長要能真的填。完整版 31 支（`NEWT2/森心康评估工具包_完整版_20260923.zip`）跟現在 22 支的差異已記在 memory `t2-kit-full-edition-2026-09-24`（DEV、WARN 不見，SP 拆兩支，氣質合一，新增 LQ／PLC／EMO／QOL／TIC 等）。
 
+> 2026-10-07 已寫成 `docs/specs/t2-v3-toolkit-full-edition.md`（盤點在 `docs/reference/T2完整版工具包盤點-2026-10-07/`，做法見 ADR-0010）；下面四點是當初要它回答的。
+
 這塊要寫成獨立規格 `t2-v3-toolkit-full-edition`，至少回答：
 
 1. 抽取：31 支的資料常數怎麼讀（沿用「只在沙箱求值資料宣告」的做法）、哪三套分級取哪一套。

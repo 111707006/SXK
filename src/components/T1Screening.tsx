@@ -161,7 +161,9 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
         completedAt: new Date().toISOString(),
         // 測評月齡 —— 這一次用的是哪一段題目，只有這裡知道。孩子的實足月齡
         // 之後會自己往前走，屆時就再也回推不出這個數字（見 `ageBandDrift.ts`）。
-        assessedAgeMonth: child.ageMonth
+        assessedAgeMonth: child.ageMonth,
+        // 逐題作答（照題目順序，2 可以做到／1 有时／0 还不能）：T2 量表推薦的關鍵題要看（T2 v3 推薦規格 §2.3）
+        items: dimQuestions.map(q => answers[q.id] ?? 0)
       };
     });
 

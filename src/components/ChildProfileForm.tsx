@@ -6,6 +6,8 @@ import { useToday } from '../utils/useToday';
 import { APPLICABLE_RANGE_TEXT } from '../utils/birthDateOptions';
 import { T1_AGE_RANGE } from '../t1Data';
 import BirthDateSelect from './BirthDateSelect';
+import ChildExtraFields, { extrasOf, type ChildExtras } from './ChildExtraFields';
+import { PRODUCT } from '../productConfig';
 
 interface ChildProfileFormProps {
   currentChild: Child | null;
@@ -23,6 +25,8 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
   // 同一個元件的兩個用法不該一個猜一個不猜。
   const [birthDate, setBirthDate] = useState<string>(() => currentChild?.birthDate || '');
   const [gender, setGender] = useState<Gender>(currentChild?.gender || 'boy');
+  // 补充资料（T2 v3 推薦規格 §2.1）只在有深度評估的產品問；B 的檔案不帶這幾欄
+  const [extras, setExtras] = useState<ChildExtras>(() => extrasOf(currentChild));
   const [error, setError] = useState('');
   const today = useToday();
 
@@ -50,7 +54,10 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
       return;
     }
     setError('');
+    // 先攤開既有檔案：表單沒管到的欄位（含之後新加的）不能因為存一次就被丟掉
     onSave({
+      ...currentChild,
+      ...(PRODUCT.features.tier2And3 ? extras : {}),
       name: name.trim(),
       birthDate,
       ageMonth: calculatedAgeMonth,
@@ -168,6 +175,8 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
             </button>
           </div>
         </div>
+
+        {PRODUCT.features.tier2And3 && <ChildExtraFields value={extras} onChange={setExtras} />}
 
         <button
           id="profile-submit-btn"

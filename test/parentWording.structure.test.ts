@@ -107,6 +107,10 @@ const PARENT_FACING_FILES = [
   // 2026-09-29：四種服務的名稱與說明、按鈕上的小字（「去线上干预」「暂未开放」）—— 七處畫面共用。
   'src/utils/serviceTypes.ts',
   'src/components/serviceChoices.tsx',
+  // 2026-10-07（T2 v3）：線上干預 v3 的家長端句子（能力表、本月做法、為什麼給、怎麼帶）；
+  // 孩子資料的「补充资料」畫面。它的字檔 `t2/recommend/childFieldsCopy.ts` 刻意不掃（醫師講的診斷名稱，理由在檔頭）。
+  'src/t2/pushCopy.ts',
+  'src/components/ChildExtraFields.tsx',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

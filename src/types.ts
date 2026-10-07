@@ -5,6 +5,15 @@ export interface Child {
   birthDate?: string; // Birth date of the child (e.g. "2023-05-15")
   ageMonth: number; // Age in months (e.g. 24 months, 48 months)
   gender: Gender;
+  /**
+   * 「补充资料」（2026-10 起，只在專案 A 問；T2 v3 推薦規格 §2.1）。都選填，舊檔案沒有。
+   * 診斷照客規的六種代碼（最多兩個、第一個為主）；孕週只有早產才填（`null`／沒有＝足月）。
+   */
+  diagnoses?: Array<'LDADHD' | 'ASD' | 'GDD' | 'CP' | 'EMO' | 'LANG'>;
+  inSchool?: boolean;
+  hasTics?: boolean;
+  hearingChecked?: boolean | null;
+  gestationWeeks?: number | null;
 }
 
 export type AssessmentStatus = 'normal' | 'borderline' | 'delay';
@@ -29,6 +38,11 @@ export interface DimensionScore {
    * 一次跨了段的篩查會偽裝成從沒跨段。退路是讀最近一份篩查紀錄裡的孩子。
    */
   assessedAgeMonth?: number;
+  /**
+   * T1 的逐題作答（2026-10 起），照該維度題目在 `t1Data.ts` 的順序；2 可以做到／1 有时·部分／0 还不能。
+   * T2 量表推薦的關鍵題與紅旗維度看它（`src/t2/recommend/input.ts`）。舊成績沒有這一欄。
+   */
+  items?: number[];
 }
 
 export interface Question {

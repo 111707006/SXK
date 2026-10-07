@@ -6,6 +6,8 @@ import { useToday } from '../utils/useToday';
 import { APPLICABLE_RANGE_TEXT } from '../utils/birthDateOptions';
 import { T1_AGE_RANGE } from '../t1Data';
 import BirthDateSelect from './BirthDateSelect';
+import ChildExtraFields, { extrasOf, type ChildExtras } from './ChildExtraFields';
+import { PRODUCT } from '../productConfig';
 
 interface EditProfileModalProps {
   child: Child;
@@ -21,6 +23,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
   // 滑；家長哪一天按下保存，那個猜出來的日子就變成孩子永久的生日。
   const [birthDate, setBirthDate] = useState<string>(storedBirthDate);
   const [gender, setGender] = useState<Gender>(child.gender);
+  const [extras, setExtras] = useState<ChildExtras>(() => extrasOf(child));
   const [error, setError] = useState('');
   const today = useToday();
 
@@ -53,7 +56,10 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
       return;
     }
     setError('');
+    // 先攤開既有檔案：這張表沒管到的欄位不能因為改個名字就被丟掉
     onSave({
+      ...child,
+      ...(PRODUCT.features.tier2And3 ? extras : {}),
       name: name.trim(),
       birthDate,
       ageMonth: calculatedAgeMonth,
@@ -186,6 +192,8 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
               </button>
             </div>
           </div>
+
+          {PRODUCT.features.tier2And3 && <ChildExtraFields value={extras} onChange={setExtras} />}
 
           {/* Buttons Footer */}
           <div className="pt-3 flex flex-col gap-2">

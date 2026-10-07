@@ -183,6 +183,50 @@ function scoreLq(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): Kit
   };
 }
 
+// ── 分段表（閉區間 min／max，好 → 壞）共用 ──
+
+/** 落在哪一段；都不在就是最後一段（頁面 `bandOf` 的 `||BANDS[2]`）。 */
+export function bandByRange(bands: ReadonlyArray<{ min?: number; max?: number }>, v: number): number {
+  const i = bands.findIndex(b => v >= (b.min ?? -Infinity) && v <= (b.max ?? Infinity));
+  return i < 0 ? bands.length - 1 : i;
+}
+
+/** 必答題沒答的（`optional` 的段不算）。 */
+function missingOf(form: KitV3Form, answers: KitV3Answers): string[] {
+  return form.sections.filter(s => !s.optional).flatMap(s => s.items.filter(it => answers[it.key] === undefined).map(it => it.key));
+}
+
+// ── M-CHAT 第一階段 ──
+
+export interface MchatScoring {
+  dim: DimensionCode;
+  /** 答「是」才是風險的題（2、5、12）；其餘答「否」是風險。 */
+  riskIsYes: string[];
+  bands: Array<{ min: number; max: number; name: string }>;
+  /** 各段的 0–3。 */
+  grade: Grade03[];
+}
+
+function scoreMchat(bank: KitV3Bank, answers: KitV3Answers): KitV3Score {
+  const s = bank.scoring as MchatScoring;
+  const form = bank.forms[0];
+  const items = form.sections.flatMap(sec => sec.items);
+  const risky = items.filter(it => {
+    const v = answers[it.key];
+    if (v === undefined || v === null) return false;
+    return s.riskIsYes.includes(it.key) ? v === 1 : v === 0;
+  }).length;
+  const band = bandByRange(s.bands, risky);
+  return {
+    code: bank.code,
+    form: form.key,
+    facets: [],
+    total: { value: risky, band, bandName: s.bands[band].name },
+    grade03: { [s.dim]: s.grade[band] },
+    missing: missingOf(form, answers),
+  };
+}
+
 // ── 入口 ──
 
 export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
@@ -191,6 +235,8 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
       return scorePct(bank, answers, ctx);
     case 'lq':
       return scoreLq(bank, answers, ctx);
+    case 'mchat':
+      return scoreMchat(bank, answers);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

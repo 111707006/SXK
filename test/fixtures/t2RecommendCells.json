@@ -1,0 +1,498 @@
+{
+ "cells": [
+  {
+   "dx": "LDADHD",
+   "ageM": 18,
+   "tools": [
+    "SXK-ADP",
+    "ITQ/TTS/BSQ",
+    "SXK-ADL"
+   ],
+   "minutes": 65,
+   "t3": [],
+   "notes": [
+    "学习障碍与多动症档案适用于36个月以上，此年龄改按T1结果推荐。",
+    "缺口：注意力与执行在18个月没有可用的家长／教师问卷——改为治疗师当面评估。",
+    "缺口：学习能力在18个月没有主测该维度的问卷，暂以SXK-ADP（次要涵盖）替代，并建议当面评估。",
+    "缺口：情绪与行为在18个月没有主测该维度的问卷，暂以ITQ/TTS/BSQ（次要涵盖）替代，并建议当面评估。"
+   ]
+  },
+  {
+   "dx": "LDADHD",
+   "ageM": 36,
+   "tools": [
+    "SXK-AB",
+    "SXK-ADP",
+    "SXK-EMO",
+    "SXK-QOL"
+   ],
+   "minutes": 65,
+   "t3": [],
+   "notes": [
+    "缺口：学习能力在36个月没有主测该维度的问卷，暂以SXK-ADP（次要涵盖）替代，并建议当面评估。"
+   ]
+  },
+  {
+   "dx": "LDADHD",
+   "ageM": 60,
+   "tools": [
+    "SXK-AB",
+    "SXK-ADP",
+    "CHEXI",
+    "SXK-EMO",
+    "SXK-QOL"
+   ],
+   "minutes": 75,
+   "t3": [],
+   "notes": [
+    "缺口：学习能力在60个月没有主测该维度的问卷，暂以SXK-ADP（次要涵盖）替代，并建议当面评估。"
+   ]
+  },
+  {
+   "dx": "LDADHD",
+   "ageM": 96,
+   "tools": [
+    "SXK-LDP",
+    "SNAP-IV",
+    "SXK-ATT",
+    "SXK-EMO",
+    "SXK-QOL"
+   ],
+   "minutes": 75,
+   "t3": [
+    "SXK-WISC"
+   ],
+   "notes": [
+    "缺口：认知在96个月没有可用的家长／教师问卷——改为治疗师当面评估。"
+   ]
+  },
+  {
+   "dx": "LDADHD",
+   "ageM": 150,
+   "tools": [
+    "SXK-LDS",
+    "SNAP-IV",
+    "SXK-ATT",
+    "SXK-EMO",
+    "SXK-QOL"
+   ],
+   "minutes": 80,
+   "t3": [
+    "SXK-WISC"
+   ],
+   "notes": [
+    "缺口：认知在150个月没有可用的家长／教师问卷——改为治疗师当面评估。"
+   ]
+  },
+  {
+   "dx": "ASD",
+   "ageM": 18,
+   "tools": [
+    "M-CHAT-R/F",
+    "SXK-ASB",
+    "SXK-LQ",
+    "SXK-ADL",
+    "ITQ/TTS/BSQ"
+   ],
+   "minutes": 85,
+   "t3": [],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。",
+    "缺口：感觉处理在18个月没有主测该维度的问卷，暂以ITQ/TTS/BSQ（次要涵盖）替代，并建议当面评估。"
+   ]
+  },
+  {
+   "dx": "ASD",
+   "ageM": 36,
+   "tools": [
+    "SXK-ASB",
+    "SXK-LQ",
+    "SXK-EMO",
+    "SXK-SP",
+    "SXK-ADL"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-PLE"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "ASD",
+   "ageM": 60,
+   "tools": [
+    "SXK-ASB",
+    "SXK-LQ",
+    "SXK-EMO",
+    "SXK-SPb",
+    "SXK-ADL"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-PLE"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "ASD",
+   "ageM": 96,
+   "tools": [
+    "SXK-ASB",
+    "SXK-LANG",
+    "SXK-EMO",
+    "SXK-ADL"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-NAR"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "ASD",
+   "ageM": 150,
+   "tools": [
+    "SXK-ASB",
+    "SXK-ASR",
+    "SXK-EMO",
+    "SXK-ADL",
+    "SXK-SPb"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-NAR"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。",
+    "缺口：语言沟通在150个月没有主测该维度的问卷，暂以SXK-ASR（次要涵盖）替代，并建议当面评估。"
+   ]
+  },
+  {
+   "dx": "GDD",
+   "ageM": 18,
+   "tools": [
+    "SXK-ASQ3",
+    "SXK-ADL",
+    "SXK-LQ",
+    "SXK-GM"
+   ],
+   "minutes": 80,
+   "t3": [],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "GDD",
+   "ageM": 36,
+   "tools": [
+    "SXK-ASQ3",
+    "SXK-ADL",
+    "SXK-LQ",
+    "SXK-GM",
+    "SXK-QOL"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-PLE",
+    "SXK-SMA"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "GDD",
+   "ageM": 60,
+   "tools": [
+    "SXK-ASQ3",
+    "SXK-ADL",
+    "SXK-LQ",
+    "SXK-GM",
+    "SXK-QOL"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-PLE",
+    "SXK-SMA"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "GDD",
+   "ageM": 96,
+   "tools": [
+    "SXK-LANG",
+    "SXK-LDP",
+    "SXK-ADL",
+    "SXK-QOL"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-NAR",
+    "SXK-ROCF"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。",
+    "缺口：认知在96个月没有主测该维度的问卷，暂以SXK-LDP（次要涵盖）替代，并建议当面评估。",
+    "缺口：动作发展在96个月没有主测该维度的问卷，暂以SXK-ADL（次要涵盖）替代，并建议当面评估。"
+   ]
+  },
+  {
+   "dx": "GDD",
+   "ageM": 150,
+   "tools": [
+    "SXK-ASR",
+    "SXK-LDP",
+    "SXK-ADL",
+    "SXK-QOL"
+   ],
+   "minutes": 70,
+   "t3": [
+    "SXK-NAR",
+    "SXK-ROCF"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。",
+    "缺口：语言沟通在150个月没有主测该维度的问卷，暂以SXK-ASR（次要涵盖）替代，并建议当面评估。",
+    "缺口：认知在150个月没有主测该维度的问卷，暂以SXK-LDP（次要涵盖）替代，并建议当面评估。",
+    "缺口：动作发展在150个月没有可用的家长／教师问卷——改为治疗师当面评估。"
+   ]
+  },
+  {
+   "dx": "CP",
+   "ageM": 18,
+   "tools": [
+    "SXK-GM",
+    "SXK-ADL",
+    "SXK-ASQ3",
+    "SXK-LQ"
+   ],
+   "minutes": 80,
+   "t3": [],
+   "notes": [
+    "缺口：感觉处理在18个月没有主测该维度的问卷，暂以ITQ/TTS/BSQ（次要涵盖）替代，并建议当面评估。"
+   ]
+  },
+  {
+   "dx": "CP",
+   "ageM": 36,
+   "tools": [
+    "SXK-GM",
+    "SXK-ADL",
+    "SXK-QOL",
+    "SXK-LQ",
+    "SXK-SP"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-SMA"
+   ],
+   "notes": []
+  },
+  {
+   "dx": "CP",
+   "ageM": 60,
+   "tools": [
+    "SXK-GM",
+    "SXK-ADL",
+    "SXK-QOL",
+    "SXK-LQ",
+    "SXK-SPb"
+   ],
+   "minutes": 90,
+   "t3": [
+    "SXK-SMA"
+   ],
+   "notes": []
+  },
+  {
+   "dx": "CP",
+   "ageM": 96,
+   "tools": [
+    "SXK-ADL",
+    "SXK-QOL",
+    "SXK-LANG",
+    "SXK-SPb"
+   ],
+   "minutes": 85,
+   "t3": [],
+   "notes": [
+    "缺口：动作发展在96个月没有可用的家长／教师问卷——改为治疗师当面评估。"
+   ]
+  },
+  {
+   "dx": "CP",
+   "ageM": 150,
+   "tools": [
+    "SXK-ADL",
+    "SXK-QOL",
+    "SXK-ASR",
+    "SXK-SPb"
+   ],
+   "minutes": 65,
+   "t3": [],
+   "notes": [
+    "缺口：动作发展在150个月没有可用的家长／教师问卷——改为治疗师当面评估。",
+    "缺口：语言沟通在150个月没有主测该维度的问卷，暂以SXK-ASR（次要涵盖）替代，并建议当面评估。"
+   ]
+  },
+  {
+   "dx": "EMO",
+   "ageM": 18,
+   "tools": [
+    "ITQ/TTS/BSQ",
+    "SXK-SOC",
+    "SXK-ASQ3"
+   ],
+   "minutes": 65,
+   "t3": [],
+   "notes": [
+    "情绪障碍与心理障碍档案适用于36个月以上，此年龄改按T1结果推荐。",
+    "缺口：情绪与行为在18个月没有主测该维度的问卷，暂以ITQ/TTS/BSQ（次要涵盖）替代，并建议当面评估。",
+    "缺口：注意力与执行在18个月没有可用的家长／教师问卷——改为治疗师当面评估。"
+   ]
+  },
+  {
+   "dx": "EMO",
+   "ageM": 36,
+   "tools": [
+    "SXK-EMO",
+    "SXK-QOL",
+    "SXK-SOC",
+    "SXK-AB"
+   ],
+   "minutes": 65,
+   "t3": [],
+   "notes": []
+  },
+  {
+   "dx": "EMO",
+   "ageM": 60,
+   "tools": [
+    "SXK-EMO",
+    "SXK-QOL",
+    "SXK-AB",
+    "SXK-SOC"
+   ],
+   "minutes": 65,
+   "t3": [],
+   "notes": []
+  },
+  {
+   "dx": "EMO",
+   "ageM": 96,
+   "tools": [
+    "SXK-EMO",
+    "SXK-QOL",
+    "SNAP-IV",
+    "SXK-ASR"
+   ],
+   "minutes": 50,
+   "t3": [],
+   "notes": []
+  },
+  {
+   "dx": "EMO",
+   "ageM": 150,
+   "tools": [
+    "SXK-EMO",
+    "SXK-QOL",
+    "SNAP-IV",
+    "SXK-ASR"
+   ],
+   "minutes": 50,
+   "t3": [],
+   "notes": []
+  },
+  {
+   "dx": "LANG",
+   "ageM": 18,
+   "tools": [
+    "SXK-PLC",
+    "SXK-VOC",
+    "SXK-SOC"
+   ],
+   "minutes": 70,
+   "t3": [],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "LANG",
+   "ageM": 36,
+   "tools": [
+    "SXK-PLC",
+    "SXK-VOC",
+    "SXK-SOC",
+    "SXK-QOL"
+   ],
+   "minutes": 80,
+   "t3": [
+    "SXK-PLE"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "LANG",
+   "ageM": 60,
+   "tools": [
+    "SXK-LQ",
+    "SXK-LANG",
+    "SXK-SOC",
+    "SXK-QOL"
+   ],
+   "minutes": 85,
+   "t3": [
+    "SXK-PLE"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "LANG",
+   "ageM": 96,
+   "tools": [
+    "SXK-LANG",
+    "SXK-ASR",
+    "SXK-QOL"
+   ],
+   "minutes": 60,
+   "t3": [
+    "SXK-NAR"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。"
+   ]
+  },
+  {
+   "dx": "LANG",
+   "ageM": 150,
+   "tools": [
+    "SXK-ASR",
+    "SXK-LDS",
+    "SXK-QOL"
+   ],
+   "minutes": 55,
+   "t3": [
+    "SXK-NAR"
+   ],
+   "notes": [
+    "前置条件：语言落后须先确认听力检查结果。",
+    "缺口：语言沟通在150个月没有主测该维度的问卷，暂以SXK-ASR（次要涵盖）替代，并建议当面评估。"
+   ]
+  }
+ ]
+}

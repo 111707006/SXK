@@ -96,6 +96,12 @@ function scanInitializer(s: string, p: number): number {
     else if (c === ')' || c === ']' || c === '}') depth--;
     else if (depth === 0 && (c === ';' || c === ',')) return i;
     else if (depth === 0 && c === '\n') {
+      // 字串跨行相加（完整版 PLE、EMO：`"……"+\n"……"`）：上一個非空白字元是 `+`，或下一個是 `+`，就還沒結束
+      let back = i - 1;
+      while (back >= p && /[ \t\r]/.test(s[back])) back--;
+      let fwd = i + 1;
+      while (fwd < s.length && /\s/.test(s[fwd])) fwd++;
+      if (s[back] === '+' || s[fwd] === '+') continue;
       // 沒有分號就換行的宣告（工具包沒有這種，但別讓它安靜地吞掉下一行）
       return i;
     }

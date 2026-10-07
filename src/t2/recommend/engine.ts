@@ -182,7 +182,7 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
 
   const t3 = t3Preview(tags, levels, ageM, config);
   if (need.length === 0 && dx.length === 0) {
-    return { status: 'NO_T2', band, alerts, dimQueue, tools: [], t3: [], gaps: [], removed: [], parentMinutes: 0, tags: [...tags] };
+    return { status: 'NO_T2', band, alerts, dimQueue, tools: [], t3: [], gaps: [], gapDims: [], removed: [], parentMinutes: 0, tags: [...tags] };
   }
 
   // ── 第 6 步：全面落後 ──
@@ -223,6 +223,7 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
 
   // ── 第 8 步：覆蓋 ──
   const gaps: string[] = [];
+  const gapDims: Recommendation['gapDims'] = [];
   const primaryCount = (d: DimensionCode) => chosen.filter(c => config.tools[c.code].primary.includes(d)).length;
   const tierWhy = (d: DimensionCode, tier: number): string => {
     if (tier === 1) return rfdims.has(d) ? '红旗' : '社交沟通警讯';
@@ -237,11 +238,13 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
     const c = firstUsable(preferenceOf(d, ageM, tags, dx));
     if (!c) {
       gaps.push(`缺口：${DIM_NAME[d]} 在 ${ageM} 个月没有可用的家长／教师问卷——改为治疗师当面评估。`);
+      gapDims.push({ dim: d, kind: 'none' });
       continue;
     }
     add(c, `P${tier}` as ToolClass, d, `P${tier} ${DIM_NAME[d]}（${tierWhy(d, tier)}）`);
     if (!config.tools[c].primary.includes(d)) {
       gaps.push(`缺口：${DIM_NAME[d]} 在 ${ageM} 个月没有主测该维度的问卷，暂以 ${c}（次要涵盖）替代，并建议当面评估。`);
+      gapDims.push({ dim: d, kind: 'secondary' });
     }
   }
 
@@ -309,7 +312,7 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
     };
   });
 
-  return { status: 'RECOMMEND', band, alerts, dimQueue, tools, t3, gaps, removed, parentMinutes: minutes(), tags: [...tags] };
+  return { status: 'RECOMMEND', band, alerts, dimQueue, tools, t3, gaps, gapDims, removed, parentMinutes: minutes(), tags: [...tags] };
 }
 
 /** 客規 §9.2 第 13 步：T3 預告（年齡合適才出）。 */

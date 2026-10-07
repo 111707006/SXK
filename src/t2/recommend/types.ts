@@ -107,6 +107,8 @@ export interface Recommendation {
   /** T3 當面評估預告。使用者 2026-10-07：T3 不做 —— 這裡照客規算（對得上客規的表），API 不回、畫面不出。 */
   t3: Array<{ code: string; reason: string }>;
   gaps: string[];
+  /** 同 `gaps`，結構化（家長端的字另寫，不讀客規那幾句）：`none` 沒有問卷、`secondary` 以次要涵蓋的替代。 */
+  gapDims: Array<{ dim: DimensionCode; kind: 'none' | 'secondary' }>;
   /** 被時間上限移除的。 */
   removed: Array<{ code: string; reason: string }>;
   parentMinutes: number;

@@ -158,3 +158,18 @@ describe('客規 §14 驗收清單', () => {
     expect(codes(66, { MOT: 2 })).toContain('SXK-GM');
   });
 });
+
+describe('gapDims（家長端用的結構化缺口）', () => {
+  it('與 gaps 一一對應；none 的維度沒有任何一份量表主測它', () => {
+    const bad: string[] = [];
+    for (const input of SAMPLES) {
+      const r = recommend(input);
+      if (r.gapDims.length !== r.gaps.length) bad.push(`${input.ageM} gaps ${r.gaps.length} gapDims ${r.gapDims.length}`);
+      r.gapDims.forEach((g, i) => {
+        if (!r.gaps[i].includes(g.kind === 'none' ? '没有可用' : '次要涵盖')) bad.push(`${input.ageM} ${g.dim} 第 ${i} 條對不上`);
+        if (g.kind === 'none' && r.tools.some(t => T[t.code].primary.includes(g.dim))) bad.push(`${input.ageM} ${g.dim} 有主測的量表`);
+      });
+    }
+    expect(bad).toEqual([]);
+  });
+});

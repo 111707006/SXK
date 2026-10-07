@@ -1,14 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { KITV3_DIR, KITV3_ZIP, V3_RECIPES, loadKitV3Zip, loadV3Source, renderKitV3Files } from '../scripts/t2/kitv3';
+import { KITV3_DIR, KITV3_ZIP, loadKitV3Zip, loadV3Source, renderKitV3Files } from '../scripts/t2/kitv3';
+import { V3_RECIPES } from '../scripts/t2/kitv3-recipes';
 import { isPureData } from '../scripts/t2/literals';
 import { sameToolkitContent } from '../scripts/t2/extract';
 import { RECOMMEND_CONFIG } from '../src/t2/recommend/config';
 
 /**
  * 完整版題庫的地基（T2 v3 題庫規格 §3）：`src/t2/kitv3/<slug>.ts` 是腳本從客戶 zip 重跑的結果，逐位元一致。
- * 客戶的 zip 不進 git（有 mp4 那一包不進；這一包 1 MB 左右，進了），CI 也跑得到。
+ * 客戶的完整版 zip（2.7 MB，只有 HTML 與 docx，沒有影片）在 git 裡，CI 也跑得到。
  */
 
 const ROOT = path.resolve(__dirname, '..');
@@ -41,7 +42,7 @@ describe('完整版題庫：抽取地基', () => {
   });
 
   it('每一份 src/t2/kitv3/<slug>.ts 與腳本重跑的結果一致（只容忍 CRLF）', () => {
-    for (const [rel, text] of renderKitV3Files(ROOT)) {
+    for (const [rel, text] of renderKitV3Files(ROOT, V3_RECIPES)) {
       const abs = path.join(ROOT, rel);
       expect(fs.existsSync(abs), rel).toBe(true);
       expect(sameToolkitContent(fs.readFileSync(abs, 'utf8'), text), `${rel}：重跑 npx tsx scripts/t2-extract-kitv3.ts`).toBe(true);

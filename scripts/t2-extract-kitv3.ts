@@ -8,10 +8,11 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { renderKitV3Files } from './t2/kitv3';
+import { V3_RECIPES } from './t2/kitv3-recipes';
 import { sameToolkitContent } from './t2/extract';
 
 const root = process.cwd();
-const files = renderKitV3Files(root);
+const files = renderKitV3Files(root, V3_RECIPES);
 const check = process.argv.includes('--check');
 let bad = 0;
 for (const [rel, text] of files) {

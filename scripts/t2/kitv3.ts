@@ -83,10 +83,8 @@ export function h1Title(src: V3Source): string {
   return text;
 }
 
-/** 配方表：每加一支工具就在這裡登記（R3b 起）。 */
-export const V3_RECIPES: V3Recipe[] = [];
-
-export function extractKitV3(zip: Map<string, Buffer>, recipes: ReadonlyArray<V3Recipe> = V3_RECIPES): KitV3Bank[] {
+/** 配方表在 `kitv3-recipes/index.ts`（每一族一個檔）；這裡只放共用的零件，免得互相 import。 */
+export function extractKitV3(zip: Map<string, Buffer>, recipes: ReadonlyArray<V3Recipe>): KitV3Bank[] {
   return recipes.map(r => {
     const src = loadV3Source(zip, r.file);
     return { code: r.code, source: { zip: KITV3_ZIP, file: r.file, sha256: src.sha256 }, ...r.build(src) };
@@ -110,7 +108,7 @@ export function emitKitV3Module(bank: KitV3Bank): string {
   ].join('\n');
 }
 
-export function renderKitV3Files(root: string, recipes: ReadonlyArray<V3Recipe> = V3_RECIPES): Map<string, string> {
+export function renderKitV3Files(root: string, recipes: ReadonlyArray<V3Recipe>): Map<string, string> {
   const zip = loadKitV3Zip(root);
   const out = new Map<string, string>();
   for (const [i, bank] of extractKitV3(zip, recipes).entries()) {

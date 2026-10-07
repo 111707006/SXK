@@ -33,11 +33,30 @@ import { DIMENSION_CODES } from '../t2/types';
 import type { DimensionCode } from '../t2/types';
 import type { PickReason } from '../t2/activityMatch';
 
+/**
+ * v3 推送規則（`TRAINING_PUSH_V3`）多記的一塊：這一格是哪一期、第幾週、本月做法、顏色從哪來（T2 分級／T1 推定）、
+ * 取自哪個模組、是不是放寬或補位來的（規格 §6.2）。舊週次沒有這一塊；`reason` 仍照舊形狀存一份（band 由顏色換回），
+ * 畫面上的「因為……所以練……」照舊讀得動。
+ */
+export interface StoredPush {
+  periodNo: number;
+  week: number;
+  color: 'red' | 'orange' | 'green';
+  source: 't2' | 't1';
+  module: number | null;
+  window: [number, number];
+  variant: 'easy' | 'standard' | 'hard';
+  relaxed: boolean;
+  replaced?: boolean;
+}
+
 /** 存下來的一支：活動編號、為哪個維度挑的、為什麼。 */
 export interface StoredPick {
   id: string;
   dimension: DimensionCode;
   reason: PickReason;
+  /** v3 推送規則排的才有。 */
+  push?: StoredPush;
 }
 
 /** 一列的 `activities` 欄位。 */
@@ -176,6 +195,32 @@ function reasonFrom(raw: unknown): PickReason | null {
   };
 }
 
+const PUSH_COLORS: ReadonlySet<string> = new Set(['red', 'orange', 'green']);
+const PUSH_SOURCES: ReadonlySet<string> = new Set(['t2', 't1']);
+const PUSH_VARIANTS: ReadonlySet<string> = new Set(['easy', 'standard', 'hard']);
+
+/** v3 那一塊（`StoredPush`）：形狀不對就當沒有（`undefined`），那一支照舊形狀顯示，不丟掉整支。 */
+function pushFrom(raw: unknown): StoredPush | undefined {
+  if (!isObject(raw)) return undefined;
+  const { periodNo, week, color, source, module, window, variant, relaxed, replaced } = raw;
+  if (!Number.isInteger(periodNo) || !Number.isInteger(week)) return undefined;
+  if (typeof color !== 'string' || !PUSH_COLORS.has(color) || typeof source !== 'string' || !PUSH_SOURCES.has(source)) return undefined;
+  if (module !== null && !Number.isInteger(module)) return undefined;
+  if (!Array.isArray(window) || window.length !== 2 || !window.every(n => typeof n === 'number')) return undefined;
+  if (typeof variant !== 'string' || !PUSH_VARIANTS.has(variant) || typeof relaxed !== 'boolean') return undefined;
+  return {
+    periodNo: periodNo as number,
+    week: week as number,
+    color: color as StoredPush['color'],
+    source: source as StoredPush['source'],
+    module: module as number | null,
+    window: [window[0], window[1]],
+    variant: variant as StoredPush['variant'],
+    relaxed,
+    ...(replaced === true ? { replaced: true } : {}),
+  };
+}
+
 /** 一筆 pick 的最低要求：有編號、維度認得、`reason` 四個欄位齊全（`reasonFrom`）。 */
 function pickFrom(raw: unknown): StoredPick | null {
   if (!isObject(raw)) return null;
@@ -183,7 +228,10 @@ function pickFrom(raw: unknown): StoredPick | null {
   if (typeof raw.dimension !== 'string' || !DIMENSION_SET.has(raw.dimension)) return null;
   const reason = reasonFrom(raw.reason);
   if (reason === null) return null;
-  return { id: raw.id, dimension: raw.dimension as DimensionCode, reason };
+  const push = pushFrom(raw.push);
+  return push === undefined
+    ? { id: raw.id, dimension: raw.dimension as DimensionCode, reason }
+    : { id: raw.id, dimension: raw.dimension as DimensionCode, reason, push };
 }
 
 /**

@@ -251,3 +251,22 @@ describe('recentWeeklyPlans', () => {
     expect(executed[0].sql).toMatch(/LIMIT 0$/);
   });
 });
+
+describe('push（v3 推送規則多記的那一塊）', () => {
+  const PUSH = { periodNo: 1, week: 3, color: 'red', source: 't1', module: 8, window: [24, 28], variant: 'easy', relaxed: false };
+
+  it('存什麼讀什麼；舊週次沒有就沒有', async () => {
+    rows = [row({ activities: JSON.stringify({ ...ACTIVITIES, picks: [{ ...ACTIVITIES.picks[0], push: PUSH }] }) })];
+    const got = await store.findWeeklyPlan(7, '2026-09-07');
+    expect(got!.activities.picks[0].push).toEqual(PUSH);
+    rows = [row()];
+    expect((await store.findWeeklyPlan(7, '2026-09-07'))!.activities.picks[0]).not.toHaveProperty('push');
+  });
+
+  it('push 壞了只丟那一塊，那一支照舊形狀留著', async () => {
+    rows = [row({ activities: JSON.stringify({ ...ACTIVITIES, picks: [{ ...ACTIVITIES.picks[0], push: { ...PUSH, color: 'blue' } }] }) })];
+    const got = await store.findWeeklyPlan(7, '2026-09-07');
+    expect(got!.activities.picks).toHaveLength(1);
+    expect(got!.activities.picks[0]).not.toHaveProperty('push');
+  });
+});

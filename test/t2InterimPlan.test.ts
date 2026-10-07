@@ -56,7 +56,7 @@ describe('每個被標記的維度一份、全部必做', () => {
       }
     }
     expect(checked).toBe(217 * FLAG_SETS.length * DIAGNOSES.length);
-  });
+  }, 30_000); // 窮舉：單跑 2 秒，全套滿載時會超過預設 5 秒
 
   it('不改傳進來的那一份（規則引擎的結果照舊可以拿去用）', () => {
     const flags = FLAG_SETS[2];

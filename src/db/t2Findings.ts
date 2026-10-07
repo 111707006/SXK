@@ -22,7 +22,7 @@ import { getPool } from './mysql';
 import { DIMENSION_CODES } from '../t2/types';
 import type { T2Findings } from '../t2/types';
 import type { T2FindingsV3 } from '../t2/findingsV3';
-import type { T2ReportProse } from '../t2/report';
+import type { T2ReportProse, T2ReportProseV3 } from '../t2/report';
 
 /** 表裡的一列，讀出來的形狀。 */
 export interface FindingsRecord {
@@ -30,8 +30,8 @@ export interface FindingsRecord {
   createdAt: string;
   /** 9/08 題庫的 `T2Findings`，或完整版的 `T2FindingsV3`（`toolkitVersion` 分流，`isFindingsV3`）。 */
   findings: T2Findings | T2FindingsV3;
-  /** 模板退路也是一份完整的 prose；`null` 只在「連模板都沒存成」時出現。 */
-  prose: T2ReportProse | null;
+  /** 模板退路也是一份完整的 prose；`null` 只在「連模板都沒存成」時出現。完整版的快照配 `T2ReportProseV3`。 */
+  prose: T2ReportProse | T2ReportProseV3 | null;
   isAiGenerated: boolean;
   /** 產出這份文字的引擎，或退路的來源。見遷移檔檔頭。 */
   aiEngine: string | null;
@@ -39,7 +39,7 @@ export interface FindingsRecord {
 
 export interface FindingsInsert {
   findings: T2Findings | T2FindingsV3;
-  prose: T2ReportProse | null;
+  prose: T2ReportProse | T2ReportProseV3 | null;
   isAiGenerated: boolean;
   aiEngine: string | null;
 }
@@ -120,10 +120,10 @@ function isFindingsShaped(x: unknown): x is T2Findings {
 }
 
 /** `prose` 的最低要求：是物件、有 `perDimension` 陣列。不過就當「未記錄」（檔頭）。 */
-function proseFrom(raw: unknown): T2ReportProse | null {
+function proseFrom(raw: unknown): T2ReportProse | T2ReportProseV3 | null {
   const parsed = parseJson(raw);
   if (!isObject(parsed) || !Array.isArray(parsed.perDimension)) return null;
-  return parsed as unknown as T2ReportProse;
+  return parsed as unknown as T2ReportProse | T2ReportProseV3;
 }
 
 /** mysql2 預設回 Date；開了 `dateStrings` 回 `'2026-09-12 01:00:05'`。讀不成時間回 `null`（那一列算壞的）。 */

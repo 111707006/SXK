@@ -37,7 +37,7 @@
 │   │   ├── T2Assessment.tsx         # T2 逐支作答：工具清单（已完成／加测提示）＋ 作答表单（#58）；底下「生成报告／查看上次的报告」（#61）
 │   │   ├── T2EntranceV3.tsx         # T2 v3 入口（`T2_RECOMMEND_V3`）：plan 是 `version: 'v3'` 时 T2Entrance 改画它；只画 parentPlanV3 组好的字
 │   │   ├── T2AssessmentV3.tsx       # T2 v3 逐支作答：推荐清单（第一次／第二次＋近 90 天做过的）、题库打开才载、formV3、交卷带 toolkitVersion
-│   │   ├── T2ReportV3.tsx           # T2 v3 报告页：快照是 kit-20260923 时 T2Report 改画它；提示、九宫格、生活品质、气质偏向、作答回顾（prose 是 null，不叫模型）
+│   │   ├── T2ReportV3.tsx           # T2 v3 报告页：快照是 kit-20260923 时 T2Report 改画它；提示、九宫格、各方面段落（伺服器存的 prose）、生活品质、气质偏向、作答回顾；页面本身不叫模型
 │   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段只留一行连到「线上干预」页（2026-09-28 起线上干预不在报告里）、可摺叠作答回顾（#61）
 │   │   ├── training/                # 线上干预（Keep 式，Keep 规格 K11 起）：导览列「线上干预」那一页（2026-09-28 使用者：不放在报告里）＋盖在上面的计划页、详情、抽屉
 │   │   │   ├── TrainingPage.tsx     # 导览列「线上干预」那一页：自己读最新报告快照（没报告／没解锁时说要先做什么、带到 T2 入口），挂 TrainingSection
@@ -392,7 +392,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `TRAINING_PRICE_FEN` | 「线上干预」那一站的价钱（分）。**现在只能不设或 0**（免费、直接通过）；其他值程序起不来 —— 线上干预的订单与权益还没做（`src/t2/trainingGate.ts`） | 否 |
 | `SMS_IP_DAILY_MAX` | 同一来源每日索取上限（预设 50）。按号码算的上限（10）挡不住换号码，这是按来源算的那一半；来源是收敛过的键（IPv6 截到 /64）。**设成 0 即停止发送**，遭滥用时最快的一道闸门 | 否 |
 | `TRAINING_PUSH_V3` | 线上干预 v3 推送规则（客户 2026-10-06，规格 `docs/specs/t2-v3-training-push-2026-10-06.md`）：`1` ＝ 每周活动改由「一期 12 周 × 3 支」排（`src/t2/trainingPush.ts`、`trainingPeriodService.ts`，读写 `t2_training_periods`）；不设或 `0` ＝ 旧的每周 4 支。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-10-07-t2-training-periods.sql`** | 否 |
-| `T2_RECOMMEND_V3` | T2 v3 量表推薦與完整版題庫（客戶 2026-10-06，規格 `docs/specs/t2-v3-toolkit-full-edition.md`）：`1` ＝ `POST /api/t2/tool-results` 收 `toolkitVersion: 'kit-20260923'` 的交卷（`src/t2/kitv3/submit.ts`，存同一張 `t2_tool_results`）、`GET ?kit=v3` 讀完整版每支最新一筆；`GET /api/t2/plan` 改回量表推薦（`src/t2/recommend/parentPlan.ts`：家長端的字另寫、近 90 天做過的不再推、T3 不回）；`POST /api/t2/findings` 存完整版快照 `T2FindingsV3`（`src/t2/findingsV3.ts`，報告文字暫不生成）。**要同時開 `TRAINING_PUSH_V3`**，否則程序起不來；不設或 `0` ＝ 一行不動。只收 `1`/`true`/`0`/`false` | 否 |
+| `T2_RECOMMEND_V3` | T2 v3 量表推薦與完整版題庫（客戶 2026-10-06，規格 `docs/specs/t2-v3-toolkit-full-edition.md`）：`1` ＝ `POST /api/t2/tool-results` 收 `toolkitVersion: 'kit-20260923'` 的交卷（`src/t2/kitv3/submit.ts`，存同一張 `t2_tool_results`）、`GET ?kit=v3` 讀完整版每支最新一筆；`GET /api/t2/plan` 改回量表推薦（`src/t2/recommend/parentPlan.ts`：家長端的字另寫、近 90 天做過的不再推、T3 不回）；`POST /api/t2/findings` 存完整版快照 `T2FindingsV3`（`src/t2/findingsV3.ts`）＋報告文字（`src/t2/report/proseV3.ts`：模型走 T1 報告同一串 `generateReportJSON`，驗證不過或全掛就存模板）。**要同時開 `TRAINING_PUSH_V3`**，否則程序起不來；不設或 `0` ＝ 一行不動。只收 `1`/`true`/`0`/`false` | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

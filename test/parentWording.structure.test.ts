@@ -118,6 +118,8 @@ const PARENT_FACING_FILES = [
   'src/components/T2EntranceV3.tsx',
   'src/components/T2ReportV3.tsx',
   'src/t2/reportCopyV3.ts',
+  // 2026-10-08：v3 報告的模板退路（提示 promptV3.ts 含禁止清單，同 prompt.ts 不掃）
+  'src/t2/report/proseV3.ts',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

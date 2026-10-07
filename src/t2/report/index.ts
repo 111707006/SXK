@@ -6,11 +6,14 @@
  * - `template.ts`：驗證不過時的模板退路，產出過同一個驗證器。
  * - `generate.ts`：「呼叫模型 → 驗證 → 不過就退模板」那一段（#59），引擎由呼叫端傳進來。
  * - `blacklist.ts`／`sentences.ts`：兩張受控的字表。
+ * - `proseV3.ts`／`promptV3.ts`：完整版（T2 v3）報告的形狀、驗證、模板、提示與生成；引擎同上。
  */
 
 export * from './blacklist';
 export * from './generate';
 export * from './prompt';
+export * from './promptV3';
+export * from './proseV3';
 export * from './prose';
 export * from './sentences';
 export * from './template';

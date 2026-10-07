@@ -253,9 +253,10 @@ describe('完整版快照（T2 v3）改畫 T2ReportV3', () => {
     expect(branch).toBeLessThan(report.indexOf('buildSmartGoals(findings'));
   });
 
-  it('不叫模型、不自己打 API：文字只來自 reportCopyV3／reportCopy，題庫走延遲載入', () => {
+  it('不叫模型、不自己打 API：文字是伺服器存的 prose（認得形狀才用）加 reportCopyV3／reportCopy，題庫走延遲載入', () => {
     expect(v3).not.toMatch(/authFetch|fetch\(/);
-    expect(v3).not.toMatch(/\bprose\??\./);
+    expect(v3).toMatch(/proseOf\(entry\.prose\)/);
+    expect(v3).not.toMatch(/generateProse|buildProsePrompt/);
     expect(v3).toMatch(/from '\.\.\/t2\/reportCopyV3'/);
     expect(v3).toMatch(/KITV3_LOADERS/);
     expect(v3).not.toMatch(/from '\.\.\/t2\/kitv3'/);

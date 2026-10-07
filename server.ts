@@ -34,7 +34,7 @@ import { createT2LibraryRouter } from './src/t2/libraryRoutes';
 import { buildSmartGoals } from './src/t2/goals';
 import { createPracticeRouter } from './src/t2/practiceRoutes';
 import { ICS_LINK_PARAM, createIcsLinkToken, readIcsLinkToken } from './src/t2/icsLink';
-import { generateProse } from './src/t2/report';
+import { generateProse, generateProseV3 } from './src/t2/report';
 import type { T2ReportInput } from './src/t2/report';
 import * as t2Store from './src/db/t2ToolResults';
 import * as t2StoreV3 from './src/db/t2ToolResultsV3';
@@ -1534,8 +1534,8 @@ function findingsEntry(record: FindingsRecord) {
 }
 
 // T2 v3（`T2_RECOMMEND_V3`）：完整版的快照（題庫規格 §5.2）。「推了哪些」用同一份 T1／孩子資料、不排除做過的（R-30）；
-// 收近 90 天每支最新一筆（R-29）。報告文字（AI／模板）還沒改寫成完整版的形狀 —— 先存 `prose: null`，
-// 畫面走「未記錄」那一態，判定、旗標、活動都照快照（R3h 接報告頁）。
+// 收近 90 天每支最新一筆（R-29）。報告文字照舊版：模型（T1 報告同一串 `generateReportJSON`）→ 驗證 → 不過就退模板
+//（`src/t2/report/proseV3.ts`，使用者 2026-10-08）。
 async function generateFindingsV3(userId: UserId, context: T2Context): Promise<FindingsRecord> {
   const now = new Date();
   const records = await loadT2ToolResultsV3(userId);
@@ -1554,7 +1554,10 @@ async function generateFindingsV3(userId: UserId, context: T2Context): Promise<F
     fallbackAgeMonth: run.ageM,
     now,
   });
-  return storeT2Findings(userId, { findings, prose: null, isAiGenerated: false, aiEngine: null });
+  const childName = typeof context.child?.name === 'string' ? context.child.name : undefined;
+  const outcome = await generateProseV3({ findings, ...(childName ? { childName } : {}) }, generateReportJSON);
+  if (!outcome.isAiGenerated) console.warn(`[T2 v3] 報告退模板（${outcome.aiEngine}）：${outcome.errors.join(' | ')}`);
+  return storeT2Findings(userId, { findings, prose: outcome.prose, isAiGenerated: outcome.isAiGenerated, aiEngine: outcome.aiEngine });
 }
 
 tier2Only.post('/api/t2/findings', async (req, res) => {

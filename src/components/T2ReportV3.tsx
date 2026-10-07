@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Award, ChevronDown, ChevronRight, ClipboardList, HeartHandshake, RefreshCw, Sparkles, UserRound } from 'lucide-react';
+import { AlertTriangle, Award, ChevronDown, ChevronRight, ClipboardList, HeartHandshake, Layers, RefreshCw, Sparkles, UserRound } from 'lucide-react';
 import { reportSourceLabel } from '../utils/reportSource';
 import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import type { T2FindingsV3 } from '../t2/findingsV3';
 import { KITV3_LOADERS } from '../t2/kitv3/lazy';
 import type { KitV3Bank } from '../t2/kitv3/types';
+import type { ProseDimensionV3, T2ReportProseV3 } from '../t2/report/proseV3';
+import type { DimensionCode } from '../t2/types';
 import { RETEST_SENTENCE, REVIEW_EMPTY_SENTENCE, dimensionStatus } from '../t2/reportCopy';
 import {
   TEMPERAMENT_LEAD,
@@ -23,7 +25,8 @@ const TEMPERAMENT_TOOL = 'ITQ/TTS/BSQ';
 const QOL_TOOL = 'SXK-QOL';
 
 interface T2ReportV3Props {
-  entry: { createdAt: string; findings: T2FindingsV3; isAiGenerated: boolean };
+  /** `prose` 是伺服器存的那一份（模型或模板）；舊的 v3 快照（2026-10-08 之前）是 null，那時只有規則輸出。 */
+  entry: { createdAt: string; findings: T2FindingsV3; prose: unknown; isAiGenerated: boolean };
   /** 「重新生成」那一顆與它底下那一行，`T2Report` 組好傳進來（生成的狀態在那邊）。 */
   regenerate: React.ReactNode;
   errorLine: React.ReactNode;
@@ -33,18 +36,33 @@ interface T2ReportV3Props {
   formatDay: (iso: string) => string;
 }
 
+/** 讀回來的是不是完整版的文字（舊版的有 `weeklyPlanIntro`）；不是就當沒有。 */
+function proseOf(raw: unknown): T2ReportProseV3 | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const x = raw as Record<string, unknown>;
+  return typeof x.overview === 'string' && typeof x.closing === 'string' && Array.isArray(x.perDimension) && !('weeklyPlanIntro' in x)
+    ? (x as unknown as T2ReportProseV3)
+    : null;
+}
+
 /**
  * 完整版題庫的報告（T2 v3，題庫規格 §5.3）—— `T2Report` 讀到 `toolkitVersion: 'kit-20260923'` 的快照改畫這裡。
  *
- * 【文字】v3 的快照 `prose` 是 null：報告的文字（AI 或模板）還沒定，這一頁不叫模型、不自己寫評語，
- * 只出規則輸出：最上方提示、九宮格（狀態句照舊走 `dimensionStatus`）、沒有問卷的方面、生活品質、氣質、
- * 線上干預的連結、「三个月后重评」、作答回顧。句子全在 `reportCopyV3.ts`／`reportCopy.ts`（都在用字掃描裡）。
+ * 【文字】兩種來源分開放：
+ * - 伺服器生成時寫好的 `prose`（模型或模板，`src/t2/report/proseV3.ts`，已過驗證器）：總覽一段、留意／關注的維度各一段、
+ *   沒有問卷的方面各一句、結尾。這一頁不叫模型。
+ * - 規則輸出：最上方提示、九宮格（狀態句照舊走 `dimensionStatus`）、生活品質、氣質、線上干預的連結、「三个月后重评」、
+ *   作答回顧。句子全在 `reportCopyV3.ts`／`reportCopy.ts`（都在用字掃描裡）。
+ * 2026-10-08 之前存的 v3 快照沒有 `prose`，只出規則輸出那幾段。
  *
  * 【題庫】氣質的兩極與作答回顧要題庫：打開時把快照裡用到的那幾支延遲載入（每支一個 chunk）；
  * 載不到的那一支，回顧先不列、氣質那一段不出 —— 不影響九宮格與提示。
  */
 export default function T2ReportV3({ entry, regenerate, errorLine, serviceButtons, onOpenTraining, formatDay }: T2ReportV3Props) {
   const { findings } = entry;
+  const prose = proseOf(entry.prose);
+  const proseById = new Map<DimensionCode, ProseDimensionV3>((prose?.perDimension ?? []).map(p => [p.dimensionId, p]));
+  const flagged = findings.dimensions.filter(d => (d.band === 'refer' || d.band === 'watch') && proseById.has(d.dimensionId));
   const [banks, setBanks] = useState<Record<string, KitV3Bank>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
 
@@ -111,6 +129,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
       {/* 1. 總覽：九宮格（不篩的不出） */}
       <section className="space-y-3">
         {sectionTitle(<ClipboardList size={15} />, '总览')}
+        {prose && <p className="text-xs text-brand-charcoal leading-relaxed" id="t2v3-overview">{prose.overview}</p>}
         <p className="text-[11px] text-brand-charcoal/75 leading-relaxed">
           {doneNames.length > 0
             ? `这份报告整理自近 3 个月填写的 ${doneNames.length} 份问卷：${doneNames.join('、')}。`
@@ -133,16 +152,45 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
         </ul>
       </section>
 
-      {/* 2. 沒有問卷的方面：導向四種服務 */}
+      {/* 2. 逐維度：留意／關注的維度各一段（prose 有才出） */}
+      {flagged.length > 0 && (
+        <section className="space-y-3" id="t2v3-per-dimension">
+          {sectionTitle(<Layers size={15} />, '各方面')}
+          {flagged.map(d => {
+            const p = proseById.get(d.dimensionId)!;
+            const s = dimensionStatus(d, ageMonth);
+            return (
+              <article key={d.dimensionId} className="rounded-2xl border border-brand-stone/60 p-4 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-xs font-extrabold text-brand-forest">{SITE_DIMENSION_NAME[d.dimensionId]}</h4>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_CLASS[s.kind === 'band' ? s.status : s.tone]}`}>{s.label}</span>
+                </div>
+                <p className="text-xs text-brand-charcoal leading-relaxed">{p.whatWeSaw}</p>
+                <p className="text-[11px] text-brand-charcoal/80 leading-relaxed">{p.whyItMatters}</p>
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      {/* 3. 沒有問卷的方面：導向四種服務 */}
       {noTool.length > 0 && (
         <section className="space-y-3" id="t2v3-no-tool">
           {sectionTitle(<UserRound size={15} />, '这个月龄没有问卷可以做的方面')}
           <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
             {noTool.map(d => (
-              <h4 key={d.dimensionId} className="text-xs font-extrabold text-brand-forest">
-                {SITE_DIMENSION_NAME[d.dimensionId]}
-                <span className="ml-2 font-bold text-[10px] text-brand-charcoal/60">{dimensionStatus(d, ageMonth).tag}</span>
-              </h4>
+              <div key={d.dimensionId} className="space-y-1">
+                <h4 className="text-xs font-extrabold text-brand-forest">
+                  {SITE_DIMENSION_NAME[d.dimensionId]}
+                  {/* 有 prose 時那一段已經講了「这个年龄没有问卷」，標題旁的狀態句就不重複 */}
+                  {!proseById.get(d.dimensionId) && (
+                    <span className="ml-2 font-bold text-[10px] text-brand-charcoal/60">{dimensionStatus(d, ageMonth).tag}</span>
+                  )}
+                </h4>
+                {proseById.get(d.dimensionId) && (
+                  <p className="text-[11px] text-brand-charcoal/85 leading-relaxed">{proseById.get(d.dimensionId)!.whatWeSaw}</p>
+                )}
+              </div>
             ))}
             <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊：</p>
             {serviceButtons}
@@ -150,7 +198,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
         </section>
       )}
 
-      {/* 3. 生活品質（不進九宮格） */}
+      {/* 4. 生活品質（不進九宮格） */}
       {qol && (
         <section className="space-y-2" id="t2v3-qol">
           {sectionTitle(<HeartHandshake size={15} />, '日常生活')}
@@ -161,7 +209,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
         </section>
       )}
 
-      {/* 4. 氣質（不進九宮格；講偏向，不講好壞） */}
+      {/* 5. 氣質（不進九宮格；講偏向，不講好壞） */}
       {tempLines.length > 0 && (
         <section className="space-y-2" id="t2v3-temperament">
           {sectionTitle(<Sparkles size={15} />, '孩子的风格')}
@@ -180,7 +228,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
         </section>
       )}
 
-      {/* 5. 線上干預：只留一行連結（2026-09-28 起不放在報告裡） */}
+      {/* 6. 線上干預：只留一行連結（2026-09-28 起不放在報告裡） */}
       {onOpenTraining && (
         <section id="t2v3-weekly">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-2xl bg-brand-forest text-white px-5 py-4">
@@ -199,7 +247,11 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
 
       <p className="text-[11px] text-brand-charcoal/80 leading-relaxed" id="t2v3-retest">{RETEST_SENTENCE}</p>
 
-      {/* 6. 作答回顧：選了最差兩檔的題，可摺疊 */}
+      {prose && (
+        <p className="text-xs text-brand-charcoal/85 leading-relaxed border-t border-brand-cream pt-5" id="t2v3-closing">{prose.closing}</p>
+      )}
+
+      {/* 7. 作答回顧：選了最差兩檔的題，可摺疊 */}
       <section className="space-y-3" id="t2v3-review">
         <button
           type="button"

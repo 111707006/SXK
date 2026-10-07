@@ -31,5 +31,6 @@
 | 2026-10-07 | 推薦 R4 | 引擎加 `gapDims`；家長端的字 `parentPlanV3`（客規原句不給家長）；`/api/t2/plan` 改回推薦（開關後面），附作答月齡與情境；生成報告存 `T2FindingsV3`（`prose: null`、不叫模型）；入口畫面 `T2EntranceV3`（提示、第一次／第二次、合計、建议分 2 次、缺口導四種服務、NO_T2 只留一句） | `d4a6e4d` `fec5e1d` `b9d8e10` `ef2f171` `03ba5eb` `bceb83b` | `t2PlanV3.http`、`t2FindingsV3.http`；用字掃描；拋棄式 vite 畫面實看推薦／鎖住／NO_T2 三態 |
 | 2026-10-07 | 題庫 R3h | 延遲載入表（每支一個 chunk）；作答表單與狀態 `answeringV3`；作答畫面 `T2AssessmentV3`；報告頁 `T2ReportV3`＋句子層 `reportCopyV3`（最上方提示 R-32、九宮格照舊狀態句、生活品質、氣質偏向照各表 poles、作答回顧挑最差兩檔 R-31） | `4e8aa6c` `e3ad32a` `e53054d` `a0487cc` | 全套 3957/3957 綠；用字掃描；拋棄式 vite 畫面實看六種題型（七級小字、整段無法觀察、錨點、年級、八選項氣質、QOL）、交卷 body（版本、作答月齡、`CL.na`）、報告各段與手機寬 |
 | 2026-10-07 | 題庫 R3i | 紙本比對 `--kit v3`：24 支 2709 句、找不到 26 句，清單入 `docs/reference/T2完整版纸本比对-2026-10-07.md` | `a99a1e2` | 腳本跑完；`t2KitV3PaperDiff` 釘住每支差異數 |
+| 2026-10-08 | 報告文字 | v3 報告接 AI（使用者 10/08：跟 T1 報告串接相同）：`proseV3.ts`（形狀、驗證、模板、生成）、`promptV3.ts`；`POST /api/t2/findings` v3 存模型或模板的 prose；報告頁出總覽段、各方面段落、沒有問卷那幾句、結尾 | 見下一個 commit | 模板對 24 支 × 窗口頭中尾 × 最好／最差全過驗證器；HTTP 三出口（合格／寫壞／全掛）；用字掃描 |
 | — | 推薦 R5 | 退場：`interimPlan.ts`、`SINGLE_FORM_PER_DIMENSION`、`planT2` 診斷方向表參數、`t2InterimPlan.test.ts` | 延後 | 開關關著時舊路徑還在用暫行題量；`T2_RECOMMEND_V3` 正式打開並驗收後才拿 |
 | — | 推送票 6 | 拿掉舊配對 | 延後 | 規格 §6.4：開關正式打開、觀察一段時間後另開票 |

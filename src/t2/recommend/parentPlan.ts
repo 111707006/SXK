@@ -130,6 +130,18 @@ export function parentPlanV3(rec: Recommendation, itemsMissing: boolean): Parent
   };
 }
 
+/** `GET /api/t2/plan` 在 v3 回的整份（畫面讀它）。 */
+export interface PlanV3Response extends ParentPlanV3 {
+  /** 推薦用的月齡（做 T1 那時候）。 */
+  ageMonth: number;
+  /** 作答用的月齡（今天，早產 < 24 月矯正）。 */
+  answerAgeMonth: number;
+  /** 作答情境（取自孩子檔案）：QOL 有沒有學校那一段、氣質常模的性別。 */
+  context: { inSchool?: boolean; sex?: 'male' | 'female' };
+  /** 近 90 天做完的（引擎已經不再推）。 */
+  completed: Array<{ code: string; name: string; createdAt: string }>;
+}
+
 export interface RunRecommendationArgs {
   child: ChildRecommendFields;
   t1Scores: ReadonlyArray<T1ScoreInput & { assessedAgeMonth?: number }>;

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { TOOLKIT, TOOL_IDS } from '../src/t2/toolkit';
+import { KITV3_BANKS } from '../src/t2/kitv3';
 
 /**
  * 逐支作答畫面的結構護欄（票 #58）。專案沒有 jsdom，畫面上出現什麼字只能讀原始碼。
@@ -137,5 +138,41 @@ describe('舊評估面板：T2 五題佔位拿掉，T3 那半不動', () => {
     expect(panel).toContain('MotionVideoAssessment');
     expect(panel).toContain("tierId: 'T3'");
     expect(panel).toContain('/api/specialized-report');
+  });
+});
+
+describe('完整版作答畫面（T2 v3，T2AssessmentV3）', () => {
+  const v3 = stripComments(read('src/components/T2AssessmentV3.tsx'));
+
+  it('題目經 formV3 取得、題庫延遲載入；不 import 整包題庫（每支一個 chunk）', () => {
+    expect(v3).toMatch(/formV3\(/);
+    expect(v3).toMatch(/KITV3_LOADERS/);
+    expect(v3).not.toMatch(/from '\.\.\/t2\/kitv3'/);
+    expect(v3).not.toMatch(/from '\.\.\/t2\/kitv3\/index'/);
+  });
+
+  it('24 支的題目、提示、錨點、選項標籤，沒有一句出現在元件裡', () => {
+    for (const bank of Object.values(KITV3_BANKS)) {
+      for (const form of bank.forms) for (const s of form.sections) for (const it of s.items) {
+        expect(v3, `${bank.code} ${it.key}`).not.toContain(it.text);
+        if (it.hint && it.hint.length > 6) expect(v3, `${bank.code} ${it.key} hint`).not.toContain(it.hint);
+        for (const a of it.anchors ?? []) if (a.length > 6) expect(v3, `${bank.code} ${it.key} anchor`).not.toContain(a);
+      }
+    }
+  });
+
+  it('交卷帶完整版的版本字串與 plan 上的作答月齡；缺答停用、說「還有 N 題」', () => {
+    expect(v3).toContain("toolkitVersion: 'kit-20260923'");
+    expect(v3).toMatch(/assessedAgeMonth: plan\.answerAgeMonth/);
+    expect(v3).toMatch(/missingV3\(/);
+    expect(v3).toMatch(/还有 \$\{missing\.length\} 题未作答/);
+    expect(v3).toMatch(/disabled=\{!ready \|\| submitting\}/);
+  });
+
+  it('舊畫面讀到 v3 的 plan 才換過去；新檔案在用字掃描與 authFetch 的清單上', () => {
+    expect(component).toMatch(/planData\.version === 'v3'/);
+    expect(component).toMatch(/<T2AssessmentV3 /);
+    expect(read('test/parentWording.structure.test.ts')).toContain("'src/components/T2AssessmentV3.tsx'");
+    expect(read('test/authFetch.structure.test.ts')).toContain("'src/components/T2AssessmentV3.tsx'");
   });
 });

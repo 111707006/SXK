@@ -19,6 +19,8 @@ import {
 } from '../t2/answering';
 import type { AnswerValue, CompletedEntry, Draft, PreValue, ToolForm } from '../t2/answering';
 import type { PlanItem, T2Plan, ToolId } from '../t2/types';
+import type { PlanV3Response } from '../t2/recommend/parentPlan';
+import T2AssessmentV3 from './T2AssessmentV3';
 
 /** `GET /api/t2/tool-results` 的回應：每支最新且完整的一筆，各附 band。這裡只讀四個欄位。 */
 interface ToolResultsResponse {
@@ -68,6 +70,8 @@ function formatDay(iso: string): string {
  */
 export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps) {
   const [plan, setPlan] = useState<T2Plan | null>(null);
+  /** 伺服器開了 `T2_RECOMMEND_V3`：plan 是量表推薦，整頁改走完整版（`T2AssessmentV3`）。 */
+  const [planV3, setPlanV3] = useState<PlanV3Response | null>(null);
   const [entries, setEntries] = useState<CompletedEntry[]>([]);
   /** 有沒有生成過報告（`GET /api/t2/findings/latest` 是 200 還是 404）；讀不到就當沒有，只少一顆按鈕。 */
   const [hasReport, setHasReport] = useState(false);
@@ -88,10 +92,15 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
           authFetch('/api/t2/findings/latest').catch(() => null),
         ]);
         if (!planResp.ok || !resultsResp.ok) throw new Error(`HTTP ${planResp.status}/${resultsResp.status}`);
-        const planData = (await planResp.json()) as T2Plan;
+        const planData = (await planResp.json()) as T2Plan | PlanV3Response;
         const resultsData = (await resultsResp.json()) as ToolResultsResponse;
         if (cancelled) return;
-        setPlan(planData);
+        if ('version' in planData && planData.version === 'v3') {
+          setPlanV3(planData);
+          setStatus('ready');
+          return;
+        }
+        setPlan(planData as T2Plan);
         setEntries(toEntries(resultsData));
         setHasReport(latestResp?.ok === true);
         setStatus('ready');
@@ -199,6 +208,8 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
       backButton('返回报告', onBack),
     );
   }
+
+  if (planV3) return <T2AssessmentV3 plan={planV3} onBack={onBack} onOpenReport={onOpenReport} />;
 
   if (status === 'error' || !plan) {
     return shell(

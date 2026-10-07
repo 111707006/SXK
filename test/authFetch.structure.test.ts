@@ -30,6 +30,7 @@ const CLIENT_FILES = [
   'src/components/MotionVideoAssessment.tsx',
   'src/components/Paywall.tsx',
   'src/components/T2Assessment.tsx',
+  'src/components/T2AssessmentV3.tsx',
   'src/components/T2Entrance.tsx',
   'src/utils/asr.ts',
   'src/utils/specialists.ts',

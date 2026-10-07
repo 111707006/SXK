@@ -35,6 +35,9 @@
 │   │   ├── T1Screening.tsx          # T1筛查
 │   │   ├── T2Entrance.tsx           # T2 入口（题量、开始作答；挂在即时 T1 报告上，#56）；诊断方向那一格 2026-09-29 拿掉
 │   │   ├── T2Assessment.tsx         # T2 逐支作答：工具清单（已完成／加测提示）＋ 作答表单（#58）；底下「生成报告／查看上次的报告」（#61）
+│   │   ├── T2EntranceV3.tsx         # T2 v3 入口（`T2_RECOMMEND_V3`）：plan 是 `version: 'v3'` 时 T2Entrance 改画它；只画 parentPlanV3 组好的字
+│   │   ├── T2AssessmentV3.tsx       # T2 v3 逐支作答：推荐清单（第一次／第二次＋近 90 天做过的）、题库打开才载、formV3、交卷带 toolkitVersion
+│   │   ├── T2ReportV3.tsx           # T2 v3 报告页：快照是 kit-20260923 时 T2Report 改画它；提示、九宫格、生活品质、气质偏向、作答回顾（prose 是 null，不叫模型）
 │   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段只留一行连到「线上干预」页（2026-09-28 起线上干预不在报告里）、可摺叠作答回顾（#61）
 │   │   ├── training/                # 线上干预（Keep 式，Keep 规格 K11 起）：导览列「线上干预」那一页（2026-09-28 使用者：不放在报告里）＋盖在上面的计划页、详情、抽屉
 │   │   │   ├── TrainingPage.tsx     # 导览列「线上干预」那一页：自己读最新报告快照（没报告／没解锁时说要先做什么、带到 T2 入口），挂 TrainingSection
@@ -71,6 +74,10 @@
 │   │   └── handoffCopy.ts # 卡、落地、简讯同意画面的字；**不写品牌名**（进 B 的建置），名字由 config 或 PRODUCT 给
 │   ├── t2/
 │   │   ├── toolkit/       # T2 题库：22 支工具的题目、选项、分段（脚本产出，勿手改）
+│   │   ├── kitv3/         # T2 v3 完整版题库 24 支（客户 9/23 zip，脚本产出，勿手改）＋计分 score.ts、登录表 index.ts、延迟载入 lazy.ts、交卷 submit.ts
+│   │   ├── recommend/     # T2 v3 量表推荐引擎（客规 10/06）：config.ts（脚本抽）、engine.ts、input.ts（T1＋孩子资料→输入）、parentPlan.ts（家长端的字）
+│   │   ├── judgeV3.ts     # v3 维度判定（题库规格 §5.1）；findingsV3.ts 报告快照 T2FindingsV3（近 90 天、notices）
+│   │   ├── answeringV3.ts # v3 作答表单与状态（formV3、整段略过、年级、缺答）；reportCopyV3.ts v3 报告的句子（提示、生活品质、气质、回顾）
 │   │   ├── types.ts       # 规则引擎的型别（规格 v2 附录 A）
 │   │   ├── toolSpecs.ts   # 工具登录表 22 笔：月龄窗口、计分族、喂哪个维度（v2.1：可带月龄段／只能当加测／最高留意）、固定 caveat
 │   │   ├── findingTags.ts # 发现标签的受控词汇 57 个（★ 配活动／只进报告）（中文短名 `FINDING_TAG_LABELS` 在 `src/admin/findingTagLabels.ts`，只给后台，含禁字，不进家长端 bundle）
@@ -141,6 +148,13 @@ npx tsx scripts/t2-extract-toolkit.ts --check
 
 # T2 题库对纸本版逐题比对，印出每支的差异
 npx tsx scripts/t2-diff-paper.ts
+
+# T2 v3 完整版题库：从 NEWT2/森心康评估工具包_完整版_20260923.zip 抽出 src/t2/kitv3/<code>.ts（--check 只比对不写）
+npx tsx scripts/t2-extract-kitv3.ts
+npx tsx scripts/t2-extract-kitv3.ts --check
+
+# T2 v3 完整版题库对纸本版逐句比对，印给客户的 Markdown 清单（存到 docs/reference/）
+npx tsx scripts/t2-diff-paper.ts --kit v3
 
 # 活动库种子（#44）：从旧原型 files/sxk_t2_activities.js 抽 ACT300 → src/t2/act300.ts
 npx tsx scripts/t2-extract-act300.ts --check

@@ -532,6 +532,30 @@ CREATE TABLE IF NOT EXISTS `t2_weekly_plans` (
   CONSTRAINT `fk_t2_weekly_plans_findings` FOREIGN KEY (`findings_id`) REFERENCES `t2_findings` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- t2_training_periods：线上干预的「一期」（T2 v3 规格 §6.1，客户 2026-10-06《推送规则说明书》）。
+-- 12 周 × 每周 3 支，开期时一次排好存进 plan（只存编号）；每一周仍另写一列 t2_weekly_plans。
+-- 同一份快照第 12 周过完、没有新报告时依完成率开下一期（period_no + 1）；新报告从第 1 期重来。
+-- 只有 TRAINING_PUSH_V3 打开时读写。
+--
+-- 完整的迁移与验证语句见：deploy/migrations/2026-10-07-t2-training-periods.sql
+
+CREATE TABLE IF NOT EXISTS `t2_training_periods` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  `findings_id` BIGINT UNSIGNED NOT NULL,
+  `period_no` INT UNSIGNED NOT NULL,
+  `first_week_start` DATE NOT NULL,
+  `age_month` INT UNSIGNED NOT NULL,
+  `adjustment` VARCHAR(8) NOT NULL,
+  `completion` DECIMAL(5,4) NULL,
+  `plan` JSON NOT NULL,
+  `rules_version` VARCHAR(32) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_user_findings_period` (`user_id`, `findings_id`, `period_no`),
+  CONSTRAINT `fk_t2_training_periods_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_t2_training_periods_findings` FOREIGN KEY (`findings_id`) REFERENCES `t2_findings` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- T2 家庭活动的打卡与提醒（Keep 规格 K06、K07，§4.4）
 -- ============================================================

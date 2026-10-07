@@ -3,6 +3,7 @@ import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CheckinScreen from '../src/components/training/CheckinScreen';
 import DetailScreen from '../src/components/training/DetailScreen';
+import PlanScreen from '../src/components/training/PlanScreen';
 import { ActionsSheet, EquipSheet } from '../src/components/training/DetailSheets';
 import PlayerScreen from '../src/components/training/PlayerScreen';
 import ReminderSheet from '../src/components/training/ReminderSheet';
@@ -71,6 +72,29 @@ function pick(activity: Activity, dimension: DimensionCode) {
   return { activity, dimension, reason: { band: 'watch' as const, window: { lo: 12, hi: 30 }, matchedTags: [], belowWindow: false } };
 }
 
+/** v3 推送規則排的那一週（每一支帶 push、`plan` 帶能力表；規格 §6.2）。 */
+function pushPlan(ageMonth: number): WeeklyPlanResponse {
+  const base = planWith(ageMonth);
+  const mark = (color: 'red' | 'orange', module: number) => ({
+    periodNo: 2, week: 6, color, source: 't2' as const, module, window: [24, 28] as [number, number], variant: 'standard' as const, relaxed: false,
+  });
+  return {
+    ...base,
+    activities: [
+      { ...pick(fromContent('A141'), 'LANG'), push: mark('red', 8) },
+      { ...pick(A001, 'MOT'), push: { ...mark('orange', 1), relaxed: true } },
+      { ...pick(fromContent('A121'), 'LANG'), push: mark('red', 7) },
+    ],
+    plan: {
+      weekIndex: 6, totalWeeks: 12, firstWeekStart: '2026-08-17', periodNo: 2, monthIndex: 1, variant: 'standard', perWeek: 3, adjustment: 'stable',
+      dimensions: [
+        { dimension: 'LANG', color: 'red', source: 't2', window: [28, 32], quota: 8, modules: [7, 8, 9, 11] },
+        { dimension: 'MOT', color: 'orange', source: 't1', window: [32, 34], quota: 4, modules: [1, 2, 3, 4, 5] },
+      ],
+    },
+  };
+}
+
 function planWith(ageMonth: number): WeeklyPlanResponse {
   return {
     weekStart: '2026-09-21',
@@ -100,9 +124,9 @@ const checkin = (activityId: string, checkinDate: string, id = ++seq): Checkin =
 
 function render(
   element: ReactElement,
-  opts: { ageMonth?: number; checkins?: Checkin[] | null; prefs?: PracticePrefs | null; prefsStatus?: TrainingData['prefsStatus'] } = {},
+  opts: { ageMonth?: number; checkins?: Checkin[] | null; prefs?: PracticePrefs | null; prefsStatus?: TrainingData['prefsStatus']; v3?: boolean } = {},
 ): string {
-  const plan = planWith(opts.ageMonth ?? 18);
+  const plan = opts.v3 ? pushPlan(opts.ageMonth ?? 30) : planWith(opts.ageMonth ?? 18);
   const checkins = opts.checkins === undefined ? [] : opts.checkins;
   const noop = () => {};
   const data: TrainingData = {
@@ -366,5 +390,46 @@ describe('加到日曆抽屜：伺服器上存的提醒還不知道時，不讓�
 
   it('說法是「加到手机日历，到时间手机会提醒你」', () => {
     expect(render(sheet(), { prefsStatus: 'ready' })).toContain('加到手机日历，到时间手机会提醒你');
+  });
+});
+
+describe('v3 推送規則排的週次（規格 P12、P14、P17、§5.3、§5.4）', () => {
+  const plan = () => render(createElement(PlanScreen), { v3: true });
+
+  it('計劃頁：能力表（狀態用同一組字、來源分開標、每月幾個、這個月練幾個月）', () => {
+    const html = plan();
+    expect(html).toContain('data-testid="plan-abilities"');
+    expect(html).toContain('语言沟通 · 需要较多支持');
+    expect(html).toContain('按深度评估');
+    expect(html).toContain('按筛查推估');
+    expect(html).toContain('每月 8 个 · 这个月练 28–32 个月的内容');
+  });
+
+  it('計劃頁：有「需要较多支持」的加約專家那一句；上一期調整過的說一句；怎麼帶最有效照每週 3 個寫', () => {
+    const html = plan();
+    expect(html).toContain('data-testid="plan-referral"');
+    expect(html).toContain('上一期按部就班，这一期换一批新活动。');
+    expect(html).toContain('这个月一共 12 个活动，一周做 3 个');
+  });
+
+  it('計劃頁：第 2 期寫在週次後面；本週每一支帶本月做法；階梯換成简单版／标准做法／难一点', () => {
+    const html = plan();
+    expect(html).toContain('第 2 期');
+    expect(html).toContain('标准做法');
+    expect(html).toContain('简单版');
+    expect(html).toContain('难一点');
+  });
+
+  it('舊週次（沒有 push）不出能力表', () => {
+    expect(render(createElement(PlanScreen))).not.toContain('data-testid="plan-abilities"');
+  });
+
+  it('詳情：為什麼給寫能力、狀態來源、模組、編號、月齡；放寬的另加一句；本月做法', () => {
+    const lang = render(createElement(DetailScreen, { id: 'A141', from: 'plan', active: true }), { v3: true });
+    expect(lang).toContain('从「词汇与说话」里按编号排到第 141 号，练 24–28 个月的内容');
+    expect(lang).toContain('data-testid="detail-variant"');
+    expect(lang).toContain('这个月用「标准做法」');
+    const mot = render(createElement(DetailScreen, { id: 'A001', from: 'plan', active: true }), { v3: true });
+    expect(mot).toContain('这个月龄段的活动排完了，挑了最接近的一支');
   });
 });

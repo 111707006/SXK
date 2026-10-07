@@ -46,10 +46,13 @@ import {
   nextToStart,
   planGrid,
   planPositionOf,
+  pushPositionOf,
   resultSummary,
   staircaseStage,
+  type PushPosition,
   type WeeklyPick,
 } from './trainingData';
+import { PUSH_PAGE, VARIANT_LABEL, abilityRow, guidanceLines, referralLine } from '../../t2/pushCopy';
 import { Cover, DarkNav, StepImage } from './ui';
 
 /**
@@ -172,15 +175,21 @@ function StepBlock({ n, title, children, anchor }: { n: number; title: string; c
   );
 }
 
-/** STEP 1：按月的階梯（第 1 个月先熟悉……第 12 周末再评估）。「你在这里」照第幾週。 */
-function Staircase({ weekIndex }: { weekIndex: number }) {
+/**
+ * STEP 1：按月的階梯（第 1 个月先熟悉……第 12 周末再评估）。「你在这里」照第幾週。
+ * v3（`push`）時前三階的字換成本月做法（简单版 → 标准做法 → 难一点，客戶第七節）。
+ */
+function Staircase({ weekIndex, push }: { weekIndex: number; push: boolean }) {
   const here = staircaseStage(weekIndex);
   const heights = [64, 94, 124, 154];
+  const stairs = push
+    ? PLAN_PAGE.staircase.map((w, i) => (i < PUSH_PAGE.staircase.length ? { ...w, ...PUSH_PAGE.staircase[i] } : w))
+    : PLAN_PAGE.staircase;
   return (
     <div className="mx-4 h-[250px] flex items-end gap-2">
-      {PLAN_PAGE.staircase.map((w, i) => {
+      {stairs.map((w, i) => {
         const now = i === here;
-        const last = i === PLAN_PAGE.staircase.length - 1;
+        const last = i === stairs.length - 1;
         return (
           <div key={w.t1} className="flex-1 flex flex-col items-center justify-end">
             {last && <Crown size={18} className="text-brand-clay mb-1" />}
@@ -206,6 +215,53 @@ function Staircase({ weekIndex }: { weekIndex: number }) {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * v3 的能力表（規格 P17、§5.3、§5.4）：這一期哪幾塊、各自的狀態與來源（按深度评估／按筛查推估）、每月幾個、
+ * 這個月練幾個月的內容；有「需要较多支持」的加一句約專家；上一期調整過的說一句；底下是怎麼帶最有效。
+ */
+function AbilityTable({ push }: { push: PushPosition }) {
+  const heavy = push.dimensions.filter(d => d.color === 'red').map(d => d.dimension);
+  return (
+    <section className="bg-white px-4 pt-3 pb-5" data-testid="plan-abilities">
+      <h3 className="text-[19px] font-bold text-brand-forest">{PUSH_PAGE.abilityTitle}</h3>
+      <p className="mt-1 text-[12px] text-brand-charcoal/55">{PUSH_PAGE.abilitySub}</p>
+      {push.adjustment !== 'none' && (
+        <p className="mt-2 rounded-lg bg-brand-sage px-3 py-2 text-[13px] text-brand-forest" data-testid="plan-adjusted">
+          {PUSH_PAGE.adjusted[push.adjustment]}
+        </p>
+      )}
+      <ul className="mt-3 space-y-2">
+        {push.dimensions.map(d => {
+          const row = abilityRow(d);
+          return (
+            <li key={d.dimension} className="rounded-xl bg-brand-cream px-3 py-2.5">
+              <p className="text-[14px] font-bold text-brand-forest">
+                {row.title}
+                <span className="ml-1.5 text-[11px] font-normal text-brand-charcoal/55">{row.source}</span>
+              </p>
+              <p className="mt-0.5 text-[12px] text-brand-charcoal/65">{row.detail}</p>
+            </li>
+          );
+        })}
+      </ul>
+      {heavy.length > 0 && (
+        <p className="mt-3 text-[13px] text-brand-charcoal/75 leading-relaxed" data-testid="plan-referral">
+          {referralLine(heavy)}
+        </p>
+      )}
+      <h4 className="mt-4 text-[15px] font-bold text-brand-forest">{PUSH_PAGE.guidanceTitle}</h4>
+      <ul className="mt-2 space-y-1.5">
+        {guidanceLines(push.perWeek).map(line => (
+          <li key={line} className="flex items-start gap-2 text-[13px] text-brand-charcoal/80 leading-relaxed">
+            <CircleCheck size={15} className="text-brand-moss shrink-0 mt-0.5" />
+            {line}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -309,6 +365,7 @@ export default function PlanScreen() {
   }
 
   const position = planPositionOf(plan);
+  const push = pushPositionOf(plan);
   const practice = data.practice;
   const picks = plan.activities;
   const next = nextToStart(picks, practice ? practice.timesByActivity : null);
@@ -349,6 +406,7 @@ export default function PlanScreen() {
               ))}
               <span className="ml-auto text-white/70" data-testid="plan-week">
                 {planWeekLabel(position)}
+                {push ? PUSH_PAGE.periodSuffix(push.periodNo) : ''}
               </span>
             </div>
           </div>
@@ -373,6 +431,9 @@ export default function PlanScreen() {
             ))}
           </div>
         </section>
+
+        {/* v3：这一期练哪几块（能力表、约专家那一句、怎么带最有效） */}
+        {push && <AbilityTable push={push} />}
 
         {/* 这周练哪几块 */}
         {picks.length > 0 && (
@@ -433,7 +494,7 @@ export default function PlanScreen() {
             {range && <span className="text-[12px] text-brand-charcoal/50">{range}</span>}
           </div>
           <ul className="mt-4 space-y-3.5">
-            {picks.map(({ activity: a, dimension }) => {
+            {picks.map(({ activity: a, dimension, push: mark }) => {
               const n = practice?.timesByActivity[a.id] ?? 0;
               return (
                 <li key={a.id}>
@@ -454,7 +515,7 @@ export default function PlanScreen() {
                     <div className="flex-1 min-w-0">
                       <p className="text-[16px] font-bold text-brand-forest truncate">{a.title}</p>
                       <p className="mt-1 text-[12px] text-brand-charcoal/55 truncate">
-                        {[SITE_DIMENSION_NAME[dimension], a.trains].filter(Boolean).join(' · ')}
+                        {[SITE_DIMENSION_NAME[dimension], mark ? VARIANT_LABEL[mark.variant] : '', a.trains].filter(Boolean).join(' · ')}
                       </p>
                     </div>
                     {n > 0 ? (
@@ -497,7 +558,7 @@ export default function PlanScreen() {
         </section>
 
         <StepBlock n={1} title={PLAN_PAGE.steps[0]} anchor={el => { steps.current[0] = el; }}>
-          <Staircase weekIndex={position.weekIndex} />
+          <Staircase weekIndex={position.weekIndex} push={push !== null} />
         </StepBlock>
         <StepBlock n={2} title={PLAN_PAGE.steps[1]} anchor={el => { steps.current[1] = el; }}>
           {picks[0] && <MiniPhones pick={picks[0]} />}
@@ -553,7 +614,7 @@ export default function PlanScreen() {
         </section>
       </div>
 
-      {/* 底部固定列：本周练过的活动 x/4 ＋ 开始今天的活动 */}
+      {/* 底部固定列：本周练过的活动 x/N（舊週次 4、v3 每週 3 或 2）＋ 开始今天的活动 */}
       {next && (
         <div className="absolute bottom-0 inset-x-0 bg-white border-t border-black/5 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] flex items-center gap-4">
           {practice && (

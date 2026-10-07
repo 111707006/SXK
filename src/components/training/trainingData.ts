@@ -17,6 +17,7 @@ import type { DetailSource } from './layerStack';
 import { PLAN_TOTAL_WEEKS, type PlanPosition } from '../../t2/trainingPlan';
 import { dimensionStatus, gridDimensions } from '../../t2/reportCopy';
 import type { PickReason } from '../../t2/activityMatch';
+import type { StoredPush } from '../../t2/trainingPush';
 import type { AssessmentStatus } from '../../types';
 import { DIMENSION_CODES } from '../../t2/types';
 import type { Activity, DimensionCode, DimensionFinding, T2Findings } from '../../t2/types';
@@ -26,6 +27,25 @@ export interface WeeklyPick {
   activity: Activity;
   dimension: DimensionCode;
   reason: PickReason;
+  /** v3 推送規則排的才有（期、週、做法、顏色來源、模組、是否放寬；規格 §6.2）。 */
+  push?: StoredPush;
+}
+
+/** v3 回應的 `plan` 多帶的幾樣（`periodPosition`）：第幾期、第幾個月、本月做法、每週幾支、能力表。 */
+export interface PushPosition extends PlanPosition {
+  periodNo: number;
+  monthIndex: number;
+  variant: 'easy' | 'standard' | 'hard';
+  perWeek: number;
+  adjustment: 'none' | 'good' | 'stable' | 'hard';
+  dimensions: Array<{
+    dimension: DimensionCode;
+    color: 'red' | 'orange' | 'green';
+    source: 't2' | 't1';
+    window: [number, number];
+    quota: number;
+    modules: number[];
+  }>;
 }
 
 /** `GET /api/t2/weekly-plan` 的回應（票 #60 ＋ Keep 規格 §5.1）。 */
@@ -46,7 +66,13 @@ export interface WeeklyPlanResponse {
    * **沒有這一欄＝K08 之前存的週次**，畫面不出換著玩。
    */
   alternates?: Partial<Record<DimensionCode, Activity[]>>;
-  plan?: PlanPosition;
+  plan?: PlanPosition | PushPosition;
+}
+
+/** 這一週是 v3 推送規則排的（`plan` 帶能力表）就回那一份，否則 `null`（舊週次照舊畫）。 */
+export function pushPositionOf(plan: WeeklyPlanResponse | null): PushPosition | null {
+  const p = plan?.plan;
+  return p && 'periodNo' in p && Array.isArray((p as PushPosition).dimensions) ? (p as PushPosition) : null;
 }
 
 /** 一段要查的打卡日期（頭尾含在內）。 */

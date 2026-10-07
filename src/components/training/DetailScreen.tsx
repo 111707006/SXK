@@ -41,6 +41,7 @@ import {
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { DIMENSION_WHY } from '../../t2/report/sentences';
 import { BELOW_WINDOW_NOTE, reasonSentence } from '../../t2/weeklyCopy';
+import { pushReason, variantLine } from '../../t2/pushCopy';
 import { hasReminder } from '../../t2/practice';
 import { timesForActivity } from '../../t2/practiceStats';
 import {
@@ -261,8 +262,12 @@ function DetailBody({ activity: a, place, from, active, series }: {
   const length = guide ? splitMinutes(guide.length) : null;
   const clock = clip ? clipClock(a.videoSeconds) : '';
 
+  // v3 排的（帶 push）：客戶「为什么给」栏的寫法（能力、狀態與來源、模組、編號、月齡）；舊週次照舊那一句
+  const mark = place.pick?.push ?? null;
   const why = place.pick
-    ? `${reasonSentence(place.pick.dimension, place.pick.reason)}${place.pick.reason.belowWindow ? `${BELOW_WINDOW_NOTE}。` : ''}`
+    ? mark
+      ? pushReason(place.pick.dimension, mark, a.id)
+      : `${reasonSentence(place.pick.dimension, place.pick.reason)}${place.pick.reason.belowWindow ? `${BELOW_WINDOW_NOTE}。` : ''}`
     : place.swapDimension
       ? swapReason(SITE_DIMENSION_NAME[place.swapDimension], childName)
       : libraryReason(fit, a.ageLabel, childName, childAge);
@@ -477,12 +482,18 @@ function DetailBody({ activity: a, place, from, active, series }: {
 
         {(easier || harder) && (
           <Section title={DETAIL.levelTitle}>
+            {/* v3：這個月用哪一種做法（客戶第七節），對應的那一格加框 */}
+            {mark && (
+              <p className="mb-2.5 text-[13px] font-bold text-brand-forest" data-testid="detail-variant">
+                {variantLine(mark.variant)}
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2.5">
-              <div className="rounded-xl bg-brand-sage p-3">
+              <div className={`rounded-xl bg-brand-sage p-3 ${mark?.variant === 'easy' ? 'ring-2 ring-brand-moss' : ''}`}>
                 <p className="text-[13px] font-bold text-brand-forest">{DETAIL.easier}</p>
                 <p className="mt-1 text-[13px] text-brand-charcoal/80 leading-relaxed">{easier}</p>
               </div>
-              <div className="rounded-xl bg-brand-sand p-3">
+              <div className={`rounded-xl bg-brand-sand p-3 ${mark?.variant === 'hard' ? 'ring-2 ring-brand-moss' : ''}`}>
                 <p className="text-[13px] font-bold text-brand-forest">{DETAIL.harder}</p>
                 <p className="mt-1 text-[13px] text-brand-charcoal/80 leading-relaxed">{harder}</p>
               </div>

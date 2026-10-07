@@ -32,23 +32,9 @@ import { getPool } from './mysql';
 import { DIMENSION_CODES } from '../t2/types';
 import type { DimensionCode } from '../t2/types';
 import type { PickReason } from '../t2/activityMatch';
+import type { StoredPush } from '../t2/trainingPush';
 
-/**
- * v3 推送規則（`TRAINING_PUSH_V3`）多記的一塊：這一格是哪一期、第幾週、本月做法、顏色從哪來（T2 分級／T1 推定）、
- * 取自哪個模組、是不是放寬或補位來的（規格 §6.2）。舊週次沒有這一塊；`reason` 仍照舊形狀存一份（band 由顏色換回），
- * 畫面上的「因為……所以練……」照舊讀得動。
- */
-export interface StoredPush {
-  periodNo: number;
-  week: number;
-  color: 'red' | 'orange' | 'green';
-  source: 't2' | 't1';
-  module: number | null;
-  window: [number, number];
-  variant: 'easy' | 'standard' | 'hard';
-  relaxed: boolean;
-  replaced?: boolean;
-}
+export type { StoredPush };
 
 /** 存下來的一支：活動編號、為哪個維度挑的、為什麼。 */
 export interface StoredPick {

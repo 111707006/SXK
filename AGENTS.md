@@ -386,6 +386,16 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 - 品牌色系： moss/forest/clay/cream/stone 等自然色调
 - 字体：全站只用思源黑体（Noto Sans SC，OFL；2026-09 评审会议为规避版权风险定案）。字档自己放在 `dist/fonts/noto-sans-sc-<版本>/`（`vite.config.ts` 的 `brandFont()`），不走 Google Fonts；伺服器吐的 HTML 与 canvas 用 `src/brandFont.ts` 的 `BRAND_FONT_STACK`，不点名其他字型（`test/brandFont.test.ts`）。升级字型套件要一起改 `BRAND_FONT_VERSION`
 
+## 施工规则（2026-10-07 起，T2 v3）
+
+1. **权威顺序**：客户最新文件 > `docs/specs/t2-v3-*` > v2.1 > v2 > 程式码现况。推翻旧决定的地方写进 `docs/adr/`。
+2. **一个 commit 一个最小单元**：只做一件事、`pnpm lint` 与相关测试绿、单独 `git revert` 得回去；不夹带工作区里不相干的修改。
+3. **新行为先关着**：改变家长看得到的行为一律包在开关后面（`TRAINING_PUSH_V3`、`T2_RECOMMEND_V3`），预设关；验收完才打开。回退＝关开关，不必 revert。
+4. **迁移只加不删**：新表、新栏位只新增；旧栏位、旧表要删另开票、延后做。程式码退回时资料库不必跟着退。
+5. **验收点**：每张票照规格的验收清单逐条打勾，`docs/specs/t2-v3-worklog.md` 记「工项 → commit → 验收」；没打完勾不开下一张。每个阶段前后打 tag（`v3-<阶段>-start`／`-done`）。
+6. **不确定的不自己猜**：写进 `docs/specs/t2-v3-open-questions.md` 并在规格里标「暂采」，统一问使用者。
+7. **不推送、不部署正式站**，除非使用者明讲。
+
 ## Agent skills
 
 ### Issue tracker

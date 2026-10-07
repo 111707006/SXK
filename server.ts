@@ -53,6 +53,7 @@ import { readV3Submission, scoreToolV3, type ToolResultV3, type V3ChildContext }
 import { TOOLKIT_VERSION_V3 } from './src/t2/kitv3/types';
 import { assertV3Switches, buildFindingsV3, isFindingsV3, recentResultsV3 } from './src/t2/findingsV3';
 import { parentPlanV3, runRecommendation } from './src/t2/recommend/parentPlan';
+import { correctedAgeMonth } from './src/t2/recommend/input';
 import { RECOMMEND_CONFIG } from './src/t2/recommend/config';
 import type { FindingsRecord } from './src/db/t2Findings';
 import type { WeeklyPlanRecord } from './src/db/t2WeeklyPlans';
@@ -1189,6 +1190,9 @@ async function planV3(userId: UserId, child: any, t1Scores: any[], liveAgeMonth:
   return {
     ...parentPlanV3(run.rec, run.itemsMissing),
     ageMonth: run.ageM,
+    // 作答用今天的月齡（早產 < 24 月矯正）與孩子檔案的情境 —— 畫面出的題要跟伺服器驗卷的同一份
+    answerAgeMonth: correctedAgeMonth(liveAgeMonth, child?.gestationWeeks),
+    context: childContextOf(child),
     completed: recent.map(r => ({ code: r.result.toolId, name: RECOMMEND_CONFIG.tools[r.result.toolId]?.name ?? r.result.toolId, createdAt: r.createdAt })),
   };
 }

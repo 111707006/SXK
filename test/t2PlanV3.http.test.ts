@@ -92,7 +92,7 @@ describe('GET /api/t2/plan（v3）', () => {
     expect(resp.status).toBe(200);
     const body = await resp.json();
     const run = runRecommendation({ child: CHILD, t1Scores: SCORES, liveAgeMonth: 96, doneCodes: [] });
-    expect(body).toEqual({ ...parentPlanV3(run.rec, run.itemsMissing), ageMonth: 96, completed: [] });
+    expect(body).toEqual({ ...parentPlanV3(run.rec, run.itemsMissing), ageMonth: 96, answerAgeMonth: 96, context: { inSchool: true, sex: 'male' }, completed: [] });
     expect(body.status).toBe('RECOMMEND');
     expect(body.tools.length).toBeGreaterThanOrEqual(3);
     expect(JSON.stringify(body)).not.toMatch(/"t3"|红旗|落后|治疗师/);

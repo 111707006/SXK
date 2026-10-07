@@ -88,7 +88,7 @@ describe('listToolResults', () => {
     rows = [row(1, JSON.stringify(RESULT))];
     const list = await store.listToolResults(7);
     expect(executed).toHaveLength(1);
-    expect(executed[0].sql).toBe('SELECT id, child_snapshot, result, created_at FROM t2_tool_results WHERE user_id = ? ORDER BY id ASC');
+    expect(executed[0].sql).toBe('SELECT id, child_snapshot, toolkit_version, result, created_at FROM t2_tool_results WHERE user_id = ? ORDER BY id ASC');
     expect(executed[0].params).toEqual([7]);
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe(1);

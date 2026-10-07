@@ -20,6 +20,7 @@
 import { getPool } from './mysql';
 import { TOOLKIT } from '../t2/toolkit';
 import type { ToolResult } from '../t2/types';
+import { TOOLKIT_VERSION_V3 } from '../t2/kitv3/types';
 
 /** 交卷當下孩子檔案的快照。欄位照 `Child`（`src/types.ts`），`ageMonth` 是交卷當天算的實足月齡。 */
 export interface ChildSnapshot {
@@ -64,7 +65,7 @@ export async function listToolResults(userId: number): Promise<ToolResultRecord[
   const p = getPool();
   if (!p) throw new Error('MySQL pool is not available');
   const [rows] = await p.execute(
-    `SELECT id, child_snapshot, result, created_at
+    `SELECT id, child_snapshot, toolkit_version, result, created_at
        FROM t2_tool_results
       WHERE user_id = ?
       ORDER BY id ASC`,
@@ -74,13 +75,14 @@ export async function listToolResults(userId: number): Promise<ToolResultRecord[
   for (const row of rows as any[]) {
     const record = toolResultFromRow(row);
     if (record) out.push(record);
-    else console.warn(`[T2] t2_tool_results 第 ${row?.id} 列讀不成 ToolResult，略過`);
+    // 完整版題庫的作答（`t2ToolResultsV3.ts`）同一張表，這一套本來就不認得，安靜略過
+    else if (row?.toolkit_version !== TOOLKIT_VERSION_V3) console.warn(`[T2] t2_tool_results 第 ${row?.id} 列讀不成 ToolResult，略過`);
   }
   return out;
 }
 
 /** mysql2 對 JSON 欄位會先解析成物件；手動下 SQL 或替身給的可能還是字串。兩種都收；壞的回 `undefined`。 */
-function parseJson(raw: unknown): unknown {
+export function parseJson(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw;
   try {
     return JSON.parse(raw);
@@ -113,7 +115,7 @@ function isToolResultShaped(x: unknown): x is ToolResult {
     && isObject(x.answers);
 }
 
-function snapshotFrom(raw: unknown): ChildSnapshot | null {
+export function snapshotFrom(raw: unknown): ChildSnapshot | null {
   const parsed = parseJson(raw);
   if (!isObject(parsed)) return null;
   return {
@@ -125,7 +127,7 @@ function snapshotFrom(raw: unknown): ChildSnapshot | null {
 }
 
 /** mysql2 預設回 Date；開了 `dateStrings` 回 `'2026-09-12 01:00:05'`。讀不成時間回 `null`（那一列算壞的）。 */
-function isoOf(raw: unknown): string | null {
+export function isoOf(raw: unknown): string | null {
   if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw.toISOString();
   const t = typeof raw === 'string' ? Date.parse(raw) : NaN;
   return Number.isNaN(t) ? null : new Date(t).toISOString();

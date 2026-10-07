@@ -20,6 +20,8 @@ export interface ScoreContext {
   ageM: number;
   /** 有沒有上托育／園所／學校（QOL 的「园所与学校生活」只在有上學時出；沒說＝有）。 */
   inSchool?: boolean;
+  /** 就讀年級（1＝一年級…12＝高三）；LDP／LDS 依它挑題。沒給就由月齡推（`defaultGrade`）。 */
+  grade?: number;
 }
 
 export interface FacetResult {
@@ -76,6 +78,12 @@ export function askedItems(bank: KitV3Bank, ctx: ScoreContext): Array<{ section:
       return form.sections
         .filter(sec => sec.key !== school || ctx.inSchool !== false)
         .flatMap(sec => sec.items.map(item => ({ section: sec.key, item })));
+    }
+    case 'ld': {
+      const g = ldGrade(bank.scoring as LdScoring, ctx);
+      return form.sections.flatMap(sec =>
+        sec.items.filter(it => g >= (it.minGrade ?? 1) && g <= (it.maxGrade ?? 12)).map(item => ({ section: sec.key, item })),
+      );
     }
     default:
       // 題目帶月齡（`month`／`maxMonth`）的照月齡出，其餘全出
@@ -480,6 +488,59 @@ function scoreChexi(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): 
   };
 }
 
+// ── LDP／LDS（依年級挑題的困難指數）──
+
+export interface LdScoring {
+  dim: DimensionCode;
+  /** 四段，好 → 壞，`min` 遞增（0／17／34／50）；段的索引就是 0–3。 */
+  levels: Array<{ min: number; name: string }>;
+  /** 這支量表的年級範圍（LDP 1–12、LDS 7–12）。 */
+  gradeRange: [number, number];
+}
+
+/**
+ * 月齡推年級（規格 §4.3 暫採，R-27）：72–83 個月一年級，之後每 12 個月升一級；夾在這支量表的年級範圍裡。
+ * 跳級、晚讀由家長在作答前改（`ctx.grade`）。
+ */
+export function defaultGrade(ageM: number, range: readonly [number, number]): number {
+  const g = Math.floor((ageM - 72) / 12) + 1;
+  return Math.min(range[1], Math.max(range[0], g));
+}
+
+function ldGrade(s: LdScoring, ctx: ScoreContext): number {
+  if (ctx.grade === undefined) return defaultGrade(ctx.ageM, s.gradeRange);
+  if (!Number.isInteger(ctx.grade) || ctx.grade < s.gradeRange[0] || ctx.grade > s.gradeRange[1]) {
+    throw new Error(`kitv3：年級 ${ctx.grade} 不在 ${s.gradeRange.join('–')} 之間`);
+  }
+  return ctx.grade;
+}
+
+function scoreLd(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as LdScoring;
+  const form = bank.forms[0];
+  const asked = askedItems(bank, ctx);
+  // 頁面 `domPct`／`totPct`：只算已答的題；沒有已答就是 null
+  const pctOf = (keys: string[]) => {
+    const got = keys.filter(k => typeof answers[k] === 'number');
+    return got.length ? Math.round((got.reduce((n, k) => n + (answers[k] as number), 0) / (got.length * 3)) * 100) : null;
+  };
+  const facets = form.sections.map(sec => {
+    const keys = asked.filter(a => a.section === sec.key).map(a => a.item.key);
+    const value = pctOf(keys);
+    return { key: sec.key, name: sec.name, n: keys.length, value, band: value === null ? null : bandByAscendingMin(s.levels, value) };
+  });
+  const value = pctOf(asked.map(a => a.item.key));
+  const band = value === null ? null : bandByAscendingMin(s.levels, value);
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value, band, bandName: band === null ? null : s.levels[band].name },
+    grade03: band === null ? {} : { [s.dim]: band as Grade03 },
+    missing: missingOf(bank, answers, ctx),
+  };
+}
+
 // ── QOL（困擾率；沒有主維度）──
 
 export interface QolScoring {
@@ -536,6 +597,8 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
       return scoreSnap(bank, answers, ctx);
     case 'chexi':
       return scoreChexi(bank, answers, ctx);
+    case 'ld':
+      return scoreLd(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

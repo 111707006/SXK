@@ -22,6 +22,8 @@ export interface ScoreContext {
   inSchool?: boolean;
   /** 就讀年級（1＝一年級…12＝高三）；LDP／LDS 依它挑題。沒給就由月齡推（`defaultGrade`）。 */
   grade?: number;
+  /** 性別（氣質 ITQ／BSQ 的常模分男女）。 */
+  sex?: 'male' | 'female';
 }
 
 export interface FacetResult {
@@ -665,6 +667,74 @@ function scoreTic(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): Ki
   };
 }
 
+// ── 氣質（九向度平均，常模 z；沒有主維度）──
+
+export interface TemperamentScoring {
+  dims: string[];
+  forms: Record<
+    string,
+    {
+      points: number;
+      key: Record<string, Array<{ item: string; forward: boolean }>>;
+      /** 依性別的常模 [平均, 標準差]；TTS 沒有。 */
+      norms: { male: Record<string, [number, number]>; female: Record<string, [number, number]> } | null;
+      /** 向度的兩極（[低分端, 高分端]），各表方向不同。 */
+      poles: Record<string, [string, string]>;
+      /** 「難養」在高分端的向度（只有五個 A 因素向度有值）。 */
+      aFactorHigh: Record<string, boolean>;
+    }
+  >;
+}
+
+/** 向度的偏向：0＝偏低分端、1＝中等、2＝偏高分端（哪一端是什麼看 `poles`）。 */
+export const TEMPERAMENT_BANDS = ['lo', 'mid', 'hi'] as const;
+
+function scoreTemperament(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as TemperamentScoring;
+  const form = formFor(bank, ctx.ageM);
+  const f = s.forms[form.key];
+  const norms = f.norms && ctx.sex ? f.norms[ctx.sex] : null;
+  const facets = s.dims.map(dim => {
+    let sum = 0;
+    let n = 0;
+    let na = 0;
+    for (const { item, forward } of f.key[dim]) {
+      const v = answers[item];
+      if (typeof v !== 'number') {
+        na++;
+        continue;
+      }
+      sum += forward ? v : f.points + 1 - v;
+      n++;
+    }
+    const mean = n ? sum / n : null;
+    let z: number | null = null;
+    let band: number | null = null;
+    if (mean !== null) {
+      if (norms) {
+        const [m, sd] = norms[dim];
+        z = (mean - m) / sd;
+        band = z > 1 ? 2 : z < -1 ? 0 : 1;
+      } else {
+        const mid = (1 + f.points) / 2;
+        band = mean >= mid + 1 ? 2 : mean <= mid - 1 ? 0 : 1;
+      }
+    }
+    const r2 = (x: number | null) => (x === null ? null : Math.round(x * 100) / 100);
+    return { key: dim, name: dim, n: f.key[dim].length, value: r2(mean), band, detail: { z: r2(z), answered: n, na } };
+  });
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value: null, band: null, bandName: null },
+    grade03: {},
+    missing: missingOf(bank, answers, ctx),
+    // 有常模的表卻不知道性別：頁面一定要性別，我們退回「中點 ±1」並標出來
+    ...(f.norms && !ctx.sex ? { flags: ['no_norm'] } : {}),
+  };
+}
+
 // ── QOL（困擾率；沒有主維度）──
 
 export interface QolScoring {
@@ -729,6 +799,8 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
       return scoreEmo(bank, answers, ctx);
     case 'tic':
       return scoreTic(bank, answers, ctx);
+    case 'temperament':
+      return scoreTemperament(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

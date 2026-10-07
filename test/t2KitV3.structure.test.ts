@@ -41,6 +41,12 @@ describe('完整版題庫：抽取地基', () => {
     expect(new Set(V3_RECIPES.map(r => r.slug)).size).toBe(V3_RECIPES.length);
   });
 
+  it('客規 T2 的每一支都有配方（24 支）', () => {
+    const t2 = Object.entries(RECOMMEND_CONFIG.tools).filter(([, t]) => t.layer === 'T2').map(([c]) => c);
+    expect(t2).toHaveLength(24);
+    expect(t2.filter(c => !V3_RECIPES.some(r => r.code === c))).toEqual([]);
+  });
+
   it('每一份 src/t2/kitv3/<slug>.ts 與腳本重跑的結果一致（只容忍 CRLF）', () => {
     for (const [rel, text] of renderKitV3Files(ROOT, V3_RECIPES)) {
       const abs = path.join(ROOT, rel);

@@ -35,6 +35,8 @@ process.env.PAYWALL_DEMO_OPEN = '';
 // 免費期間的開關同理（見 `paywallFree.http.test.ts`）。
 process.env.PAYWALL_FREE = '';
 process.env.TRAINING_SAMPLE_ONLY = '';
+// v3 推送規則同理：預設關（舊配對），要驗新規則的測試自己打開（見 `t2WeeklyPlanV3.http.test.ts`）。
+process.env.TRAINING_PUSH_V3 = '';
 
 // 固定的簽章密鑰，讓測試簽出來的 token 在同一支測試裡穩定可用。
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-session-secret';

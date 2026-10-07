@@ -39,6 +39,12 @@ import type { T2ReportInput } from './src/t2/report';
 import * as t2Store from './src/db/t2ToolResults';
 import * as t2FindingsStore from './src/db/t2Findings';
 import * as t2WeeklyStore from './src/db/t2WeeklyPlans';
+import * as t2PeriodStore from './src/db/t2TrainingPeriods';
+import type { TrainingPeriodRecord } from './src/db/t2TrainingPeriods';
+import { listCheckins as listT2Checkins } from './src/db/t2Checkins';
+import { planPeriod } from './src/t2/trainingPush';
+import { periodForWeek, periodPosition, reportActivitiesOf, t1ScoresOf, weeklyActivitiesOf } from './src/t2/trainingPeriodService';
+import type { PeriodContext, PeriodDeps } from './src/t2/trainingPeriodService';
 import { listActivityLibrary } from './src/db/t2Activities';
 import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
 import type { FindingsRecord } from './src/db/t2Findings';
@@ -144,6 +150,11 @@ const PAYWALL_FREE = resolvePaywallSwitch('PAYWALL_FREE', process.env.PAYWALL_FR
 // 示範片模式（使用者 2026-10-06：「正式站先 17 支即可」）：每週活動只從有示範片的活動裡挑，不看模組群與月齡
 // （`src/t2/activityMatch.ts` 的 `MatchOptions.sampleOnly`）。同一套 fail-closed 解析；客戶的片子補齊後拿掉。
 const TRAINING_SAMPLE_ONLY = resolvePaywallSwitch('TRAINING_SAMPLE_ONLY', process.env.TRAINING_SAMPLE_ONLY);
+
+// 線上干預 v3 推送規則（客戶 2026-10-06《推送规则说明书》，規格 docs/specs/t2-v3-training-push-2026-10-06.md）：
+// 開著時每週活動改由「一期 12 週 × 3 支」排（`src/t2/trainingPeriodService.ts`，讀寫 t2_training_periods）；
+// 關著時照舊每週配 4 支（`matchWeeklyActivities`）。同一套 fail-closed 解析。要退回舊規則就設 0。
+const TRAINING_PUSH_V3 = resolvePaywallSwitch('TRAINING_PUSH_V3', process.env.TRAINING_PUSH_V3);
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -1328,6 +1339,8 @@ let offlineT2FindingsSeq = 0;
 interface T2Context {
   child: any;
   t1Flags: ReturnType<typeof t1FlagsFromScores>;
+  /** T1 的成績原樣（v3 推送規則要每維分數推定顏色，`t1ScoresOf`）。 */
+  t1Scores: ReadonlyArray<unknown>;
   /** 今天算的實足月齡（活動配對用）。 */
   liveAgeMonth: number;
 }
@@ -1351,6 +1364,7 @@ async function loadT2Context(userId: UserId, res: express.Response): Promise<T2C
   return {
     child: data.child,
     t1Flags: t1FlagsFromScores(t1Scores),
+    t1Scores,
     liveAgeMonth,
   };
 }
@@ -1435,16 +1449,32 @@ tier2Only.post('/api/t2/findings', async (req, res) => {
     // `/api/t2/weekly-plan` 存下來的那一份（票 #61 把兩者排在一起）。這裡傳空陣列的話，
     // 「四週內派過 −2」不生效，兩邊就會對「這一週練什麼」給出兩個不一樣的答案。
     const childName = typeof context.child?.name === 'string' ? context.child.name : undefined;
-    const recentWeeks = await loadRecentWeeklyPlans(userId, weekStartOf(new Date()));
-    const input: T2ReportInput = {
-      findings,
-      activities: matchWeeklyActivities(
+    const library = await loadActivityLibrary();
+    let activities: WeeklyActivities;
+    if (TRAINING_PUSH_V3) {
+      // v3：新報告＝新的一期從這一週開始（`periodForWeek`），第 1 週那幾格就是家長在報告底下會看到的。
+      // 這裡只算不存 —— 開期與存週次是 `/api/t2/weekly-plan` 的事；同一週、同一份活動庫算出來的一樣（純函式）。
+      const plan = planPeriod({
+        dimensions: findings.dimensions,
+        t1Scores: t1ScoresOf(context.t1Scores),
+        ageMonth: context.liveAgeMonth,
+        library,
+        sampleOnly: TRAINING_SAMPLE_ONLY,
+      });
+      activities = reportActivitiesOf(plan, 1, library);
+    } else {
+      const recentWeeks = await loadRecentWeeklyPlans(userId, weekStartOf(new Date()));
+      activities = matchWeeklyActivities(
         findings,
         context.liveAgeMonth,
         recentWeeks.flatMap(p => p.activities.picks.map(x => x.id)),
-        await loadActivityLibrary(),
+        library,
         { sampleOnly: TRAINING_SAMPLE_ONLY },
-      ),
+      );
+    }
+    const input: T2ReportInput = {
+      findings,
+      activities,
       goals: buildSmartGoals(findings, { childName }),
       childName,
     };
@@ -1542,6 +1572,54 @@ tier2Only.use(
 
 const offlineT2WeeklyPlans = new Map<UserId, WeeklyPlanRecord[]>();
 let offlineT2WeeklyPlanSeq = 0;
+
+// ── v3 一期（TRAINING_PUSH_V3）的資料層接線 ──
+// 記憶體模式與 `t2_weekly_plans` 同一種退路：一個 Map；活動庫是空的，所以每一格都是準備中。
+const offlineT2Periods = new Map<UserId, TrainingPeriodRecord[]>();
+let offlineT2PeriodSeq = 0;
+
+function t2PeriodDeps(userId: UserId): PeriodDeps {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    return {
+      latest: findingsId => withTimeout(t2PeriodStore.latestTrainingPeriod(dbUserId, findingsId), 2000),
+      insert: async input => {
+        try {
+          const id = await withTimeout(t2PeriodStore.insertTrainingPeriod(dbUserId, input), 2000);
+          return { id, createdAt: new Date().toISOString(), ...input };
+        } catch (err: any) {
+          // 兩個請求同時開同一期：唯一索引擋下後到的，讀回先到的那一期（同 `storeWeeklyPlan`）
+          if (err?.code !== 'ER_DUP_ENTRY') throw err;
+          const winner = await withTimeout(t2PeriodStore.latestTrainingPeriod(dbUserId, input.findingsId), 2000);
+          if (winner && winner.periodNo === input.periodNo) return winner;
+          throw err;
+        }
+      },
+      updatePlan: (id, plan) => withTimeout(t2PeriodStore.updateTrainingPeriodPlan(dbUserId, id, plan), 2000),
+      checkins: (from, to) => withTimeout(listT2Checkins(dbUserId, from, to), 2000),
+    };
+  }
+  return {
+    latest: async findingsId =>
+      (offlineT2Periods.get(userId) ?? []).filter(p => p.findingsId === findingsId).sort((a, b) => b.periodNo - a.periodNo)[0] ?? null,
+    insert: async input => {
+      const list = offlineT2Periods.get(userId) ?? [];
+      const existing = list.find(p => p.findingsId === input.findingsId && p.periodNo === input.periodNo);
+      if (existing) return existing;
+      offlineT2PeriodSeq += 1;
+      const record: TrainingPeriodRecord = { id: offlineT2PeriodSeq, createdAt: new Date().toISOString(), ...input };
+      list.push(record);
+      offlineT2Periods.set(userId, list);
+      return record;
+    },
+    updatePlan: async (id, plan) => {
+      const found = (offlineT2Periods.get(userId) ?? []).find(p => p.id === id);
+      if (found) found.plan = plan;
+    },
+    // 記憶體模式的打卡在 practiceRoutes 自己的 Map 裡、這裡讀不到：期末完成率當 0（記憶體模式只給展示用）
+    checkins: async () => [],
+  };
+}
 
 /** 配對要看「前幾週派過的」（§7.3 第 2 條）。 */
 const RECENT_WEEKS = 4;
@@ -1678,23 +1756,53 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
         res.status(400).json({ error: '这一周在报告生成之前，还没有安排活动。', code: 'WEEK_OUT_OF_RANGE' });
         return;
       }
-      const recent = await loadRecentWeeklyPlans(userId, weekStart);
-      const recentIds = recent.flatMap(p => p.activities.picks.map(x => x.id));
-      const matched = matchWeeklyActivities(snapshot.findings, ageMonth, recentIds, library, { sampleOnly: TRAINING_SAMPLE_ONLY });
-      const alternates: Partial<Record<DimensionCode, string[]>> = {};
-      for (const [dimension, list] of Object.entries(matched.alternates) as Array<[DimensionCode, Activity[]]>) {
-        alternates[dimension] = list.map(a => a.id);
+      if (TRAINING_PUSH_V3) {
+        // v3：這一週屬於哪一期、第幾週（需要時開新的一期、期末判檔、補停用的），那幾格就是這一週
+        const resolved = await periodForWeek(weekStart, t2PeriodContext(snapshot, data, library), t2PeriodDeps(userId));
+        if (resolved.kind !== 'ok') {
+          res.status(400).json({ error: '这一周还没有安排活动，请回到本周。', code: 'WEEK_OUT_OF_RANGE' });
+          return;
+        }
+        record = await storeWeeklyPlan(userId, weekStart, {
+          weekStart,
+          findingsId: snapshot.id,
+          activities: weeklyActivitiesOf(resolved.period, resolved.week, library),
+        });
+      } else {
+        const recent = await loadRecentWeeklyPlans(userId, weekStart);
+        const recentIds = recent.flatMap(p => p.activities.picks.map(x => x.id));
+        const matched = matchWeeklyActivities(snapshot.findings, ageMonth, recentIds, library, { sampleOnly: TRAINING_SAMPLE_ONLY });
+        const alternates: Partial<Record<DimensionCode, string[]>> = {};
+        for (const [dimension, list] of Object.entries(matched.alternates) as Array<[DimensionCode, Activity[]]>) {
+          alternates[dimension] = list.map(a => a.id);
+        }
+        record = await storeWeeklyPlan(userId, weekStart, {
+          weekStart,
+          findingsId: snapshot.id,
+          activities: {
+            picks: matched.picks.map(p => ({ id: p.activity.id, dimension: p.dimension, reason: p.reason })),
+            preparing: matched.preparing,
+            // 換著玩（K08）與四支存同一筆：備選也吃「四週內派過 −2」，重算就可能換掉
+            alternates,
+          },
+        });
       }
-      record = await storeWeeklyPlan(userId, weekStart, {
-        weekStart,
-        findingsId: snapshot.id,
-        activities: {
-          picks: matched.picks.map(p => ({ id: p.activity.id, dimension: p.dimension, reason: p.reason })),
-          preparing: matched.preparing,
-          // 換著玩（K08）與四支存同一筆：備選也吃「四週內派過 −2」，重算就可能換掉
-          alternates,
-        },
-      });
+    }
+
+    // v3 排的週次（每一支帶 `push`）：位置照那一期算 —— 第幾期、第幾週、本月做法、能力表（規格 §6.2、P17）。
+    // 讀不到那一期（查詢失敗、或那一期已不是最新的）就退回下面的舊算法，只少了能力表，不讓整週 500。
+    const push = record.activities.picks.find(p => p.push)?.push;
+    if (push) {
+      try {
+        const latest = await t2PeriodDeps(userId).latest(record.findingsId);
+        if (latest && latest.plan && latest.periodNo === push.periodNo) {
+          const position = periodPosition({ ...latest, plan: latest.plan }, push.week);
+          res.json({ ...weeklyPlanResponse(record, ageMonth, snapshot, library), plan: position });
+          return;
+        }
+      } catch (err: any) {
+        console.error('[T2] 一期讀取失敗，本次以舊算法回位置:', err.message);
+      }
     }
 
     // 第幾週（§4.5）照**這一列**的快照算，不是最新的那份：已存的週次不回頭重配，它屬於哪個計劃也不變。
@@ -1715,6 +1823,18 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
   }
 });
 
+/** v3 開期要的東西：這份快照的九個維度、家長資料裡的 T1 分數、活動庫、示範片模式、每一週的實足月齡。 */
+function t2PeriodContext(snapshot: FindingsRecord, data: any, library: ReadonlyArray<Activity>): PeriodContext {
+  return {
+    findingsId: snapshot.id,
+    dimensions: snapshot.findings.dimensions,
+    t1Scores: t1ScoresOf(Array.isArray(data?.completedScores) ? data.completedScores : []),
+    library,
+    sampleOnly: TRAINING_SAMPLE_ONLY,
+    ageMonthAt: weekStart => ageMonthForWeek(data?.child, weekStart, snapshot.findings.child.assessedAgeMonth),
+  };
+}
+
 /** 把存下來的編號配回活動庫的內容。庫裡查不到的略過（檔頭）。`library` 由呼叫端讀好傳進來。 */
 function weeklyPlanResponse(
   record: WeeklyPlanRecord,
@@ -1730,9 +1850,10 @@ function weeklyPlanResponse(
         console.warn(`[T2] 每週活動 ${record.weekStart} 的 ${pick.id} 不在活動庫裡，略過`);
         return null;
       }
-      return { activity, dimension: pick.dimension, reason: pick.reason };
+      // v3 排的多帶 `push`（第幾期、做法、顏色來源、模組、是否放寬）；舊週次沒有就不出這個鍵
+      return { activity, dimension: pick.dimension, reason: pick.reason, ...(pick.push ? { push: pick.push } : {}) };
     })
-    .filter((x): x is { activity: Activity; dimension: DimensionCode; reason: WeeklyActivities['picks'][number]['reason'] } => x !== null);
+    .filter((x): x is NonNullable<typeof x> => x !== null);
 
   // 換著玩（K08）：同樣存編號、每次從活動庫查內容；查不到的略過，略過後空了的維度不出鍵
   //（「有鍵＝有備選」）。舊週次沒有這一欄 → 回應也沒有，畫面就不出換著玩（§5.2）。

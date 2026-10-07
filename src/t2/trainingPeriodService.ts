@@ -20,10 +20,28 @@ import type { PracticeCheckin } from './practiceStats';
 import { PLAN_TOTAL_WEEKS, planPosition } from './trainingPlan';
 import { addCalendarDays } from './weeks';
 import { DIMENSION_CODES } from './types';
+import { SITE_DIMENSION_ID } from './dimensionMap';
 import type { Activity, DimensionCode } from './types';
 import type { StoredPeriodPlan, TrainingPeriodInsert, TrainingPeriodRecord } from '../db/t2TrainingPeriods';
 import type { StoredPick, StoredWeeklyActivities } from '../db/t2WeeklyPlans';
 import type { WeeklyActivities } from './activityMatch';
+
+/**
+ * 家長資料裡的 T1 成績 → 每維分數（0–8），給沒做量表的維度推定顏色（規格 §4.1）。只看 `tierId === 'T1'`；
+ * 認不得的維度、分數不是 0–8 整數的略過（缺的那一維 `planPeriod` 會退回 T1 標記）。同一維多筆取最後一筆。
+ */
+export function t1ScoresOf(scores: ReadonlyArray<unknown>): Partial<Record<DimensionCode, number>> {
+  const out: Partial<Record<DimensionCode, number>> = {};
+  for (const s of scores) {
+    if (typeof s !== 'object' || s === null) continue;
+    const { tierId, dimensionId, score } = s as Record<string, unknown>;
+    if (tierId !== 'T1' || typeof dimensionId !== 'string') continue;
+    const code = DIMENSION_CODES.find(d => SITE_DIMENSION_ID[d] === dimensionId);
+    if (!code || typeof score !== 'number' || !Number.isInteger(score) || score < 0 || score > 8) continue;
+    out[code] = score;
+  }
+  return out;
+}
 
 /** 推送規則的版本：規則換了就換，存在每一期上。 */
 export const PUSH_RULES_VERSION = 'push-v3-2026-10-07';

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   PUSH_RULES_VERSION,
+  t1ScoresOf,
   periodCompletion,
   periodForWeek,
   periodPosition,
@@ -173,5 +174,20 @@ describe('格子 → 每週活動那一列、報告、計劃頁', () => {
     // 前 6 週每週練了一支 → 6 ÷ 36
     const checkins = plan.weeks.slice(0, 6).map((w, i) => ({ activityId: w[0].activityId!, checkinDate: weekOf(i + 1) }));
     expect(periodCompletion({ firstWeekStart: FIRST, plan }, checkins)).toBeCloseTo(6 / 36);
+  });
+});
+
+describe('t1ScoresOf', () => {
+  it('只取 T1、站內維度 id 換成代碼、分數 0–8 整數；其餘略過', () => {
+    expect(
+      t1ScoresOf([
+        { tierId: 'T1', dimensionId: 'language', score: 5 },
+        { tierId: 'T1', dimensionId: 'gross_motor', score: 8 },
+        { tierId: 'T2', dimensionId: 'cognitive', score: 3 },
+        { tierId: 'T1', dimensionId: 'nope', score: 3 },
+        { tierId: 'T1', dimensionId: 'attention', score: 9 },
+        null,
+      ]),
+    ).toEqual({ LANG: 5, MOT: 8 });
   });
 });

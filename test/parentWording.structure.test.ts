@@ -111,6 +111,8 @@ const PARENT_FACING_FILES = [
   // 孩子資料的「补充资料」畫面。它的字檔 `t2/recommend/childFieldsCopy.ts` 刻意不掃（醫師講的診斷名稱，理由在檔頭）。
   'src/t2/pushCopy.ts',
   'src/components/ChildExtraFields.tsx',
+  // T2 v3 的入口：推薦結果給家長的字（引擎的客規原句不給家長，這一檔另寫）。
+  'src/t2/recommend/parentPlan.ts',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

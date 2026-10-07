@@ -440,3 +440,89 @@ export function planPeriod(input: PlanPeriodInput): PeriodPlan {
 
   return { adjustment, ageMonth, perWeek, sampleOnly, dimensions, weeks };
 }
+
+// ══════════════════════════════════════════════
+// 開期之後：換著玩、停用補位、期末判檔
+// ══════════════════════════════════════════════
+
+/** 第幾週（1 起）→ 第幾個月（0 起）。超過 12 週照最後一個月算。 */
+export function monthIndexOf(week: number): number {
+  return Math.min(MONTHS_PER_PERIOD - 1, Math.max(0, Math.floor((week - 1) / WEEKS_PER_MONTH)));
+}
+
+/** 一期排過的全部活動編號。 */
+export function planActivityIds(plan: Pick<PeriodPlan, 'weeks'>): string[] {
+  return plan.weeks.flat().flatMap(s => (s.activityId ? [s.activityId] : []));
+}
+
+/** 換著玩每個能力最多幾支（沿用 Keep 規格 K08 的 5）。 */
+export const ALTERNATES_PER_DIMENSION = 5;
+
+/**
+ * 換著玩（Keep K08；推送說明沒提，暫採 P-6）：每個參加的能力，這個月窗口內、不在這一期 36 格裡的，依編號取前 5 支。
+ * 只放有備選的能力；放寬來的不列（換著玩是「同一個難度換一支」，不是往外找）。示範片模式照 `candidatesFor`。
+ */
+export function periodAlternates(
+  plan: Pick<PeriodPlan, 'weeks' | 'dimensions' | 'sampleOnly'>,
+  week: number,
+  library: ReadonlyArray<Activity>,
+): Partial<Record<DimensionCode, Activity[]>> {
+  const m = monthIndexOf(week);
+  const planned = new Set(planActivityIds(plan));
+  const pool = library.filter(a => a.active && (!plan.sampleOnly || a.videoUrl !== null));
+  const out: Partial<Record<DimensionCode, Activity[]>> = {};
+  for (const d of plan.dimensions) {
+    const list = candidatesFor(d.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly })
+      .filter(c => !c.relaxed || plan.sampleOnly)
+      .map(c => c.activity)
+      .filter(a => !planned.has(a.id))
+      .slice(0, ALTERNATES_PER_DIMENSION);
+    if (list.length > 0) out[d.dimension] = list;
+  }
+  return out;
+}
+
+/**
+ * 某一週要寫進每週活動時，那幾格的活動若已停用（或從活動庫消失），用同一能力、同一個月的候選裡下一支還沒排的補上
+ * （規格 §4.6），`reason.replaced = true`。沒有可補的就變成準備中（`activityId: null`）。回傳新的一期；沒變就回原物件。
+ */
+export function replaceInactive(plan: PeriodPlan, week: number, library: ReadonlyArray<Activity>): PeriodPlan {
+  const index = week - 1;
+  const slots = plan.weeks[index];
+  if (!slots) return plan;
+  const byId = new Map(library.map(a => [a.id, a] as const));
+  const usable = (id: string | null) => id === null || byId.get(id)?.active === true;
+  if (slots.every(s => usable(s.activityId))) return plan;
+
+  const m = monthIndexOf(week);
+  const pool = library.filter(a => a.active && (!plan.sampleOnly || a.videoUrl !== null));
+  const used = new Set(planActivityIds(plan));
+  const nextSlots = slots.map(s => {
+    if (usable(s.activityId)) return s;
+    const d = plan.dimensions.find(x => x.dimension === s.dimension)!;
+    const next = candidatesFor(s.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly }).find(c => !used.has(c.activity.id));
+    if (next) used.add(next.activity.id);
+    return {
+      ...s,
+      activityId: next ? next.activity.id : null,
+      reason: {
+        ...s.reason,
+        module: next ? next.activity.moduleNo : null,
+        relaxed: next ? next.relaxed || plan.sampleOnly : false,
+        replaced: true,
+      },
+    };
+  });
+  return { ...plan, weeks: plan.weeks.map((w, i) => (i === index ? nextSlots : w)) };
+}
+
+/**
+ * 期末判檔（規格 §5.2，客戶第八節的三檔、門檻 80％／50％）：`rate` 是這一期的完成率（`practiceStats.completionRate`）。
+ * 沒有任何一週可算（`null`）當「稳定」：不往上也不往下。
+ */
+export function adjustmentFromCompletion(rate: number | null): Exclude<PeriodAdjustment, 'none'> {
+  if (rate === null) return 'stable';
+  if (rate >= 0.8) return 'good';
+  if (rate >= 0.5) return 'stable';
+  return 'hard';
+}

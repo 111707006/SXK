@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  adjustmentFromCompletion,
   candidatesFor,
+  monthIndexOf,
   monthWindows,
+  periodAlternates,
+  planActivityIds,
+  replaceInactive,
   periodWindow,
   planPeriod,
   variantFor,
@@ -236,5 +241,53 @@ describe('planPeriod：一期 36 格', () => {
       }
     }
     expect(bad.slice(0, 5)).toEqual([]);
+  });
+});
+
+describe('開期之後', () => {
+  const base = planPeriod({ dimensions: dims({ LANG: 'refer', MOT: 'watch' }), ageMonth: 48, library: LIBRARY });
+
+  it('第幾週 → 第幾個月：1–4 → 0、5–8 → 1、9–12 → 2，超過 12 照最後一個月', () => {
+    expect([1, 4, 5, 8, 9, 12, 13, 30].map(monthIndexOf)).toEqual([0, 0, 1, 1, 2, 2, 2, 2]);
+  });
+
+  it('換著玩：同能力、這個月窗口內、不在這一期 36 格裡，依編號最多 5 支', () => {
+    const alt = periodAlternates(base, 1, LIBRARY);
+    const planned = new Set(planActivityIds(base));
+    for (const [d, list] of Object.entries(alt) as Array<[DimensionCode, Activity[]]>) {
+      expect(list.length).toBeLessThanOrEqual(5);
+      const dim = base.dimensions.find(x => x.dimension === d)!;
+      for (const a of list) {
+        expect(planned.has(a.id)).toBe(false);
+        expect(DIM_MOD[d]).toContain(a.moduleNo);
+        expect(overlaps(a, dim.monthWindows[0])).toBe(true);
+      }
+      expect(list.map(a => a.id)).toEqual([...list.map(a => a.id)].sort());
+    }
+  });
+
+  it('停用補位：那一週停用的那一格換成下一支沒排過的，標 replaced；其他週不動', () => {
+    const victim = base.weeks[4][0];
+    const library = LIBRARY.map(a => (a.id === victim.activityId ? { ...a, active: false } : a));
+    const next = replaceInactive(base, 5, library);
+    const slot = next.weeks[4][0];
+    expect(slot.activityId).not.toBe(victim.activityId);
+    expect(slot.reason.replaced).toBe(true);
+    expect(slot.dimension).toBe(victim.dimension);
+    expect(planActivityIds(base)).not.toContain(slot.activityId);
+    expect(next.weeks.filter((_, i) => i !== 4)).toEqual(base.weeks.filter((_, i) => i !== 4));
+    expect(replaceInactive(base, 5, LIBRARY)).toBe(base);
+  });
+
+  it('期末判檔：≥80% 进步良好、50–79% 稳定、<50% 执行困难；算不出來當稳定', () => {
+    expect([0.8, 0.95, 0.79, 0.5, 0.49, 0, null].map(adjustmentFromCompletion)).toEqual([
+      'good',
+      'good',
+      'stable',
+      'stable',
+      'hard',
+      'hard',
+      'stable',
+    ]);
   });
 });

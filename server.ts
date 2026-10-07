@@ -37,6 +37,7 @@ import { ICS_LINK_PARAM, createIcsLinkToken, readIcsLinkToken } from './src/t2/i
 import { generateProse } from './src/t2/report';
 import type { T2ReportInput } from './src/t2/report';
 import * as t2Store from './src/db/t2ToolResults';
+import * as t2StoreV3 from './src/db/t2ToolResultsV3';
 import * as t2FindingsStore from './src/db/t2Findings';
 import * as t2WeeklyStore from './src/db/t2WeeklyPlans';
 import * as t2PeriodStore from './src/db/t2TrainingPeriods';
@@ -47,6 +48,9 @@ import { periodForWeek, periodPosition, reportActivitiesOf, t1ScoresOf, weeklyAc
 import type { PeriodContext, PeriodDeps } from './src/t2/trainingPeriodService';
 import { listActivityLibrary } from './src/db/t2Activities';
 import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
+import type { ToolResultRecordV3 } from './src/db/t2ToolResultsV3';
+import { readV3Submission, scoreToolV3, type ToolResultV3, type V3ChildContext } from './src/t2/kitv3/submit';
+import { TOOLKIT_VERSION_V3 } from './src/t2/kitv3/types';
 import type { FindingsRecord } from './src/db/t2Findings';
 import type { WeeklyPlanRecord } from './src/db/t2WeeklyPlans';
 import { DIMENSION_CODES } from './src/t2/types';
@@ -155,6 +159,12 @@ const TRAINING_SAMPLE_ONLY = resolvePaywallSwitch('TRAINING_SAMPLE_ONLY', proces
 // 開著時每週活動改由「一期 12 週 × 3 支」排（`src/t2/trainingPeriodService.ts`，讀寫 t2_training_periods）；
 // 關著時照舊每週配 4 支（`matchWeeklyActivities`）。同一套 fail-closed 解析。要退回舊規則就設 0。
 const TRAINING_PUSH_V3 = resolvePaywallSwitch('TRAINING_PUSH_V3', process.env.TRAINING_PUSH_V3);
+
+// T2 v3 量表推薦與完整版題庫（客戶 2026-10-06《T2 量表推荐规则规格书》＋ 9/23 完整版工具包，規格
+// docs/specs/t2-v3-scale-recommendation-2026-10-06.md、t2-v3-toolkit-full-edition.md）：開著時交卷收完整版
+// （body 帶 `toolkitVersion: 'kit-20260923'`，`src/t2/kitv3/submit.ts`），`GET ?kit=v3` 讀完整版的作答。
+// 關著時一行不動：完整版的工具代碼舊路徑不認得（400 TOOL_UNKNOWN）。同一套 fail-closed 解析。
+const T2_RECOMMEND_V3 = resolvePaywallSwitch('T2_RECOMMEND_V3', process.env.T2_RECOMMEND_V3);
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -1256,10 +1266,76 @@ function childSnapshotOf(child: any): ChildSnapshot {
   };
 }
 
+// ── 完整版題庫的交卷（T2_RECOMMEND_V3，題庫規格 §8 R3g）──
+//
+// 同一支端點、同一張表；body 帶 `toolkitVersion: 'kit-20260923'` 才走這裡。規矩同上：伺服器算、拒算不落表、
+// 每次交卷一筆。作答情境（有沒有上學、性別）取自孩子檔案，不收前端的；年級由家長送（學障兩支，可改）。
+// 回應 `{id, createdAt, result}`：完整版的 0–3 已經在 `result.score.grade03`，不另附 band。
+
+const offlineT2ToolResultsV3 = new Map<UserId, ToolResultRecordV3[]>();
+
+function childContextOf(child: any): V3ChildContext {
+  const sex = child?.gender === 'boy' ? 'male' : child?.gender === 'girl' ? 'female' : undefined;
+  return {
+    ...(typeof child?.inSchool === 'boolean' ? { inSchool: child.inSchool } : {}),
+    ...(sex ? { sex } : {}),
+  };
+}
+
+async function storeT2ToolResultV3(userId: UserId, childSnapshot: ChildSnapshot, result: ToolResultV3): Promise<ToolResultRecordV3> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    const id = await withTimeout(t2StoreV3.insertToolResultV3(dbUserId, childSnapshot, result), 2000);
+    return { id, createdAt: new Date().toISOString(), childSnapshot, result };
+  }
+  offlineT2ToolResultSeq += 1;
+  const record: ToolResultRecordV3 = { id: offlineT2ToolResultSeq, createdAt: new Date().toISOString(), childSnapshot, result };
+  offlineT2ToolResultsV3.set(userId, [...(offlineT2ToolResultsV3.get(userId) ?? []), record]);
+  return record;
+}
+
+async function loadT2ToolResultsV3(userId: UserId): Promise<ToolResultRecordV3[]> {
+  const dbUserId = toDbUserId(userId);
+  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2StoreV3.listToolResultsV3(dbUserId), 2000);
+  return offlineT2ToolResultsV3.get(userId) ?? [];
+}
+
+/** 每支工具最新的一筆（完整版存進去的都是完整的：缺答在交卷時就擋了）。 */
+function latestPerToolV3(records: ToolResultRecordV3[]): Array<{ id: number; createdAt: string; result: ToolResultV3 }> {
+  const latest = new Map<string, ToolResultRecordV3>();
+  for (const r of records) latest.set(r.result.toolId, r);
+  return [...latest.values()].sort((a, b) => a.id - b.id).map(r => ({ id: r.id, createdAt: r.createdAt, result: r.result }));
+}
+
+async function submitT2ToolResultV3(userId: UserId, body: unknown, res: express.Response): Promise<void> {
+  const parsed = readV3Submission(body);
+  if (!parsed.ok) {
+    res.status(parsed.status).json(parsed.body);
+    return;
+  }
+  const data = await loadParentData(userId);
+  if (!data?.child) {
+    res.status(404).json({ error: '还没有孩子的档案，请先完成筛查。', code: 'CHILD_REQUIRED' });
+    return;
+  }
+  const outcome = scoreToolV3(parsed.value, childContextOf(data.child));
+  if (!outcome.ok) {
+    res.status(outcome.status).json(outcome.body);
+    return;
+  }
+  const record = await storeT2ToolResultV3(userId, childSnapshotOf(data.child), outcome.result);
+  res.status(201).json({ id: record.id, createdAt: record.createdAt, result: record.result });
+}
+
 tier2Only.post('/api/t2/tool-results', async (req, res) => {
   try {
     const userId = await requireT2Parent(req, res);
     if (!userId) return;
+
+    if (T2_RECOMMEND_V3 && req.body?.toolkitVersion === TOOLKIT_VERSION_V3) {
+      await submitT2ToolResultV3(userId, req.body, res);
+      return;
+    }
 
     const parsed = readToolSubmission(req.body);
     if (!parsed.ok) {
@@ -1294,6 +1370,11 @@ tier2Only.get('/api/t2/tool-results', async (req, res) => {
   try {
     const userId = await requireT2Parent(req, res);
     if (!userId) return;
+
+    if (T2_RECOMMEND_V3 && req.query.kit === 'v3') {
+      res.json({ results: latestPerToolV3(await loadT2ToolResultsV3(userId)) });
+      return;
+    }
 
     const records = await loadT2ToolResults(userId);
     // 每支最新且完整的一筆。`latestCompleteResults` 吃的是 `ToolResult`，挑完再對回那一列

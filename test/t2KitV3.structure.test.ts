@@ -53,8 +53,8 @@ describe('完整版題庫：抽取地基', () => {
       expect(fs.existsSync(abs), rel).toBe(true);
       expect(sameToolkitContent(fs.readFileSync(abs, 'utf8'), text), `${rel}：重跑 npx tsx scripts/t2-extract-kitv3.ts`).toBe(true);
     }
-    // 目錄裡沒有配方以外的產出檔（手寫的只有 types、index、score）
-    const handwritten = new Set(['types.ts', 'index.ts', 'score.ts']);
+    // 目錄裡沒有配方以外的產出檔（手寫的只有 types、index、score、submit）
+    const handwritten = new Set(['types.ts', 'index.ts', 'score.ts', 'submit.ts']);
     const produced = new Set(V3_RECIPES.map(r => `${r.slug}.ts`));
     for (const f of fs.readdirSync(path.join(ROOT, KITV3_DIR))) {
       if (!handwritten.has(f)) expect(produced.has(f), f).toBe(true);

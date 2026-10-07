@@ -113,6 +113,7 @@ const PARENT_FACING_FILES = [
   'src/components/ChildExtraFields.tsx',
   // T2 v3 的入口：推薦結果給家長的字（引擎的客規原句不給家長，這一檔另寫）。
   'src/t2/recommend/parentPlan.ts',
+  'src/t2/answeringV3.ts',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

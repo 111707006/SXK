@@ -77,6 +77,9 @@ export const DIMENSION_STATE_LABEL: Readonly<Record<'partial' | 'not_assessed' |
  */
 export type StateTone = 'delay' | 'borderline' | 'state';
 
+/** 取狀態句只要這三格：舊快照的 `DimensionFinding` 與完整版的 `DimensionFindingV3` 都有。 */
+export type DimensionStatusInput = Pick<DimensionFinding, 'dimensionId' | 'band' | 't1Flag'>;
+
 export type DimensionStatus =
   | { kind: 'band'; status: AssessmentStatus; label: string; tag: string }
   | { kind: 'state'; tone: StateTone; label: string; tag: string };
@@ -87,7 +90,7 @@ export type DimensionStatus =
  * 讀不到（舊資料缺這一格）或對不上（0）時不猜一個顏色，退回灰（v2.1 §10：舊快照照存的樣子讀，不炸）。
  * `no_tool` 恆灰：它不是「沒做」，是這個月齡沒得做。
  */
-function stateTone(finding: DimensionFinding): StateTone {
+function stateTone(finding: DimensionStatusInput): StateTone {
   if (finding.band !== 'partial' && finding.band !== 'not_assessed') return 'state';
   if (finding.t1Flag === 2) return 'delay';
   if (finding.t1Flag === 1) return 'borderline';
@@ -101,7 +104,7 @@ function stateTone(finding: DimensionFinding): StateTone {
  * `not_screened`（v2.1 S08）沒有句子：不篩的維度畫面上**不出這一格**，呼叫端要先過 `gridDimensions`。
  * 走到這裡就丟錯，不挑一種「沒有判定」的句子頂上 —— 那會把「不評這一項」印成「沒做」或「沒有問卷」。
  */
-export function dimensionStatus(finding: DimensionFinding, ageMonth: number): DimensionStatus {
+export function dimensionStatus(finding: DimensionStatusInput, ageMonth: number): DimensionStatus {
   const band = finding.band;
   if (band === 'clear' || band === 'watch' || band === 'refer') {
     const status = STATUS_OF_BAND[band];
@@ -118,7 +121,7 @@ export function dimensionStatus(finding: DimensionFinding, ageMonth: number): Di
  * 客戶的固定句 —— 「这个月龄暂时没有」對它們不成立，長大了也不會有家長自填的工具。其他 no_tool（感覺 0–23、
  * 學習 37–71、情緒 0–11）長大後確實有工具，照舊。九宮格那一格與 no_tool 段的標題都從這裡取，同一句。
  */
-function stateSentence(finding: DimensionFinding, ageMonth: number): string {
+function stateSentence(finding: DimensionStatusInput, ageMonth: number): string {
   const band = finding.band as 'partial' | 'not_assessed' | 'no_tool';
   if (band === 'no_tool' && schoolAgeNoStar(finding.dimensionId, ageMonth)) return SCHOOL_AGE_NO_TOOL_SENTENCE;
   return DIMENSION_STATE_SENTENCE[band];

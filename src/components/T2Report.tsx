@@ -38,12 +38,16 @@ import {
 } from '../t2/reportCopy';
 import type { DimensionCode, DimensionFinding, T2Findings } from '../t2/types';
 import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
+import { STATUS_CLASS } from './reportStatusClass';
+import { isFindingsV3, type T2FindingsV3 } from '../t2/findingsV3';
+import T2ReportV3 from './T2ReportV3';
 
 /** `POST /api/t2/findings` 與 `GET /api/t2/findings/latest` 回的一份快照。 */
 interface FindingsEntry {
   id: number;
   createdAt: string;
-  findings: T2Findings;
+  /** 舊題庫的 `T2Findings`，或完整版的 `T2FindingsV3`（`toolkitVersion` 分流，`isFindingsV3`）。 */
+  findings: T2Findings | T2FindingsV3;
   /** 存的時候壞掉會是 `null`；那時只剩狀態總覽與回顧可看。 */
   prose: T2ReportProse | null;
   isAiGenerated: boolean;
@@ -68,19 +72,6 @@ function formatDay(iso: string): string {
   if (Number.isNaN(d.getTime())) return '';
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
-
-/**
- * 三級 band 的膠囊顏色。與 T1 報告九宮格同一組色：綠／黃／紅照篩查判定，
- * 沒有第二把尺（ADR-0007）。「沒有判定」的那幾格取 `dimensionStatus` 的 `tone`（v2.1 S02）：
- * 沒做的（`partial`／`not_assessed`）帶 T1 的紅／黃，借的就是這裡的 `delay`／`borderline`；
- * `no_tool` 是灰（`state`）—— 它不是沒做，是沒得做，不在這把尺上。
- */
-const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', string> = {
-  normal: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-  borderline: 'bg-amber-50 border-amber-200 text-amber-800',
-  delay: 'bg-rose-50 border-rose-200 text-rose-800',
-  state: 'bg-brand-cream/60 border-brand-stone text-brand-charcoal/70',
-};
 
 /**
  * T2 深度評估的報告頁（票 #61，規格 §6.3 的段落順序與 §6.4 的作答回顧）—— **家長端專屬**。
@@ -271,21 +262,6 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
   }
 
   // status === 'ready'（或正在重新生成、畫面上還留著上一份）
-  const { findings, prose } = entry!;
-  const ageMonth = findings.child.assessedAgeMonth;
-  const goals = buildSmartGoals(findings, { childName });
-  const byId = new Map<DimensionCode, DimensionFinding>(findings.dimensions.map(d => [d.dimensionId, d]));
-  const proseById = new Map<DimensionCode, ProseDimension>((prose?.perDimension ?? []).map(p => [p.dimensionId, p]));
-  // 段落順序照 prose（伺服器已依 §8 排好）；watch／refer 與 no_tool 分開兩段（§6.3）。
-  const flagged = (prose?.perDimension ?? []).filter(p => {
-    const band = byId.get(p.dimensionId)?.band;
-    return band === 'watch' || band === 'refer';
-  });
-  const noTool = findings.dimensions.filter(d => d.band === 'no_tool');
-  const redoByTool = new Map((findings.redos ?? []).map(r => [r.toolId, r.daysSinceLast]));
-  const review = reviewGroups(findings);
-  const safety = hasSafetyConcern(findings);
-
   const serviceButtons = (
     <div className="flex flex-wrap gap-2 pt-1">
       {serviceChoices({ book: onBookService, openTraining: onOpenTraining }).map(c => (
@@ -303,6 +279,39 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       ))}
     </div>
   );
+
+  // 完整版題庫的快照（T2 v3）：另一個形狀，整頁改畫 T2ReportV3；舊快照照存的樣子走下面。
+  if (isFindingsV3(entry!.findings)) {
+    return shell(
+      <T2ReportV3
+        entry={entry as FindingsEntry & { findings: T2FindingsV3 }}
+        regenerate={
+          <div className="shrink-0 space-y-1.5">
+            {generateButton('重新生成')}
+            <p className="text-[10px] text-brand-charcoal/50 max-w-[14rem]">照现在已填的问卷再整理一份；上一份仍保留。</p>
+          </div>
+        }
+        errorLine={errorLine}
+        serviceButtons={serviceButtons}
+        onOpenTraining={onOpenTraining}
+        formatDay={formatDay}
+      />,
+    );
+  }
+  const { findings, prose } = entry as FindingsEntry & { findings: T2Findings };
+  const ageMonth = findings.child.assessedAgeMonth;
+  const goals = buildSmartGoals(findings, { childName });
+  const byId = new Map<DimensionCode, DimensionFinding>(findings.dimensions.map(d => [d.dimensionId, d]));
+  const proseById = new Map<DimensionCode, ProseDimension>((prose?.perDimension ?? []).map(p => [p.dimensionId, p]));
+  // 段落順序照 prose（伺服器已依 §8 排好）；watch／refer 與 no_tool 分開兩段（§6.3）。
+  const flagged = (prose?.perDimension ?? []).filter(p => {
+    const band = byId.get(p.dimensionId)?.band;
+    return band === 'watch' || band === 'refer';
+  });
+  const noTool = findings.dimensions.filter(d => d.band === 'no_tool');
+  const redoByTool = new Map((findings.redos ?? []).map(r => [r.toolId, r.daysSinceLast]));
+  const review = reviewGroups(findings);
+  const safety = hasSafetyConcern(findings);
 
   /** 這個維度用到的工具裡，30 天內重做過的（§10.2 第 2 項）。 */
   const redoLines = (d: DimensionFinding) =>

@@ -138,8 +138,14 @@ describe('partial／not_assessed 與 clear 分得開（§5.7）', () => {
     const uses = view.match(/STATUS_CLASS\[[^\]]*\]/g) ?? [];
     expect(uses.length).toBeGreaterThanOrEqual(2);
     for (const u of uses) expect(u).toBe("STATUS_CLASS[s.kind === 'band' ? s.status : s.tone]");
-    expect(view).toMatch(/state: 'bg-brand-cream/);
+    // 顏色表搬到 reportStatusClass.ts，舊快照與完整版（T2ReportV3）共用同一組
+    expect(read('src/components/reportStatusClass.ts')).toMatch(/state: 'bg-brand-cream/);
+    expect(view).toMatch(/from '\.\/reportStatusClass'/);
     expect(view).not.toMatch(/band === '(partial|not_assessed)'/);
+    const v3 = read('src/components/T2ReportV3.tsx');
+    expect(v3).toMatch(/from '\.\/reportStatusClass'/);
+    for (const u of v3.match(/STATUS_CLASS\[[^\]]*\]/g) ?? []) expect(u).toBe("STATUS_CLASS[s.kind === 'band' ? s.status : s.tone]");
+    expect(v3).not.toMatch(/band === '(partial|not_assessed)'/);
   });
 });
 
@@ -234,5 +240,29 @@ describe('「若持续不处理」與「建议后续项目」（v2.1 §6.3）', 
     // 段首那一句只在後果段：「一般走向」講的是後果，不是後續項目。
     const plansBlock = perDimension.slice(perDimension.indexOf('data-advice="plans"'));
     expect(plansBlock).not.toContain('ADVICE_LEAD_SENTENCE');
+  });
+});
+
+describe('完整版快照（T2 v3）改畫 T2ReportV3', () => {
+  const v3 = read('src/components/T2ReportV3.tsx');
+
+  it('T2Report 看 isFindingsV3 分流，在讀 prose、算目標之前', () => {
+    const report = read('src/components/T2Report.tsx');
+    const branch = report.indexOf('isFindingsV3(entry!.findings)');
+    expect(branch).toBeGreaterThan(0);
+    expect(branch).toBeLessThan(report.indexOf('buildSmartGoals(findings'));
+  });
+
+  it('不叫模型、不自己打 API：文字只來自 reportCopyV3／reportCopy，題庫走延遲載入', () => {
+    expect(v3).not.toMatch(/authFetch|fetch\(/);
+    expect(v3).not.toMatch(/\bprose\??\./);
+    expect(v3).toMatch(/from '\.\.\/t2\/reportCopyV3'/);
+    expect(v3).toMatch(/KITV3_LOADERS/);
+    expect(v3).not.toMatch(/from '\.\.\/t2\/kitv3'/);
+  });
+
+  it('不篩的維度不出格；三个月后重评照舊', () => {
+    expect(v3).toMatch(/d\.band !== 'not_screened'/);
+    expect(v3).toContain('RETEST_SENTENCE');
   });
 });

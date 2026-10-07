@@ -112,3 +112,110 @@ export function participants(colors: ReadonlyArray<DimensionColor>): DimensionCo
   const byOrder = [...colors].sort((a, b) => PUSH_ORDER.indexOf(a.dimension) - PUSH_ORDER.indexOf(b.dimension));
   return byOrder.slice(0, MAINTAIN_DIMENSIONS);
 }
+
+/** 名額湊不滿時依序補進來的能力：`PUSH_ORDER` 裡還沒參加的（不篩的不在 `colors` 裡，不會被補進來）。 */
+export function reserveOf(colors: ReadonlyArray<DimensionColor>, taken: ReadonlyArray<DimensionColor>): DimensionColor[] {
+  const used = new Set(taken.map(t => t.dimension));
+  return [...colors]
+    .filter(c => !used.has(c.dimension))
+    .sort((a, b) => PUSH_ORDER.indexOf(a.dimension) - PUSH_ORDER.indexOf(b.dimension));
+}
+
+// ══════════════════════════════════════════════
+// 名額與交錯（客戶第六節）
+// ══════════════════════════════════════════════
+
+/** 一般每月 12 支（每週 3）；期末「困難」那一檔每月 8 支（每週 2，規格 §5.2）。 */
+export const MONTHLY_QUOTA = 12;
+export const MONTHLY_QUOTA_HARD = 8;
+/** 一個月 4 週、一期 3 個月。 */
+export const WEEKS_PER_MONTH = 4;
+export const MONTHS_PER_PERIOD = 3;
+
+export interface Quota extends DimensionColor {
+  /** 每月幾支。 */
+  count: number;
+}
+
+const roundHalfUp = (x: number) => Math.floor(x + 0.5 + 1e-9);
+
+/**
+ * 每個能力每月幾支（規格 §4.3）。`ranked` 已照 `sortByPush` 排好（`participants` 的回傳）；`reserve` 是名額
+ * 湊不滿時依序補進來的能力（`reserveOf`；補進來一律當綠、權重 1 —— 暫採，待問表 P-2）。
+ *
+ * 1. `exact = Q × 權重 ÷ Σ權重`，四捨五入（.5 進位）。
+ * 2. 夾到 [1, Q/2]（客戶「至少 1 个」「最多 6 个，也就是一半」）。
+ * 3. 一支一支校正到剛好 Q：太多從「多拿最多的」減（同值減順序後面的）；太少給「少拿最多的」加（同值給順序前面的），
+ *    只加給 `exact` 比現在多的 —— 上限擋下來的名額不轉給輕的能力（不然綠色會拿得跟紅色一樣多）。
+ * 4. 上限擋住、加不滿 → 從 `reserve` 補一個能力，重算。
+ * 5. 參加的能力比 Q 還多（困難那一檔 Q＝8、九個都紅）→ 保留排在前面的 Q 個（暫採，待問表 P-12）。
+ *
+ * 回傳照 `ranked` 的順序（補進來的接在後面），每一個 `count ≥ 1`。
+ */
+export function monthlyQuotas(ranked: ReadonlyArray<DimensionColor>, reserve: ReadonlyArray<DimensionColor>, total: number): Quota[] {
+  if (!Number.isInteger(total) || total < 1) throw new Error(`trainingPush：每月名額要是正整數，拿到 ${total}`);
+  const cap = Math.max(1, Math.floor(total / 2));
+  let members: DimensionColor[] = ranked.slice(0, total);
+  const spare: DimensionColor[] = reserve.map(r => ({ ...r, color: 'green' }));
+
+  for (;;) {
+    const weights = members.map(m => COLOR_WEIGHT[m.color]);
+    const sumW = weights.reduce((a, b) => a + b, 0);
+    const exact = weights.map(w => (total * w) / sumW);
+    const n = exact.map(x => Math.min(cap, Math.max(1, roundHalfUp(x))));
+    let sum = n.reduce((a, b) => a + b, 0);
+
+    while (sum > total) {
+      let pick = -1;
+      for (let i = 0; i < n.length; i++) {
+        if (n[i] <= 1) continue;
+        if (pick < 0 || n[i] - exact[i] >= n[pick] - exact[pick] - 1e-9) pick = i; // 同值取後面的
+      }
+      if (pick < 0) break;
+      n[pick]--;
+      sum--;
+    }
+    while (sum < total) {
+      let pick = -1;
+      for (let i = 0; i < n.length; i++) {
+        // 只給「少拿了」的（exact 比 n 大）：上限擋下來的不轉給別人，改從 reserve 補一個能力（第 4 步）
+        if (n[i] >= cap || exact[i] - n[i] <= 1e-9) continue;
+        if (pick < 0 || exact[i] - n[i] > exact[pick] - n[pick] + 1e-9) pick = i; // 同值取前面的
+      }
+      if (pick < 0) break;
+      n[pick]++;
+      sum++;
+    }
+
+    if (sum >= total || spare.length === 0) return members.map((m, i) => ({ ...m, count: n[i] }));
+    members = [...members, spare.shift()!];
+  }
+}
+
+/**
+ * 一個月的名額排成一串（客戶「名额排定后交错排列，让同一周尽量涵盖两个以上的能力」）。
+ *
+ * 用平滑加權輪詢：每一步每個能力的累積值加上自己的名額，取最大的出一支、扣掉總名額；同值取 `quotas` 前面的
+ * （重的、順序前的）。名額多的均勻散開，不會擠在月底（一輪一輪發的話 6／3／3 第 4 週會整週都是同一個能力）。
+ * 原文例子 4／4／2／2 → 语认注感语认语认注感语认。
+ */
+export function interleave(quotas: ReadonlyArray<Pick<Quota, 'dimension' | 'count'>>): DimensionCode[] {
+  const total = quotas.reduce((a, q) => a + q.count, 0);
+  const current = quotas.map(() => 0);
+  const out: DimensionCode[] = [];
+  for (let step = 0; step < total; step++) {
+    let pick = 0;
+    quotas.forEach((q, i) => {
+      current[i] += q.count;
+      if (current[i] > current[pick]) pick = i;
+    });
+    current[pick] -= total;
+    out.push(quotas[pick].dimension);
+  }
+  return out;
+}
+
+/** 一串切成 4 週，每週 `perWeek` 格（每月名額 ÷ 4）。 */
+export function splitWeeks<T>(sequence: ReadonlyArray<T>, perWeek: number): T[][] {
+  return Array.from({ length: WEEKS_PER_MONTH }, (_, w) => sequence.slice(w * perWeek, (w + 1) * perWeek));
+}

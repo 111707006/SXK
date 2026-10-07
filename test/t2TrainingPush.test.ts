@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  COLOR_WEIGHT,
   PUSH_ORDER,
   colorFromT1Score,
+  interleave,
+  monthlyQuotas,
+  reserveOf,
+  splitWeeks,
   dimensionColors,
   participants,
   shiftColor,
@@ -95,5 +100,95 @@ describe('第二關：順序', () => {
   it('全綠而且语言不篩時，往後遞補（不篩的不算名額）', () => {
     const p = participants(dimensionColors(dims({ LANG: 'not_screened' })));
     expect(p.map(c => c.dimension)).toEqual(['MOT', 'COG', 'ATT']);
+  });
+});
+
+describe('名額（客戶第六節）', () => {
+  const ranked = (spec: Array<[DimensionCode, PushColor]>): DimensionColor[] =>
+    spec.map(([dimension, color]) => ({ dimension, color, source: 't2' as const }));
+  const counts = (q: ReadonlyArray<{ dimension: DimensionCode; count: number }>) => q.map(x => `${x.dimension}${x.count}`).join(' ');
+
+  it('原文例子：语言红、认知红、注意力橙、感觉处理橙 → 4、4、2、2（合计刚好 12）', () => {
+    const q = monthlyQuotas(ranked([['LANG', 'red'], ['COG', 'red'], ['ATT', 'orange'], ['SEN', 'orange']]), [], 12);
+    expect(counts(q)).toBe('LANG4 COG4 ATT2 SEN2');
+  });
+
+  it('九個全紅：各 1.33 → 各 1 ＝ 9，多的三支給顺序前三（语言、动作、认知）', () => {
+    const q = monthlyQuotas(ranked(PUSH_ORDER.map(d => [d, 'red'])), [], 12);
+    expect(counts(q)).toBe('LANG2 MOT2 COG2 ATT1 SEN1 LEARN1 SOC1 EMO1 ADL1');
+  });
+
+  it('單一能力最多 6 個；只有一個紅色能力時，依順序補下一個能力當綠，直到湊滿 12（暫採 P-2）', () => {
+    const all = dimensionColors(dims({ EMO: 'refer' }));
+    const r = participants(all);
+    const q = monthlyQuotas(r, reserveOf(all, r), 12);
+    expect(counts(q)).toBe('EMO6 LANG3 MOT3');
+  });
+
+  it('全綠的三個能力各 4', () => {
+    const q = monthlyQuotas(ranked([['LANG', 'green'], ['MOT', 'green'], ['COG', 'green']]), [], 12);
+    expect(counts(q)).toBe('LANG4 MOT4 COG4');
+  });
+
+  it('困難那一檔每月 8 支、單一能力最多 4；九個都紅時只留排前面的 8 個（暫採 P-12）', () => {
+    expect(counts(monthlyQuotas(ranked([['LANG', 'red'], ['SOC', 'orange']]), [], 8))).toBe('LANG4 SOC4');
+    const nine = monthlyQuotas(ranked(PUSH_ORDER.map(d => [d, 'red'])), [], 8);
+    expect(nine.map(x => x.dimension)).toEqual(PUSH_ORDER.slice(0, 8));
+    expect(nine.every(x => x.count === 1)).toBe(true);
+  });
+
+  it('窮舉九個能力各紅／橙／綠（3^9 種）：總和 12、每個 1–6、權重重的不少於輕的', () => {
+    const colors: PushColor[] = ['red', 'orange', 'green'];
+    const bad: string[] = [];
+    for (let code = 0; code < 3 ** 9; code++) {
+      const over: Partial<Record<DimensionCode, DimensionBand>> = {};
+      let c = code;
+      for (const d of PUSH_ORDER) {
+        over[d] = (['refer', 'watch', 'clear'] as const)[c % 3];
+        c = Math.floor(c / 3);
+      }
+      const all = dimensionColors(dims(over));
+      const r = participants(all);
+      const q = monthlyQuotas(r, reserveOf(all, r), 12);
+      const ok =
+        q.reduce((a, b) => a + b.count, 0) === 12 &&
+        q.every(x => x.count >= 1 && x.count <= 6) &&
+        q.every(a => q.every(b => !(COLOR_WEIGHT[a.color] > COLOR_WEIGHT[b.color]) || a.count >= b.count)) &&
+        colors.includes(q[0].color);
+      if (!ok) bad.push(`${JSON.stringify(over)} → ${q.map(x => `${x.dimension}${x.count}`).join(' ')}`);
+    }
+    expect(bad.slice(0, 5)).toEqual([]);
+  });
+});
+
+describe('交錯排列', () => {
+  it('原文例子 4／4／2／2 → 每週三個能力：语认注、感语认、语认注、感语认', () => {
+    const seq = interleave([
+      { dimension: 'LANG', count: 4 },
+      { dimension: 'COG', count: 4 },
+      { dimension: 'ATT', count: 2 },
+      { dimension: 'SEN', count: 2 },
+    ]);
+    expect(splitWeeks(seq, 3)).toEqual([
+      ['LANG', 'COG', 'ATT'],
+      ['SEN', 'LANG', 'COG'],
+      ['LANG', 'COG', 'ATT'],
+      ['SEN', 'LANG', 'COG'],
+    ]);
+    // 每個能力的支數照名額
+    expect(seq.filter(d => d === 'LANG')).toHaveLength(4);
+    expect(seq.filter(d => d === 'SEN')).toHaveLength(2);
+  });
+
+  it('兩個以上能力參加時，每週至少兩個能力', () => {
+    for (const [a, b] of [[6, 6], [6, 3], [4, 4], [2, 2], [6, 5], [6, 1]] as const) {
+      const extra = 12 - a - b;
+      const quotas = [
+        { dimension: 'LANG' as const, count: a },
+        { dimension: 'MOT' as const, count: b },
+        ...(extra > 0 ? [{ dimension: 'COG' as const, count: extra }] : []),
+      ];
+      for (const week of splitWeeks(interleave(quotas), 3)) expect(new Set(week).size).toBeGreaterThanOrEqual(2);
+    }
   });
 });

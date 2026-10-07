@@ -288,6 +288,47 @@ function scoreAsq3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): K
   };
 }
 
+// ── VOC（里程碑％＋旗標）──
+
+export interface VocScoring {
+  dim: DimensionCode;
+  /** 三段（80／60／0），好 → 壞。 */
+  levels: Array<{ min: number; name: string }>;
+  grade: Grade03[];
+}
+
+function scoreVoc(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
+  const s = bank.scoring as VocScoring;
+  const form = bank.forms[0];
+  const asked = askedItems(bank, ctx);
+  const of = (sec: string) => asked.filter(a => a.section === sec).map(a => a.item.key);
+  const pctOf = (keys: string[]) => (keys.length ? Math.round((keys.reduce((n, k) => n + (answers[k] ?? 0), 0) / (keys.length * 2)) * 100) : null);
+  const mileSecs = form.sections.filter(sec => sec.options === 'main');
+  const facets = mileSecs.map(sec => {
+    const keys = of(sec.key);
+    const value = pctOf(keys);
+    return { key: sec.key, name: sec.name, n: keys.length, value, band: null };
+  });
+  const aKeys = mileSecs.flatMap(sec => of(sec.key));
+  const aPct = pctOf(aKeys) ?? 0;
+  const M = ctx.ageM;
+  const flags: string[] = [];
+  if (M >= 24 && answers['gram.1'] === 0) flags.push('two');
+  if (M >= 12 && M < 18 && of('GEST').filter(k => answers[k] === 1).length < 6) flags.push('gest');
+  const v1 = facets.find(f => f.key === 'V1')!.value;
+  if (v1 !== null && v1 < 60) flags.push('v1');
+  const level = flags.length >= 2 || aPct < s.levels[1].min ? 2 : flags.length === 1 || aPct < s.levels[0].min ? 1 : 0;
+  return {
+    code: bank.code,
+    form: form.key,
+    facets,
+    total: { value: aPct, band: level, bandName: s.levels[level].name },
+    grade03: { [s.dim]: s.grade[level] },
+    missing: missingOf(bank, answers, ctx),
+    ...(flags.length ? { flags } : {}),
+  };
+}
+
 // ── 入口 ──
 
 export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreContext): KitV3Score {
@@ -300,6 +341,8 @@ export function scoreKitV3(bank: KitV3Bank, answers: KitV3Answers, ctx: ScoreCon
       return scoreMchat(bank, answers, ctx);
     case 'asq3':
       return scoreAsq3(bank, answers, ctx);
+    case 'voc':
+      return scoreVoc(bank, answers, ctx);
     default:
       throw new Error(`kitv3：還沒有「${bank.family}」族的計分（${bank.code}）`);
   }

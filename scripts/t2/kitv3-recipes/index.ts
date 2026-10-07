@@ -5,5 +5,6 @@ import { PCT_RECIPES } from './pct';
 import { LQ_RECIPES } from './lq';
 import { MCHAT_RECIPES } from './mchat';
 import { ASQ3_RECIPES } from './asq3';
+import { VOC_RECIPES } from './voc';
 
-export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES, ...MCHAT_RECIPES, ...ASQ3_RECIPES];
+export const V3_RECIPES: V3Recipe[] = [...PCT_RECIPES, ...LQ_RECIPES, ...MCHAT_RECIPES, ...ASQ3_RECIPES, ...VOC_RECIPES];

@@ -302,7 +302,7 @@ export const GUIDE_PREP_KEYS = ['场地', '器材', '安全检查', '大人位�
 export type GuidePrepKey = (typeof GUIDE_PREP_KEYS)[number];
 
 /**
- * 一支活動的影片導引腳本（Keep 規格 §4.2）。現在只有模組一（A001–A020）有。
+ * 一支活動的影片導引腳本（Keep 規格 §4.2）。客戶總冊（2026-10-06）300 支都有；分鏡旁白可以是空字串（不出聲的鏡頭）。
  *
  * 腳本裡「畫面描述」「拍攝提示」是給拍片的人看的，**不在這裡**，也不上家長端。
  * 內容是客戶原文（`src/t2/activityContent.ts` 由腳本從 docx 抽出），只拿掉段落的標籤
@@ -345,7 +345,7 @@ export interface ActivityGuide {
  * 所以是 `FindingTag`。
  *
  * 【內容欄位（Keep 規格 §4.1，2026-09-23）】
- * `ageLabel` 到 `deeper` 是客戶手冊那張卡的原文，`guide` 是模組一的腳本。文字欄位**空字串
+ * `ageLabel` 到 `deeper` 是客戶手冊那張卡的原文，`guide` 是腳本總冊的那一支。文字欄位**空字串
  * 就是沒有**（新增的活動、或內容團隊在後台清掉的），畫面據此不顯示那一區；不用 `null`，
  * 呼叫端不必分兩種「沒有」。資料庫那一側 `NULL`＝遷移還沒填、`''`＝後台清掉的，遷移重跑
  * 只填 `NULL`，所以清掉的不會被填回來（`deploy/migrations/2026-09-23-activity-content.sql`）。
@@ -382,7 +382,7 @@ export interface Activity {
   tip: string;
   /** 手冊「📖 想深入练」（不含「想深入练：」這幾個字）。 */
   deeper: string;
-  /** 模組一的影片導引腳本；沒有腳本是 `null`。 */
+  /** 影片導引腳本；沒有腳本是 `null`。 */
   guide: ActivityGuide | null;
   videoUrl: string | null;
   /** 示範片的封面，網址規則同 `videoUrl`（Keep 規格 §6，票 3 才有資料）。 */

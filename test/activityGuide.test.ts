@@ -75,9 +75,11 @@ describe('readGuide —— 後台送上來的整份腳本', () => {
     expect(bad({ ...GUIDE, prep: ['场地'] })).toContain('准备');
   });
 
-  it('清單裡的每一則都要有字；分鏡要有名稱與旁白、反應要有如果與怎麼做', () => {
+  it('清單裡的每一則都要有字；分鏡要有名稱（旁白可以空）、反應要有如果與怎麼做', () => {
     expect(bad({ ...GUIDE, progress: ['能爬多远？', '  '] })).toContain('第 2');
-    expect(bad({ ...GUIDE, shots: [{ name: '示范', say: '' }] })).toContain('分镜');
+    expect(bad({ ...GUIDE, shots: [{ name: '', say: '来。' }] })).toContain('分镜');
+    // 客戶總冊有不出聲的鏡頭（A121 鏡頭二「孩子转头」旁白是一對空的「」），存得進去
+    expect(readGuide({ ...GUIDE, shots: [{ name: '示范', say: '' }] })).toEqual({ ok: true, guide: { ...GUIDE, shots: [{ name: '示范', say: '' }] } });
     expect(bad({ ...GUIDE, shots: [{ name: '示范' }] })).toContain('分镜');
     expect(bad({ ...GUIDE, reactions: [{ if: '不动' }] })).toContain('反应');
   });
@@ -116,9 +118,9 @@ describe('guideFromStored —— 資料庫讀回來的', () => {
  * 而一段換行、一個鍵的順序不同，都會讓 `changedFields` 以為改過了。
  */
 describe('guideToDraft／guideFromDraft —— 後台畫面的草稿', () => {
-  it('客戶的 20 支腳本：開了不改、存回去，changedFields 一個欄位都不送', () => {
+  it('客戶的 300 支腳本：開了不改、存回去，changedFields 一個欄位都不送', () => {
     const scripted = ACTIVITY_CONTENT.filter(e => e.guide !== null);
-    expect(scripted).toHaveLength(20);
+    expect(scripted).toHaveLength(300);
     for (const e of scripted) {
       // 伺服器給畫面的那一份是從資料庫讀回來的（`guideFromStored`），不是抽取時的物件。
       const original = { ...ACTIVITY_SEED.find(a => a.id === e.id)!, guide: guideFromStored(JSON.stringify(e.guide)) };
@@ -140,11 +142,11 @@ describe('guideToDraft／guideFromDraft —— 後台畫面的草稿', () => {
     const draft = guideToDraft(GUIDE);
     const g = guideFromDraft({
       ...draft,
-      shots: [...draft.shots, { name: ' ', say: '' }, { name: '拿到玩具', say: '' }],
+      shots: [...draft.shots, { name: ' ', say: '' }, { name: '', say: '拿到了！' }],
       reactions: [{ if: '', then: '  ' }, ...draft.reactions],
     });
-    expect(g.shots).toEqual([...GUIDE.shots, { name: '拿到玩具', say: '' }]);
+    expect(g.shots).toEqual([...GUIDE.shots, { name: '', say: '拿到了！' }]);
     expect(g.reactions).toEqual(GUIDE.reactions);
-    expect(bad(g)).toContain('「分镜」第 2 则的旁白');
+    expect(bad(g)).toContain('「分镜」第 2 则的名称');
   });
 });

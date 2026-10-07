@@ -130,7 +130,7 @@ export function readCheckinPatch(body: unknown): Read<CheckinPatch> {
 
 /**
  * 勾的每一條都要在那支活動腳本的「怎么看出有进步」裡（第幾條 < 條數）。
- * 沒有腳本的活動（`guide` 是 `null`，模組一以外的 280 支）只收空陣列。
+ * 沒有腳本的活動（`guide` 是 `null`：內容遷移還沒跑、或後台新增的）只收空陣列。
  */
 export function progressFitsActivity(progress: ReadonlyArray<number>, activity: Pick<Activity, 'guide'> | null): boolean {
   const count = activity?.guide?.progress.length ?? 0;

@@ -100,7 +100,8 @@ function readList<T>(raw: unknown, key: keyof ActivityGuide, readOne: (item: unk
 
 /**
  * 後台送上來的一份腳本。**整份**：少了哪一段、哪一段型別不對、超過上限，都整份退回並說出是哪一段。
- * 單段文字（片長、旁白、降一階……）可以清空；清單裡的每一則、分鏡的名稱與旁白、反應的兩半必須有字。
+ * 單段文字（片長、旁白、降一階……）可以清空；清單裡的每一則、分鏡的名稱、反應的兩半必須有字。
+ * 分鏡的旁白可以空：客戶腳本有不出聲的鏡頭（總冊 A121 鏡頭二等 18 處），畫面上那一格不列（`shots.filter(s => s.say)`）。
  * 「準備」只認 `GUIDE_PREP_KEYS` 那四項，可以少、不能多。不認得的段落略過（`normalizeGuide`）。
  */
 export function readGuide(raw: unknown): GuideResult {
@@ -120,7 +121,7 @@ export function readGuide(raw: unknown): GuideResult {
 
     const shots = readList(raw.shots, 'shots', (item, where) => {
       if (!isRecord(item)) throw new GuideError(`脚本${where}要有名称与旁白。`);
-      return { name: readItem(item.name, `${where}的名称`), say: readItem(item.say, `${where}的旁白`) };
+      return { name: readItem(item.name, `${where}的名称`), say: readText(item.say, `${where}的旁白`) };
     });
     const reactions = readList(raw.reactions, 'reactions', (item, where) => {
       if (!isRecord(item)) throw new GuideError(`脚本${where}要有「如果」与「怎么做」。`);

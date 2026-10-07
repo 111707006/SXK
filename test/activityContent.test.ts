@@ -8,6 +8,7 @@ import {
   HANDBOOK_DOCX,
   contentMismatches,
   parseGuideScripts,
+  peopleOverrides,
   parseHandbook,
   readActivityContent,
   renderActivityContentModule,
@@ -31,9 +32,9 @@ import { readGuide } from '../src/utils/activityGuide';
  * 活動內容的抽取（Keep 規格 K03，§4.1、§4.2、附錄「內容欄位對照」）。
  *
  * 【為什麼需要這些】
- * 300 張卡與 20 支腳本是**抽**出來的，不是抄的：客戶的手冊（`NEWT2/…总册.docx`）與模組一
- * 腳本（`NEWT2/…模组一_身体动一动.docx`）是從 `NEWT2/T2视频_20260923.zip` 原封不動取出來的
- * 兩份檔（位元組相同；zip 本身 27 MB、含 19 支 mp4，不進 git）。抽錯了不會有型別錯誤 ——
+ * 300 張卡與 300 支腳本是**抽**出來的，不是抄的：客戶的手冊（`NEWT2/…入门手册…总册.docx`，從
+ * `NEWT2/T2视频_20260923.zip` 原封不動取出；zip 27 MB、含 19 支 mp4，不進 git）與腳本總冊
+ * （`NEWT2/…影片导引脚本_总册_300支.docx`，客戶 2026-10-06 給的；模組一與 9/23 的單冊逐字相同）。抽錯了不會有型別錯誤 ——
  * 「简单／难一点」切錯一半、步驟少一步、旁白混進拍攝提示，全部都是合法的字串。
  * 這裡把每一條讀法釘住（前半用造出來的小段落，錯誤的形狀要丟例外），再把兩份檔整批掃一次，
  * 最後兩條是地基：`src/t2/activityContent.ts` 與遷移檔的 UPDATE 都必須是腳本重跑的結果。
@@ -100,10 +101,16 @@ describe('手冊的一張卡怎麼讀', () => {
   });
 });
 
-/** 模組一腳本的一支，照客戶腳本的排法。 */
-function script(no: string, over: { intro?: string; say?: string } = {}): DocxBlock[] {
+/**
+ * 腳本的一支，照客戶腳本的排法。`split`：總冊（10/06）的標頭是兩張表（標題一張、「适合年龄」一張），
+ * 模組一單冊（9/23）是一張 2 列的表；兩種都要讀得動。
+ */
+function script(no: string, over: { intro?: string; say?: string; split?: boolean; people?: string } = {}): DocxBlock[] {
+  const meta = `适合年龄 6个月–3岁　｜　人物配置 ${over.people ?? '亲子'}　｜　模组一 身体动一动 · 动作体能`;
   return [
-    table([`活动 ${no}　我们来爬行`, '影片长度 2–3 分钟'], ['适合年龄 6个月–3岁　｜　人物配置 亲子　｜　模组一 身体动一动 · 动作体能']),
+    ...(over.split
+      ? [table([`活动 ${no}　我们来爬行`, '影片长度 2–3 分钟']), table([meta])]
+      : [table([`活动 ${no}　我们来爬行`, '影片长度 2–3 分钟'], [meta])]),
     p('一、片头旁白（可直接念）'),
     table([over.intro ?? '「今天这个活动叫「我们来爬行」。」']),
     p('二、这个活动在练什么'),
@@ -139,13 +146,14 @@ function script(no: string, over: { intro?: string; say?: string } = {}): DocxBl
   ];
 }
 
-describe('模組一腳本的一支怎麼讀', () => {
+describe('腳本的一支怎麼讀', () => {
   it('標籤與逐字稿外層的「」拿掉，內層的「」照留；畫面描述與拍攝提示不抽', () => {
     const [s] = parseGuideScripts([p('脚本使用说明'), ...script('001')], 1);
     expect(s).toEqual({
       no: 1,
       title: '我们来爬行',
       ageLabel: '6个月–3岁',
+      people: '亲子',
       guide: {
         length: '2–3 分钟',
         intro: '今天这个活动叫「我们来爬行」。',
@@ -171,6 +179,32 @@ describe('模組一腳本的一支怎麼讀', () => {
     const json = JSON.stringify(s);
     expect(json).not.toContain('四点跪的正确姿势');
     expect(json).not.toContain('主镜位');
+  });
+
+  it('總冊的排法：標頭拆成兩張表、兩支之間夾著模組扉頁與活動清單', () => {
+    const blocks = [
+      p('脚本使用说明'),
+      ...script('001', { split: true, people: '亲子或全家' }),
+      p('动作体能'),
+      p('模组二'),
+      p('模组二　平衡与协调　活动清单'),
+      p('002　走在软软的路上　2–8岁 ｜ 2 分钟 ｜ 几个枕头或抱枕'),
+      ...script('002', { split: true }),
+    ];
+    const scripts = parseGuideScripts(blocks, 2);
+    expect(scripts.map(s => [s.no, s.people])).toEqual([[1, '亲子或全家'], [2, '亲子']]);
+    expect(scripts[0].guide).toEqual(parseGuideScripts(script('001'), 1)[0].guide);
+  });
+
+  it('不出聲的鏡頭（旁白是一對空的「」）抽成空字串；片頭與收尾旁白不准空', () => {
+    const [s] = parseGuideScripts(script('001', { say: '「」' }), 1);
+    expect(s.guide.shots[0]).toEqual({ name: '大人示范姿势', say: '' });
+    expect(() => parseGuideScripts(script('001', { intro: '「」' }), 1)).toThrow();
+  });
+
+  it('兩支之間夾的東西若像腳本的段落（排版變了），丟例外', () => {
+    const blocks = [...script('001', { split: true }), p('✓ 多出来的进步指标'), ...script('002', { split: true })];
+    expect(() => parseGuideScripts(blocks, 2)).toThrow(/拍攝提示後面多了/);
   });
 
   it.each([
@@ -223,11 +257,39 @@ describe('客戶的兩份 docx（NEWT2/）整批抽', () => {
     expect(cards[299]).toMatchObject({ title: '一起长大的每一天', ageLabel: '全龄／收官', people: '全家' });
   });
 
-  it('模組一腳本 20 支，對到 A001–A020；A021 以後沒有腳本', () => {
-    expect(scripts.map(s => s.no)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
-    expect(entries.filter(e => e.guide !== null).map(e => e.id)).toEqual(
-      Array.from({ length: 20 }, (_, i) => `A${String(i + 1).padStart(3, '0')}`),
+  it('腳本 300 支，對到 A001–A300，每一支都有腳本', () => {
+    expect(scripts.map(s => s.no)).toEqual(Array.from({ length: 300 }, (_, i) => i + 1));
+    expect(entries.every(e => e.guide !== null)).toBe(true);
+  });
+
+  it('不出聲的鏡頭共 18 個（A121 鏡頭二是其一）；鏡頭名稱一律有字', () => {
+    const silent = scripts.flatMap(s => s.guide.shots.filter(sh => sh.say === '').map(() => s.no));
+    expect(silent).toHaveLength(18);
+    expect(silent).toContain(121);
+    expect(scripts[120].guide.shots[1]).toEqual({ name: '孩子转头', say: '' });
+    for (const s of scripts) for (const sh of s.guide.shots) expect(sh.name, `${s.no}`).not.toBe('');
+  });
+
+  // v3 規格 P15：人物配置手冊與腳本不同的，以腳本為準；資料庫那一側由 2026-10-07 的遷移改。
+  it('人物配置手冊與腳本不同的只有 A017、A030、A040，常數取腳本', () => {
+    const overrides = peopleOverrides(cards, scripts);
+    expect(overrides).toEqual([
+      { id: 'A017', handbook: '全家', script: '亲子或全家' },
+      { id: 'A030', handbook: '全家', script: '亲子或全家' },
+      { id: 'A040', handbook: '亲子', script: '亲子或全家' },
+    ]);
+    for (const o of overrides) expect(entries.find(e => e.id === o.id)!.people).toBe(o.script);
+  });
+
+  it('2026-10-07 的遷移正好改這三支、只改還是手冊原文的列', () => {
+    const sql = fs.readFileSync(path.join(ROOT, 'deploy/migrations/2026-10-07-activity-people.sql'), 'utf8');
+    const updates = statementsOf(sql).filter(s => s.startsWith('UPDATE'));
+    expect(updates).toEqual(
+      peopleOverrides(cards, scripts).map(
+        o => `UPDATE \`activities\` SET \`people\` = '${o.script}' WHERE \`id\` = '${o.id}' AND \`people\` = '${o.handbook}'`,
+      ),
     );
+    for (const c of statementsOf(sql).filter(s => /^SELECT/i.test(s))) expect(c).toMatch(/ AS \w+_(ok|gone)\b/);
   });
 
   it('每支腳本：原理 8–9 條、準備四項照順序、分鏡 6 個、反應 3 則、常做錯 3 件、進步指標 3 條', () => {
@@ -266,7 +328,7 @@ describe('客戶的兩份 docx（NEWT2/）整批抽', () => {
     const excluded = blocks
       .filter((b): b is { kind: 'p'; text: string } => b.kind === 'p' && /^(画面　|▸ )/.test(b.text))
       .map(b => b.text.replace(/^(画面　|▸ )/, ''));
-    expect(excluded.length).toBeGreaterThanOrEqual(20 * 6 + 20 * 3); // 每支 6 個畫面描述、3 條以上拍攝提示
+    expect(excluded.length).toBeGreaterThanOrEqual(300 * 6 + 300 * 3); // 每支 6 個畫面描述、3 條以上拍攝提示
     const all = JSON.stringify(scripts.map(s => s.guide));
     for (const text of excluded) expect(all, text).not.toContain(text);
   });
@@ -274,7 +336,7 @@ describe('客戶的兩份 docx（NEWT2/）整批抽', () => {
   // 票 K03：標題與適齡跟 act300.ts 比，不一致的列出來 —— 不改任何一邊的原文。
   // 2026-09-23 抽的這一版兩份檔都與 act300 一致；日後客戶換檔、字變了，紅的是這一條，
   // 由人決定要照哪一邊（配對的硬閘 ageMonths 由適齡解析，見下一條）。
-  it('標題與適齡跟 act300.ts 逐張一致（手冊 300 張、腳本 20 支）', () => {
+  it('標題與適齡跟 act300.ts 逐張一致（手冊 300 張、腳本 300 支）', () => {
     expect(contentMismatches(cards, scripts, ACT300)).toEqual([]);
   });
 
@@ -379,7 +441,7 @@ describe('地基：遷移檔的 UPDATE 是 ACTIVITY_CONTENT 印出來的', () =>
       // 沒有哪一格是無條件覆寫的
       for (const line of s.split('\n').slice(1, -1)) expect(line).toMatch(/= (COALESCE|IF)\(/);
     }
-    expect(statements.filter(s => s.includes('`guide` = COALESCE(`guide`, CAST('))).toHaveLength(20);
+    expect(statements.filter(s => s.includes('`guide` = COALESCE(`guide`, CAST('))).toHaveLength(300);
   });
 
   it('JSON 與字串的跳脫是對的：每一句寫進去的值讀回來就是 ACTIVITY_CONTENT 那一支', () => {

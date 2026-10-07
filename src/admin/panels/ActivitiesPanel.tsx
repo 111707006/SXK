@@ -797,8 +797,8 @@ function Editor({
       {draft.guide ? (
         <GuideEditor guide={draft.guide} onChange={guide => onPatch({ guide })} />
       ) : (
-        // 後台不新增腳本：腳本是客戶交的（現在只有模組一），由抽取腳本寫進內容遷移。
-        <p className="mt-4 text-[11px] text-brand-charcoal/45">这支没有影片导引脚本（目前只有模组一的 20 支有）。</p>
+        // 後台不新增腳本：腳本是客戶交的（總冊 300 支都有），由抽取腳本寫進內容遷移。沒有的是內容遷移還沒跑。
+        <p className="mt-4 text-[11px] text-brand-charcoal/45">这支没有影片导引脚本（客户的 300 支都有；没有的是内容迁移还没跑）。</p>
       )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -838,7 +838,7 @@ function Editor({
 }
 
 /**
- * 模組一的影片導引腳本（Keep 規格 §4.2）。預設收起：二十支裡只有它們有，而且一份很長。
+ * 影片導引腳本（Keep 規格 §4.2；總冊 300 支，v3 P15）。預設收起：一份很長。
  *
  * 原理、常做錯、進步指標是「一行一條」；分鏡與孩子的反應是一列一列的，可以加減。
  * 只能改、不能整份刪掉（`readActivityPatch`：刪掉就是 NULL，內容遷移重跑會把原文填回來）。
@@ -853,7 +853,7 @@ function GuideEditor({ guide, onChange }: { guide: GuideDraft; onChange: (next: 
   return (
     <fieldset className="mt-4 rounded-xl border border-brand-stone bg-white p-3" data-testid="activity-guide-editor">
       <legend className="px-1 text-[11px] font-bold text-brand-charcoal/70">
-        影片导引脚本（模组一）
+        影片导引脚本
         <button type="button" onClick={() => setOpen(!open)} className="ml-2 font-medium text-brand-moss underline">
           {open ? '收起' : '展开'}
         </button>

@@ -60,9 +60,12 @@ function fromContent(id: string, over: Partial<Activity> = {}): Activity {
   };
 }
 
-/** A001（模組一，有腳本、有片）、A041（模組三，沒有腳本、沒有片）、A019（有片）。 */
+/**
+ * A001（模組一，有腳本、有片）、A041（模組三，沒有片；腳本故意拿掉）、A019（有片）。
+ * 客戶總冊（2026-10-06）300 支都有腳本，「沒有腳本」只剩內容遷移還沒跑、後台新增的那幾支 —— 畫面仍要照顧，所以 A041 手動拿掉。
+ */
 const A001 = fromContent('A001', { videoUrl: '/media/activities/A001.mp4', videoSeconds: 10 });
-const A041 = fromContent('A041');
+const A041 = fromContent('A041', { guide: null });
 
 function pick(activity: Activity, dimension: DimensionCode) {
   return { activity, dimension, reason: { band: 'watch' as const, window: { lo: 12, hi: 30 }, matchedTags: [], belowWindow: false } };
@@ -128,7 +131,7 @@ function render(
 const detail = (id: string, opts?: Parameters<typeof render>[1]) =>
   render(createElement(DetailScreen, { id, from: 'plan', active: true }), opts);
 
-describe('詳情：腳本那幾區只有模組一有（§3.3 最後一句）', () => {
+describe('詳情：腳本那幾區有腳本才出（§3.3 最後一句）', () => {
   const guide = A001.guide!;
   const withGuide = detail('A001');
   const without = detail('A041');

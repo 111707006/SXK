@@ -43,7 +43,7 @@
 │   │   │   ├── useTrainingData.ts   # 读 weekly-plan 与 checkins（checkinRanges 切 62 天）；reloadCheckins 给打卡后刷新；提醒 prefs 用到才读（loadPrefs）
 │   │   │   ├── trainingData.ts      # 纯函式：第几周、打卡要查哪几段、换着玩排序、评估结果（走 gridDimensions）、12 周打卡格；详情的系列列／年龄提醒（ageFit）；打卡成功的数字（checkinSummary）
 │   │   │   ├── ReportEntry.tsx      # 报告入口（§3.1）；PlanScreen.tsx 计划页（§3.2）
-│   │   │   ├── DetailScreen.tsx     # 活动详情（§3.3，票 7）：大图进画面才载片、系列列、年龄提醒、四个图示；脚本那几区只有模组一有
+│   │   │   ├── DetailScreen.tsx     # 活动详情（§3.3，票 7）：大图进画面才载片、系列列、年龄提醒、四个图示；脚本那几区有脚本才出（客户总册 300 支都有）
 │   │   │   ├── PlayerScreen.tsx     # 按 GO 之后（§3.4、§3.5）：样式 A（先带声音→静音→播放钮）与图文模式；最后一步打卡
 │   │   │   ├── CheckinScreen.tsx    # 打卡成功（§3.6）：第 N 次、本周次数、x/4、七天格、心情与进步（PATCH，依序送）
 │   │   │   ├── DetailSheets.tsx     # 抽屉：动作列表、要准备、跟练方式、投屏说明；ReminderSheet.tsx 加到日历（PUT prefs＋.ics 短时效连结）
@@ -79,7 +79,7 @@
 │   │   ├── itemTags.ts    # §5.9 的逐题标签表（asb／asr／adl／mchat 四支＋gm／asq／warn 几条）
 │   │   ├── act300.ts      # 旧原型 300 支活动的名称与适龄原文（脚本产出，勿手改）
 │   │   ├── activitySeed.ts # 活动库种子：模组＝ceil(编号/20)、适龄字串→月龄、附录 B.3 的维度初值
-│   │   ├── activityContent.ts # 客户手册 300 张卡＋模组一 20 支脚本的原文（脚本产出，勿手改；Keep 规格 K03）
+│   │   ├── activityContent.ts # 客户手册 300 张卡＋脚本总册 300 支的原文（脚本产出，勿手改；Keep 规格 K03、v3 P15）
 │   │   ├── activityMedia.ts # 示范片清单 17 支：网址、封面、片长、sha256（脚本产出，勿手改；Keep 规格 K05）
 │   │   ├── interimPlan.ts # 暂行题量（使用者 2026-09-29）：每个被标记的维度只列一份（星号工具）、全部必做；选做／加测／补充问卷先不出，只套在 `GET /api/t2/plan`
 │   │   ├── trainingGate.ts # 「线上干预」自己的收费站（2026-09-29）：哪几支算线上干预、`TRAINING_PRICE_FEN`（现在只能 0＝免费）
@@ -106,9 +106,10 @@
 │       ├── dateUtils.ts   # 日期工具函数
 │       ├── reportUtils.ts # 报告生成工具
 │       ├── activitySteps.ts # 分解步骤怎么读：指令必填、图选填（ADR-0008）、最多 20 步
-│       └── activityGuide.ts # 模组一脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
+│       └── activityGuide.ts # 影片导引脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
 ├── NEWT2/                 # 客户 2026-09-08 评估工具包 zip 与 09-10 纸本版 zip（题库的来源）；
-│                          # 09-23 活动内容包里的两份 docx（手册总册、模组一脚本，原封不动取出；zip 与 mp4 不进 git）
+│                          # 09-23 活动内容包里的两份 docx（手册总册、模组一脚本，原封不动取出；zip 与 mp4 不进 git）；
+│                          # 10-06 的《影片导引脚本·总册·300 支》（取代模组一单册当抽取来源）
 ├── media/                 # 示范片与封面（scripts/t2-prepare-media.ts 产出，不进 git；部署时另传到主机，server.ts 挂在 /media）
 └── assets/                # 静态资源
 ```
@@ -144,7 +145,7 @@ npx tsx scripts/t2-extract-act300.ts --check
 # 活动库种子 → 迁移档 deploy/migrations/2026-09-11-activities.sql 标记之间的 INSERT
 npx tsx scripts/t2-activity-seed-sql.ts --check
 
-# 活动内容（Keep 规格 K03）：NEWT2/ 的手册总册与模组一脚本 docx → src/t2/activityContent.ts
+# 活动内容（Keep 规格 K03；v3 P15）：NEWT2/ 的手册总册与脚本总册 docx → src/t2/activityContent.ts
 # ＋ 迁移档 deploy/migrations/2026-09-23-activity-content.sql 标记之间的 UPDATE；顺便列出与 act300.ts 不一致的标题／适龄
 npx tsx scripts/t2-extract-activity-content.ts
 npx tsx scripts/t2-extract-activity-content.ts --check
@@ -184,7 +185,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > 护栏：`test/activitiesAdmin.http.test.ts`、`test/activitiesAdmin.structure.test.ts`（唯一的 POST 是 `/activities/import`）、
 > `test/activityAdmin.test.ts`、`test/activityGuide.test.ts`。
 >
-> 活动内容（Keep 规格 K02／K03，2026-09-23）：手册每张卡的原文（`age_label` 到 `deeper`）、模组一的脚本（`guide`，
+> 活动内容（Keep 规格 K02／K03，2026-09-23）：手册每张卡的原文（`age_label` 到 `deeper`）、影片导引脚本（`guide`，2026-10-06 起 300 支都有，来源是脚本总册；人物配置 A017／A030／A040 取脚本，由 `2026-10-07-activity-people.sql` 改；分镜旁白可以空；
 > 形状见 `src/t2/types.ts` 的 `ActivityGuide`）与示范片封面／片长（`poster_url`／`video_seconds`，这份只加栏位，下一段的迁移才填）
 > 由 `deploy/migrations/2026-09-23-activity-content.sql` 加栏位并写入；**可重跑**：文字与 `guide` 只填 NULL、
 > `steps` 只填还是空阵列的。`src/t2/activityContent.ts` 与那份迁移的 UPDATE 都由抽取脚本从 `NEWT2/` 的两份 docx

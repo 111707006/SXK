@@ -7,7 +7,7 @@
  *
  * - 《儿童居家训练入门手册·300 个亲子活动·总册》：300 張卡（需要什么／练什么／怎么玩／简单与难一点／
  *   💡小提醒／📖想深入练）。
- * - 《居家训练影片导引脚本·模组一·身体动一动》：A001–A020 的腳本十段。
+ * - 《居家训练影片导引脚本·总册·300 支》（2026-10-06，取代 9/23 的《模组一》單冊；模組一逐字相同）：A001–A300 的腳本十段。
  *
  * zip 本身不進 git（mp4 不進 git）；讀 zip 也做不到 —— 它的檔名沒有設 UTF-8 旗標，`zip.ts` 不猜編碼。
  * 抽出兩份 docx 進 git，`--check` 與 `test/activityContent.test.ts` 才在 CI 跑得動。
@@ -34,11 +34,11 @@ import { GUIDE_PREP_KEYS } from '../../src/t2/types';
 import type { ActivityGuide } from '../../src/t2/types';
 
 export const HANDBOOK_DOCX = 'NEWT2/森心康_儿童居家训练入门手册_300个亲子活动_总册.docx';
-export const GUIDE_DOCX = 'NEWT2/森心康_居家训练影片导引脚本_模组一_身体动一动.docx';
+export const GUIDE_DOCX = 'NEWT2/森心康_居家训练影片导引脚本_总册_300支.docx';
 export const ACTIVITY_CONTENT_MODULE = 'src/t2/activityContent.ts';
 
 export const HANDBOOK_CARD_COUNT = 300;
-export const GUIDE_SCRIPT_COUNT = 20;
+export const GUIDE_SCRIPT_COUNT = 300;
 
 /** 手冊的一張卡，欄位名對到 `Activity`（§4.1）。 */
 export interface HandbookCard {
@@ -55,11 +55,13 @@ export interface HandbookCard {
   deeper: string;
 }
 
-/** 腳本的一支。標題與適齡只拿來跟 act300 比，不進資料庫（那兩欄的來源是手冊）。 */
+/** 腳本的一支。標題與適齡只拿來跟 act300 比，不進資料庫（那兩欄的來源是手冊）；人物配置進資料庫（P15）。 */
 export interface GuideScript {
   no: number;
   title: string;
   ageLabel: string;
+  /** 人物配置。與手冊不同時以腳本為準（v3 規格 P15，總冊較新）。 */
+  people: string;
   guide: ActivityGuide;
 }
 
@@ -238,10 +240,19 @@ export function parseHandbook(blocks: DocxBlock[], expected = HANDBOOK_CARD_COUN
 const GUIDE_HEAD = /^活动 (\d{3})　(\S.*)$/;
 
 function guideNo(b: DocxBlock): number | null {
-  if (b.kind !== 'table' || b.rows.length !== 2 || b.rows[0].length !== 2 || b.rows[1].length !== 1) return null;
+  if (b.kind !== 'table' || b.rows[0]?.length !== 2) return null;
+  // 模組一單冊（9/23）：一張 2 列的表；總冊（10/06）：標題那一列自己一張表，「适合年龄」那一格是下一張表。
+  const twoRows = b.rows.length === 2 && b.rows[1].length === 1;
+  if (!twoRows && b.rows.length !== 1) return null;
   const m = GUIDE_HEAD.exec(b.rows[0][0]);
   return m ? Number(m[1]) : null;
 }
+
+/**
+ * 腳本後面、下一支前面，總冊會插模組的扉頁與活動清單（「动作体能」「模组二」「021　走在软软的路上　2–8岁 ｜ …」）。
+ * 那些跳過；但腳本的段落標籤出現在那裡就是排版變了 —— 那一段屬於哪一支，這裡不猜。
+ */
+const GUIDE_LABEL = /^([一二三四五六七八九十]、|▎镜头|旁白　|画面　|如果　|→ |降一阶　|升一阶　|✓ |▸ )/;
 
 const SHOT_NUMERALS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 
@@ -264,6 +275,11 @@ function unquote(raw: string, where: string): string {
   return value(s.slice(1, -1), where);
 }
 
+/** 分鏡的旁白可以是一對空的「」：客戶腳本裡不出聲的鏡頭（例 A121 鏡頭二「孩子转头」），抽成空字串。 */
+function unquoteSay(raw: string, where: string): string {
+  return raw.trim() === '「」' ? '' : unquote(raw, where);
+}
+
 function numbered(c: Cursor, where: string): string[] {
   const items: string[] = [];
   for (let m = c.tryParagraph(/^(\d+)\. ([\s\S]*)$/); m; m = c.tryParagraph(/^(\d+)\. ([\s\S]*)$/)) {
@@ -275,13 +291,14 @@ function numbered(c: Cursor, where: string): string[] {
 }
 
 export function parseGuideScripts(blocks: DocxBlock[], expected = GUIDE_SCRIPT_COUNT): GuideScript[] {
-  return segments(blocks, guideNo, expected, '模組一的腳本').map(({ no, head, body }) => {
+  return segments(blocks, guideNo, expected, '腳本').map(({ no, head, body }) => {
     const where = `腳本 ${pad(no)}`;
     const rows = (head as Extract<DocxBlock, { kind: 'table' }>).rows;
-    const length = /^影片长度 (\S.*)$/.exec(rows[0][1]);
-    const meta = /^适合年龄 (\S+)　｜　人物配置 (\S+)　｜　\S.*$/.exec(rows[1][0]);
-    if (!length || !meta) throw new Error(`${where}：標頭那張表不是「影片长度」「适合年龄｜人物配置｜模组」`);
     const c = new Cursor(body, where);
+    const length = /^影片长度 (\S.*)$/.exec(rows[0][1]);
+    const metaCell = rows.length === 2 ? rows[1][0] : c.table([1], '「适合年龄｜人物配置｜模组」那一格')[0][0];
+    const meta = /^适合年龄 (\S+)　｜　人物配置 (\S+)　｜　\S.*$/.exec(metaCell);
+    if (!length || !meta) throw new Error(`${where}：標頭不是「影片长度」「适合年龄｜人物配置｜模组」`);
 
     c.heading('一、片头旁白（可直接念）');
     const intro = unquote(c.table([1], '片頭旁白那一格')[0][0], `${where}片頭旁白`);
@@ -300,7 +317,7 @@ export function parseGuideScripts(blocks: DocxBlock[], expected = GUIDE_SCRIPT_C
     for (let m = c.tryParagraph(/^▎镜头(\S) · ([\s\S]*)$/); m; m = c.tryParagraph(/^▎镜头(\S) · ([\s\S]*)$/)) {
       if (m[1] !== SHOT_NUMERALS[shots.length]) throw new Error(`${where}第 ${shots.length + 1} 個鏡頭的編號是「${m[1]}」`);
       const name = value(m[2], `${where}鏡頭${m[1]}的名稱`);
-      const say = unquote(c.paragraph(/^旁白　+([\s\S]*)$/, `鏡頭${m[1]}的「旁白」`)[1], `${where}鏡頭${m[1]}的旁白`);
+      const say = unquoteSay(c.paragraph(/^旁白　+([\s\S]*)$/, `鏡頭${m[1]}的「旁白」`)[1], `${where}鏡頭${m[1]}的旁白`);
       c.paragraph(/^画面　+\S/, `鏡頭${m[1]}的「画面」`); // 畫面描述：給拍片的人看的，不抽
       shots.push({ name, say });
     }
@@ -337,13 +354,15 @@ export function parseGuideScripts(blocks: DocxBlock[], expected = GUIDE_SCRIPT_C
       /* 略過 */
     }
     for (const b of c.rest()) {
-      if (b.kind !== 'p' || b.text !== '') throw new Error(`${where}：拍攝提示後面多了東西`);
+      if (b.kind === 'table') throw new Error(`${where}：拍攝提示後面多了一張表`);
+      if (GUIDE_LABEL.test(b.text)) throw new Error(`${where}：拍攝提示後面多了「${b.text.slice(0, 20)}」`);
     }
 
     return {
       no,
       title: value(GUIDE_HEAD.exec(rows[0][0])![2], `${where}的標題`),
       ageLabel: meta[1],
+      people: meta[2],
       guide: {
         length: value(length[1], `${where}的影片長度`),
         intro,
@@ -367,6 +386,7 @@ export function parseGuideScripts(blocks: DocxBlock[], expected = GUIDE_SCRIPT_C
 
 export function mergeContent(cards: ReadonlyArray<HandbookCard>, scripts: ReadonlyArray<GuideScript>): ActivityContentEntry[] {
   const byNo = new Map(scripts.map(s => [s.no, s.guide] as const));
+  const peopleByNo = new Map(scripts.map(s => [s.no, s.people] as const));
   for (const s of scripts) {
     if (!cards.some(c => c.no === s.no)) throw new Error(`腳本 ${pad(s.no)} 在手冊裡沒有對應的卡`);
   }
@@ -374,7 +394,7 @@ export function mergeContent(cards: ReadonlyArray<HandbookCard>, scripts: Readon
     id: activityIdOf(c.no),
     title: c.title,
     ageLabel: c.ageLabel,
-    people: c.people,
+    people: peopleByNo.get(c.no) ?? c.people, // 腳本較新，以它為準（v3 規格 P15）
     need: c.need,
     trains: c.trains,
     steps: [...c.steps],
@@ -384,6 +404,20 @@ export function mergeContent(cards: ReadonlyArray<HandbookCard>, scripts: Readon
     deeper: c.deeper,
     guide: byNo.get(c.no) ?? null,
   }));
+}
+
+/** 人物配置手冊與腳本寫得不一樣的那幾支（總冊 2026-10-06：A017、A030、A040）。資料庫那一側由 2026-10-07 的遷移改。 */
+export interface PeopleOverride {
+  id: string;
+  handbook: string;
+  script: string;
+}
+
+export function peopleOverrides(cards: ReadonlyArray<HandbookCard>, scripts: ReadonlyArray<GuideScript>): PeopleOverride[] {
+  return scripts.flatMap(s => {
+    const card = cards.find(c => c.no === s.no);
+    return card && card.people !== s.people ? [{ id: activityIdOf(s.no), handbook: card.people, script: s.people }] : [];
+  });
 }
 
 export interface ContentMismatch {
@@ -443,7 +477,7 @@ export function emitActivityContentModule(entries: ReadonlyArray<ActivityContent
   return [
     '/**',
     ' * 客戶的活動內容：《儿童居家训练入门手册·300 个亲子活动·总册》300 張卡，',
-    ' * 加上《居家训练影片导引脚本·模组一·身体动一动》A001–A020 的腳本（Keep 規格 §4.1、§4.2）。',
+    ' * 加上《居家训练影片导引脚本·总册·300 支》A001–A300 的腳本（Keep 規格 §4.1、§4.2；v3 規格 P15）。',
     ' *',
     ' * 由 `scripts/t2-extract-activity-content.ts` 從下面兩份 docx 產生，**請勿手改** —— 改了下一次重跑',
     ' * 就會被蓋掉，而且 `test/activityContent.test.ts` 會比對這一份與腳本重跑的結果。',
@@ -465,7 +499,7 @@ export function emitActivityContentModule(entries: ReadonlyArray<ActivityContent
     '  title: string;',
     '  /** 適齡原文「6个月–3岁」。 */',
     '  ageLabel: string;',
-    '  /** 人物配置「亲子」「亲子或全家」…… */',
+    '  /** 人物配置「亲子」「亲子或全家」……；手冊與腳本不同時取腳本。 */',
     '  people: string;',
     '  /** 需要什么。 */',
     '  need: string;',
@@ -480,7 +514,7 @@ export function emitActivityContentModule(entries: ReadonlyArray<ActivityContent
     '  tip: string;',
     '  /** 📖 想深入练（不含「想深入练：」）。 */',
     '  deeper: string;',
-    '  /** 模組一的腳本；其餘是 null。 */',
+    '  /** 腳本（總冊 300 支都有）；後台新增的活動是 null。 */',
     '  guide: ActivityGuide | null;',
     '}',
     '',

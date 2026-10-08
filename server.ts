@@ -3787,6 +3787,8 @@ app.use(
               sendHandoffInvite(phone, code, handoffInviteUrl(HANDOFF_SOURCE_CONFIG.targetOrigin, code)),
           }
         : undefined,
+      // 後台上傳示範片與封面（使用者 2026-10-08）：寫進同一個 `/media` 目錄。只有專案 A（B 沒有活動）。
+      activityMediaDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
     }
   )
 );

@@ -72,6 +72,7 @@
 │   │   ├── shape.ts       # 快照形状 `version: 't1-real-1'`、`perDimension`；画面看它换版（`isRealT1Report`）
 │   │   ├── report.ts      # 模板（照这个孩子的作答组）、验证器、「呼叫模型 → 验证 → 不过退模板」
 │   │   ├── rules.ts       # 验证器与提示共用的字数、禁止清单（不进用字扫描）
+│   │   ├── legacy.ts      # 旧版本地模板（原样从 server.ts 搬来，输出不变；开关关着与专案 B 用、对照脚本用；含旧文案，不进用字扫描）
 │   │   └── prompt.ts      # 给模型的提示：逐题作答＋用字规范（含禁止清单，不进用字扫描）
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
 │   │   ├── core.ts        # 产码、杂凑、设定（HANDOFF_*）、两端之间那一包的形状（伺服器专用）
@@ -178,6 +179,13 @@ npx tsx scripts/t2-extract-activity-content.ts --check
 # ＋ src/t2/activityMedia.ts ＋ 迁移档 deploy/migrations/2026-09-24-activity-media.sql 标记之间的 UPDATE；要 ffmpeg／ffprobe
 npx tsx scripts/t2-prepare-media.ts --zip <zip 的路径>
 npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
+
+# T1 报告新旧对照（使用者 2026-10-08）：同一份输入各跑一次旧版模板（src/t1report/legacy.ts，tag t1-report-legacy 那一版的输出）
+# 与新版模板（templateT1Report），并排写成 Markdown。只走模板，不打网路、不叫模型；--out 不给就写到作业系统暂存目录（不进 repo）
+npx tsx scripts/t1-report-compare.ts --list                       # 内建的孩子（不同年龄段、全绿、一红、多黄、带历史）
+npx tsx scripts/t1-report-compare.ts --all [--out <路径>] [--mode t1only]
+npx tsx scripts/t1-report-compare.ts --sample one-red
+npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scores（含 items）, history?}
 ```
 
 > 活动库（ADR-0005）的 300 支种子是**算**出来的，不是手抄的：`act300.ts` 由脚本抽自旧原型，

@@ -45,8 +45,10 @@ describe('換版：看快照、只在專案 A', () => {
     expect(body).toContain('plain={real}');
   });
 
-  it('腦區拓撲圖只在舊版（腦區名稱與協同率不是從作答算的）', () => {
-    expect(body).toMatch(/\{!real && \(\s*<div className="space-y-4">\s*<NeuralNetworkTopology/);
+  it('腦區拓撲圖只在舊版（腦區名稱與協同率不是從作答算的）；新版換成九大能力关联图', () => {
+    expect(body).toMatch(/\{real \? \(\s*<AbilityLinksMap scores=\{scores\} \/>\s*\) : \(\s*<div className="space-y-4">\s*<NeuralNetworkTopology/);
+    expect(body.match(/<NeuralNetworkTopology/g)).toHaveLength(1);
+    expect(body.match(/<AbilityLinksMap/g)).toHaveLength(1);
   });
 
   it('每週課表：固定的第三張卡與設備標籤只在舊版', () => {
@@ -59,7 +61,7 @@ describe('換版：看快照、只在專案 A', () => {
 describe('新版沒有編出來的比較、預測與腦神經術語', () => {
   const FORBIDDEN = /百分位|常模|居同龄前|同龄前|%|％|ASQ|预测|预判|预计|回归|突触|前额叶|神经|脑区|环路|皮层/;
 
-  it.each(['src/components/ReportRealBlocks.tsx', 'src/t1report/report.ts', 'src/t1report/answers.ts'])('%s', rel => {
+  it.each(['src/components/ReportRealBlocks.tsx', 'src/t1report/report.ts', 'src/t1report/answers.ts', 'src/t1report/abilityLinks.ts', 'src/components/AbilityLinksMap.tsx'])('%s', rel => {
     const src = stripComments(read(rel))
       // 驗證器自己的字表在 rules.ts，這幾檔不該有；`${...}%` 這種寬度樣式不是給家長看的字。
       .replace(/width: `\$\{[^`]*\}%`/g, '');

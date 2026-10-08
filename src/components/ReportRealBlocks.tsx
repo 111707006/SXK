@@ -26,7 +26,7 @@ const STATUS_DOT: Record<string, string> = {
   delay: 'bg-rose-500',
 };
 
-const STATUS_HEX: Record<string, string> = {
+export const STATUS_HEX: Record<string, string> = {
   normal: '#10b981',
   borderline: '#f59e0b',
   delay: '#e11d48',

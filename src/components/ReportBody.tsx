@@ -13,6 +13,7 @@ import {
   IntegrationGauges, NeuralNetworkTopology, WeeklyRehabPlanner, PrognosisTrajectoryChart,
 } from './ReportCharts';
 import { AnswersOverview, ScreeningHistory } from './ReportRealBlocks';
+import { AbilityLinksMap } from './AbilityLinksMap';
 import { toConcernScore } from '../t1report/answers';
 import { isRealT1Report } from '../t1report/shape';
 
@@ -339,9 +340,12 @@ export default function ReportBody({
       */}
       {/*
         新版（T1_REPORT_REAL）不出腦區拓撲圖：腦區名稱與「协同率 X%」不是從作答算得出來的，跟新版的白話文字互相矛盾
-        （使用者 2026-10-08「照你想法」）。舊版報告照舊。
+        （使用者 2026-10-08「照你想法」）。換成「九大能力关联图」（使用者 2026-10-08）：九個能力照判定上色、十二條固定的關聯。
+        舊版報告照舊。
       */}
-      {!real && (
+      {real ? (
+        <AbilityLinksMap scores={scores} />
+      ) : (
         <div className="space-y-4">
           <NeuralNetworkTopology completedScores={scores} />
         </div>

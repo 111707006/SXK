@@ -64,6 +64,7 @@
 │   │   ├── LanguageSpecialAssessment.tsx # 语言专项评估
 │   │   ├── ReportCharts.tsx         # 报告图表（每周课表带 `plain`：新版 T1 报告不加固定的第三张卡与设备标签）
 │   │   ├── ReportRealBlocks.tsx     # 新版 T1 报告（`T1_REPORT_REAL`）的两块：「这次作答的样子」（取代仪表与同龄比较条）、「历次筛查对照」（取代预测曲线）
+│   │   ├── AbilityLinksMap.tsx      # 新版 T1 报告的「九大能力关联图」（取代脑区拓扑图）：内联 SVG，点能力／连线看说明
 │   │   ├── WearablesMall.tsx        # 穿戴设备商城
 │   │   ├── HandoffCard.tsx          # 专案 B 报告页「到森心康做深度评估」那张卡（ADR-0009）：放在 T2 插槽的位置，`/api/handoff/config` 开了才画
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
@@ -72,6 +73,7 @@
 │   │   ├── shape.ts       # 快照形状 `version: 't1-real-1'`、`perDimension`；画面看它换版（`isRealT1Report`）
 │   │   ├── report.ts      # 模板（照这个孩子的作答组）、验证器、「呼叫模型 → 验证 → 不过退模板」
 │   │   ├── rules.ts       # 验证器与提示共用的字数、禁字检查、预测要接的免责句（不进用字扫描）
+│   │   ├── abilityLinks.ts # 九大能力关联图的 12 条关联、粗线规则（两头都被标记）与句子（进用字扫描）
 │   │   ├── legacy.ts      # 旧版本地模板（原样从 server.ts 搬来，输出不变；开关关着与专案 B 用、对照脚本用；含旧文案，不进用字扫描）
 │   │   └── prompt.ts      # 给模型的提示：逐题作答＋用字规范（含禁止清单，不进用字扫描）
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
@@ -356,11 +358,14 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 >   再挡一次。旧快照照旧画（那是家长当时看到的）。「这次作答的样子」＝做到几项／36、三种作答分布、「接下来可以多练的」；
 >   没有逐题作答（R1b 之前的成绩）只写合计分数。「历次筛查对照」＝这位家长自己的报告快照（到这一份为止，最多 6 份）。
 >   「后续发展预判」改叫「接下来怎么做」（栏位名沿用 `prognosisPrediction`，旧的读取端不必改）。后台详情、列印、扫码页读得到新版。
-> - 还没动：「神经网络发展拓扑图」（脑区术语与「协同率 X%」）不在这次的范围，新旧版都还在。
+> - 「神经网络发展拓扑图」（脑区术语与「协同率 X%」）只在旧版；新版换成「九大能力关联图」（`src/components/AbilityLinksMap.tsx`，
+>   资料与句子在 `src/t1report/abilityLinks.ts`，使用者 2026-10-08 定的 12 条关联与白话句）：九个能力照这次的判定上色，
+>   两头都被标记的线画粗、上色，点开多一句「这两项常常一起进步」；没有脑区、百分比、题目原文。点与线都是可键盘操作的按钮。
 > 护栏：`test/t1ReportAnswers.test.ts`、`test/t1ReportReal.test.ts`（模板穷举年龄段×作答都过验证器、验证器挡下的十几种坏输出、三种出口）、
 > `test/t1ReportReal.http.test.ts`、`test/t1ReportRealProjectB.http.test.ts`（B 设了不生效）、`test/t1ReportRealSwitch.test.ts`（认不得的值起不来）、
 > `test/t1ReportView.structure.test.ts`（只在 A 换版、B 走旧的几块、新版画面与模板没有百分位／ASQ／预测／脑神经术语、快照读回）；
-> 用字扫描 `test/parentWording.structure.test.ts` 加了 `src/t1report/` 的三档与 `ReportRealBlocks.tsx`。
+> `test/t1AbilityLinks.test.ts`（12 条、每个能力 2–3 条、粗线规则、句子没有禁字／脑区／百分比／题目）、`test/t1ReportCompare.test.ts`（对照脚本）；
+> 用字扫描 `test/parentWording.structure.test.ts` 加了 `src/t1report/` 的几档、`ReportRealBlocks.tsx` 与 `AbilityLinksMap.tsx`。
 
 > 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／
 > `offline_training`／`offline_consult` 之一，定义在 `src/utils/serviceTypes.ts`。

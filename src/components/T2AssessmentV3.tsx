@@ -5,6 +5,7 @@ import { formatAge } from '../utils/dateUtils';
 import { RATER_OPTIONS } from '../t2/answering';
 import { GRADE_LABELS, formV3, isNa, keepAnswersFor, missingV3, setNa, type V3Answers } from '../t2/answeringV3';
 import { KITV3_LOADERS } from '../t2/kitv3/lazy';
+import { clearDraft, loadDraft, ownerOf, saveDraft } from '../t2/draftV3';
 import type { ScoreContext } from '../t2/kitv3/score';
 import type { KitV3Bank } from '../t2/kitv3/types';
 import type { PlanV3Response } from '../t2/recommend/parentPlan';
@@ -42,6 +43,16 @@ function formatDay(iso: string): string {
  * 【題目】那一支的題庫在打開時才下載（`KITV3_LOADERS`），表單走 `formV3`（與伺服器驗卷同一份 `askedItems`），
  * 這一檔不手抄任何一題。月齡用 plan 上的 `answerAgeMonth`、情境用 `context`，與伺服器一致。
  */
+/** 草稿用的帳號標籤：登入時存的那一個（讀不到就不存草稿）。 */
+function draftOwner(): string | null {
+  try {
+    const identity = window.localStorage.getItem('senxinkang_user_email');
+    return identity ? ownerOf(identity) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2AssessmentV3Props) {
   const [completed, setCompleted] = useState<Record<string, string>>(
     Object.fromEntries(plan.completed.map(c => [c.code, c.createdAt])),
@@ -56,6 +67,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  /** 這一份是接著上次的草稿答的（表單上方出一行字）。 */
+  const [resumed, setResumed] = useState(false);
+  const owner = useMemo(draftOwner, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,8 +103,19 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     setFlash(null);
     setLoadingBank(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setResumed(false);
     try {
-      setBank(await load());
+      const loaded = await load();
+      // 上次沒答完的草稿：照這次的表單留下還在的題（月齡段換了的題自然丟掉）
+      const draft = owner ? loadDraft(owner, tool.code) : null;
+      if (draft) {
+        const g = loaded.family === 'ld' ? draft.grade : undefined;
+        setRater(draft.rater);
+        setGrade(g);
+        setAnswers(keepAnswersFor(formV3(loaded, { ageM: plan.answerAgeMonth, ...plan.context, ...(g !== undefined ? { grade: g } : {}) }), draft.answers));
+        setResumed(Object.keys(draft.answers).length > 0);
+      }
+      setBank(loaded);
     } catch (err) {
       console.warn('Failed to load T2 v3 bank:', err);
       setError('暂时打不开这份问卷，请稍后再试。');
@@ -111,6 +136,12 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     setGrade(g);
     setAnswers(a => keepAnswersFor(formV3(bank, { ...ctx, grade: g }), a));
   };
+
+  // 作答中每一次改動都存草稿（交卷成功才清）
+  useEffect(() => {
+    if (!owner || !selected || !bank) return;
+    saveDraft(owner, selected.code, { rater, ...(grade !== undefined ? { grade } : {}), answers });
+  }, [owner, selected, bank, rater, grade, answers]);
 
   const ready = rater !== null && missing.length === 0;
 
@@ -136,6 +167,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
         setError(typeof body?.error === 'string' ? body.error : '暂时无法保存这份问卷，请稍后再试。');
         return;
       }
+      if (owner) clearDraft(owner, selected.code);
       setCompleted(c => ({ ...c, [selected.code]: body.createdAt }));
       setFlash(`「${selected.name}」已完成，已记录。`);
       closeTool();
@@ -200,6 +232,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           <p className="text-[11px] text-brand-charcoal/70 mt-0.5">
             按孩子现在 {formatAge(plan.answerAgeMonth)} 出题；请照孩子平常的表现作答。
           </p>
+          {resumed && (
+            <p className="text-[11px] text-brand-moss font-semibold mt-1" id="t2v3-resumed">已接着上次没答完的地方继续，答案都还在。</p>
+          )}
         </div>
 
         <section className="space-y-2">

@@ -34,5 +34,9 @@
 | 2026-10-08 | 報告文字 | v3 報告接 AI（使用者 10/08：跟 T1 報告串接相同）：`proseV3.ts`（形狀、驗證、模板、生成）、`promptV3.ts`；`POST /api/t2/findings` v3 存模型或模板的 prose；報告頁出總覽段、各方面段落、沒有問卷那幾句、結尾 | `054f7d8` | 模板對 24 支 × 窗口頭中尾 × 最好／最差全過驗證器；HTTP 三出口（合格／寫壞／全掛）；用字掃描 |
 | 2026-10-08 | R-33 | 每維一份（ADR-0011）：引擎 `onePerDimension`（預設關，客規逐格測試不動）；`runRecommendation` 開著跑、診斷不進；社交溝通警訊（點名卡住的 T1 題）、情緒那一題、抽動改成入口與報告最上方提示＋預約；孩子資料拿掉診斷那一題 | `15c29f8` 與下一個 commit | 月齡 12–216 × 抽樣 1230 份：每維最多一份主測、被標記的都有一份或列缺口、不推 M-CHAT／抽動量表；全套綠 |
 | 2026-10-08 | R-33 補充 | 分齡發育綜合評估合併：66 月以下動作／語言／認知／社交 ≥3 個黃燈且無紅燈 → 一份涵蓋（引擎看 T1 畫面顏色 `t1Colors`） | `43e3084` | `t2RecommendOnePerDimension` 合併五條 |
+| 2026-10-08 | T1 報告 3 | 舊版留存（tag `t1-report-legacy`、分支 `legacy/t1-report`）；舊模板搬 `src/t1report/legacy.ts`；新舊並排腳本 `scripts/t1-report-compare.ts`（分支 `t1-report-real`） | `acb4ada`、`0a49ac6` | `t1ReportCompare`；舊模板函式本體逐行對 tag 版相同 |
+| 2026-10-08 | T1 報告 6、7 | 驗證器只擋禁字；預測要接「一般经验，每个孩子进度不同」；題目原文豁免仍在 | `03a6e56` | `t1ReportReal` |
+| 2026-10-08 | T1 報告 4 | 九大能力关联图取代腦區拓撲圖（A 新版） | `390deb4` | `t1AbilityLinks`、用字掃描；375 寬實看 |
+| 2026-10-08 | T1 報告 5 | 「相关产品」照被標記方面挑商城產品（A 新版最底下；不進提示） | `3631a14` | `t1RelatedProducts`；`t1-report-real` 全套 205 檔 4239 項綠 |
 | — | 推薦 R5 | 退場：`interimPlan.ts`、`SINGLE_FORM_PER_DIMENSION`、`planT2` 診斷方向表參數、`t2InterimPlan.test.ts` | 延後 | 開關關著時舊路徑還在用暫行題量；`T2_RECOMMEND_V3` 正式打開並驗收後才拿 |
 | — | 推送票 6 | 拿掉舊配對 | 延後 | 規格 §6.4：開關正式打開、觀察一段時間後另開票 |

@@ -121,6 +121,11 @@ const PARENT_FACING_FILES = [
   'src/t2/reportCopyV3.ts',
   // 2026-10-08：v3 報告的模板退路（提示 promptV3.ts 含禁止清單，同 prompt.ts 不掃）
   'src/t2/report/proseV3.ts',
+  // 2026-10-08（T1_REPORT_REAL）：新版 T1 報告的模板句與作答說法。提示 `src/t1report/prompt.ts` 與
+  // 用字規則 `src/t1report/rules.ts` 含禁止清單，同 prompt.ts 不掃。
+  'src/t1report/report.ts',
+  'src/t1report/answers.ts',
+  'src/t1report/shape.ts',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

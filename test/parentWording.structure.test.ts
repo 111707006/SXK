@@ -126,6 +126,7 @@ const PARENT_FACING_FILES = [
   'src/t1report/report.ts',
   'src/t1report/answers.ts',
   'src/t1report/shape.ts',
+  'src/components/ReportRealBlocks.tsx',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

@@ -86,8 +86,13 @@ export interface AssessmentRecord {
     neuralPathwayAnalysis: string; // 神经环路分析
     rehabSuggestions: string[];   // 针对性康复建议
     homeGuidance: string[];        // 家庭指导方案
-    prognosisPrediction: string;   // 预后轨迹预测
-    criticalMetrics: {
+    prognosisPrediction: string;   // 预后轨迹预测（新版 T1 報告放的是「接下来怎么做」，見 src/t1report/shape.ts）
+    /** 新版 T1 報告（`T1_REPORT_REAL`）才有：`'t1-real-1'`。畫面看它換版。 */
+    version?: string;
+    /** 新版 T1 報告才有：被標記的每一方面一段說明。 */
+    perDimension?: Array<{ dimensionId: string; note: string }>;
+    /** 舊報告才有（模型照 45–98 填的，新版不產）。T2/T3 的專項報告也用它。 */
+    criticalMetrics?: {
       neuralPlasticity: number;     // 神经可塑性 (0-100)
       sensoryIntegration: number;   // 感统协同度
       familyEnvironmentScore: number; // 家庭环境赋能

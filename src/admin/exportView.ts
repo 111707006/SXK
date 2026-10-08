@@ -28,6 +28,7 @@ import { formatDateTime as fmtDate, genderLabel, statusLabel } from './adminView
 import { ageBandDrift } from '../utils/ageBandDrift';
 import { isOfflineService, serviceTypeLabel } from '../utils/serviceTypes';
 import { BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from '../brandFont';
+import { dimensionNotesOf, isRealT1Report } from '../t1report/shape';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -104,6 +105,9 @@ export function renderParentExportHtml(
       ? withAi.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0]
       : withAi.find(r => r.id === options.reportId);
   const ai = latestReport?.aiReport;
+  // 新版報告的分維度段落只存 id；名字取那一份報告自己的成績（快照），讀不到就印 id。
+  const dimensionNameOf = (id: string): string =>
+    (Array.isArray(latestReport?.scores) ? latestReport!.scores : []).find(s => s?.dimensionId === id)?.dimensionName ?? id;
 
   const scoreRows = parent.scores
     .map(
@@ -219,11 +223,19 @@ ${BRAND_FONT_LINK_TAG}
   <h2>AI 发展报告</h2>
   ${
     ai
-      ? `<p><strong>总结：</strong>${esc(ai.summary)}</p>
+      ? `${isRealT1Report(ai)
+          // 新版 T1 報告（T1_REPORT_REAL，只在 A）：沒有腦神經那一段；被標記的方面各一段；
+          // 最後一段是「接下来怎么做」，不是預判（欄位名沿用）。舊報告照下面那一份，一個字不變。
+          ? `<p><strong>总结：</strong>${esc(ai.summary)}</p>
+         ${dimensionNotesOf(ai).map(n => `<p><strong>${esc(dimensionNameOf(n.dimensionId))}：</strong>${esc(n.note)}</p>`).join('')}
+         <p><strong>练习建议：</strong></p>${list(ai.rehabSuggestions)}
+         <p><strong>家庭指导：</strong></p>${list(ai.homeGuidance)}
+         <p><strong>接下来怎么做：</strong>${esc(ai.prognosisPrediction)}</p>`
+          : `<p><strong>总结：</strong>${esc(ai.summary)}</p>
          <p><strong>神经环路分析：</strong>${esc(ai.neuralPathwayAnalysis)}</p>
          <p><strong>康复建议：</strong></p>${list(ai.rehabSuggestions)}
          <p><strong>家庭指导：</strong></p>${list(ai.homeGuidance)}
-         <p><strong>预后预判：</strong>${esc(ai.prognosisPrediction)}</p>
+         <p><strong>预后预判：</strong>${esc(ai.prognosisPrediction)}</p>`}
          <p class="meta">报告来源：${
            latestReport?.isAiGenerated === true
              ? 'AI 生成'

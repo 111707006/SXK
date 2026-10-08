@@ -363,7 +363,12 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
 // ==========================================
 // 3. WeeklyRehabPlanner: Calendar Task Scheduler
 // ==========================================
-export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSuggestions: string[], homeGuidance: string[] }) {
+/**
+ * `plain`（新版 T1 報告，`T1_REPORT_REAL`，只在專案 A）：只排報告自己的建議 ——
+ * 不再每天塞一張固定的「前额叶神经调适游戏」、不標「智能肌电／脑波感应带」這些家長手上沒有的設備、
+ * 不寫「完成以获取动态报告提升」（打勾不會改變任何報告）。舊報告與專案 B 照舊（`plain` 沒給）。
+ */
+export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance, plain = false }: { rehabSuggestions: string[], homeGuidance: string[], plain?: boolean }) {
   const [selectedDay, setSelectedDay] = useState<number>(0);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
@@ -386,11 +391,11 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
       const rehabIndex = dayIndex % rehabSuggestions.length;
       tasks.push({
         id: `rehab-${dayIndex}`,
-        type: 'OT/PT 核心训练',
+        type: plain ? '针对性练习' : 'OT/PT 核心训练',
         text: rehabSuggestions[rehabIndex],
-        time: '30分钟',
+        time: plain ? '15分钟' : '30分钟',
         intensity: dayIndex % 2 === 0 ? '适中负荷' : '低度负荷',
-        sensorBadge: '智能肌电/重力仪支持',
+        sensorBadge: plain ? '' : '智能肌电/重力仪支持',
         intensityClass: dayIndex % 2 === 0 ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-brand-sage text-brand-forest border border-brand-moss/30'
       });
     }
@@ -402,15 +407,15 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
         id: `home-${dayIndex}`,
         type: '居家亲子游戏',
         text: homeGuidance[homeIndex],
-        time: '20分钟',
+        time: plain ? '10分钟' : '20分钟',
         intensity: '低度负荷',
-        sensorBadge: '无需设备/亲子伴谈',
+        sensorBadge: plain ? '' : '无需设备/亲子伴谈',
         intensityClass: 'bg-brand-sage text-brand-forest border border-brand-moss/30'
       });
     }
 
-    // Always append secondary standard visual tracking
-    tasks.push({
+    // Always append secondary standard visual tracking（新版不加：每個孩子同一張、與作答無關）
+    if (!plain) tasks.push({
       id: `std-${dayIndex}`,
       type: '前额叶神经调适游戏',
       text: '进行前额叶控制游戏：听单一哨音指令前移跨平衡墩，听双哨音指令闭眼静立15秒，刺激抗分心与神经抑制环路。',
@@ -427,7 +432,7 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
   
   // Calculate completion percentage of current day
   const currentCheckedCount = currentTasks.filter(t => checkedItems[t.id]).length;
-  const completionPercentage = Math.round((currentCheckedCount / currentTasks.length) * 100);
+  const completionPercentage = currentTasks.length > 0 ? Math.round((currentCheckedCount / currentTasks.length) * 100) : 0;
 
   const toggleCheck = (id: string) => {
     setCheckedItems(prev => ({
@@ -440,7 +445,7 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
     <div className="space-y-4">
       <h4 className="text-sm font-bold text-brand-forest flex items-center gap-1.5 font-serif italic pb-1">
         <Calendar size={16} className="text-brand-moss" />
-        多维感官康复与训练周计划图 (7日智能化干预行事历)
+        {plain ? '一周居家练习安排' : '多维感官康复与训练周计划图 (7日智能化干预行事历)'}
       </h4>
 
       <div className="bg-white rounded-3xl border border-brand-stone p-5 shadow-sm text-left">
@@ -466,17 +471,17 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
 
           <div className="ml-auto flex items-center gap-2 px-3 py-1 bg-brand-sage/20 border border-brand-moss/20 rounded-xl shrink-0">
             <div className="w-8 h-8 rounded-full bg-white border border-brand-stone flex items-center justify-center text-[10px] font-extrabold text-brand-forest">
-              {completionPercentage}%
+              {plain ? `${currentCheckedCount}/${currentTasks.length}` : `${completionPercentage}%`}
             </div>
             <div className="text-left leading-none">
-              <span className="text-[10px] font-bold text-brand-forest block">今日康复打卡率</span>
-              <span className="text-[8px] text-brand-charcoal/60">完成以获取动态报告提升</span>
+              <span className="text-[10px] font-bold text-brand-forest block">{plain ? '今天做了几项' : '今日康复打卡率'}</span>
+              {!plain && <span className="text-[8px] text-brand-charcoal/60">完成以获取动态报告提升</span>}
             </div>
           </div>
         </div>
 
         {/* Task Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${plain ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
           {currentTasks.map((t) => {
             const isChecked = !!checkedItems[t.id];
             return (
@@ -519,9 +524,11 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
                     <span className={`px-1.5 py-0.5 rounded ${t.intensityClass}`}>
                       {t.intensity}
                     </span>
-                    <span className="px-1.5 py-0.5 rounded bg-brand-cream border border-brand-stone/40">
-                      {t.sensorBadge.slice(0, 4)}
-                    </span>
+                    {t.sensorBadge && (
+                      <span className="px-1.5 py-0.5 rounded bg-brand-cream border border-brand-stone/40">
+                        {t.sensorBadge.slice(0, 4)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -533,7 +540,9 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance }: { rehabSu
         <div className="mt-4 p-3.5 bg-brand-sage/20 border border-brand-moss/20 rounded-2xl flex items-center gap-3 text-[11px] text-brand-forest">
           <Sparkles size={14} className="text-brand-moss shrink-0 animate-bounce" />
           <p className="leading-normal font-bold">
-            💡 <strong>系统提示:</strong> 每天上午通常是儿童前额叶较活跃的时段，建议在上午 10 点前进行 OT/PT 核心训练。
+            {plain
+              ? <>💡 <strong>小提示:</strong> 挑孩子精神好、心情好的时候练，每次短一点没关系；做不到就先停，下次从更简单的一步再试。</>
+              : <>💡 <strong>系统提示:</strong> 每天上午通常是儿童前额叶较活跃的时段，建议在上午 10 点前进行 OT/PT 核心训练。</>}
           </p>
         </div>
 

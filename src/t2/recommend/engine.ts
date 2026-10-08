@@ -126,8 +126,18 @@ export function scanKeyItems(band: T1Band, items: Readonly<Record<string, 0 | 1 
   return out;
 }
 
-export function recommend(input: RecommendInput, config: RecommendConfig = RECOMMEND_CONFIG): Recommendation {
+/**
+ * 引擎的選項。`onePerDimension`（ADR-0011）：每個被標記的維度只出一份 —— 不加 R1／R3／R4 的問卷、不跑診斷必選、
+ * 社交的首選順序不因警訊換成 M-CHAT、跳過步驟 9（深度）、10（生活質量基線）、11（補足）。預設關：客規逐格測試照舊。
+ * 觸發了哪些規則仍看回傳的 `tags`（入口與報告改出提示）。
+ */
+export interface RecommendOptions {
+  onePerDimension?: boolean;
+}
+
+export function recommend(input: RecommendInput, config: RecommendConfig = RECOMMEND_CONFIG, options: RecommendOptions = {}): Recommendation {
   const { ageM, levels, school } = input;
+  const one = options.onePerDimension === true;
   const band = bandOf(ageM);
 
   // ── 第 1 步：可用填寫人 ──
@@ -143,7 +153,7 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
 
   // ── 第 3 步：診斷過濾 ──
   const alerts: Alert[] = [];
-  const declared = input.dx.filter(d => d !== 'NONE');
+  const declared = one ? [] : input.dx.filter(d => d !== 'NONE');
   const dx = declared.filter(d => ageM >= (config.dxMinAge[d] ?? 0));
   for (const d of declared) {
     if (!dx.includes(d)) {
@@ -194,6 +204,8 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
   };
 
   const chosen: Chosen[] = [];
+  // 每維一份不套份數上限（同時間上限，暫採 R-35）
+  const maxTools = one ? Number.POSITIVE_INFINITY : MAX_TOOLS;
   const done = new Set(input.done);
   const usable = (code: string): boolean => {
     const t = config.tools[code];
@@ -202,19 +214,24 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
     if (ageM < t.minM || ageM > t.maxM) return false;
     if (!t.rater.some(r => r !== 'C' && raters.has(r))) return false;
     if (t.group && chosen.filter(c => config.tools[c.code].group === t.group).length >= groupMax(t.group)) return false;
+    // 每維一份：會讓某個維度變成兩份主測的，不選（ADR-0011）
+    if (one && t.primary.some(d => chosen.some(c => config.tools[c.code].primary.includes(d)))) return false;
     return true;
   };
   const add = (code: string, cls: ToolClass, dim: DimensionCode | null, reason: string): boolean => {
-    if (chosen.length >= MAX_TOOLS || !usable(code)) return false;
+    if (chosen.length >= maxTools || !usable(code)) return false;
     chosen.push({ code, cls, dim, reason });
     return true;
   };
   const firstUsable = (list: ReadonlyArray<string>) => list.find(usable) ?? null;
 
+  // 每維一份時，社交的首選順序不因警訊換成 M-CHAT（ADR-0011）；警訊仍留在 `tags` 給提示用
+  const prefTags: ReadonlySet<KeyTag> = one ? new Set([...tags].filter(t => t !== 'ASD_SIG')) : tags;
+
   // ── 第 7 步：規則必選 ──
-  if (tags.has('ASD_SIG')) add('M-CHAT-R/F', 'rule', 'SOC', '规则 R1：16–30 个月出现社交沟通警讯题');
-  if (tags.has('SAFETY')) add('SXK-EMO', 'rule', 'EMO', '规则 R3：安全题未通过，由专业人员陪同填写');
-  if (tags.has('TIC')) add('SXK-TIC', 'rule', 'EMO', '规则 R4：家长勾选有抽动');
+  if (!one && tags.has('ASD_SIG')) add('M-CHAT-R/F', 'rule', 'SOC', '规则 R1：16–30 个月出现社交沟通警讯题');
+  if (!one && tags.has('SAFETY')) add('SXK-EMO', 'rule', 'EMO', '规则 R3：安全题未通过，由专业人员陪同填写');
+  if (!one && tags.has('TIC')) add('SXK-TIC', 'rule', 'EMO', '规则 R4：家长勾选有抽动');
   if (glob) {
     const c = firstUsable(['SXK-ASQ3', 'SXK-ADP']);
     if (c) add(c, 'rule', null, '规则 R5：五项以上中度落后（全面落后模式），先用跨领域量表');
@@ -232,10 +249,10 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
     return `T1 ${LEVEL_NAME[levels[d]]}`;
   };
   for (const d of need) {
-    if (chosen.length >= MAX_TOOLS) break;
+    if (chosen.length >= maxTools) break;
     if (primaryCount(d) > 0) continue;
     const tier = tierOf(d);
-    const c = firstUsable(preferenceOf(d, ageM, tags, dx));
+    const c = firstUsable(preferenceOf(d, ageM, prefTags, dx));
     if (!c) {
       gaps.push(`缺口：${DIM_NAME[d]} 在 ${ageM} 个月没有可用的家长／教师问卷——改为治疗师当面评估。`);
       gapDims.push({ dim: d, kind: 'none' });
@@ -251,10 +268,10 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
   // ── 第 9 步：深度 ──
   const deep = (d: DimensionCode) => tierOf(d) <= 2 || levels[d] === 3;
   const target = Math.min(MAX_TOOLS, Math.max(MIN_TOOLS, need.filter(d => tierOf(d) <= 4).length + need.filter(deep).length));
-  for (const d of need) {
+  for (const d of one ? [] : need) {
     if (!deep(d) || chosen.length >= target) continue;
     if (primaryCount(d) >= 2) continue;
-    const c = firstUsable(preferenceOf(d, ageM, tags, dx));
+    const c = firstUsable(preferenceOf(d, ageM, prefTags, dx));
     if (!c) continue;
     const tier = tierOf(d);
     const why = tier === 1 ? (rfdims.has(d) ? '红旗' : '社交沟通警讯') : tier === 2 ? '诊断核心' : '明显落后';
@@ -262,13 +279,13 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
   }
 
   // ── 第 10 步：生活質量基線 ──
-  if ((dims.some(d => levels[d] >= 2) || dx.length > 0) && chosen.length < MAX_TOOLS) {
+  if (!one && (dims.some(d => levels[d] >= 2) || dx.length > 0) && chosen.length < MAX_TOOLS) {
     add('SXK-QOL', 'base', null, '功能基线：疗前疗后对照');
   }
 
   // ── 第 11 步：補足 ──
   const floor = Math.max(MIN_TOOLS, Math.min(target, 4));
-  for (const c of FILL) {
+  for (const c of one ? [] : FILL) {
     if (chosen.length >= floor) break;
     add(c, 'fill', null, '补足：保底份数');
   }
@@ -276,7 +293,8 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
   // ── 第 12 步：時間上限 ──
   const minutes = () => chosen.reduce((n, c) => n + config.tools[c.code].minutes, 0);
   const removed: Array<{ code: string; reason: string }> = [];
-  while (minutes() > PARENT_MINUTES_CAP && chosen.length > MIN_TOOLS) {
+  // 每維一份不套時間上限：被標記的維度一定有它那一份（ADR-0011，暫採 R-35）
+  while (!one && minutes() > PARENT_MINUTES_CAP && chosen.length > MIN_TOOLS) {
     let drop = -1;
     for (const cls of DROP_ORDER) {
       const candidates = chosen.map((c, i) => ({ c, i })).filter(x => x.c.cls === cls);

@@ -183,7 +183,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       type="button"
       onClick={onBack}
       disabled={busy}
-      className={`flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`print:hidden flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <ArrowLeft size={16} />
       返回问卷清单

@@ -267,3 +267,21 @@ describe('完整版快照（T2 v3）改畫 T2ReportV3', () => {
     expect(v3).toContain('RETEST_SENTENCE');
   });
 });
+
+describe('完整版報告可以列印／存 PDF', () => {
+  const v3 = read('src/components/T2ReportV3.tsx');
+  const btn = read('src/components/PrintButton.tsx');
+
+  it('有「打印 / 存成 PDF」按鈕；微信裡改成說怎麼用瀏覽器打開', () => {
+    expect(v3).toMatch(/<PrintButton id="t2v3-print-btn"/);
+    expect(btn).toMatch(/window\.print\(\)/);
+    expect(btn).toMatch(/isWeChatBrowser\(/);
+    expect(btn).toContain('print:hidden');
+  });
+
+  it('印的時候作答回顧展開；按鈕、預約、線上干預連結不印', () => {
+    expect(v3).toMatch(/addEventListener\('beforeprint'/);
+    expect(v3).toMatch(/print:hidden">\{serviceButtons\}/);
+    expect(v3).toMatch(/id="t2v3-weekly" className="print:hidden"/);
+  });
+});

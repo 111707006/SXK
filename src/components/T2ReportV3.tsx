@@ -19,6 +19,7 @@ import {
 } from '../t2/reportCopyV3';
 import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
 import { STATUS_CLASS } from './reportStatusClass';
+import PrintButton from './PrintButton';
 
 /** 氣質與生活品質那兩支的客規代碼（不進九宮格，各有一段）。 */
 const TEMPERAMENT_TOOL = 'ITQ/TTS/BSQ';
@@ -66,6 +67,13 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
   const [banks, setBanks] = useState<Record<string, KitV3Bank>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
 
+  // 列印／存 PDF 時把作答回顧展開（紙上沒有「點開」這回事）
+  useEffect(() => {
+    const open = () => setReviewOpen(true);
+    window.addEventListener('beforeprint', open);
+    return () => window.removeEventListener('beforeprint', open);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const ids = [...new Set(findings.toolResults.map(r => r.toolId))].filter(id => KITV3_LOADERS[id]);
@@ -111,7 +119,10 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
             {formatDay(entry.createdAt) && `${formatDay(entry.createdAt)}生成 · `}按答题时 {ageMonth} 个月整理
           </p>
         </div>
-        {regenerate}
+        <div className="flex flex-col items-start sm:items-end gap-2">
+          <div className="print:hidden">{regenerate}</div>
+          <PrintButton id="t2v3-print-btn" />
+        </div>
       </div>
       {errorLine}
 
@@ -129,7 +140,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
               </li>
             ))}
           </ul>
-          {t1Notices.some(n => n.book) && serviceButtons}
+          {t1Notices.some(n => n.book) && <div className="print:hidden">{serviceButtons}</div>}
         </div>
       )}
 
@@ -200,7 +211,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
               </div>
             ))}
             <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊{t1Notices.some(n => n.book) ? '（预约按钮在最上方）' : '：'}</p>
-            {!t1Notices.some(n => n.book) && serviceButtons}
+            {!t1Notices.some(n => n.book) && <div className="print:hidden">{serviceButtons}</div>}
           </div>
         </section>
       )}
@@ -237,7 +248,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
 
       {/* 6. 線上干預：只留一行連結（2026-09-28 起不放在報告裡） */}
       {onOpenTraining && (
-        <section id="t2v3-weekly">
+        <section id="t2v3-weekly" className="print:hidden">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-2xl bg-brand-forest text-white px-5 py-4">
             <p className="text-xs leading-relaxed">{REPORT_TRAINING_LINK.text}</p>
             <button
@@ -299,7 +310,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
         )}
       </section>
 
-      <div className="pt-2 flex items-center gap-2">
+      <div className="print:hidden pt-2 flex items-center gap-2">
         <RefreshCw size={12} className="text-brand-charcoal/40" />
         <p className="text-[10px] text-brand-charcoal/50">每次生成都会另存一份，之后打开这一页看到的是最新的那一份。</p>
       </div>

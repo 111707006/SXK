@@ -25,6 +25,8 @@ import bcrypt from 'bcryptjs';
 import mysql from 'mysql2/promise';
 import { askedItems } from '../../src/t2/scoring';
 import { DIMENSIONS_DATA } from '../../src/data';
+import { KITV3_BANKS } from '../../src/t2/kitv3';
+import { askedItems as askedV3, formFor } from '../../src/t2/kitv3/score';
 
 const BASE = process.env.DEMO_BASE_URL ?? 'http://127.0.0.1:5000';
 const CODE = must('DEMO_LOGIN_CODE');
@@ -105,15 +107,19 @@ async function parentLogin(phone = PARENT_PHONE, companySlug?: string): Promise<
 /** T1：只有動作發展需關注，其餘都正常 —— 展示一條乾淨的「T1 紅 → T2 粗大動作 → 居家訓練」。 */
 function t1Scores() {
   const completedAt = new Date().toISOString();
+  // 逐題作答（2 做到／1 有時／0 還不能），新版 T1 報告（`T1_REPORT_REAL`）與 v3 推薦讀它；分數＝四題加總
+  const ITEMS: Record<string, number[]> = { gross_motor: [2, 1, 1, 0], language: [2, 2, 2, 1] };
   return DIMENSIONS_DATA.map(d => {
-    const score = d.id === 'gross_motor' ? 4 : 8;
+    const items = ITEMS[d.id] ?? [2, 2, 2, 2];
+    const score = items.reduce((a, b) => a + b, 0);
     return {
       dimensionId: d.id,
       dimensionName: d.name,
       tierId: 'T1',
       score,
       maxScore: 8,
-      status: score <= 5 ? 'delay' : 'normal',
+      items,
+      status: score <= 5 ? 'delay' : score <= 7 ? 'borderline' : 'normal',
       completedAt,
       assessedAgeMonth: CHILD_AGE_MONTH,
     };
@@ -160,14 +166,31 @@ async function seedParent(): Promise<void> {
   };
   await call('POST', '/api/db/save', { child, completedScores: scores, orders: [], reportHistory: [t1Report] }, token);
 
-  const submitted = await call('POST', '/api/t2/tool-results', {
-    toolId: 'sxk-gm',
-    assessedAgeMonth: CHILD_AGE_MONTH,
-    rater: 'mother',
-    pre: {},
-    answers: gmAnswers(),
-  }, token);
-  console.log(`[seed] T2 粗大动作量表：${JSON.stringify(submitted.bands)}`);
+  if (process.env.T2_RECOMMEND_V3 === '1') {
+    // v3：完整版題庫的粗大動作（前半做到、後半還不穩），伺服器重算
+    const bank = KITV3_BANKS['SXK-GM'];
+    const form = formFor(bank, CHILD_AGE_MONTH);
+    const asked = askedV3(bank, { ageM: CHILD_AGE_MONTH, inSchool: false });
+    const answers: Record<string, number | null> = {};
+    asked.forEach((a, i) => {
+      const opts = bank.options[form.sections.find(s => s.key === a.section)!.options].filter(o => o.value !== null);
+      const values = opts.map(o => o.value as number).sort((x, y) => x - y);
+      answers[a.item.key] = i < asked.length / 2 ? values[values.length - 1] : values[0];
+    });
+    const submitted = await call('POST', '/api/t2/tool-results', {
+      toolkitVersion: 'kit-20260923', toolId: 'SXK-GM', assessedAgeMonth: CHILD_AGE_MONTH, rater: 'mother', answers,
+    }, token);
+    console.log(`[seed] T2 v3 粗大动作：${JSON.stringify(submitted.result?.grade03 ?? submitted.result)}`);
+  } else {
+    const submitted = await call('POST', '/api/t2/tool-results', {
+      toolId: 'sxk-gm',
+      assessedAgeMonth: CHILD_AGE_MONTH,
+      rater: 'mother',
+      pre: {},
+      answers: gmAnswers(),
+    }, token);
+    console.log(`[seed] T2 粗大动作量表：${JSON.stringify(submitted.bands)}`);
+  }
 
   await call('POST', '/api/t2/findings', {}, token);
   const plan = await call('GET', '/api/t2/weekly-plan', undefined, token);

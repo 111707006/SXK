@@ -45,6 +45,9 @@ ENV NODE_ENV=production \
     DEMO_ADMIN_PASSWORD=sxk-demo-2026 \
     DEMO_PARENT_PHONE=13900000000 \
     PAYWALL_DEMO_OPEN=1 \
+    T2_RECOMMEND_V3=1 \
+    TRAINING_PUSH_V3=1 \
+    T1_REPORT_REAL=1 \
     MEDIA_UPSTREAM=https://sxkscreen.com \
     SESSION_SECRET=bake-only-replaced-at-runtime
 

@@ -45,6 +45,10 @@ describe('換版：看快照、只在專案 A', () => {
     expect(body).toContain('plain={real}');
   });
 
+  it('腦區拓撲圖只在舊版（腦區名稱與協同率不是從作答算的）', () => {
+    expect(body).toMatch(/\{!real && \(\s*<div className="space-y-4">\s*<NeuralNetworkTopology/);
+  });
+
   it('每週課表：固定的第三張卡與設備標籤只在舊版', () => {
     const charts = stripComments(read('src/components/ReportCharts.tsx'));
     expect(charts).toMatch(/if \(!plain\) tasks\.push\(\{\s*id: `std-/);

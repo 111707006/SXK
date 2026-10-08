@@ -337,9 +337,15 @@ export default function ReportBody({
         依客戶需求移除 —— 那段是寫給臨床看的神經生理術語，家長讀不出行動。
         `aiReport.neuralPathwayAnalysis` 仍由後端產生並保留在型別裡，只是不再渲染。
       */}
-      <div className="space-y-4">
-        <NeuralNetworkTopology completedScores={scores} />
-      </div>
+      {/*
+        新版（T1_REPORT_REAL）不出腦區拓撲圖：腦區名稱與「协同率 X%」不是從作答算得出來的，跟新版的白話文字互相矛盾
+        （使用者 2026-10-08「照你想法」）。舊版報告照舊。
+      */}
+      {!real && (
+        <div className="space-y-4">
+          <NeuralNetworkTopology completedScores={scores} />
+        </div>
+      )}
 
       {/* 4. Smooth trajectory 3-month forecast line-graph & Prognosis Narrative */}
       <div className="space-y-4">

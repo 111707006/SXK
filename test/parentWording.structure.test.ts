@@ -130,6 +130,8 @@ const PARENT_FACING_FILES = [
   // 2026-10-08：九大能力关联图（新版 T1 報告取代腦區拓撲圖）的十二句關聯與畫面。
   'src/t1report/abilityLinks.ts',
   'src/components/AbilityLinksMap.tsx',
+  // 2026-10-08：新版 T1 報告最底下「相关产品」那一塊的字。
+  'src/t1report/relatedProducts.ts',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))

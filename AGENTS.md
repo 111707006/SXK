@@ -74,6 +74,7 @@
 │   │   ├── report.ts      # 模板（照这个孩子的作答组）、验证器、「呼叫模型 → 验证 → 不过退模板」
 │   │   ├── rules.ts       # 验证器与提示共用的字数、禁字检查、预测要接的免责句（不进用字扫描）
 │   │   ├── abilityLinks.ts # 九大能力关联图的 12 条关联、粗线规则（两头都被标记）与句子（进用字扫描）
+│   │   ├── relatedProducts.ts # 新版报告最底下「相关产品」：照被标记的方面从商城清单挑（最多 2 个，全绿不出现；不进提示与模型的字）
 │   │   ├── legacy.ts      # 旧版本地模板（原样从 server.ts 搬来，输出不变；开关关着与专案 B 用、对照脚本用；含旧文案，不进用字扫描）
 │   │   └── prompt.ts      # 给模型的提示：逐题作答＋用字规范（含禁止清单，不进用字扫描）
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
@@ -361,10 +362,13 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 > - 「神经网络发展拓扑图」（脑区术语与「协同率 X%」）只在旧版；新版换成「九大能力关联图」（`src/components/AbilityLinksMap.tsx`，
 >   资料与句子在 `src/t1report/abilityLinks.ts`，使用者 2026-10-08 定的 12 条关联与白话句）：九个能力照这次的判定上色，
 >   两头都被标记的线画粗、上色，点开多一句「这两项常常一起进步」；没有脑区、百分比、题目原文。点与线都是可键盘操作的按钮。
+> - 「相关产品」（使用者 2026-10-08）：新版、而且有商城（只有 A）时，报告**最底下**另一块，照被标记的方面挑 `PRODUCTS_DATA`
+>   （需要较多支持的方面先、对得上多的先，最多 2 个；`src/t1report/relatedProducts.ts`）。**全绿或被标记的方面没有产品对得上就整块不出现**（暂采：
+>   刚说各方面发展稳定就推销不对）。产品**不进提示、不进模型或模板写的字**；没有按钮（报告本体不做动作），小字指去「商城」。
 > 护栏：`test/t1ReportAnswers.test.ts`、`test/t1ReportReal.test.ts`（模板穷举年龄段×作答都过验证器、验证器挡下的十几种坏输出、三种出口）、
 > `test/t1ReportReal.http.test.ts`、`test/t1ReportRealProjectB.http.test.ts`（B 设了不生效）、`test/t1ReportRealSwitch.test.ts`（认不得的值起不来）、
 > `test/t1ReportView.structure.test.ts`（只在 A 换版、B 走旧的几块、新版画面与模板没有百分位／ASQ／预测／脑神经术语、快照读回）；
-> `test/t1AbilityLinks.test.ts`（12 条、每个能力 2–3 条、粗线规则、句子没有禁字／脑区／百分比／题目）、`test/t1ReportCompare.test.ts`（对照脚本）；
+> `test/t1AbilityLinks.test.ts`（12 条、每个能力 2–3 条、粗线规则、句子没有禁字／脑区／百分比／题目）、`test/t1ReportCompare.test.ts`（对照脚本）、`test/t1RelatedProducts.test.ts`（挑法、B 不出现、提示与模板没有产品名）；
 > 用字扫描 `test/parentWording.structure.test.ts` 加了 `src/t1report/` 的几档、`ReportRealBlocks.tsx` 与 `AbilityLinksMap.tsx`。
 
 > 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／

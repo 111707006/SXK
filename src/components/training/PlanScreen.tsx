@@ -252,6 +252,9 @@ function AbilityTable({ push }: { push: PushPosition }) {
           {referralLine(heavy)}
         </p>
       )}
+      {push.dimensions.some(d => d.source === 't1') && (
+        <p className="mt-2 text-[12px] text-brand-charcoal/60 leading-relaxed" data-testid="plan-t1-evidence">{PUSH_PAGE.t1Evidence}</p>
+      )}
       <h4 className="mt-4 text-[15px] font-bold text-brand-forest">{PUSH_PAGE.guidanceTitle}</h4>
       <ul className="mt-2 space-y-1.5">
         {guidanceLines(push.perWeek).map(line => (
@@ -261,6 +264,16 @@ function AbilityTable({ push }: { push: PushPosition }) {
           </li>
         ))}
       </ul>
+      <h4 className="mt-4 text-[15px] font-bold text-brand-forest">{PUSH_PAGE.periodEndTitle}</h4>
+      <ul className="mt-2 space-y-1.5" data-testid="plan-period-end">
+        {PUSH_PAGE.periodEndRows.map(r => (
+          <li key={r.when} className="rounded-lg bg-brand-cream/70 px-3 py-2 text-[13px] text-brand-charcoal/80 leading-relaxed">
+            <span className="font-bold text-brand-forest">{r.when}：</span>{r.then}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[12px] text-brand-charcoal/60 leading-relaxed">{PUSH_PAGE.periodEndNote}</p>
+      <p className="mt-3 text-[11px] text-brand-charcoal/50 leading-relaxed" data-testid="plan-boundary">{PUSH_PAGE.boundary}</p>
     </section>
   );
 }

@@ -1,3 +1,4 @@
+import { PUSH_PAGE } from '../src/t2/pushCopy';
 import { describe, it, expect } from 'vitest';
 import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -418,6 +419,14 @@ describe('v3 推送規則排的週次（規格 P12、P14、P17、§5.3、§5.4�
     expect(html).toContain('标准做法');
     expect(html).toContain('简单版');
     expect(html).toContain('难一点');
+  });
+
+  it('計劃頁：期末三檔的判斷標準與做法、按筛查推估的提醒、邊界聲明都印在頁面上（客戶第九、十節）', () => {
+    const html = plan();
+    expect(html).toContain('data-testid="plan-period-end"');
+    for (const r of PUSH_PAGE.periodEndRows) expect(html).toContain(r.when);
+    expect(html).toContain('data-testid="plan-t1-evidence"');
+    expect(html).toContain(PUSH_PAGE.boundary);
   });
 
   it('舊週次（沒有 push）不出能力表', () => {

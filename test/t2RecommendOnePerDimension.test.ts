@@ -140,3 +140,32 @@ describe('分齡發育綜合評估合併（使用者 2026-10-08）', () => {
     expect(rec.tools.find(t => t.reason.startsWith('合并'))).toBeUndefined();
   });
 });
+
+describe('畫面顏色是「有沒有被標記」的準（使用者 2026-10-08）', () => {
+  const LV0 = Object.fromEntries(DIMENSION_CODES.map(d => [d, 0])) as Record<DimensionCode, Level>;
+  const base = (over: Partial<RecommendInput>): RecommendInput => ({
+    ageM: 30, levels: LV0, rfdims: [], items: {}, dx: [], school: false, done: [], extraTags: [], hearingChecked: true, ...over,
+  });
+  const dimsOf = (rec: ReturnType<typeof one>) => new Set(rec.tools.flatMap(t => RECOMMEND_CONFIG.tools[t.code].primary));
+
+  // 展示站實測：語言 7 分，首頁黃燈「进入深测」，引擎「未见明显」→ 推薦裡沒有語言
+  it('語言畫面黃、引擎未见明显：每維一份照樣推一份語言', () => {
+    const rec = one(base({ levels: { ...LV0, MOT: 2 }, t1Colors: { MOT: 2, LANG: 1 } }));
+    expect(dimsOf(rec).has('LANG')).toBe(true);
+    expect(dimsOf(rec).has('MOT')).toBe(true);
+  });
+
+  it('只往上墊：畫面綠、引擎因紅旗題有等級的照舊推', () => {
+    const rec = one(base({ levels: { ...LV0, MOT: 2 }, t1Colors: { MOT: 0 } }));
+    expect(dimsOf(rec).has('MOT')).toBe(true);
+  });
+
+  it('全綠、引擎也沒有等級 → NO_T2', () => {
+    expect(one(base({ t1Colors: { MOT: 0, LANG: 0 } })).status).toBe('NO_T2');
+  });
+
+  it('客規預設模式不套（逐格測試照舊）', () => {
+    const rec = recommend(base({ levels: { ...LV0, MOT: 2 }, t1Colors: { MOT: 2, LANG: 1 } }));
+    expect(rec.dimQueue.map(q => q.dim)).not.toContain('LANG');
+  });
+});

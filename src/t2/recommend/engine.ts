@@ -145,9 +145,26 @@ export interface RecommendOptions {
   onePerDimension?: boolean;
 }
 
+/**
+ * 每維一份時，家長在 T1 報告上看到的顏色是「這一維有沒有被標記」的準（使用者 2026-10-08）：黃燈至少「轻度」、紅燈至少「中度」。
+ * 引擎等級與畫面顏色的切點不同（R-1：7 分畫面黃、引擎「未见明显」），不墊的話，首頁語言卡亮黃燈、寫「进入深测」，
+ * 推薦卻沒有語言（展示站實測）。只往上墊、不往下拉：紅旗題讓引擎比畫面重的照舊。舊資料沒有顏色 → 不變。
+ */
+export function levelsWithScreenColors(
+  levels: Readonly<Record<DimensionCode, Level>>,
+  colors: RecommendInput['t1Colors'],
+): Record<DimensionCode, Level> {
+  const out = { ...levels };
+  for (const [d, c] of Object.entries(colors ?? {}) as Array<[DimensionCode, 0 | 1 | 2]>) {
+    if (c >= 1 && d in out) out[d] = Math.max(out[d], c) as Level;
+  }
+  return out;
+}
+
 export function recommend(input: RecommendInput, config: RecommendConfig = RECOMMEND_CONFIG, options: RecommendOptions = {}): Recommendation {
-  const { ageM, levels, school } = input;
+  const { ageM, school } = input;
   const one = options.onePerDimension === true;
+  const levels = one ? levelsWithScreenColors(input.levels, input.t1Colors) : input.levels;
   const band = bandOf(ageM);
 
   // ── 第 1 步：可用填寫人 ──

@@ -12,7 +12,7 @@ import type { RenderableReport } from '../utils/reportHistory';
 import {
   IntegrationGauges, NeuralNetworkTopology, WeeklyRehabPlanner, PrognosisTrajectoryChart,
 } from './ReportCharts';
-import { AnswersOverview, ScreeningHistory } from './ReportRealBlocks';
+import { AnswersOverview, RelatedProducts, ScreeningHistory } from './ReportRealBlocks';
 import { AbilityLinksMap } from './AbilityLinksMap';
 import { toConcernScore } from '../t1report/answers';
 import { isRealT1Report } from '../t1report/shape';
@@ -380,6 +380,12 @@ export default function ReportBody({
         {/* 家長端專屬：專家預約入口與表單。 */}
         {bookingSlot}
       </div>
+
+      {/*
+        新版（A、有商城）才有：報告最底下另外一塊「相关产品」，照被標記的方面挑商城的產品（使用者 2026-10-08）。
+        與評估內容分開 —— 產品不進提示、不進模型或模板寫的字。全綠不出現。B 沒有商城、也不會是新版。
+      */}
+      {real && PRODUCT.features.mall && <RelatedProducts scores={scores} />}
     </div>
   );
 }

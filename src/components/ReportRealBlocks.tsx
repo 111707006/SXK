@@ -1,10 +1,11 @@
-import { ClipboardList, History, Sprout } from 'lucide-react';
+import { ClipboardList, History, ShoppingBag, Sprout } from 'lucide-react';
 import type { DimensionScore } from '../types';
 import { STATUS_WORDING } from '../utils/statusWording';
 import {
   ANSWER_LABEL, flaggedDimensions, itemsAnswered, screeningSeries, t1AnswersOf, type ScreeningPoint,
 } from '../t1report/answers';
 import type { T1DimensionNote } from '../t1report/shape';
+import { RELATED_PRODUCTS_COPY, pickRelatedProducts } from '../t1report/relatedProducts';
 import { STATUS_CLASS } from './reportStatusClass';
 
 /**
@@ -224,5 +225,40 @@ export function ScreeningHistory({ history, current }: {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * 報告最底下的「相关产品」（只在專案 A 的新版、有商城時；`ReportBody.tsx` 決定畫不畫）。挑法在
+ * `src/t1report/relatedProducts.ts`：對得上被標記的方面才列，全綠整塊不出現。與評估內容分開：另一個底色、
+ * 明說上面的練習不必買東西；沒有按鈕（報告本體不做動作，後台也看這一頁）。
+ */
+export function RelatedProducts({ scores }: { scores: DimensionScore[] }) {
+  const picks = pickRelatedProducts(scores);
+  if (picks.length === 0) return null;
+  return (
+    <section aria-label={RELATED_PRODUCTS_COPY.title} className="rounded-2xl border border-dashed border-brand-stone bg-brand-cream/30 p-4 space-y-3 text-left">
+      <div>
+        <h3 className="text-xs font-extrabold text-brand-charcoal/80 flex items-center gap-1.5">
+          <ShoppingBag size={14} className="text-brand-clay" />
+          {RELATED_PRODUCTS_COPY.title}
+        </h3>
+        <p className="text-[10px] text-brand-charcoal/60 mt-1 leading-relaxed">{RELATED_PRODUCTS_COPY.intro}</p>
+      </div>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {picks.map(({ product, matched }) => (
+          <li key={product.id} className="flex gap-3 rounded-xl bg-white border border-brand-stone/60 p-3">
+            <img src={product.image} alt={product.name} referrerPolicy="no-referrer"
+              className="w-16 h-16 rounded-lg object-cover border border-brand-stone/40 shrink-0" />
+            <div className="min-w-0 space-y-1">
+              <p className="text-xs font-bold text-brand-forest">{product.name}</p>
+              <p className="text-[10px] text-brand-charcoal/70 leading-relaxed">{product.desc}</p>
+              <p className="text-[10px] text-brand-charcoal/55">{RELATED_PRODUCTS_COPY.matched(matched)} · ¥{product.price}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[10px] text-brand-charcoal/50">{RELATED_PRODUCTS_COPY.where}</p>
+    </section>
   );
 }

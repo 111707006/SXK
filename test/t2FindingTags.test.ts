@@ -204,6 +204,8 @@ const ROOT = path.resolve(__dirname, '..');
 const LABEL_USERS = [
   'src/admin/findingTagLabels.ts',
   'src/admin/panels/ActivitiesPanel.tsx',
+  // 示範片與標籤分頁（2026-10-08）：後台給非技術人員下標籤，只顯示中文短名
+  'src/admin/panels/VideoTaggingPanel.tsx',
 ];
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -246,7 +248,7 @@ describe('中文短名不流到家長端（v2.1 §4.9）', () => {
 
   it('import `findingTagLabels` 的只有後台活動庫分頁；家長端也 import 的 findingTags.ts 不含短名', () => {
     const importers = sources.filter(s => /from\s*['"][^'"]*findingTagLabels['"]/.test(s.code)).map(s => s.rel).sort();
-    expect(importers).toEqual(['src/admin/panels/ActivitiesPanel.tsx']);
+    expect(importers).toEqual(['src/admin/panels/ActivitiesPanel.tsx', 'src/admin/panels/VideoTaggingPanel.tsx']);
     const tagsFile = sources.find(s => s.rel === 'src/t2/findingTags.ts')!;
     expect(tagsFile.code).not.toContain('心情底色偏低');
   });

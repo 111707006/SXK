@@ -214,4 +214,23 @@ describe('GET /api/t2/weekly-plan（TRAINING_PUSH_V3=1）', () => {
     expect(body.plan).toMatchObject({ weekIndex: 1, totalWeeks: 12 });
     expect(periods).toHaveLength(0);
   });
+  it('列印整期：同一週裡重新生成報告，印的仍是本週正在跟的那一期（不是 404）', async () => {
+    const thisWeek = '2026-12-28'; // 系統時間 2026-12-30 那一週
+    expect((await get(thisWeek)).status).toBe(200);
+    expect(periods).toHaveLength(1);
+    // 同一週裡生成了新報告：新快照還沒有期，本週那一列照舊屬於 77
+    findingsRow = { ...findingsRow, id: 78, createdAt: '2026-12-30T03:00:00.000Z' };
+    const resp = await client.get('/api/t2/training-period', bearer(PARENT));
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body).toMatchObject({ periodNo: 1, firstWeekStart: thisWeek, perWeek: 3 });
+    expect(body.weeks).toHaveLength(12);
+    expect(periods).toHaveLength(1); // 列印不開期
+  });
+
+  it('列印整期：本週還沒打開過活動 → 404 PERIOD_NOT_STARTED', async () => {
+    const resp = await client.get('/api/t2/training-period', bearer(PARENT));
+    expect(resp.status).toBe(404);
+    expect((await resp.json()).code).toBe('PERIOD_NOT_STARTED');
+  });
 });

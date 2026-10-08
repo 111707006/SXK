@@ -246,8 +246,8 @@ describe('單一機構模式下的分頁可見性', () => {
 
   // 活動庫是專案 A **才有**的東西（深度評估的干預內容），後台帳號則是這個
   // 部署唯一開得出帳號的地方。連它們一起收掉會把功能藏起來。
-  it('家長列表、專家名單、後台帳號與活動庫仍然在', () => {
-    expect(idsOf(globalUnselected)).toEqual(['parents', 'specialists', 'adminUsers', 'activities']);
+  it('家長列表、專家名單、後台帳號、活動庫與示範片標籤仍然在', () => {
+    expect(idsOf(globalUnselected)).toEqual(['parents', 'specialists', 'adminUsers', 'activities', 'videos']);
   });
 
   it('對應的後端路由不掛載，所以留著分頁就是留著 404', () => {

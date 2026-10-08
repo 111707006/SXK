@@ -95,7 +95,8 @@ export type AdminTabId =
   | 'companies'
   | 'adminUsers'
   | 'summary'
-  | 'activities';
+  | 'activities'
+  | 'videos';
 
 export interface AdminTab {
   id: AdminTabId;
@@ -116,7 +117,12 @@ const GLOBAL_TABS: AdminTab[] = [
   { id: 'summary', label: '跨公司汇总' },
   // 活動庫（#62，ADR-0005）是森心康的干預內容，合作公司不維護它（專案 B 也沒有深度評估）。
   { id: 'activities', label: '活动库' },
+  // 示範片上傳與標籤（2026-10-08）：給非技術人員的那一頁，存的是同一組欄位。
+  { id: 'videos', label: '示范片与标签' },
 ];
+
+/** 只有專案 A（單一機構）才有的分頁：上傳示範片的端點只在 A 註冊（`activityMediaDir`）。 */
+const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos'];
 
 /**
  * 只有多合作公司才有意義的分頁 —— 專案 A 上這三個永遠是空的。
@@ -132,7 +138,7 @@ const MULTI_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['company', 'companies', 
 
 export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape): AdminTab[] {
   const all = identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
-  if (shape.multiCompany) return all;
+  if (shape.multiCompany) return all.filter(t => !SINGLE_COMPANY_ONLY_TABS.includes(t.id));
   return all.filter(t => !MULTI_COMPANY_ONLY_TABS.includes(t.id));
 }
 

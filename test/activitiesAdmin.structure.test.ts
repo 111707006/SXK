@@ -24,7 +24,18 @@ describe('活動庫的路由在 requireGlobal 之下', () => {
   const handlers = [...routes.matchAll(/router\.(get|post|put|patch|delete)\(\s*'\/activities[^']*'[^\n]*\n([^\n]*)/g)];
 
   it('確實抓到了路由（護欄本身沒有壞掉）', () => {
-    expect(handlers.map(h => h[1])).toEqual(['get', 'patch', 'post']);
+    expect(handlers.map(h => h[1])).toEqual(['get', 'patch', 'put', 'post']);
+  });
+
+  // 上傳示範片與封面（2026-10-08）兩支 PUT 共用一個處理函式，第一句同樣是 requireGlobal。
+  it('PUT /activities/:id/video|poster 只掛 uploadActivityMedia，它的第一句是 requireGlobal', () => {
+    const puts = [...routes.matchAll(/router\.put\(\s*'(\/activities[^']*)',\s*([^)]*\))/g)].map(m => [m[1], m[2]]);
+    expect(puts).toEqual([
+      ['/activities/:id/video', "uploadActivityMedia('video')"],
+      ['/activities/:id/poster', "uploadActivityMedia('poster')"],
+    ]);
+    const body = routes.match(/const uploadActivityMedia = [^\n]*\n([^\n]*)/)!;
+    expect(body[1]).toContain('if (!requireGlobal(req, res)) {');
   });
 
   it.each(['get', 'patch', 'post'])('%s /activities… 的第一句就是 requireGlobal', method => {

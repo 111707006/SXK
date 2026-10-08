@@ -29,6 +29,7 @@ import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
+import { mediaUrlOf, readSeconds, saveActivityMedia, type MediaKind } from './activityMedia';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -91,6 +92,11 @@ export interface AdminRouterHooks {
     /** 送一則邀請；**永不丟例外**（`src/sms.ts` 的 `sendHandoffInvite`）。 */
     send: (phone: string, code: string) => Promise<{ ok: boolean; detail: string }>;
   };
+  /**
+   * 示範片與封面要寫進的目錄（`server.ts` 的 `MEDIA_DIR`，已掛在 `/media`）。只有專案 A 傳；
+   * 沒有就是關閉 —— 上傳那兩支不註冊（B 沒有活動與片子）。
+   */
+  activityMediaDir?: string;
 }
 
 export interface HandoffInviteReport {
@@ -804,6 +810,55 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       res.status(500).json({ error: '更新活动失败。' });
     }
   });
+
+  // ── 上傳示範片與封面（使用者 2026-10-08；`src/admin/activityMedia.ts`）──
+  //
+  // 權限與 PATCH 相同（全域管理員）。只更新已有的活動：先確認編號在活動庫裡，才收檔案 ——
+  // 檔名由編號決定，認不得的編號一個位元組都不寫。寫完把網址（帶版本）與片長寫進活動庫，回整支活動。
+  // 只在專案 A 註冊（`activityMediaDir`）。
+  const mediaDir = hooks.activityMediaDir;
+  const uploadActivityMedia = (kind: MediaKind) => async (req: AuthedRequest, res: express.Response) => {
+    if (!requireGlobal(req, res)) {
+      req.resume();
+      return;
+    }
+    const id = String(req.params.id);
+    const seconds = kind === 'video' ? readSeconds(req.query.seconds) : null;
+    if (seconds === undefined) {
+      req.resume();
+      res.status(400).json({ error: '片长不对（要 1–3600 秒的整数）。' });
+      return;
+    }
+    try {
+      if (!ACTIVITY_ID_PATTERN.test(id) || !(await store.listActivities()).some(a => a.id === id)) {
+        req.resume();
+        res.status(404).json({ error: '找不到该活动。' });
+        return;
+      }
+      const saved = await saveActivityMedia(req, req.headers['content-type'], mediaDir!, id, kind);
+      if (!saved.ok) {
+        res.status(saved.status).json({ error: saved.error });
+        return;
+      }
+      const url = mediaUrlOf(id, kind, Date.now());
+      const activity = await store.updateActivity(
+        id,
+        kind === 'video' ? { videoUrl: url, videoSeconds: seconds } : { posterUrl: url },
+      );
+      if (!activity) {
+        res.status(404).json({ error: '找不到该活动。' });
+        return;
+      }
+      res.json({ activity });
+    } catch (err: any) {
+      console.error(`[Admin] upload ${kind} ${id} failed:`, err.message);
+      res.status(500).json({ error: kind === 'video' ? '上传示范片失败，请再试一次。' : '上传封面失败，请再试一次。' });
+    }
+  };
+  if (mediaDir) {
+    router.put('/activities/:id/video', uploadActivityMedia('video'));
+    router.put('/activities/:id/poster', uploadActivityMedia('poster'));
+  }
 
   // ── 批量匯入（v2.1 S25，客戶 9/21 工作單 #14）──
   //

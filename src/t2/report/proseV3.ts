@@ -26,6 +26,7 @@ import { STATUS_WORDING } from '../../utils/statusWording';
 import type { DimensionCode } from '../types';
 import { DIMENSION_CODES } from '../types';
 import { findBlacklisted } from './blacklist';
+import { KITV3_BANKS } from '../kitv3';
 import { ALL_ENGINES_FAILED, templateEngineLabel, type ProseEngine } from './generate';
 import { CLOSING_SENTENCE, charCount } from './prose';
 import { DIMENSION_WHY } from './sentences';
@@ -66,13 +67,22 @@ export function reportedDimensionsV3(findings: Pick<T2FindingsV3, 'dimensions'>)
 /**
  * 這一維最重那一支裡比較弱的面向（分段不是最好那一段的），去掉含禁字或黑名單字的面向名稱 ——
  * 客戶的面向名稱是題庫原文，可能踩到報告的黑名單（例如舊量表名）；講不出口的那一面就不點名。
+ *
+ * 一支量表涵蓋好幾個維度時（分齡發育綜合評估：沟通→語言、粗大／精細動作→動作、解决问题→認知、个人-社会→社交，
+ * 題庫的 `domainDim`），只列**這一維**的面向 —— 否則語言、認知、社交三段各自寫出同一串「沟通、粗大动作、
+ * 精细动作、解决问题」（2026-10-08 展示站實測）。
  */
 export function weakFacetsV3(findings: Pick<T2FindingsV3, 'toolResults'>, d: DimensionFindingV3): string[] {
   if (!d.drivenBy) return [];
   const r = findings.toolResults.find(x => x.toolId === d.drivenBy);
   if (!r) return [];
-  return [...new Set(r.score.facets.filter(f => f.band !== null && f.band > 0).map(f => f.name))]
-    .filter(name => findBlacklisted(name).length === 0);
+  const domainDim = (KITV3_BANKS[r.toolId]?.scoring as { domainDim?: Record<string, DimensionCode> } | undefined)?.domainDim;
+  return [...new Set(
+    r.score.facets
+      .filter(f => f.band !== null && f.band > 0)
+      .filter(f => !domainDim || domainDim[f.key] === d.dimensionId)
+      .map(f => f.name),
+  )].filter(name => findBlacklisted(name).length === 0);
 }
 
 // ---------------------------------------------------------------------------

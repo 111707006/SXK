@@ -88,6 +88,26 @@ describe('模板一定過驗證器', () => {
   });
 });
 
+describe('跨好幾個維度的量表：每一段只點名自己那一維的面向', () => {
+  // 2026-10-08 展示站實測：分齡發育綜合評估做完，語言、認知、社交三段都寫「沟通、粗大动作、精细动作、解决问题」
+  it('分齡發育綜合評估全答最差：語言只講沟通、認知只講解决问题、動作只講粗大／精細動作', () => {
+    const findings = findingsOf(['SXK-ASQ3'], 30, -1, Object.fromEntries(DIMENSION_CODES.map(d => [d, 2])) as any);
+    const bank = KITV3_BANKS['SXK-ASQ3'];
+    const domainDim = (bank.scoring as any).domainDim as Record<string, DimensionCode>;
+    const form = formV3(bank, { ageM: 30, inSchool: true, sex: 'male' });
+    const nameOf = (key: string) => form.sections.find(s => s.key === key)!.name;
+    const prose = templateProseV3({ childName: '小安', findings });
+    for (const [dim, keys] of [['LANG', ['cm']], ['COG', ['ps']], ['MOT', ['gm', 'fm']], ['SOC', ['so']]] as Array<[DimensionCode, string[]]>) {
+      const text = prose.perDimension.find(p => p.dimensionId === dim)!.whatWeSaw;
+      for (const key of Object.keys(domainDim)) {
+        const name = nameOf(key);
+        if (keys.includes(key)) expect(text, `${dim} 要講 ${name}`).toContain(name);
+        else expect(text, `${dim} 不該講 ${name}`).not.toContain(`「${name}」`);
+      }
+    }
+  });
+});
+
 describe('驗證器擋得住', () => {
   const findings = findingsOf(['SXK-AB'], 96, -1, { ATT: 2, SEN: 1 });
   const input = { findings };

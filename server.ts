@@ -1787,8 +1787,12 @@ function ageMonthForWeek(child: any, weekStart: string, fallback: number): numbe
   return fallback;
 }
 
-// 整期 12 週的計劃（列印用，推送說明第九節）：只讀最新快照已存的那一期，不開期 —— 家長要先打開過本週的活動。
+// 整期 12 週的計劃（列印用，推送說明第九節）：只讀已存的那一期，不開期 —— 家長要先打開過本週的活動。
 // 只有 v3 推送有「一期」；舊規則每週各自配，沒有整期可印。
+//
+// 印的是**家長這一週正在跟的那一期**：本週那一列存的是哪一份快照，就印那份快照的期。同一週裡重新生成報告時，
+// 本週的活動照舊（已存的週次不回頭重配），新報告的期要到下一週才開 —— 只看最新快照的話，這一週整週都印不出來，
+// 而家長明明打開過本週的活動（2026-10-08 展示站實測）。本週還沒有那一列（或是開關打開前存的舊週次）才看最新快照。
 tier2Only.get('/api/t2/training-period', async (req, res) => {
   try {
     const userId = await requireT2Parent(req, res);
@@ -1798,7 +1802,9 @@ tier2Only.get('/api/t2/training-period', async (req, res) => {
       return;
     }
     const snapshot = await loadLatestT2Findings(userId);
-    const latest = snapshot ? await t2PeriodDeps(userId).latest(snapshot.id) : null;
+    const thisWeek = snapshot ? await loadWeeklyPlan(userId, weekStartOf(new Date())) : null;
+    const findingsId = thisWeek && thisWeek.activities.picks.some(p => p.push) ? thisWeek.findingsId : snapshot?.id;
+    const latest = findingsId !== undefined ? await t2PeriodDeps(userId).latest(findingsId) : null;
     if (!snapshot || !latest || !latest.plan) {
       res.status(404).json({ error: '请先打开本周的家庭活动，整期计划会在那时排好。', code: 'PERIOD_NOT_STARTED' });
       return;
@@ -3781,6 +3787,8 @@ app.use(
               sendHandoffInvite(phone, code, handoffInviteUrl(HANDOFF_SOURCE_CONFIG.targetOrigin, code)),
           }
         : undefined,
+      // 後台上傳示範片與封面（使用者 2026-10-08）：寫進同一個 `/media` 目錄。只有專案 A（B 沒有活動）。
+      activityMediaDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
     }
   )
 );

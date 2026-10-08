@@ -68,6 +68,7 @@
 │   │   ├── WearablesMall.tsx        # 穿戴设备商城
 │   │   ├── HandoffCard.tsx          # 专案 B 报告页「到森心康做深度评估」那张卡（ADR-0009）：放在 T2 插槽的位置，`/api/handoff/config` 开了才画
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
+│   ├── admin/             # 管理中心（后台）；activityMedia.ts 上传示范片与封面（伺服器）、videoTagging.ts／videoFrame.ts 与 panels/VideoTaggingPanel.tsx「示范片与标签」分页
 │   ├── t1report/          # 新版 T1 报告（`T1_REPORT_REAL`，只在专案 A）
 │   │   ├── answers.ts     # 逐题作答对到题目、三种作答各几题、历次报告的关注分（前端与伺服器共用；读不到回 null，不补数字）
 │   │   ├── shape.ts       # 快照形状 `version: 't1-real-1'`、`perDimension`；画面看它换版（`isRealT1Report`）
@@ -209,6 +210,15 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 > `src/admin/panels/ActivitiesPanel.tsx`，四个进度数字 `activityCoverage`；`targets`／`avoidIf` 的勾选显示
 > 「中文短名 · 英文码」（v2.1 S15），存的仍是英文码。
 >
+> 示范片与标签（使用者 2026-10-08：客户之后自己在后台传 300 支片、给非技术人员下标签，不用 JSON）：后台分页「示范片与标签」
+> （`src/admin/panels/VideoTaggingPanel.tsx`，只在专案 A、全域管理员）—— 一次选很多个 mp4，档名认编号（`activityIdFromFileName`：
+> `A001.mp4`、`001 我们来爬行.mp4`），一支接一支传、有进度；封面与片长由**后台的浏览器**抽（`src/admin/videoFrame.ts`，主机不保证有 ffmpeg）。
+> 右边看片、选「适合几个月」（下拉附几岁几个月、手册适龄给建议值）与「练什么」（中文短名、依能力分组，不显示英文码），按「存档，下一支」。
+> 存的是同一组 `targetMonth`／`targets`（PATCH）。上传端点在 `src/admin/activityMedia.ts`：串流写暂存档、看档头、原子改名；
+> 网址带 `?v=` 版本（`/media` 快取一小时）。⚠️ 正式站 nginx 要放宽这两支的上传上限（`deploy/nginx.conf`、`deploy/README.md`）。
+> ⚠️ v3 推送（`TRAINING_PUSH_V3`）**不读** `targetMonth`／`targets`（看模组与手册适龄 `ageMonths`），所以画面不说「标了才会推给家长」。
+> 护栏：`test/activityMediaUpload.http.test.ts`、`test/videoTagging.test.ts`、`test/activitiesAdmin.structure.test.ts`（两支 PUT 也在 `requireGlobal` 之下）。
+>
 > 批量汇入（v2.1 S25，客户 E 表用；**E 表还没来，只用假资料测过**）：`POST /api/admin/activities/import`，
 > 每列检查在 `planActivityImport`（`src/utils/activityAdmin.ts`）：`id` 格式对且活动库里有、`moduleNo` 必填且等于
 > `moduleNoOf`、`targetMonth` 必填 0–216 整数（**不收 null**，PATCH 可以），其余栏位走同一个 `readActivityPatch`
@@ -286,6 +296,8 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `/api/admin/handoff-invites/config` | GET | 专案 B 后台：邀请简讯开了没（`{enabled:false}` 或 `{enabled:true, ready, missing}`）；只有全域管理员 | `Authorization: Bearer <后台 token>` |
 | `/api/admin/handoff-invites` | POST | 专案 B 后台：一次发 T2 邀请简讯给勾选的家长（一批 ≤50，只发当下视野）。伺服器再判一次谁能收（有手机、做过 T1、没到过 A、7 天内没收过），每位一组新交接码（`kind=sms`）；回 `{sent, skipped:[{userId, reason}], failed:[{userId, detail}]}`。交接没开 404、范本没设 503 `INVITE_CHANNEL_NOT_READY` | `userIds`；`Authorization: Bearer <后台 token>`（全域管理员） |
 | `/api/handoff/redeem` | POST | 专案 A：家长的浏览器带交接码来 → 向 B 兑换 → 以（未归属，手机号）找或建帐号 → A 还没有 T1 才带入 → 回与 `/api/auth/sms/verify` 同形状的登入结果＋`handoff: {imported, sourceName}`。B 说无效 410、B 连不上 502、没开 503 | `code` |
+| `/api/admin/activities/:id/video` | PUT | 后台上传示范片（2026-10-08）：本体就是 mp4（`Content-Type: video/mp4`，≤300 MB），存成 `MEDIA_DIR/activities/<编号>.mp4`，`videoUrl` 写 `/media/activities/<编号>.mp4?v=<时间>`、`videoSeconds` 取 `?seconds=`（1–3600，后台浏览器读的）。回 `{activity}`。认不得的编号 404、不是 mp4 415、太大 413，都不写档；**只在专案 A**、只有全域管理员 | `seconds`（query，选填）；`Authorization: Bearer <后台 token>` |
+| `/api/admin/activities/:id/poster` | PUT | 同上，封面 jpg（≤2 MB）→ `<编号>.jpg`、`posterUrl` | `Authorization: Bearer <后台 token>` |
 | `/api/admin/activities/import` | POST | 活动批量汇入（v2.1 S25，格式见 v2.1 附录 C）：**逐列独立**，坏列整列不入库、其他列照写；只更新已有的活动（不新增）；`dryRun: true` 只验不写。回 `{imported, failed: [{row, id?, error}], warnings: [{row, field}]}`（列号从 1 起）。形状不对（非阵列、空的、超过 500 列、`dryRun` 非布林）整份 400；只有全域管理员（`requireGlobal`，不经 `withScope`） | `rows`, `dryRun`（选填）；`Authorization: Bearer <后台 token>` |
 
 > T2 入口的 `/api/t2/plan`（#56）**只在专案 A 注册**（`tier2Only`，B 是 404），而且在 T2 付费闸门的

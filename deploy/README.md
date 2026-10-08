@@ -152,6 +152,16 @@ scp -r media/activities root@你的IP:/var/www/sxk/media/
 > 部署完验：`curl -I https://sxkscreen.com/media/activities/A001.mp4` 回 200、`Content-Type: video/mp4`；
 > 加 `-H 'Range: bytes=0-1'` 回 206（iPhone 播 mp4 靠它）。
 
+**后台直接上传（2026-10-08 起）**：客户在后台「示范片与标签」分页自己传，写进同一个 `/var/www/sxk/media/activities/`，
+不用再走上面的 scp。要先做两件事：
+
+1. nginx 预设一次只收 1 MB —— 把 `deploy/nginx.conf` 里「后台上传示范片与封面」那一段 `location` 加进
+   `/etc/nginx/sites-enabled/sxk`（放在 `location /` 前后都可以，正则 location 优先），`sudo nginx -t && sudo systemctl reload nginx`。
+   没加的话，上传会在画面上显示「档案太大，主机拒收」。
+2. 跑 Node 的使用者要能写 `/var/www/sxk/media/activities/`（`ls -ld` 看一下，不对就 `chown`）。
+
+传上去的网址带版本（`?v=…`），换片后家长不会看到快取里的旧片。备份：这个目录不在 git 里，要另外备份。
+
 ### B→A 交接（ADR-0009；规格 `docs/specs/b-to-a-handoff.md`）
 
 B 的家长在报告页按「到森心康做深度评估」，不用再登入就到 A、带着孩子档案与 T1 成绩停在 T2 入口。

@@ -62,10 +62,17 @@
 │   │   ├── AnalysisReport.tsx       # 分析报告
 │   │   ├── SpecializedReportView.tsx # 专项报告视图
 │   │   ├── LanguageSpecialAssessment.tsx # 语言专项评估
-│   │   ├── ReportCharts.tsx         # 报告图表
+│   │   ├── ReportCharts.tsx         # 报告图表（每周课表带 `plain`：新版 T1 报告不加固定的第三张卡与设备标签）
+│   │   ├── ReportRealBlocks.tsx     # 新版 T1 报告（`T1_REPORT_REAL`）的两块：「这次作答的样子」（取代仪表与同龄比较条）、「历次筛查对照」（取代预测曲线）
 │   │   ├── WearablesMall.tsx        # 穿戴设备商城
 │   │   ├── HandoffCard.tsx          # 专案 B 报告页「到森心康做深度评估」那张卡（ADR-0009）：放在 T2 插槽的位置，`/api/handoff/config` 开了才画
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
+│   ├── t1report/          # 新版 T1 报告（`T1_REPORT_REAL`，只在专案 A）
+│   │   ├── answers.ts     # 逐题作答对到题目、三种作答各几题、历次报告的关注分（前端与伺服器共用；读不到回 null，不补数字）
+│   │   ├── shape.ts       # 快照形状 `version: 't1-real-1'`、`perDimension`；画面看它换版（`isRealT1Report`）
+│   │   ├── report.ts      # 模板（照这个孩子的作答组）、验证器、「呼叫模型 → 验证 → 不过退模板」
+│   │   ├── rules.ts       # 验证器与提示共用的字数、禁止清单（不进用字扫描）
+│   │   └── prompt.ts      # 给模型的提示：逐题作答＋用字规范（含禁止清单，不进用字扫描）
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
 │   │   ├── core.ts        # 产码、杂凑、设定（HANDOFF_*）、两端之间那一包的形状（伺服器专用）
 │   │   ├── routes.ts      # 发出端三支（B）＋接收端一支（A）；server.ts 只注册、注入依赖
@@ -326,6 +333,25 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 > `test/handoffSource.http.test.ts`、`test/handoffTarget.http.test.ts`、`test/handoffFrontend.structure.test.ts`、
 > `test/handoffInvites.http.test.ts`（后台邀请）、`test/smsSender.test.ts`（邀请范本）。
 
+> 新版 T1 报告（`T1_REPORT_REAL`，使用者 2026-10-08：「每份报告都长一样」；**只在专案 A，B 一个字都不变**）。
+> 旧版的几块是编的：四个仪表（模型照 45–98 填、模板用 88−红灯×8）、「居同龄前 X%」（T1 是客户自建、对照年龄题组的清单，**没有常模**）、
+> 三条写死的预测曲线（62→95，每个孩子一样，附「最快8周可回归ASQ」）、每天一张固定的「前额叶神经调适游戏」与设备标签；
+> 模型只拿到九个总分、被要求写脑神经术语，回来的东西**没有验证**。新版：
+> - 伺服器（`server.ts` 的 `/api/report`）：`generateT1Report`（`src/t1report/report.ts`）—— 提示给每一题的原文与作答；
+>   引擎与旧版同一串（Qwen → 豆包 → DashScope → Gemini）；验证器挡形状、被标记的维度不多不少、红灯维度要在总结里点名、
+>   《用语对照表》禁字、量表名／诊断名／仪器疗程药物（T2 黑名单那三类）、百分位／常模／％／预测、脑神经术语
+>   （题目原文一字不差地引用不算）；不过整份退模板。`aiEngine` 三种：引擎代号／`template:<引擎>`／`template:all_engines_failed`。
+>   模板照这个孩子的作答组：被标记的方面各一段（还不能的那一题当练习起点）、6 岁前与学龄的建议分开写。
+> - 画面（`ReportBody.tsx`）：**看快照换版，不看开关**（同 T2 v3 报告），前端不必问伺服器、不必重建；`PRODUCT.features.tier2And3`
+>   再挡一次。旧快照照旧画（那是家长当时看到的）。「这次作答的样子」＝做到几项／36、三种作答分布、「接下来可以多练的」；
+>   没有逐题作答（R1b 之前的成绩）只写合计分数。「历次筛查对照」＝这位家长自己的报告快照（到这一份为止，最多 6 份）。
+>   「后续发展预判」改叫「接下来怎么做」（栏位名沿用 `prognosisPrediction`，旧的读取端不必改）。后台详情、列印、扫码页读得到新版。
+> - 还没动：「神经网络发展拓扑图」（脑区术语与「协同率 X%」）不在这次的范围，新旧版都还在。
+> 护栏：`test/t1ReportAnswers.test.ts`、`test/t1ReportReal.test.ts`（模板穷举年龄段×作答都过验证器、验证器挡下的十几种坏输出、三种出口）、
+> `test/t1ReportReal.http.test.ts`、`test/t1ReportRealProjectB.http.test.ts`（B 设了不生效）、`test/t1ReportRealSwitch.test.ts`（认不得的值起不来）、
+> `test/t1ReportView.structure.test.ts`（只在 A 换版、B 走旧的几块、新版画面与模板没有百分位／ASQ／预测／脑神经术语、快照读回）；
+> 用字扫描 `test/parentWording.structure.test.ts` 加了 `src/t1report/` 的三档与 `ReportRealBlocks.tsx`。
+
 > 四种咨询（#21）：`serviceType` 是 `online_consult`／`online_training`／
 > `offline_training`／`offline_consult` 之一，定义在 `src/utils/serviceTypes.ts`。
 > **不带这一栏 = 线上咨询说明**（既有行为，旧版前端不送它）；**带了但认不得就回 400**，
@@ -394,6 +420,7 @@ npx tsx scripts/t2-prepare-media.ts --check --zip <zip 的路径>
 | `SMS_IP_DAILY_MAX` | 同一来源每日索取上限（预设 50）。按号码算的上限（10）挡不住换号码，这是按来源算的那一半；来源是收敛过的键（IPv6 截到 /64）。**设成 0 即停止发送**，遭滥用时最快的一道闸门 | 否 |
 | `TRAINING_PUSH_V3` | 线上干预 v3 推送规则（客户 2026-10-06，规格 `docs/specs/t2-v3-training-push-2026-10-06.md`）：`1` ＝ 每周活动改由「一期 12 周 × 3 支」排（`src/t2/trainingPush.ts`、`trainingPeriodService.ts`，读写 `t2_training_periods`）；不设或 `0` ＝ 旧的每周 4 支。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-10-07-t2-training-periods.sql`** | 否 |
 | `T2_RECOMMEND_V3` | T2 v3 量表推薦與完整版題庫（客戶 2026-10-06，規格 `docs/specs/t2-v3-toolkit-full-edition.md`）：`1` ＝ `POST /api/t2/tool-results` 收 `toolkitVersion: 'kit-20260923'` 的交卷（`src/t2/kitv3/submit.ts`，存同一張 `t2_tool_results`）、`GET ?kit=v3` 讀完整版每支最新一筆；`GET /api/t2/plan` 改回量表推薦（`src/t2/recommend/parentPlan.ts`：家長端的字另寫、近 90 天做過的不再推、T3 不回；**每個被標記的維度只出一份**，社交溝通警訊／情緒那一題／抽動改成最上方提示＋預約、不推問卷，診斷不進推薦 —— ADR-0011，`ONE_TOOL_PER_DIMENSION`）；`POST /api/t2/findings` 存完整版快照 `T2FindingsV3`（`src/t2/findingsV3.ts`）＋報告文字（`src/t2/report/proseV3.ts`：模型走 T1 報告同一串 `generateReportJSON`，驗證不過或全掛就存模板）。**要同時開 `TRAINING_PUSH_V3`**，否則程序起不來；不設或 `0` ＝ 一行不動。只收 `1`/`true`/`0`/`false` | 否 |
+| `T1_REPORT_REAL` | 新版 T1 报告（使用者 2026-10-08，**只在专案 A**）：`1` ＝ `POST /api/report` 改走 `src/t1report/`（给模型逐题作答、回来过验证器、不过退照作答组的模板；不再产四个仪表数字），报告快照带 `version: 't1-real-1'`，报告页看快照换版。不设或 `0` ＝ 一行不动。B 设了也不生效（启动印一行）。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

@@ -846,6 +846,8 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
                 aiReport={latestReport.aiReport}
                 isAiGenerated={latestReport.isAiGenerated}
                 reportId={latestReport.id}
+                history={parent.reportHistory}
+                reportCreatedAt={latestReport.createdAt}
               />
             </div>
           </div>

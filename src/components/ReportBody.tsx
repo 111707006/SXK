@@ -12,6 +12,9 @@ import type { RenderableReport } from '../utils/reportHistory';
 import {
   IntegrationGauges, NeuralNetworkTopology, WeeklyRehabPlanner, PrognosisTrajectoryChart,
 } from './ReportCharts';
+import { AnswersOverview, ScreeningHistory } from './ReportRealBlocks';
+import { toConcernScore } from '../t1report/answers';
+import { isRealT1Report } from '../t1report/shape';
 
 /**
  * 報告本體 —— 家長手機上看到的那一頁，後台的家長詳情看到的也是這一頁（ADR-0007）。
@@ -31,16 +34,7 @@ import {
  * 家長端分岔，ADR-0007 這份決定就沒了。
  */
 
-/**
- * 把任一層級的得分換算到共用的 0–8「關注分」刻度。
- *
- * T1 滿分 8，T2/T3 滿分 50/120，先前的 `8 - score` 會在深度評估上產生負值，
- * 於是表現最差的維度被畫成綠色。T1 的結果與 `8 - score` 完全相同。
- */
-function toConcernScore(score: number, maxScore: number): number {
-  const max = maxScore > 0 ? maxScore : 8;
-  return Math.round(8 * (1 - score / max));
-}
+// 關注分的算式（0–8）在 `src/t1report/answers.ts` 的 `toConcernScore`：歷次對照圖與九宮格用同一把尺。
 
 /**
  * 三級嚴重度各自的顏色。**圖表的顏色與文字一律走這裡，不看關注分**
@@ -125,7 +119,14 @@ export interface ReportBodyProps {
    */
   childName: string;
   scores: DimensionScore[];
-  aiReport: RenderableReport['aiReport'];
+  /**
+   * 報告文字。家長端傳快照原樣（`AssessmentRecord['aiReport']`），後台傳收乾淨的（`RenderableReport`）；
+   * 新版報告沒有 `criticalMetrics`、舊報告沒有 `perDimension`，所以兩欄都是選填。
+   */
+  aiReport: Omit<RenderableReport['aiReport'], 'criticalMetrics' | 'perDimension'> & {
+    criticalMetrics?: RenderableReport['aiReport']['criticalMetrics'];
+    perDimension?: RenderableReport['aiReport']['perDimension'];
+  };
   /** 三態：true = AI 生成、false = 本地模板兜底、null/undefined = 舊紀錄沒存這個旗標。 */
   isAiGenerated?: boolean | null;
   /** 報告編號由它算出。`null` 代表還沒存進歷史，此時整行不出現。 */
@@ -138,6 +139,13 @@ export interface ReportBodyProps {
   takeawaySlot?: React.ReactNode;
   /** 家長端專屬：專家預約入口。放在每週課表底下，與它同屬最後那一區。 */
   bookingSlot?: React.ReactNode;
+  /**
+   * 這位家長的報告歷史（原樣，當 unknown 收）。新版報告的「历次筛查对照」用它；舊版不看。
+   * 沒給就只畫這一份。
+   */
+  history?: unknown;
+  /** 這一份報告的產生時間：歷次對照只算到它為止（開舊報告時，比它新的不算）。 */
+  reportCreatedAt?: string | null;
 }
 
 export default function ReportBody({
@@ -150,7 +158,14 @@ export default function ReportBody({
   languageSlot,
   takeawaySlot,
   bookingSlot,
+  history,
+  reportCreatedAt,
 }: ReportBodyProps) {
+  /**
+   * 新版 T1 報告（`T1_REPORT_REAL`）：看**快照**換版，不看開關（`src/t1report/shape.ts`）。
+   * 只在專案 A —— B 的伺服器不會產出新版，這裡再擋一次，B 的畫面一個字都不變。
+   */
+  const real = PRODUCT.features.tier2And3 && isRealT1Report(aiReport);
   const redNames = scores.filter(s => s.status === 'delay').map(s => s.dimensionName);
   const yellowNames = scores.filter(s => s.status === 'borderline').map(s => s.dimensionName);
 
@@ -296,16 +311,25 @@ export default function ReportBody({
       {/* 家長端專屬：語言專項評估入口。後台不放 —— 那是一顆按下去會開始做事的按鈕。 */}
       {languageSlot}
 
-      {/* New Visual Section 1: Overall Peer Development Level Comparison */}
-      <PeerComparison childName={childName} scores={scores} />
+      {real ? (
+        /*
+          新版：作答分布與「接下来可以多练的」取代同齡比較條（沒有常模）與四個儀表（數字是編的）。
+        */
+        <AnswersOverview scores={scores} notes={aiReport.perDimension ?? []} />
+      ) : (
+        <>
+          {/* New Visual Section 1: Overall Peer Development Level Comparison */}
+          <PeerComparison childName={childName} scores={scores} />
 
-      {/*
-        1. Circular Dial Gauges for Critical Brain Indices
+          {/*
+            1. Circular Dial Gauges for Critical Brain Indices
 
-        沒存下這四個數字的舊報告，整區不出現 —— 補 0 畫出來是四個歸零的儀表，
-        而讀的人會以為那是這個孩子的分數。
-      */}
-      {aiReport.criticalMetrics && <IntegrationGauges criticalMetrics={aiReport.criticalMetrics} />}
+            沒存下這四個數字的舊報告，整區不出現 —— 補 0 畫出來是四個歸零的儀表，
+            而讀的人會以為那是這個孩子的分數。
+          */}
+          {aiReport.criticalMetrics && <IntegrationGauges criticalMetrics={aiReport.criticalMetrics} />}
+        </>
+      )}
 
       {/* 2. Interactive Synaptic Connection Topology Diagram & Pathway Analysis */}
       {/*
@@ -319,12 +343,16 @@ export default function ReportBody({
 
       {/* 4. Smooth trajectory 3-month forecast line-graph & Prognosis Narrative */}
       <div className="space-y-4">
-        <PrognosisTrajectoryChart completedScores={scores} />
+        {/* 新版：這位家長自己的歷次報告，取代三條每個孩子都一樣的預測曲線。 */}
+        {real
+          ? <ScreeningHistory history={history} current={{ id: reportId, createdAt: reportCreatedAt, scores }} />
+          : <PrognosisTrajectoryChart completedScores={scores} />}
 
         <div className="bg-brand-sand/50 p-4 rounded-2xl border border-brand-stone/60 text-left">
           <span className="text-[10px] font-bold text-brand-clay uppercase tracking-wider flex items-center gap-1 mb-1.5">
             <Compass size={11} className="text-brand-clay" />
-            后续发展预判与家长指引
+            {/* 新版這一段是「接下来怎么做」，不是預測（欄位名沿用 prognosisPrediction）。 */}
+            {real ? '接下来怎么做' : '后续发展预判与家长指引'}
           </span>
           <p className="text-xs text-brand-charcoal leading-relaxed font-semibold">
             {aiReport.prognosisPrediction}
@@ -337,7 +365,7 @@ export default function ReportBody({
 
       {/* 3. Gamified Weekly Sensori-Motor Training Calendar */}
       <div className="space-y-4 pt-4 border-t border-brand-cream/80">
-        <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} />
+        <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} plain={real} />
 
         {/* 家長端專屬：專家預約入口與表單。 */}
         {bookingSlot}

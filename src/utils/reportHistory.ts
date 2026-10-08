@@ -1,4 +1,5 @@
 import type { AssessmentStatus, DimensionScore } from '../types';
+import { dimensionNotesOf, type T1DimensionNote } from '../t1report/shape';
 
 /**
  * 後台讀 `report_history` 的唯一關口（ADR-0007）。
@@ -55,6 +56,10 @@ export interface RenderableReport {
     prognosisPrediction: string;
     /** `null` = 這份報告沒存下這四個數字，儀表那一區整塊不出現。 */
     criticalMetrics: CriticalMetrics | null;
+    /** 新版 T1 報告的標記（`src/t1report/shape.ts`）；舊報告沒有。 */
+    version?: string;
+    /** 新版 T1 報告：被標記的每一方面一段說明。舊報告是空陣列。 */
+    perDimension: T1DimensionNote[];
   };
 }
 
@@ -106,6 +111,10 @@ function toScore(value: unknown): DimensionScore | null {
     status: asStatus(value.status),
     completedAt: str(value.completedAt),
     ...(num(value.assessedAgeMonth) !== null ? { assessedAgeMonth: value.assessedAgeMonth as number } : {}),
+    // 逐題作答（R1b 起）：新版 T1 報告的作答分布要它。每一個值都是 0／1／2 才留，壞的整欄不要。
+    ...(Array.isArray(value.items) && value.items.every(v => v === 0 || v === 1 || v === 2)
+      ? { items: [...(value.items as number[])] }
+      : {}),
   };
 }
 
@@ -160,6 +169,8 @@ function toRenderable(value: unknown): RenderableReport | null {
       homeGuidance: strings(ai.homeGuidance),
       prognosisPrediction: str(ai.prognosisPrediction),
       criticalMetrics: toMetrics(ai.criticalMetrics),
+      ...(typeof ai.version === 'string' ? { version: ai.version } : {}),
+      perDimension: dimensionNotesOf(ai),
     },
   };
 }

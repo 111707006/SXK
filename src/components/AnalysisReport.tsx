@@ -241,9 +241,13 @@ interface AnalysisReportProps {
    * 就是那一頁）。只有專案 A 有那一頁；沒給的話那一顆灰掉（`serviceChoices`）。
    */
   onOpenTraining?: () => void;
+  /**
+   * 這位家長的報告歷史。新版 T1 報告（`T1_REPORT_REAL`）的「历次筛查对照」畫的就是它；舊版不看。
+   */
+  reportHistory?: AssessmentRecord[];
 }
 
-export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, handoff, historicalRecord, focusBooking, focusBookingService, resumeFrom, generateOnOpen, focusT2, onOpenTraining }: AnalysisReportProps) {
+export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, onGoToLanguageSpecial, t2, handoff, historicalRecord, focusBooking, focusBookingService, resumeFrom, generateOnOpen, focusT2, onOpenTraining, reportHistory }: AnalysisReportProps) {
   const resumed = !historicalRecord && resumeFrom?.aiReport ? resumeFrom : null;
   const [loading, setLoading] = useState(false);
   const [aiReport, setAiReport] = useState<AssessmentRecord['aiReport'] | null>(() => resumed?.aiReport ?? null);
@@ -257,6 +261,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
    * 還沒有報告可以帶走（尚未生成），此時二維碼那張卡片整個不出現。
    */
   const [reportId, setReportId] = useState<string | null>(() => resumed?.id ?? null);
+  /** 這份報告的產生時間（歷次對照只算到它為止）。與 `reportId` 同時設。 */
+  const [reportCreatedAt, setReportCreatedAt] = useState<string | null>(() => resumed?.createdAt ?? null);
 
   /**
    * 這份報告該用誰的年齡來讀。
@@ -273,6 +279,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       // 舊紀錄沒有 isAiGenerated 欄位，此時來源不明，不能預設成 AI 生成
       setIsAiGenerated(historicalRecord.isAiGenerated ?? null);
       setReportId(historicalRecord.id);
+      setReportCreatedAt(historicalRecord.createdAt);
     }
   }, [historicalRecord]);
 
@@ -482,6 +489,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       // 掃碼連結綁的是這一筆的編號。設在存進歷史之後 —— 家長掃到的那一頁
       // 是從資料庫的 report_history 讀出來的，順序反了就會有一小段時間掃出 404。
       setReportId(newRecord.id);
+      setReportCreatedAt(newRecord.createdAt);
 
     } catch (e: any) {
       console.error(e);
@@ -895,6 +903,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           languageSlot={languageSlot}
           takeawaySlot={<ReportTakeawayCard reportId={reportId} />}
           bookingSlot={bookingSlot}
+          history={reportHistory}
+          reportCreatedAt={reportCreatedAt}
         />
       )}
 

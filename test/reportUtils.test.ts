@@ -54,7 +54,7 @@ describe('generateSpecializedReportRecord', () => {
       const rec = generateSpecializedReportRecord(child, scores, 'gross_motor', {
         dimensionId: 'gross_motor', dimensionName: '动作发展', tierId: 'T3', score, maxScore: 50, status: 'delay', completedAt: '2026-07-16',
       });
-      const m = rec.aiReport!.criticalMetrics;
+      const m = rec.aiReport!.criticalMetrics!;
       for (const v of Object.values(m)) {
         expect(v).toBeGreaterThanOrEqual(50);
         expect(v).toBeLessThanOrEqual(98);

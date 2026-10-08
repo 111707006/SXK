@@ -274,7 +274,7 @@ export default function SpecializedReportView({
             <div className="space-y-4 py-2">
               {/* Metric 1 */}
               {(() => {
-                const val = record.aiReport?.criticalMetrics.neuralPlasticity || 78;
+                const val = record.aiReport?.criticalMetrics?.neuralPlasticity || 78;
                 const isUnder = val < 75;
                 return (
                   <div className="space-y-1">
@@ -299,7 +299,7 @@ export default function SpecializedReportView({
 
               {/* Metric 2 */}
               {(() => {
-                const val = record.aiReport?.criticalMetrics.sensoryIntegration || 65;
+                const val = record.aiReport?.criticalMetrics?.sensoryIntegration || 65;
                 const isUnder = val < 75;
                 return (
                   <div className="space-y-1">
@@ -324,7 +324,7 @@ export default function SpecializedReportView({
 
               {/* Metric 3 */}
               {(() => {
-                const val = record.aiReport?.criticalMetrics.motorControlIndex || 58;
+                const val = record.aiReport?.criticalMetrics?.motorControlIndex || 58;
                 const isUnder = val < 75;
                 return (
                   <div className="space-y-1">
@@ -349,7 +349,7 @@ export default function SpecializedReportView({
 
               {/* Metric 4 */}
               {(() => {
-                const val = record.aiReport?.criticalMetrics.familyEnvironmentScore || 82;
+                const val = record.aiReport?.criticalMetrics?.familyEnvironmentScore || 82;
                 const isUnder = val < 75;
                 return (
                   <div className="space-y-1">

@@ -67,6 +67,8 @@ export default function ParentReportPrint({ id }: { id: number }) {
         aiReport={report.aiReport}
         isAiGenerated={report.isAiGenerated}
         reportId={report.id}
+        history={data.parent.reportHistory}
+        reportCreatedAt={report.createdAt}
       />
     </div>
   );

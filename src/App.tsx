@@ -1355,6 +1355,7 @@ export default function App() {
                     // B 在同一個位置放「到 A 做深度評估」（ADR-0009）；卡自己問伺服器交接開了沒。
                     handoff={PRODUCT.features.handoff === 'send' ? { onShowPrivacy: () => setShowPrivacyModal(true) } : undefined}
                     historicalRecord={null}
+                    reportHistory={reportHistory}
                     resumeFrom={liveReportResume}
                     generateOnOpen={t1ReportGenerate}
                     focusT2={focusT2}
@@ -1376,6 +1377,7 @@ export default function App() {
                     onSaveReportToHistory={handleSaveReportToHistory}
                     onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     historicalRecord={activeT1Record}
+                    reportHistory={reportHistory}
                     // 從干預包的「联系专家」進來時要捲到預約區塊 —— 這一支是
                     // `goToExpertBooking` 優先走的那一條路（已歸檔的報告帶著
                     // aiReport，區塊當場就在）。少了這個 prop，捲動只在即時報告

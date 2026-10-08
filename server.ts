@@ -64,6 +64,7 @@ import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
 import type { UnlockScope } from './src/types';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
+import { PARENT_WORDING_CLAUSE } from './src/utils/parentWording';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
 import { resolveDemoLoginCode } from './src/demoLogin';
@@ -221,20 +222,8 @@ const WEARABLES_PROMPT_CLAUSE = APP_MODE === 'full'
   ? '建议中可提倡将森心康智能穿戴硬件（脑电反馈带、精细OT手套、步态腰带等）编织到日常游戏中辅疗增效。'
   : '请聚焦于家庭日常可执行的互动与游戏，不要推荐任何需要购买的硬件或产品。';
 
-// The parent reads the generated text verbatim, so the model has to follow the
-// same wording rules as the screens do (客戶 2026-09-11《家长报告用语对照表》,
-// docs/reference/client-mockups/家长报告用语对照表-2026-09-11.md; the screen-side
-// half lives in src/utils/statusWording.ts). Without this clause the model, told
-// it is a "首席临床医学主任医生", reliably writes 诊断 / 迟缓 / 障碍 / 风险 —
-// exactly the words the table bans. Appended to every report prompt.
-const PARENT_WORDING_CLAUSE = `用词规范（家长会直接阅读本报告，请严格遵守）：
-- 本报告是发展筛查，不是诊断。不要写「诊断」「确诊」，不要点任何病名（如自闭症、脑瘫、多动症、智力障碍），不要写「阳性」。
-- 不使用「障碍、疾病、症状、异常、不正常、缺陷、缺损、迟缓、发育迟缓、落后、滞后、失调、严重、重度、中度、轻度、不足、缺乏、困难、低于标准、未通过、不合格、偏低」这类判定性字眼。
-- 不使用「风险、高风险、警告、危险、必须、一定要、立即、马上、尽快、否则会、将会导致、恶化、退化、错过黄金期」这类制造紧迫感的字眼。
-- 不使用「治疗、矫正、转介、转诊、介入、患儿」；改用「训练、练习、支持、协助、孩子」。
-- 描述现况请用「仍在建立中」「需要更多时间」「与同龄常见的发展节奏有差距」「目前需要较多支持」；给建议请用「建议进一步了解」「建议近期安排专业咨询」「可在日常中练习」。
-- 一句话结论的句型是「（能力方面）＋（中性描述）＋（行动建议）」，不要以「孩子有……」作为判定句。
-- 结果稳定时也要说清楚：「各方面发展稳定，可作为日后对照的基线记录。」`;
+// 用字規範那一段（`PARENT_WORDING_CLAUSE`）住在 src/utils/parentWording.ts，與禁字清單同一處；
+// T1 報告的新版提示（src/t1report/prompt.ts）也要用它。
 
 /** ¥19.9 per dimension, in 分 — WeChat Pay's amount.total is an integer in 分. */
 const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;

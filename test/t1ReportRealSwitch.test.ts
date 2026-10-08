@@ -10,5 +10,5 @@ describe('T1_REPORT_REAL 的值', () => {
   it('認不得的值（yes）讓 server.ts 載入失敗', async () => {
     process.env.T1_REPORT_REAL = 'yes';
     await expect(import('../server')).rejects.toThrow(/T1_REPORT_REAL is not recognised/);
-  });
+  }, 60_000); // 載入整個 server.ts，全套並行時慢
 });

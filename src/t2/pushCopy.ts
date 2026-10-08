@@ -64,6 +64,23 @@ export const PUSH_PAGE = {
   },
 } as const;
 
+/** 整期列印（客戶第九節「整页可以打印或存成 PDF，每张周计划卡会自动分页」）。 */
+export const PRINT_SHEET = {
+  button: '打印 / 存成 PDF（整期 12 周）',
+  title: (periodNo: number) => `家庭活动计划 · 第 ${periodNo} 期（12 周）`,
+  weekTitle: (week: number, from: string, to: string) => `第 ${week} 周 · ${from} – ${to}`,
+  trains: '练什么',
+  need: '要准备',
+  steps: '怎么玩',
+  variant: '这个月的做法',
+  standardVariant: '照上面的玩法做。',
+  tip: '小提醒',
+  checkin: '打卡（做了就打勾）',
+  note: '观察记录',
+  notReady: '请先打开本周的家庭活动，整期计划会在那时排好，再来打印。',
+  failed: '暂时读不到整期计划，请稍后再试。',
+} as const;
+
 /** 能力表的一列：「语言沟通 · 需要较多支持（按深度评估）」＋「每月 4 个 · 这个月练 24–28 个月的内容」。 */
 export function abilityRow(d: { dimension: DimensionCode; color: PushColor; source: PushSource; quota: number; window: readonly [number, number] }) {
   return {

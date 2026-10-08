@@ -20,6 +20,7 @@
  */
 const TRAINING_SEGMENTS: ReadonlySet<string> = new Set([
   'weekly-plan',
+  'training-period',
   'library',
   'activities',
   'checkins',

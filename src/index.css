@@ -61,3 +61,10 @@ body {
 .animate-fade-in {
   animation: fadeIn 0.4s ease-out forwards;
 }
+
+/* 線上干預整期計劃的列印頁（PlanPrintSheet）：平常看不到；列印時只印它 */
+#plan-print-sheet { display: none; }
+@media print {
+  body.sxk-printing-plan > *:not(#plan-print-sheet) { display: none !important; }
+  body.sxk-printing-plan #plan-print-sheet { display: block !important; padding: 0 4mm; }
+}

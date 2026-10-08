@@ -14,7 +14,7 @@
  * 【改過的地方】樣品寫 4 週的全改 12 週；「难度 入门」換成「从做得到的开始」；STEP 3 第三條不再說
  * 「下周安排会参考」（配對不看心情）；頭圖、常見問題的人像不上（來源與授權不明，§9 第 4 題）。
  */
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronRight, CircleCheck, Clock, Crown, MessagesSquare, Play, UserRound } from 'lucide-react';
 import { STATUS_WORDING } from '../../utils/statusWording';
 import { ServiceNote, serviceChoices } from '../serviceChoices';
@@ -52,7 +52,11 @@ import {
   type PushPosition,
   type WeeklyPick,
 } from './trainingData';
-import { PUSH_PAGE, VARIANT_LABEL, abilityRow, guidanceLines, referralLine } from '../../t2/pushCopy';
+import { PRINT_SHEET, PUSH_PAGE, VARIANT_LABEL, abilityRow, guidanceLines, referralLine } from '../../t2/pushCopy';
+import type { PeriodSheet } from '../../t2/trainingPeriodService';
+import PrintButton from '../PrintButton';
+import PlanPrintSheet from './PlanPrintSheet';
+import { fetchPeriodSheet } from './trainingApi';
 import { Cover, DarkNav, StepImage } from './ui';
 
 /**
@@ -222,6 +226,44 @@ function Staircase({ weekIndex, push }: { weekIndex: number; push: boolean }) {
  * v3 的能力表（規格 P17、§5.3、§5.4）：這一期哪幾塊、各自的狀態與來源（按深度评估／按筛查推估）、每月幾個、
  * 這個月練幾個月的內容；有「需要较多支持」的加一句約專家；上一期調整過的說一句；底下是怎麼帶最有效。
  */
+/**
+ * 整期 12 週列印（客戶第九節）：按下去先讀整期（`/api/t2/training-period`），畫好列印頁再叫列印；印完收掉。
+ * 微信裡 `PrintButton` 自己改成說怎麼用瀏覽器打開。
+ */
+function PrintPeriod() {
+  const [sheet, setSheet] = useState<PeriodSheet | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sheet) return;
+    const done = () => {
+      document.body.classList.remove('sxk-printing-plan');
+      setSheet(null);
+    };
+    document.body.classList.add('sxk-printing-plan');
+    window.addEventListener('afterprint', done, { once: true });
+    // 等列印頁畫進 DOM 再叫列印
+    const t = window.setTimeout(() => window.print(), 50);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('afterprint', done);
+      document.body.classList.remove('sxk-printing-plan');
+    };
+  }, [sheet]);
+  const onPrint = () => {
+    setMessage(null);
+    fetchPeriodSheet()
+      .then(s => (s ? setSheet(s) : setMessage(PRINT_SHEET.notReady)))
+      .catch(() => setMessage(PRINT_SHEET.failed));
+  };
+  return (
+    <div className="mt-4" data-testid="plan-print">
+      <PrintButton id="plan-print-btn" label={PRINT_SHEET.button} onPrint={onPrint} />
+      {message && <p className="mt-1 text-[12px] text-brand-charcoal/60">{message}</p>}
+      {sheet && <PlanPrintSheet sheet={sheet} />}
+    </div>
+  );
+}
+
 function AbilityTable({ push }: { push: PushPosition }) {
   const heavy = push.dimensions.filter(d => d.color === 'red').map(d => d.dimension);
   return (
@@ -274,6 +316,7 @@ function AbilityTable({ push }: { push: PushPosition }) {
       </ul>
       <p className="mt-2 text-[12px] text-brand-charcoal/60 leading-relaxed">{PUSH_PAGE.periodEndNote}</p>
       <p className="mt-3 text-[11px] text-brand-charcoal/50 leading-relaxed" data-testid="plan-boundary">{PUSH_PAGE.boundary}</p>
+      <PrintPeriod />
     </section>
   );
 }

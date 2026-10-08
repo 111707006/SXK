@@ -204,6 +204,34 @@ export function reportActivitiesOf(plan: Pick<PeriodPlan, 'weeks'>, week: number
   return { picks, preparing };
 }
 
+/**
+ * 整期 12 週的計劃（列印用，客戶推送說明第九節「整页可以打印或存成 PDF，每张周计划卡会自动分页」）：
+ * 每一週的星期一、本月做法、那幾支（形狀同每週活動的一支：`activity`、`dimension`、`reason`、`push`）。
+ * 只讀已存的那一期，不開期、不補位 —— 開期與補位是每週活動那一支的事；查不到內容的略過。
+ */
+export function periodSheetOf(period: TrainingPeriodRecord & { plan: StoredPeriodPlan }, library: ReadonlyArray<Activity>) {
+  const byId = new Map(library.map(a => [a.id, a] as const));
+  return {
+    periodNo: period.periodNo,
+    firstWeekStart: period.firstWeekStart,
+    perWeek: period.plan.perWeek,
+    adjustment: period.adjustment,
+    weeks: period.plan.weeks.map((slots, i) => ({
+      week: i + 1,
+      weekStart: addCalendarDays(period.firstWeekStart, i * 7),
+      variant: slots[0]?.variant ?? 'standard',
+      activities: slots.flatMap(slot => {
+        const activity = slot.activityId ? byId.get(slot.activityId) : undefined;
+        if (!activity) return [];
+        const pick = pickOf(slot, period.periodNo, activity);
+        return [{ activity, dimension: slot.dimension, reason: pick.reason, push: pick.push! }];
+      }),
+    })),
+  };
+}
+
+export type PeriodSheet = ReturnType<typeof periodSheetOf>;
+
 /** 計劃頁要的位置（`plan` 那一塊）：第幾週、第幾期、第幾個月、本月做法、每週幾支、能力表。 */
 export function periodPosition(period: TrainingPeriodRecord & { plan: StoredPeriodPlan }, week: number) {
   const m = monthIndexOf(week);

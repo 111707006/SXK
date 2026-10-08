@@ -429,6 +429,12 @@ describe('v3 推送規則排的週次（規格 P12、P14、P17、§5.3、§5.4�
     expect(html).toContain(PUSH_PAGE.boundary);
   });
 
+  it('計劃頁：有整期 12 週的「打印 / 存成 PDF」（客戶第九節）；舊週次沒有', () => {
+    expect(plan()).toContain('data-testid="plan-print"');
+    expect(plan()).toContain(PUSH_PAGE ? '打印 / 存成 PDF（整期 12 周）' : '');
+    expect(render(createElement(PlanScreen))).not.toContain('data-testid="plan-print"');
+  });
+
   it('舊週次（沒有 push）不出能力表', () => {
     expect(render(createElement(PlanScreen))).not.toContain('data-testid="plan-abilities"');
   });

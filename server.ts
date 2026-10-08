@@ -44,7 +44,7 @@ import * as t2PeriodStore from './src/db/t2TrainingPeriods';
 import type { TrainingPeriodRecord } from './src/db/t2TrainingPeriods';
 import { listCheckins as listT2Checkins } from './src/db/t2Checkins';
 import { planPeriod } from './src/t2/trainingPush';
-import { periodForWeek, periodPosition, reportActivitiesOf, t1ScoresOf, weeklyActivitiesOf } from './src/t2/trainingPeriodService';
+import { periodForWeek, periodPosition, periodSheetOf, reportActivitiesOf, t1ScoresOf, weeklyActivitiesOf } from './src/t2/trainingPeriodService';
 import type { PeriodContext, PeriodDeps } from './src/t2/trainingPeriodService';
 import { listActivityLibrary } from './src/db/t2Activities';
 import type { ChildSnapshot, ToolResultRecord } from './src/db/t2ToolResults';
@@ -1851,6 +1851,29 @@ function ageMonthForWeek(child: any, weekStart: string, fallback: number): numbe
   }
   return fallback;
 }
+
+// 整期 12 週的計劃（列印用，推送說明第九節）：只讀最新快照已存的那一期，不開期 —— 家長要先打開過本週的活動。
+// 只有 v3 推送有「一期」；舊規則每週各自配，沒有整期可印。
+tier2Only.get('/api/t2/training-period', async (req, res) => {
+  try {
+    const userId = await requireT2Parent(req, res);
+    if (!userId) return;
+    if (!TRAINING_PUSH_V3) {
+      res.status(404).json({ error: '目前的家庭活动是每周安排的，还没有整期计划可以打印。', code: 'PERIOD_NOT_AVAILABLE' });
+      return;
+    }
+    const snapshot = await loadLatestT2Findings(userId);
+    const latest = snapshot ? await t2PeriodDeps(userId).latest(snapshot.id) : null;
+    if (!snapshot || !latest || !latest.plan) {
+      res.status(404).json({ error: '请先打开本周的家庭活动，整期计划会在那时排好。', code: 'PERIOD_NOT_STARTED' });
+      return;
+    }
+    res.json(periodSheetOf({ ...latest, plan: latest.plan }, await loadActivityLibrary()));
+  } catch (err: any) {
+    console.error('[T2] training-period failed:', err.message);
+    res.status(500).json({ error: '暂时读不到整期计划，请稍后再试。' });
+  }
+});
 
 tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
   try {

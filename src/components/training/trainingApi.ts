@@ -6,6 +6,7 @@
  * `TrainingApiError`，呼叫端決定畫面上怎麼說；伺服器的錯誤句子不直接顯示（那是給開發看的）。
  */
 import { authFetch } from '../../utils/api';
+import type { PeriodSheet } from '../../t2/trainingPeriodService';
 import type { Activity } from '../../t2/types';
 import type { Checkin, CheckinPatch, PracticePrefs } from '../../t2/practice';
 import type { LibraryEntry } from '../../t2/libraryRoutes';
@@ -36,6 +37,13 @@ export async function fetchActivity(id: string): Promise<Activity | null> {
   const resp = await authFetch(`/api/t2/activities/${encodeURIComponent(id)}`);
   if (resp.status === 404) return null;
   return (await readJson<{ activity: Activity }>(resp)).activity;
+}
+
+/** 整期 12 週的計劃（列印用）。還沒開期、或不是 v3 推送 → `null`（伺服器回 404）。 */
+export async function fetchPeriodSheet(): Promise<PeriodSheet | null> {
+  const resp = await authFetch('/api/t2/training-period');
+  if (resp.status === 404) return null;
+  return readJson<PeriodSheet>(resp);
 }
 
 /** 示範片庫（有示範片的啟用活動，依編號）。 */

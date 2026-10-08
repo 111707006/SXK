@@ -17,6 +17,7 @@ const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 /** 線上干預（走自己的收費站）。 */
 const TRAINING_ROUTES = [
   '/api/t2/weekly-plan',
+  '/api/t2/training-period',
   '/api/t2/library',
   '/api/t2/activities/:id',
   '/api/t2/checkins',

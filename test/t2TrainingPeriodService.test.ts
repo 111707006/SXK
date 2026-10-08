@@ -5,6 +5,7 @@ import {
   periodCompletion,
   periodForWeek,
   periodPosition,
+  periodSheetOf,
   reportActivitiesOf,
   weeklyActivitiesOf,
   type PeriodContext,
@@ -189,5 +190,30 @@ describe('t1ScoresOf', () => {
         null,
       ]),
     ).toEqual({ LANG: 5, MOT: 8 });
+  });
+});
+
+describe('periodSheetOf（整期列印）', () => {
+  it('12 週各自的星期一、做法與那幾支（內容從活動庫補上）；和每週活動的那幾支同一份', async () => {
+    const { deps } = memoryDeps();
+    const got = await periodForWeek(FIRST, ctx(), deps);
+    if (got.kind !== 'ok') throw new Error(got.kind);
+    const sheet = periodSheetOf(got.period, ACTIVITY_SEED);
+    expect(sheet.weeks).toHaveLength(12);
+    expect(sheet.weeks[0].weekStart).toBe(FIRST);
+    expect(sheet.weeks[11].weekStart).toBe(addCalendarDays(FIRST, 77));
+    for (const w of sheet.weeks) {
+      const weekly = weeklyActivitiesOf(got.period, w.week, ACTIVITY_SEED);
+      expect(w.activities.map(a => a.activity.id)).toEqual(weekly.picks.map(p => p.id));
+      expect(w.activities.every(a => a.push.week === w.week)).toBe(true);
+    }
+    expect(new Set(sheet.weeks.map(w => w.variant))).toEqual(new Set(['easy', 'standard', 'hard']));
+  });
+
+  it('活動庫裡查不到的略過，不丟例外', async () => {
+    const { deps } = memoryDeps();
+    const got = await periodForWeek(FIRST, ctx(), deps);
+    if (got.kind !== 'ok') throw new Error(got.kind);
+    expect(periodSheetOf(got.period, []).weeks.every(w => w.activities.length === 0)).toBe(true);
   });
 });

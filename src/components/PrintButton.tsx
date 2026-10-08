@@ -10,7 +10,18 @@ export const PRINT_WECHAT_HINT = '微信里不能直接打印：请点右上角�
  * 微信內建瀏覽器叫不出列印視窗（家長多半從微信進來），按下去改成說一句怎麼用瀏覽器打開。
  * 自己帶 `print:hidden`：印出來的紙上不需要這顆按鈕。
  */
-export default function PrintButton({ id, className = '' }: { id: string; className?: string }) {
+export default function PrintButton({
+  id,
+  className = '',
+  label = '打印 / 存成 PDF',
+  onPrint,
+}: {
+  id: string;
+  className?: string;
+  label?: string;
+  /** 要先準備內容再印（例如整期計劃要先讀）時自己處理；沒給就直接 `window.print()`。 */
+  onPrint?: () => void;
+}) {
   const [hint, setHint] = useState(false);
   const onClick = () => {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -18,7 +29,8 @@ export default function PrintButton({ id, className = '' }: { id: string; classN
       setHint(true);
       return;
     }
-    window.print();
+    if (onPrint) onPrint();
+    else window.print();
   };
   return (
     <div className={`print:hidden space-y-1 ${className}`}>
@@ -29,7 +41,7 @@ export default function PrintButton({ id, className = '' }: { id: string; classN
         className="px-3.5 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
       >
         <Printer size={13} />
-        打印 / 存成 PDF
+        {label}
       </button>
       {hint && <p className="text-[10px] text-brand-charcoal/60 max-w-[16rem] leading-relaxed">{PRINT_WECHAT_HINT}</p>}
     </div>

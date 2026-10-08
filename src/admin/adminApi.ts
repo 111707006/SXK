@@ -311,6 +311,39 @@ export const adminApi = {
       body: JSON.stringify(patch),
     }),
 
+  // 上傳示範片／封面（2026-10-08，只在專案 A）。用 XHR 而不是 fetch：fetch 沒有上傳進度，
+  // 一支幾十 MB 的片在慢網路上傳一分鐘，畫面不能停在那裡不動。
+  uploadActivityMedia: (
+    id: string,
+    kind: 'video' | 'poster',
+    body: Blob,
+    options: { seconds?: number | null; onProgress?: (fraction: number) => void } = {},
+  ) =>
+    new Promise<{ activity: Activity }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const query = kind === 'video' && options.seconds ? `?seconds=${options.seconds}` : '';
+      xhr.open('PUT', `/api/admin/activities/${encodeURIComponent(id)}/${kind}${query}`);
+      xhr.setRequestHeader('Content-Type', kind === 'video' ? 'video/mp4' : 'image/jpeg');
+      const token = getAdminToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) options.onProgress?.(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        let parsed: any = {};
+        try {
+          parsed = JSON.parse(xhr.responseText);
+        } catch {
+          // 反向代理擋掉（例如 nginx 的 413）回的是 HTML
+        }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(parsed);
+        else if (xhr.status === 413 && !parsed.error) reject(new AdminApiError('档案太大，主机拒收（请联系技术人员调高上传上限）。', 'UNKNOWN', 413));
+        else reject(new AdminApiError(parsed.error || `上传失败（HTTP ${xhr.status}）`, (parsed.code as AdminErrorCode) || 'UNKNOWN', xhr.status));
+      };
+      xhr.onerror = () => reject(new AdminApiError('网络中断，上传没有完成。', 'UNKNOWN', 0));
+      xhr.send(body);
+    }),
+
   // 批量匯入（v2.1 S25）：先 dryRun 試跑、給人看過，再同一份 rows 正式匯入。
   importActivities: (rows: unknown[], dryRun: boolean) =>
     request<ActivityImportReport>('/activities/import', {

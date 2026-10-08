@@ -108,14 +108,13 @@ describe('驗證器擋下壞的模型輸出', () => {
   it.each([
     ['禁字', (o: any) => { o.summary += '语言方面明显落后。'; }],
     ['診斷名', (o: any) => { o.rehabSuggestions[0] = '可能是自闭症，建议多观察孩子的反应。'; }],
-    ['百分位', (o: any) => { o.summary += '整体居同龄百分位第三十。'; }],
-    ['居同齡前 X%', (o: any) => { o.summary += '整体居同龄前 40%。'; }],
-    ['全形百分號', (o: any) => { o.nextSteps += '进步可达三十％。'; }],
-    ['常模', (o: any) => { o.nextSteps += '与常模相比还有距离。'; }],
-    ['預測', (o: any) => { o.nextSteps += '预测八周后可以回到普通范围。'; }],
-    ['ASQ', (o: any) => { o.nextSteps += '有机会回到 asq 常见范围。'; }],
-    ['腦神經術語', (o: any) => { o.perDimension[0].note += '这和前额叶的突触发育有关。'; }],
-    ['儀器', (o: any) => { o.homeGuidance[0] = '可以配合脑电反馈带一起练习，每天二十分钟。'; }],
+    ['預測沒接免責：预计', (o: any) => { o.nextSteps += '预计八周后会有进步。'; }],
+    ['預測沒接免責：數字＋週', (o: any) => { o.nextSteps += '坚持练 8 周，说话会多很多。'; }],
+    ['預測沒接免責：數字＋個月', (o: any) => { o.perDimension[0].note += '3-6 个月内会更稳定。'; }],
+    ['預測沒接免責：百分比', (o: any) => { o.summary += '整体居同龄前 40%。'; }],
+    ['預測沒接免責：全形百分號', (o: any) => { o.rehabSuggestions[0] += '进步可达 30％。'; }],
+    ['預測沒接免責：回到…范围', (o: any) => { o.homeGuidance[0] += '有机会回到常见范围。'; }],
+    ['免責寫在別的欄位不算', (o: any) => { o.nextSteps += '预计八周后会有进步。'; o.summary += '（一般经验，每个孩子进度不同）'; }],
     ['缺欄位', (o: any) => { delete o.nextSteps; }],
     ['多一個欄位（編出來的指標）', (o: any) => { o.criticalMetrics = { neuralPlasticity: 80 }; }],
     ['條數不對', (o: any) => { o.rehabSuggestions = ['每天陪孩子玩十五分钟的游戏。']; }],
@@ -130,6 +129,36 @@ describe('驗證器擋下壞的模型輸出', () => {
     mutate(o);
     const checked = validateT1Report(o, input);
     expect(checked.ok).toBe(false);
+  });
+
+  it.each([
+    ['預測接了免責', (o: any) => { o.nextSteps += '坚持练 8 周，说话通常会多一些（一般经验，每个孩子进度不同）。'; }],
+    ['百分比接了免責', (o: any) => { o.rehabSuggestions[0] += '多数孩子进步 30%（一般经验，每个孩子进度不同）。'; }],
+    ['预计接了免責（沒有括號也算）', (o: any) => { o.perDimension[0].note += '预计会慢慢稳定，一般经验，每个孩子进度不同。'; }],
+    ['百分位、常模、ASQ 的說法', (o: any) => { o.nextSteps += '这份筛查没有常模，也不是 ASQ。'; }],
+    ['腦神經的說法', (o: any) => { o.perDimension[0].note += '这和大脑神经发育、可塑性有关。'; }],
+    ['量表名、儀器', (o: any) => { o.homeGuidance[0] = '可以配合脑电反馈带一起练习，每天二十分钟。'; }],
+    ['約下一次篩查不是預測', (o: any) => { o.nextSteps += '3 个月后再做一次筛查。'; }],
+    ['中文數字的頻率與排程不是預測', (o: any) => { o.nextSteps += '一周三次，两个月后再看看。'; }],
+  ])('放行：%s', (_name, mutate) => {
+    const o = good();
+    mutate(o);
+    const checked = validateT1Report(o, input);
+    expect(checked.ok, checked.ok ? '' : checked.errors.join(' | ')).toBe(true);
+  });
+
+  it('題目原文含禁字照抄進 note，整份驗證照樣過（題目豁免在放寬之後還在）', () => {
+    const band = T1_AGE_BANDS.find(b => b.questions.some(x => findBannedWords(x.text).length > 0))!;
+    const q = band.questions.find(x => findBannedWords(x.text).length > 0)!;
+    const age = band.minAge;
+    const inp = t1ReportInputOf({ ...CHILD, ageMonth: age }, bandScores(age, d => (d === q.dimensionId ? 0 : 2)));
+    const o = asModelOutput(templateT1Report(inp)) as any;
+    const entry = o.perDimension.find((n: any) => n.dimensionId === q.dimensionId);
+    entry.note = `可以先从「${q.text}」这一题开始，在日常里多给孩子机会试。`;
+    const ok = validateT1Report(o, inp);
+    expect(ok.ok, ok.ok ? '' : ok.errors.join(' | ')).toBe(true);
+    entry.note = `可以先从这一题开始，孩子${findBannedWords(q.text)[0].match(/「(.+?)」/)![1]}，在日常里多给机会试。`;
+    expect(validateT1Report(o, inp).ok).toBe(false);
   });
 
   it('不是物件、null、陣列都擋', () => {
@@ -186,7 +215,8 @@ describe('提示', () => {
     expect(system + user).not.toContain('criticalMetrics');
     expect(system).not.toMatch(/首席|主任医生|突触偶联/);
     expect(system).toContain('用词规范（家长会直接阅读本报告，请严格遵守）');
-    expect(system).toContain('百分位');
+    expect(system).toContain('（一般经验，每个孩子进度不同）');
+    expect(system).not.toMatch(/突触、前额叶|编出来的比较与预测/);
     expect(system).not.toMatch(/穿戴|森心康/);
   });
 

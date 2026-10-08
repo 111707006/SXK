@@ -33,6 +33,11 @@ export interface T2FindingsV3 {
   toolResults: ToolResultV3[];
   /** 報告最上方要出一句的情形：哪一支、哪一個旗標。 */
   notices: Array<{ toolId: string; flag: string }>;
+  /**
+   * 跟 T1 有關的提示（安全、社交溝通警訊、抽動、醫療、聽力，ADR-0011），生成當下照入口那一份存的家長端原句；
+   * `book` 是底下要不要附預約按鈕。2026-10-08 之前的快照沒有這一欄。
+   */
+  t1Notices?: Array<{ kind: string; text: string; book: boolean }>;
   computedAt: string;
 }
 
@@ -53,6 +58,7 @@ export function recentResultsV3<T extends { createdAt: string; result: ToolResul
 
 export interface BuildFindingsV3Input {
   t1: Record<DimensionCode, T1Flag>;
+  t1Notices?: T2FindingsV3['t1Notices'];
   recommended: ReadonlyArray<string>;
   /** 這位家長完整版的全部交卷（`listToolResultsV3`），這裡挑近 90 天每支最新。 */
   records: ReadonlyArray<{ createdAt: string; result: ToolResultV3 }>;
@@ -74,6 +80,7 @@ export function buildFindingsV3(input: BuildFindingsV3Input): T2FindingsV3 {
     recommended: [...input.recommended],
     dimensions: judgeDimensionsV3({ ageMonth: assessedAgeMonth, t1: input.t1, recommended: input.recommended, results: picked }),
     toolResults: picked,
+    ...(input.t1Notices ? { t1Notices: input.t1Notices.map(n => ({ ...n })) } : {}),
     notices: picked.flatMap(r => (r.score.flags ?? []).filter(f => NOTICE_FLAGS.includes(f)).map(flag => ({ toolId: r.toolId, flag }))),
     computedAt: input.now.toISOString(),
   };

@@ -11,8 +11,10 @@
  * 量表名稱是客戶給的專有名詞，照用（規格 §5）。
  */
 
-import { SITE_DIMENSION_NAME } from '../dimensionMap';
+import { getT1AgeBand } from '../../t1Data';
+import { SITE_DIMENSION_ID, SITE_DIMENSION_NAME } from '../dimensionMap';
 import type { DimensionCode } from '../types';
+import { RECOMMEND_CONFIG } from './config';
 import { recommend } from './engine';
 import { buildRecommendInput, type ChildRecommendFields, type T1ScoreInput } from './input';
 import type { Alert, Recommendation, RecommendedTool } from './types';
@@ -30,6 +32,17 @@ export interface ParentPlanTool {
   session: 1 | 2;
 }
 
+export type ParentNoticeKind = Alert['type'] | 'ITEMS_MISSING' | 'SOC_SIGNAL' | 'TIC';
+
+export interface ParentNotice {
+  kind: ParentNoticeKind;
+  text: string;
+  book?: boolean;
+}
+
+/** 報告也要出的提示（存進快照）：跟孩子有關的轉介句；「T1 逐題資料缺」只跟入口有關。 */
+export const REPORT_NOTICE_KINDS: ReadonlyArray<ParentNoticeKind> = ['SAFETY', 'MEDICAL', 'PREREQ', 'SOC_SIGNAL', 'TIC'];
+
 export interface ParentPlanV3 {
   version: 'v3';
   status: 'RECOMMEND' | 'NO_T2';
@@ -37,8 +50,11 @@ export interface ParentPlanV3 {
   totalMinutes: number;
   /** 兩次以上才提「建议分 2 次填写」。 */
   sessions: 1 | 2;
-  /** 最上方的提示（安全、醫療、聽力、診斷年齡、T1 逐題資料缺）。 */
-  notices: Array<{ kind: Alert['type'] | 'ITEMS_MISSING'; text: string }>;
+  /**
+   * 最上方的提示（安全、醫療、聽力、T1 逐題資料缺；ADR-0011 起多兩種：社交溝通警訊、抽動）。
+   * `book`：這一句底下要附預約專家的按鈕（規則觸發改成提示，不多推問卷）。
+   */
+  notices: ParentNotice[];
   /** 這個年齡沒有適合在家填寫的問卷的維度。 */
   gaps: Array<{ dimension: DimensionCode; text: string }>;
   /** `NO_T2` 時的那一句。 */
@@ -88,12 +104,25 @@ export function raterOf(raters: ReadonlyArray<string>): string {
 }
 
 const NOTICE_TEXT: Readonly<Record<Alert['type'], string>> = {
-  SAFETY: '筛查里有关情绪的一题，建议先和专业人员聊一聊；下面的情绪问卷，建议在专业人员陪同下填写。',
+  SAFETY: '筛查里有一题和孩子的情绪有关，建议先预约专家，和专业人员聊一聊。',
   MEDICAL: '筛查里有关走路的题目，建议同时请儿童神经科或康复医学科的医生看一看。',
   PREREQ: '语言这一项，建议先确认孩子做过的听力检查结果。',
   DX_AGE: '您填写的孩子情况，在这个年龄先按筛查结果安排问卷。',
 };
 const ITEMS_MISSING_TEXT = '这次的筛查没有记下每一题的作答，重新做一次筛查，安排会更贴近孩子。';
+/** 規則觸發改成的提示（ADR-0011）。社交那一句會點名孩子在篩查裡卡住的那幾題（`socialSignalText`）。 */
+export const TIC_NOTICE_TEXT = '您提到孩子有反复眨眼、清喉咙这类动作或声音，建议预约专家当面看一看，判断需不需要进一步处理。';
+const SOC_SIGNAL_TAIL = '这几项和孩子怎么跟人互动、表达自己有关，建议预约专家当面看一看。';
+
+export function socialSignalText(items: ReadonlyArray<string>): string {
+  return items.length
+    ? `筛查里这几题，孩子目前还做不到或只是有时做到：${items.map(t => `「${t}」`).join('')}。${SOC_SIGNAL_TAIL}`
+    : `筛查里有几题和孩子怎么跟人互动、表达自己有关，孩子目前还做不到。${SOC_SIGNAL_TAIL.replace('这几项和孩子怎么跟人互动、表达自己有关，', '')}`;
+}
+
+/** 這幾種提示底下附預約按鈕（醫療那一句是去醫院、聽力那一句是看檢查結果，不附）。 */
+const BOOK_KINDS: ReadonlyArray<ParentNoticeKind> = ['SAFETY', 'SOC_SIGNAL', 'TIC'];
+
 export const NO_T2_TEXT = '目前不需要第二层检查，建议 3–6 个月后再做一次筛查。';
 
 function gapText(d: DimensionCode, kind: 'none' | 'secondary'): string {
@@ -102,10 +131,17 @@ function gapText(d: DimensionCode, kind: 'none' | 'secondary'): string {
     : `「${dimName(d)}」这个年龄没有专门的问卷，先用一份相关的问卷看看，也可以预约专家当面多了解。`;
 }
 
-export function parentPlanV3(rec: Recommendation, itemsMissing: boolean): ParentPlanV3 {
-  // 同一種提示只出一次（引擎可能有兩條 DX_AGE）
-  const kinds = [...new Set(rec.alerts.map(a => a.type))];
-  const notices: ParentPlanV3['notices'] = kinds.map(kind => ({ kind, text: NOTICE_TEXT[kind] }));
+/**
+ * `socialItems`：觸發社交溝通警訊的 T1 題目原文（`runRecommendation` 算好）。引擎的 `tags` 有 `ASD_SIG` 才出那一句，
+ * 有 `TIC` 才出抽動那一句（ADR-0011：規則觸發不推問卷，改成提示＋預約）。
+ */
+export function parentPlanV3(rec: Recommendation, itemsMissing: boolean, socialItems: ReadonlyArray<string> = []): ParentPlanV3 {
+  // 同一種提示只出一次（引擎可能有兩條 DX_AGE）；診斷不進推薦後 DX_AGE 不會再出現
+  const kinds = [...new Set(rec.alerts.map(a => a.type))].filter(k => k !== 'DX_AGE');
+  const notices: ParentNotice[] = kinds.map(kind => ({ kind, text: NOTICE_TEXT[kind] }));
+  if (rec.tags.includes('ASD_SIG')) notices.push({ kind: 'SOC_SIGNAL', text: socialSignalText(socialItems) });
+  if (rec.tags.includes('TIC')) notices.push({ kind: 'TIC', text: TIC_NOTICE_TEXT });
+  for (const n of notices) if (BOOK_KINDS.includes(n.kind)) n.book = true;
   if (itemsMissing) notices.push({ kind: 'ITEMS_MISSING', text: ITEMS_MISSING_TEXT });
   if (rec.status === 'NO_T2') {
     return { version: 'v3', status: 'NO_T2', tools: [], totalMinutes: 0, sessions: 1, notices, gaps: [], noT2Text: NO_T2_TEXT };
@@ -152,18 +188,59 @@ export interface RunRecommendationArgs {
 }
 
 /**
- * 跑一次推薦：月齡用做 T1 那時候的測評月齡（最新一筆 T1 的 `assessedAgeMonth`，沒有才用今天的）。
- * 回 `rec`（照客規、含已做過的排除）與 `full`（不排除做過的 —— 報告快照的「推了哪些」用它，規格 §5.1、R-30）。
+ * 每維一份（ADR-0011）：被標記的維度只出照月齡挑的那一份；規則觸發改成提示；診斷不進推薦。
+ * 改回客戶規格書的推薦：設成 `false`（並把孩子資料的診斷那一題放回去）。
  */
-export function runRecommendation(args: RunRecommendationArgs): { rec: Recommendation; full: Recommendation; itemsMissing: boolean; ageM: number } {
+export const ONE_TOOL_PER_DIMENSION = true;
+
+/**
+ * 觸發社交溝通警訊的 T1 題目原文（題目照做 T1 時的月齡出）：客規關鍵題表裡標 `ASD_SIG`、答「有时」或「还不能」的，
+ * 加上社交（1–2 歲另加注意力的「叫名字」）紅旗題答「还不能」的。`items` 是客規的方向（0 可以做到…2 还不能）。
+ */
+export function socialSignalItems(ageM: number, items: Readonly<Record<string, 0 | 1 | 2>>): string[] {
+  const band = getT1AgeBand(ageM);
+  const textOf = (d: DimensionCode, idx: number) => band.questions.filter(q => q.dimensionId === SITE_DIMENSION_ID[d])[idx]?.text;
+  const out: string[] = [];
+  const push = (t: string | undefined) => {
+    if (t && !out.includes(t)) out.push(t);
+  };
+  for (const k of RECOMMEND_CONFIG.keyItems) {
+    if (k.tag !== 'ASD_SIG' || k.band !== band.id) continue;
+    const v = items[`${k.dim}_${k.idx}`];
+    if (v !== undefined && v >= 1) push(textOf(k.dim, k.idx));
+  }
+  const redFlagDims: DimensionCode[] = band.id === 'A' ? ['SOC', 'ATT'] : ['SOC'];
+  for (const d of redFlagDims) {
+    band.questions.filter(q => q.dimensionId === SITE_DIMENSION_ID[d]).forEach((q, idx) => {
+      if (q.isRedFlag && items[`${d}_${idx}`] === 2) push(q.text);
+    });
+  }
+  return out;
+}
+
+/**
+ * 跑一次推薦：月齡用做 T1 那時候的測評月齡（最新一筆 T1 的 `assessedAgeMonth`，沒有才用今天的）。
+ * 回 `rec`（含已做過的排除）與 `full`（不排除做過的 —— 報告快照的「推了哪些」用它，規格 §5.1、R-30），
+ * 以及觸發社交溝通警訊的題目（提示要點名）。
+ */
+export function runRecommendation(args: RunRecommendationArgs): {
+  rec: Recommendation;
+  full: Recommendation;
+  itemsMissing: boolean;
+  ageM: number;
+  socialItems: string[];
+} {
   const t1 = args.t1Scores.filter(s => s.tierId === 'T1');
   const stamped = [...t1].reverse().find(s => typeof s.assessedAgeMonth === 'number');
   const ageM = stamped?.assessedAgeMonth ?? args.liveAgeMonth;
-  const built = buildRecommendInput({ ageM, child: args.child, t1Scores: t1, doneCodes: args.doneCodes });
+  const child = ONE_TOOL_PER_DIMENSION ? { ...args.child, diagnoses: [] } : args.child;
+  const built = buildRecommendInput({ ageM, child, t1Scores: t1, doneCodes: args.doneCodes });
+  const options = { onePerDimension: ONE_TOOL_PER_DIMENSION };
   return {
-    rec: recommend(built.input),
-    full: recommend({ ...built.input, done: [] }),
+    rec: recommend(built.input, undefined, options),
+    full: recommend({ ...built.input, done: [] }, undefined, options),
     itemsMissing: built.itemsMissing,
     ageM: built.input.ageM,
+    socialItems: socialSignalItems(ageM, built.input.items),
   };
 }

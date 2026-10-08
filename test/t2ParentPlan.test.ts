@@ -95,3 +95,43 @@ describe('runRecommendation', () => {
     expect(again.full.tools.map(t => t.code)).toEqual(first.rec.tools.map(t => t.code));
   });
 });
+
+describe('規則觸發改成提示（ADR-0011）', () => {
+  it('社交溝通警訊：一句點名孩子卡住的那幾題、附預約；不推 M-CHAT', () => {
+    const rec = recommend(input({ ageM: 20, levels: { ...LEVELS0, SOC: 2 }, extraTags: ['ASD_SIG'] }), undefined, { onePerDimension: true });
+    const plan = parentPlanV3(rec, false, ['叫名字会回头或有反应', '会用手指指出想要的东西']);
+    const n = plan.notices.find(x => x.kind === 'SOC_SIGNAL')!;
+    expect(n.text).toContain('「叫名字会回头或有反应」「会用手指指出想要的东西」');
+    expect(n.book).toBe(true);
+    expect(plan.tools.map(t => t.code)).not.toContain('M-CHAT-R/F');
+    expect(plan.tools.find(t => t.dimension === 'SOC')?.code).toBe('SXK-SOC');
+  });
+
+  it('沒有逐題資料時那一句不點名，照樣附預約', () => {
+    const rec = recommend(input({ ageM: 20, levels: { ...LEVELS0, SOC: 2 }, extraTags: ['ASD_SIG'] }), undefined, { onePerDimension: true });
+    const n = parentPlanV3(rec, true).notices.find(x => x.kind === 'SOC_SIGNAL')!;
+    expect(n.text).not.toContain('「');
+    expect(n.book).toBe(true);
+  });
+
+  it('抽動、情緒那一題：各一句附預約；不推抽動量表', () => {
+    const rec = recommend(input({ ageM: 96, levels: { ...LEVELS0, EMO: 1 }, extraTags: ['TIC', 'SAFETY'] }), undefined, { onePerDimension: true });
+    const plan = parentPlanV3(rec, false);
+    expect(plan.notices.filter(x => x.book).map(x => x.kind).sort()).toEqual(['SAFETY', 'TIC']);
+    expect(plan.tools.map(t => t.code)).not.toContain('SXK-TIC');
+    for (const x of plan.notices) expect(findBannedWords(x.text), x.text).toEqual([]);
+  });
+
+  it('runRecommendation：診斷不進推薦；從 T1 逐題找出觸發警訊的題目原文', () => {
+    // A 段（12–23 月）：注意力第 1 題「叫名字会回头或有反应」是紅旗、答「还不能」（網站方向 0）
+    const scores = DIMENSION_CODES.map(d => ({
+      dimensionId: ({ COG: 'cognitive', LANG: 'language', SOC: 'social_emotional', EMO: 'emotion_behavior', ATT: 'attention', MOT: 'gross_motor', SEN: 'sensory_processing', ADL: 'self_care', LEARN: 'learning_ability' } as const)[d],
+      tierId: 'T1', score: d === 'ATT' ? 2 : 8, maxScore: 8, status: d === 'ATT' ? 'delay' : 'normal',
+      items: d === 'ATT' ? [0, 2, 2, 2] : [2, 2, 2, 2],
+    }));
+    const run = runRecommendation({ child: { diagnoses: ['ASD'] as DxCode[] }, t1Scores: scores as any, liveAgeMonth: 20, doneCodes: [] });
+    expect(run.socialItems).toContain('叫名字会回头或有反应');
+    expect(run.rec.tools.some(t => t.cls === 'dx')).toBe(false);
+    expect(run.rec.tags).toContain('ASD_SIG');
+  });
+});

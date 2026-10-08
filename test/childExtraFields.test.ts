@@ -50,13 +50,12 @@ describe('extrasOf', () => {
 });
 
 describe('ChildExtraFields 畫面', () => {
-  it('六個診斷選項都在、選中的那一個有標記；孕週 24–36 週', () => {
+  it('診斷那一題拿掉了（ADR-0011，2026-10-08）：選項一個都不出，就算資料裡存著舊的診斷；孕週 24–36 週', () => {
     const html = renderToStaticMarkup(
       createElement(ChildExtraFields, { value: extrasOf({ name: 'x', ageMonth: 30, gender: 'boy', diagnoses: ['CP'] }), onChange: () => {} }),
     );
-    for (const o of DX_OPTIONS) expect(html).toContain(o.label);
-    expect(html).toMatch(/border-brand-clay[^"]*"[^>]*data-dx="CP"/);
-    expect(html).not.toMatch(/border-brand-clay[^"]*"[^>]*data-dx="ASD"/);
+    for (const o of DX_OPTIONS) expect(html).not.toContain(o.label);
+    expect(html).not.toContain('data-dx=');
     expect(html).toContain('<option value="24">');
     expect(html).toContain('<option value="36">');
     expect(html).not.toContain('<option value="37">');

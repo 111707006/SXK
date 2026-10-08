@@ -88,7 +88,7 @@ function buildUser(input: T2ReportInputV3): string {
   const qol = findings.toolResults.find(r => r.toolId === 'SXK-QOL');
   const qolSummary = qol ? qolSummaryV3(qol) : null;
   if (qolSummary) background.push(`生活质量：${qolSummary.sentence}`);
-  for (const n of noticeLinesV3(findings)) background.push(`已在报告最上方列出的提示：${n}`);
+  for (const n of [...(findings.t1Notices ?? []).map(x => x.text), ...noticeLinesV3(findings)]) background.push(`已在报告最上方列出的提示：${n}`);
   if (background.length) {
     lines.push('【背景（系统另外列出，不要重复成段）】');
     lines.push(...background.map(b => `- ${b}`));

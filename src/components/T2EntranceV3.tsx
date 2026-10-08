@@ -24,15 +24,20 @@ interface T2EntranceV3Props {
  * 量表名稱是客戶給的專有名詞，照用（規格 §5）。
  */
 export default function T2EntranceV3({ plan, locked, priceFen, onUnlock, onStart, serviceButtons }: T2EntranceV3Props) {
+  // 規則觸發改成的提示（社交溝通警訊、抽動、情緒那一題，ADR-0011）底下附預約按鈕；有了這一組，缺口那一格就不再重複一組按鈕
+  const bookAtNotices = plan.notices.some(n => n.book);
   const notices = plan.notices.length > 0 && (
-    <ul className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-1.5">
-      {plan.notices.map(n => (
-        <li key={n.kind} className="text-[11px] text-brand-charcoal/85 leading-relaxed flex gap-1.5">
-          <Info size={12} className="text-amber-700 shrink-0 mt-0.5" />
-          <span>{n.text}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2" id="t2v3-entrance-notices">
+      <ul className="space-y-1.5">
+        {plan.notices.map(n => (
+          <li key={n.kind} className="text-[11px] text-brand-charcoal/85 leading-relaxed flex gap-1.5">
+            <Info size={12} className="text-amber-700 shrink-0 mt-0.5" />
+            <span>{n.text}</span>
+          </li>
+        ))}
+      </ul>
+      {bookAtNotices && serviceButtons}
+    </div>
   );
 
   const badge = (
@@ -109,7 +114,7 @@ export default function T2EntranceV3({ plan, locked, priceFen, onUnlock, onStart
           {plan.gaps.map(g => (
             <p key={g.dimension} className="text-[11px] text-brand-charcoal/80 leading-relaxed">{g.text}</p>
           ))}
-          {serviceButtons}
+          {!bookAtNotices && serviceButtons}
         </div>
       )}
 

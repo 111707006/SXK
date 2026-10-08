@@ -80,6 +80,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
 
   const ageMonth = findings.child.assessedAgeMonth;
   const notices = noticeLinesV3(findings);
+  const t1Notices = findings.t1Notices ?? [];
   const grid = findings.dimensions.filter(d => d.band !== 'not_screened');
   const noTool = findings.dimensions.filter(d => d.band === 'no_tool');
   const qolResult = findings.toolResults.find(r => r.toolId === QOL_TOOL);
@@ -114,16 +115,22 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
       </div>
       {errorLine}
 
-      {/* 最上方的提示（§5.3）：轉介、倒退、情緒影響大、能作答的題不夠 */}
-      {notices.length > 0 && (
-        <ul className="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl space-y-1.5" id="t2v3-notices">
-          {notices.map(line => (
-            <li key={line} className="flex items-start gap-2.5 text-xs font-bold leading-relaxed">
-              <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={15} />
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
+      {/*
+        最上方的提示：先是生成當下 T1 帶來的（安全、社交溝通警訊、抽動……，ADR-0011，快照的 t1Notices，附預約），
+        再是問卷的旗標（§5.3：轉介、倒退、情緒影響大、能作答的題不夠）
+      */}
+      {(t1Notices.length > 0 || notices.length > 0) && (
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl space-y-3" id="t2v3-notices">
+          <ul className="space-y-1.5">
+            {[...t1Notices.map(n => n.text), ...notices].map(line => (
+              <li key={line} className="flex items-start gap-2.5 text-xs font-bold leading-relaxed">
+                <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={15} />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          {t1Notices.some(n => n.book) && serviceButtons}
+        </div>
       )}
 
       {/* 1. 總覽：九宮格（不篩的不出） */}
@@ -192,8 +199,8 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
                 )}
               </div>
             ))}
-            <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊：</p>
-            {serviceButtons}
+            <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊{t1Notices.some(n => n.book) ? '（预约按钮在最上方）' : '：'}</p>
+            {!t1Notices.some(n => n.book) && serviceButtons}
           </div>
         </section>
       )}

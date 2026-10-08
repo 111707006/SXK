@@ -52,7 +52,7 @@ import type { ToolResultRecordV3 } from './src/db/t2ToolResultsV3';
 import { readV3Submission, scoreToolV3, type ToolResultV3, type V3ChildContext } from './src/t2/kitv3/submit';
 import { TOOLKIT_VERSION_V3 } from './src/t2/kitv3/types';
 import { assertV3Switches, buildFindingsV3, isFindingsV3, recentResultsV3 } from './src/t2/findingsV3';
-import { parentPlanV3, runRecommendation } from './src/t2/recommend/parentPlan';
+import { REPORT_NOTICE_KINDS, parentPlanV3, runRecommendation } from './src/t2/recommend/parentPlan';
 import { correctedAgeMonth } from './src/t2/recommend/input';
 import { RECOMMEND_CONFIG } from './src/t2/recommend/config';
 import type { FindingsRecord } from './src/db/t2Findings';
@@ -1188,7 +1188,7 @@ async function planV3(userId: UserId, child: any, t1Scores: any[], liveAgeMonth:
   const recent = recentResultsV3(await loadT2ToolResultsV3(userId), new Date());
   const run = runRecommendation({ child, t1Scores, liveAgeMonth, doneCodes: recent.map(r => r.result.toolId) });
   return {
-    ...parentPlanV3(run.rec, run.itemsMissing),
+    ...parentPlanV3(run.rec, run.itemsMissing, run.socialItems),
     ageMonth: run.ageM,
     // 作答用今天的月齡（早產 < 24 月矯正）與孩子檔案的情境 —— 畫面出的題要跟伺服器驗卷的同一份
     answerAgeMonth: correctedAgeMonth(liveAgeMonth, child?.gestationWeeks),
@@ -1546,8 +1546,13 @@ async function generateFindingsV3(userId: UserId, context: T2Context): Promise<F
     doneCodes: recentResultsV3(records, now).map(r => r.result.toolId),
   });
   const sex = context.child?.gender === 'boy' || context.child?.gender === 'girl' ? context.child.gender : undefined;
+  // 入口最上方那幾句跟孩子有關的提示（安全、社交溝通警訊、抽動……，ADR-0011）報告也要出：照生成當下的 T1 存進快照
+  const t1Notices = parentPlanV3(run.full, run.itemsMissing, run.socialItems).notices
+    .filter(n => REPORT_NOTICE_KINDS.includes(n.kind))
+    .map(n => ({ kind: n.kind, text: n.text, book: n.book === true }));
   const findings = buildFindingsV3({
     t1: context.t1Flags,
+    t1Notices,
     recommended: run.full.tools.map(t => t.code),
     records,
     ...(sex ? { sex } : {}),

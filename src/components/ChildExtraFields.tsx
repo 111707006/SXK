@@ -57,28 +57,12 @@ export function toggleDiagnosis(dx: readonly Dx[], d: Dx): Dx[] {
 }
 
 export default function ChildExtraFields({ value, onChange }: { value: ChildExtras; onChange: (next: ChildExtras) => void }) {
-  const dx = value.diagnoses ?? [];
-  const toggleDx = (d: Dx) => onChange({ ...value, diagnoses: toggleDiagnosis(dx, d) });
   return (
     <fieldset className="space-y-4 text-left rounded-2xl border border-brand-stone/40 bg-brand-cream/30 p-4" data-testid="child-extra-fields">
       <legend className="px-1 text-xs font-semibold text-brand-charcoal">{EXTRA_TITLE}</legend>
       <p className="text-[11px] text-brand-charcoal/60 leading-relaxed">{EXTRA_SUB}</p>
 
-      <div className="space-y-2">
-        <p className="text-[12px] text-brand-charcoal">{DX_QUESTION}</p>
-        <div className="flex flex-wrap gap-2">
-          {DX_OPTIONS.map(o => (
-            <button key={o.value} type="button" className={chip(dx.includes(o.value))} onClick={() => toggleDx(o.value)} data-dx={o.value}>
-              {o.label}
-            </button>
-          ))}
-          <button type="button" className={chip(dx.length === 0)} onClick={() => onChange({ ...value, diagnoses: [] })}>
-            {DX_NONE}
-          </button>
-        </div>
-        <p className="text-[10px] text-brand-charcoal/50">{DX_PURPOSE}</p>
-      </div>
-
+      {/* 診斷那一題 2026-10-08 拿掉（ADR-0011：診斷不進推薦）；以前存下的 `diagnoses` 留在資料裡、不再讀 */}
       <div className="space-y-2">
         <p className="text-[12px] text-brand-charcoal">{SCHOOL_QUESTION}</p>
         <YesNo name={SCHOOL_QUESTION} value={value.inSchool} onChange={v => onChange({ ...value, inSchool: v })} />

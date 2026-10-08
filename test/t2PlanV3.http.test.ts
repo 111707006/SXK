@@ -92,9 +92,11 @@ describe('GET /api/t2/plan（v3）', () => {
     expect(resp.status).toBe(200);
     const body = await resp.json();
     const run = runRecommendation({ child: CHILD, t1Scores: SCORES, liveAgeMonth: 96, doneCodes: [] });
-    expect(body).toEqual({ ...parentPlanV3(run.rec, run.itemsMissing), ageMonth: 96, answerAgeMonth: 96, context: { inSchool: true, sex: 'male' }, completed: [] });
+    expect(body).toEqual({ ...parentPlanV3(run.rec, run.itemsMissing, run.socialItems), ageMonth: 96, answerAgeMonth: 96, context: { inSchool: true, sex: 'male' }, completed: [] });
     expect(body.status).toBe('RECOMMEND');
-    expect(body.tools.length).toBeGreaterThanOrEqual(3);
+    // 每維一份（ADR-0011）：被標記的維度各一份，不補足到 3 份；沒有深度、基線、補足
+    expect(body.tools.length).toBeGreaterThanOrEqual(1);
+    expect(run.rec.tools.every(t => !['depth', 'base', 'fill', 'dx'].includes(t.cls))).toBe(true);
     expect(JSON.stringify(body)).not.toMatch(/"t3"|红旗|落后|治疗师/);
   });
 

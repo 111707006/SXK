@@ -103,3 +103,40 @@ describe('每維一份', () => {
     expect(one(input).tools.some(t => t.code === 'M-CHAT-R/F')).toBe(false);
   });
 });
+
+describe('分齡發育綜合評估合併（使用者 2026-10-08）', () => {
+  const LV0 = Object.fromEntries(DIMENSION_CODES.map(d => [d, 0])) as Record<DimensionCode, Level>;
+  const base = (over: Partial<RecommendInput>): RecommendInput => ({
+    ageM: 40, levels: LV0, rfdims: [], items: {}, dx: [], school: true, done: [], extraTags: [], hearingChecked: true, ...over,
+  });
+  const yellow3 = { MOT: 1, LANG: 1, COG: 1, SOC: 0 } as const;
+  const lv = (m: Partial<Record<DimensionCode, Level>>) => ({ ...LV0, ...m });
+
+  it('四個裡 3 個黃燈、沒有紅燈：一份分齡發育綜合評估涵蓋，不再各推一份', () => {
+    const rec = one(base({ levels: lv({ MOT: 1, LANG: 1, COG: 1 }), t1Colors: yellow3 }));
+    const codes = rec.tools.map(t => t.code);
+    expect(codes).toContain('SXK-ASQ3');
+    for (const c of ['SXK-GM', 'SXK-LQ', 'SXK-LANG', 'SXK-ADP', 'SXK-SOC']) expect(codes).not.toContain(c);
+  });
+
+  it('有一個紅燈：不合併，照每維一份', () => {
+    const rec = one(base({ levels: lv({ MOT: 2, LANG: 1, COG: 1 }), t1Colors: { ...yellow3, MOT: 2 } }));
+    expect(rec.tools.find(t => t.cls === 'rule' && t.code === 'SXK-ASQ3')).toBeUndefined();
+    expect(rec.tools.map(t => t.code)).toContain('SXK-GM');
+  });
+
+  it('只有 2 個黃燈：不合併', () => {
+    const rec = one(base({ levels: lv({ MOT: 1, LANG: 1 }), t1Colors: { MOT: 1, LANG: 1, COG: 0, SOC: 0 } }));
+    expect(rec.tools.find(t => t.cls === 'rule' && t.code === 'SXK-ASQ3')).toBeUndefined();
+  });
+
+  it('66 個月以上（超過分齡發育綜合評估的年齡）：不合併', () => {
+    const rec = one(base({ ageM: 70, levels: lv({ MOT: 1, LANG: 1, COG: 1 }), t1Colors: yellow3 }));
+    expect(rec.tools.map(t => t.code)).not.toContain('SXK-ASQ3');
+  });
+
+  it('客規預設模式不套這一條', () => {
+    const rec = recommend(base({ levels: lv({ MOT: 1, LANG: 1, COG: 1 }), t1Colors: yellow3 }));
+    expect(rec.tools.find(t => t.reason.startsWith('合并'))).toBeUndefined();
+  });
+});

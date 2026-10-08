@@ -38,6 +38,8 @@ export interface T1ScoreInput {
   dimensionId: string;
   score: number;
   items?: ReadonlyArray<number>;
+  /** 家長在 T1 報告上看到的顏色（`normal` 綠／`borderline` 黃／`delay` 紅）。舊資料可能沒有。 */
+  status?: string;
 }
 
 export const VALID_DX: ReadonlyArray<Exclude<DxCode, 'NONE'>> = ['LDADHD', 'ASD', 'GDD', 'CP', 'EMO', 'LANG'];
@@ -73,6 +75,7 @@ export function buildRecommendInput(args: {
   const ageM = correctedAgeMonth(args.ageM, args.child.gestationWeeks);
   const band = getT1AgeBand(args.ageM); // 題目是照當時的實足月齡出的（範圍外落到最近一段；E 段之後照 E，待問表 R-5）
   const levels = {} as Record<DimensionCode, Level>;
+  const t1Colors: Partial<Record<DimensionCode, 0 | 1 | 2>> = {};
   const rfdims: DimensionCode[] = [];
   const items: Record<string, 0 | 1 | 2> = {};
   let itemsMissing = false;
@@ -84,6 +87,9 @@ export function buildRecommendInput(args: {
       levels[d] = 0;
       continue;
     }
+    if (score.status === 'delay') t1Colors[d] = 2;
+    else if (score.status === 'borderline') t1Colors[d] = 1;
+    else if (score.status === 'normal') t1Colors[d] = 0;
     const questions = band.questions.filter(q => q.dimensionId === site);
     const answered = Array.isArray(score.items) && score.items.length === questions.length;
     if (!answered) itemsMissing = true;
@@ -112,6 +118,7 @@ export function buildRecommendInput(args: {
       done: [...(args.doneCodes ?? [])],
       extraTags,
       hearingChecked: args.child.hearingChecked ?? null,
+      t1Colors,
     },
     itemsMissing,
   };

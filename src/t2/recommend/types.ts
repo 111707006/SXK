@@ -73,6 +73,8 @@ export interface RecommendInput {
   /** 目前只有 TIC。 */
   extraTags: KeyTag[];
   hearingChecked: boolean | null;
+  /** 家長在 T1 報告上看到的紅（2）黃（1）綠（0）；分齡發育綜合評估合併規則用（ADR-0011 補充）。舊資料沒有就是空的。 */
+  t1Colors?: Partial<Record<DimensionCode, 0 | 1 | 2>>;
 }
 
 /** 一份推薦量表的優先類別（客規 §9.2 第 14 步的排序、第 12 步的移除順序）。 */

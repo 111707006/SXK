@@ -98,6 +98,16 @@ export function preferenceOf(dim: DimensionCode, ageM: number, tags: ReadonlySet
   }
 }
 
+/** 分齡發育綜合評估涵蓋的四個維度（合併規則看這四個的 T1 顏色）。 */
+export const ASQ3_MERGE_DIMS: ReadonlyArray<DimensionCode> = ['MOT', 'LANG', 'COG', 'SOC'];
+
+/** 合併規則的條件：四個裡 3 個以上被標記（黃或紅），而且沒有紅。年齡窗口由 `usable` 再擋。 */
+export function asq3Merge(colors: Partial<Record<DimensionCode, 0 | 1 | 2>> | undefined): boolean {
+  if (!colors) return false;
+  const flagged = ASQ3_MERGE_DIMS.filter(d => (colors[d] ?? 0) >= 1);
+  return flagged.length >= 3 && flagged.every(d => colors[d] === 1);
+}
+
 /** 客規 §9.2 第 11 步的補足順序。 */
 const FILL = ['SXK-QOL', 'SXK-ASQ3', 'SXK-ADP', 'SXK-ADL'];
 
@@ -237,6 +247,10 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
     if (c) add(c, 'rule', null, '规则 R5：五项以上中度落后（全面落后模式），先用跨领域量表');
   }
   for (const p of profiles) for (const c of p.must) add(c, 'dx', null, `诊断必选：${p.name}`);
+
+  // 每維一份的合併規則（使用者 2026-10-08，ADR-0011 補充）：66 個月以下，動作／語言／認知／社交有 3 個以上被標記、
+  // 而且全是黃燈（家長在 T1 報告上看到的顏色）→ 用一份分齡發育綜合評估涵蓋；有紅燈就不合併、照每維一份。
+  if (one && asq3Merge(input.t1Colors)) add('SXK-ASQ3', 'rule', null, '合并：动作／语言／认知／社交多项黄灯，用一份分龄发育综合评估涵盖');
 
   // ── 第 8 步：覆蓋 ──
   const gaps: string[] = [];

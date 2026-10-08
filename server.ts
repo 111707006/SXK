@@ -65,6 +65,7 @@ import { DIMENSIONS_DATA } from './src/data';
 import type { UnlockScope } from './src/types';
 import { REHAB_SUGGESTIONS } from './src/dimensionContent';
 import { PARENT_WORDING_CLAUSE } from './src/utils/parentWording';
+import { generateT1Report, t1ReportInputOf } from './src/t1report/report';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
 import { resolveDemoLoginCode } from './src/demoLogin';
@@ -172,6 +173,13 @@ const TRAINING_PUSH_V3 = resolvePaywallSwitch('TRAINING_PUSH_V3', process.env.TR
 const T2_RECOMMEND_V3 = resolvePaywallSwitch('T2_RECOMMEND_V3', process.env.T2_RECOMMEND_V3);
 // 完整版的報告快照只有維度判定、沒有舊配對要的標籤：每週活動只能走 v3 推送規則。開一個沒開另一個 → 起不來。
 assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3);
+
+// T1 報告改用真實資料（使用者 2026-10-08）：開著時 `/api/report` 改走 `src/t1report/`——給模型逐題作答、
+// 回來先過驗證器、不過退模板；模板也照這個孩子的作答組；不再產四個儀表數字（`criticalMetrics`）。
+// 報告快照帶 `version: 't1-real-1'`，畫面看快照換版（`src/t1report/shape.ts`），前端不必知道開關。
+// **只在專案 A**：B 設了也不生效（啟動時印一行），B 的報告一個字都不變。同一套 fail-closed 解析。
+const T1_REPORT_REAL_REQUESTED = resolvePaywallSwitch('T1_REPORT_REAL', process.env.T1_REPORT_REAL);
+const T1_REPORT_REAL = APP_MODE === 'full' && T1_REPORT_REAL_REQUESTED;
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -773,12 +781,45 @@ function generateFallbackReport(child: any, scores: any[]) {
   };
 }
 
+/**
+ * 新版 T1 報告（`T1_REPORT_REAL`）用的引擎：與舊版 `/api/report` 同一串 —— Qwen → 豆包 → DashScope
+ * （`generateReportJSON`）→ Gemini。整串都失敗就丟例外，由 `generateT1Report` 退模板。
+ */
+async function t1ReportEngine(system: string, user: string): Promise<{ report: unknown; aiEngine: string }> {
+  try {
+    return await generateReportJSON(system, user);
+  } catch (err: any) {
+    console.warn('[T1 report] Qwen/Doubao/DashScope all failed, trying Gemini:', err?.message);
+    const response = await getGeminiClient().models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: user,
+      config: { systemInstruction: system, responseMimeType: 'application/json' },
+    });
+    const cleaned = (response.text || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+    return { report: JSON.parse(cleaned), aiEngine: 'gemini-3.5-flash' };
+  }
+}
+
 // API endpoint for generating assessment report (combining static and dynamic Gemini call query)
 app.post('/api/report', async (req: express.Request, res: express.Response) => {
   try {
     const { child, scores } = req.body;
     if (!child || !scores || !Array.isArray(scores)) {
       res.status(400).json({ error: 'Missing child profile or assessment scores in body.' });
+      return;
+    }
+
+    if (T1_REPORT_REAL) {
+      const outcome = await generateT1Report(t1ReportInputOf(child, scores), t1ReportEngine);
+      if (!outcome.isAiGenerated) {
+        console.warn(`[T1 report] template (${outcome.aiEngine}):`, outcome.errors.slice(0, 8).join(' | '));
+      }
+      res.json({
+        report: outcome.report,
+        isAiGenerated: outcome.isAiGenerated,
+        aiEngine: outcome.aiEngine,
+        createdAt: new Date().toISOString(),
+      });
       return;
     }
 
@@ -3914,6 +3955,11 @@ export async function startServer() {
         ? 'project A — tier-2/3 endpoints registered'
         : 'project B — tier-2/3 endpoints NOT registered'}), port from ${portSource}`
     );
+    if (T1_REPORT_REAL) {
+      console.log('[SenXinKang Server] T1_REPORT_REAL=1: T1 reports use per-item answers, validated AI text or the per-child template; no gauge numbers.');
+    } else if (T1_REPORT_REAL_REQUESTED) {
+      console.warn('[SenXinKang Server] T1_REPORT_REAL is set but ignored: project B keeps the old T1 report (A only).');
+    }
     if (DEMO_LOGIN_CODE) {
       console.warn(
         '[SenXinKang Server] DEMO LOGIN CODE ACTIVE (DEMO_LOGIN_CODE): no SMS is sent and a fixed code logs in any phone number. ' +

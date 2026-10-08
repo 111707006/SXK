@@ -11,16 +11,15 @@
  * 原本那一串：Qwen → 豆包 → DashScope → Gemini），**任一項不過，整份丟**，不重試、不局部修補；
  * `aiEngine` 三種（引擎代號／`template:<引擎>`／`template:all_engines_failed`）。
  *
- * 【驗證器擋什麼】
+ * 【驗證器擋什麼】（規則在 `rules.ts`；使用者 2026-10-08 選 a 之後放寬）
  * 1. 形狀：五個欄位、字數範圍、條數；多出來的欄位也擋（模型自己加一個 `criticalMetrics` 就是編數字）。
  * 2. 一致性：`perDimension` 恰好是被標記的那幾個維度；紅燈維度的名字要出現在 `summary`。
- * 3. 用字：《用语对照表》禁字（`findBannedWords`）、T2 黑名單的量表名／診斷名／儀器療程藥物
- *    （`src/t2/report/blacklist.ts`；T2 的分段名不擋 —— 那是 T2 工具包的內部刻度，T1 沒有）、
- *    **編出來的比較與預測**（百分位、常模、％、預測……T1 沒有常模，也沒有任何依據說三個月後會怎樣）、
- *    **腦神經術語**（突触、前额叶……T1 問的是孩子日常做得到什麼，寫腦就超出它能說的範圍）。
+ * 3. 用字：**只擋**《用语对照表》禁字（`findBannedWords`）。數字、百分比、預測、量表名、腦神經的說法不擋，
+ *    但同一段裡有預測（數字＋週／個月／％、「预计／有望／回到」……）就要接「一般经验，每个孩子进度不同」，沒接就擋。
  * 掃描前先挖掉這個年齡段的**題目原文** —— 題目是客戶的量表原文（「不严重抗拒」），引用它是在講
  * 「這一題」，不是系統在說孩子（同 `parentWording.structure.test.ts` 豁免 `t1Data.ts` 的理由）。
  * 只挖一字不差的原文；模型改寫過的題目照樣掃。
+ * 模板本身不寫預測、不寫百分比。
  *
  * 這一檔的模板句在用字掃描裡（`test/parentWording.structure.test.ts`）；提示在 `prompt.ts`（含禁止清單，不掃）。
  */
@@ -34,7 +33,9 @@ import { T1_REPORT_REAL_VERSION, type T1RealReport } from './shape';
 import { buildT1ReportPrompt } from './prompt';
 import { T1_REPORT_LIMITS, findT1ReportViolations } from './rules';
 
-export { FABRICATED_CLAIM_WORDS, NEURO_JARGON_WORDS, T1_REPORT_BLACKLIST, T1_REPORT_LIMITS, findT1ReportViolations } from './rules';
+export {
+  PREDICTION_DISCLAIMER, PREDICTION_DISCLAIMER_TEXT, PREDICTION_PATTERNS, T1_REPORT_LIMITS, findPredictionSignal, findT1ReportViolations,
+} from './rules';
 
 export interface T1ReportInput {
   child: { name?: string; ageMonth?: number; gender?: string };

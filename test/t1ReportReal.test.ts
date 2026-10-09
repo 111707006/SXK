@@ -225,3 +225,71 @@ describe('提示', () => {
     expect(p.user).toContain('不要写「做到了几项」的总数');
   });
 });
+
+// ── 2026-10-09 正式站實測（真的模型）之後加的兩條 ─────────────────────────────
+import { findAdviceMismatch, tidyDisclaimers } from '../src/t1report/rules';
+
+describe('「优先安排专业咨询」只給紅燈', () => {
+  const dims = (m: Record<string, string>) => Object.entries(m).map(([name, status]) => ({ name, status }));
+
+  it('四項黃燈的結尾寫成優先安排專業諮詢 → 四個都抓到（正式站原文）', () => {
+    const text = '动作发展、认知、语言沟通及社交互动方面建议优先安排专业咨询，获取个性化支持策略。';
+    const hits = findAdviceMismatch(text, dims({ 动作发展: 'borderline', 认知: 'borderline', 语言沟通: 'borderline', 社交互动: 'borderline' }));
+    expect(hits).toHaveLength(4);
+  });
+
+  it('紅黃寫在同一個「建议」裡 → 抓黃的那個（正式站原文）', () => {
+    const text = '注意力与执行方面需要较多支持，语言沟通方面需要少量支持，建议优先安排专业咨询；其余方面发展稳定。';
+    const hits = findAdviceMismatch(text, dims({ 注意力与执行: 'delay', 语言沟通: 'borderline' }));
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toContain('语言沟通');
+  });
+
+  it('分開寫就過', () => {
+    const d = dims({ 动作发展: 'delay', 语言沟通: 'borderline' });
+    expect(findAdviceMismatch('动作发展方面建议优先安排专业咨询；语言沟通方面建议进一步了解。', d)).toEqual([]);
+    expect(findAdviceMismatch('「动作发展」方面建议优先安排专业咨询，「语言沟通」建议进一步了解。', d)).toEqual([]);
+    expect(findAdviceMismatch('语言沟通方面建议进一步了解，动作发展方面建议优先安排专业咨询。', d)).toEqual([]);
+  });
+
+  it('驗證器：黃燈寫成優先安排專業諮詢就退模板', () => {
+    const input = t1ReportInputOf({ name: '小安', ageMonth: 30 }, bandScores(30, (d, i) => (d === 'language' && i === 3 ? 1 : 2)));
+    const good = asModelOutput(templateT1Report(input));
+    expect(validateT1Report(good, input).ok).toBe(true);
+    const bad = { ...good, nextSteps: `${good.nextSteps as string}「语言沟通」方面建议优先安排专业咨询。` };
+    const r = validateT1Report(bad, input);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors.join('\n')).toContain('优先安排专业咨询');
+  });
+});
+
+describe('免責句只留在預測那一句', () => {
+  const D = '（一般经验，每个孩子进度不同）';
+
+  it('約下一次篩查後面的拿掉（正式站原文）', () => {
+    expect(tidyDisclaimers(`三个月后可再做一次筛查，观察孩子在跳跃等方面的变化${D}。`)).toBe('三个月后可再做一次筛查，观察孩子在跳跃等方面的变化。');
+  });
+
+  it('全綠的報告一段加兩次 → 都拿掉（正式站原文）', () => {
+    const text = `三个月后可再做一次筛查，作为成长对照的基线记录${D}。若未来出现新变化，可随时安排专业咨询进一步了解${D}。`;
+    expect(tidyDisclaimers(text)).not.toContain('一般经验');
+  });
+
+  it('預測那一句留一個，別句的拿掉', () => {
+    const text = `先从这两项开始，见效较快${D}。三个月后再做一次筛查${D}。`;
+    expect(tidyDisclaimers(text)).toBe(`先从这两项开始，见效较快${D}。三个月后再做一次筛查。`);
+  });
+
+  it('同一句兩個 → 留一個', () => {
+    expect(tidyDisclaimers(`预计 8 周后会更稳${D}${D}。`)).toBe(`预计 8 周后会更稳${D}。`);
+  });
+
+  it('免責放錯句 → 移到預測那一句（驗證器照樣過）', () => {
+    const out = tidyDisclaimers(`预计 8 周后会更稳。三个月后再做一次筛查${D}。`);
+    expect(out).toBe(`预计 8 周后会更稳${D}。三个月后再做一次筛查。`);
+  });
+
+  it('沒有免責的字不動', () => {
+    expect(tidyDisclaimers('每天练 10 分钟。')).toBe('每天练 10 分钟。');
+  });
+});

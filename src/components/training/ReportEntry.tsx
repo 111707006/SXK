@@ -34,7 +34,7 @@ import {
 } from '../../t2/trainingCopy';
 import type { Activity, DimensionCode } from '../../t2/types';
 import { useTraining } from './TrainingContext';
-import { alternateRows, hasClip, weekDimensions } from './trainingData';
+import { alternateRows, filterDimensions, hasClip } from './trainingData';
 import { Cover, Tag } from './ui';
 import { SHOW_LIBRARY } from './visibility';
 
@@ -125,7 +125,7 @@ export default function ReportEntry() {
 
   const plan = data.plan;
   const practice = data.practice;
-  const dims = weekDimensions(plan.activities);
+  const dims = filterDimensions(plan);
   const picks = chip === 'all' ? plan.activities : plan.activities.filter(p => p.dimension === chip);
   const swaps = alternateRows(plan).filter(r => chip === 'all' || r.dimension === chip);
   const range = weekRangeLabel(plan.weekStart, plan.weekEnd);
@@ -154,7 +154,7 @@ export default function ReportEntry() {
         </p>
       </div>
 
-      {/* 2. 維度篩選：全部＋本週有活動的維度 */}
+      {/* 2. 維度篩選：全部＋本週有活動或有「換著玩」的維度 */}
       {dims.length > 0 && (
         <div className={`flex gap-2 overflow-x-auto training-no-scrollbar ${BLEED}`}>
           <button type="button" onClick={() => setChip('all')} className={chipClass(chip === 'all')}>

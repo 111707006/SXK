@@ -9,6 +9,7 @@ import {
   resultSummary,
   staircaseStage,
   weekDimensions,
+  filterDimensions,
   type WeeklyPick,
   type WeeklyPlanResponse,
 } from '../src/components/training/trainingData';
@@ -102,6 +103,17 @@ describe('第幾週', () => {
 
   it('沒帶（B5 之前的伺服器）：當成第 1 週，第 1 週就是這一週', () => {
     expect(planPositionOf(response())).toEqual({ weekIndex: 1, totalWeeks: 12, firstWeekStart: '2026-09-21' });
+  });
+});
+
+describe('篩選鈕列哪些維度', () => {
+  it('本週有活動的在前，再加只出現在「換著玩」的（展示站實測：认知只在換著玩）', () => {
+    const plan = response({ alternates: { COG: [activity('A241')], MOT: [activity('A002')] } });
+    expect(filterDimensions(plan)).toEqual(['MOT', 'LANG', 'SOC', 'COG']);
+  });
+
+  it('沒有換著玩：只有本週的', () => {
+    expect(filterDimensions(response())).toEqual(['MOT', 'LANG', 'SOC']);
   });
 });
 

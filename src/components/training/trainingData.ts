@@ -203,6 +203,15 @@ export function alternateRows(plan: WeeklyPlanResponse): AlternateRow[] {
     .filter(row => row.activities.length > 0);
 }
 
+/**
+ * 篩選鈕要列哪些維度：本週有活動的，加上「換著玩」有列的（照 `alternateRows` 的順序）。
+ * 只看本週的話，一期裡有名額、但這週剛好沒排到的維度（例：補位進來的認知）會在下面列出「換著玩」，
+ * 上面卻沒有對應的篩選鈕（2026-10-09 展示站實測）。
+ */
+export function filterDimensions(plan: WeeklyPlanResponse): DimensionCode[] {
+  return [...new Set([...weekDimensions(plan.activities), ...alternateRows(plan).map(r => r.dimension)])];
+}
+
 // ── 活動詳情（§3.3，票 7） ─────────────────────────────────────────────
 
 /** 有沒有示範片：`videoUrl` 非空才算（後台清掉是空字串）。 */

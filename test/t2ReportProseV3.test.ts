@@ -108,6 +108,22 @@ describe('跨好幾個維度的量表：每一段只點名自己那一維的面�
   });
 });
 
+describe('面向的說法（使用者 2026-10-08）', () => {
+  it('只點名一個面向時寫「这一方面」，不寫「这几方面」', () => {
+    const findings = findingsOf(['SXK-ASQ3'], 30, -1, Object.fromEntries(DIMENSION_CODES.map(d => [d, 2])) as any);
+    const lang = templateProseV3({ childName: '小安', findings }).perDimension.find(p => p.dimensionId === 'LANG')!.whatWeSaw;
+    expect(lang).toContain('这一方面');
+    expect(lang).not.toContain('这几方面');
+  });
+
+  it('SNAP-IV 全答最差：注意力那一段不點名「对立违抗」', () => {
+    const findings = findingsOf(['SNAP-IV'], 84, -1, Object.fromEntries(DIMENSION_CODES.map(d => [d, 2])) as any);
+    const prose = templateProseV3({ childName: '小安', findings });
+    expect(JSON.stringify(prose)).not.toContain('对立违抗');
+    expect(buildProsePromptV3({ childName: '小安', findings }).user).not.toContain('对立违抗');
+  });
+});
+
 describe('驗證器擋得住', () => {
   const findings = findingsOf(['SXK-AB'], 96, -1, { ATT: 2, SEN: 1 });
   const input = { findings };

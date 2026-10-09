@@ -31,7 +31,7 @@ import { charCount } from '../t2/report/prose';
 import { flaggedDimensions, itemsAnswered, t1AnswersOf, type T1Answers, type T1DimensionAnswers } from './answers';
 import { T1_REPORT_REAL_VERSION, type T1RealReport } from './shape';
 import { buildT1ReportPrompt } from './prompt';
-import { T1_REPORT_LIMITS, findT1ReportViolations } from './rules';
+import { T1_REPORT_LIMITS, findAdviceMismatch, findT1ReportViolations, tidyDisclaimers } from './rules';
 
 export {
   PREDICTION_DISCLAIMER, PREDICTION_DISCLAIMER_TEXT, PREDICTION_PATTERNS, T1_REPORT_LIMITS, findPredictionSignal, findT1ReportViolations,
@@ -217,11 +217,13 @@ export type T1ReportValidation = { ok: true; report: T1RealReport } | { ok: fals
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-function checkText(value: unknown, where: string, range: { min: number; max: number }, errors: string[]): string | null {
-  if (typeof value !== 'string') {
-    errors.push(`${where}：要是字串，拿到 ${value === undefined ? '缺這個欄位' : typeof value}`);
+function checkText(raw: unknown, where: string, range: { min: number; max: number }, errors: string[]): string | null {
+  if (typeof raw !== 'string') {
+    errors.push(`${where}：要是字串，拿到 ${raw === undefined ? '缺這個欄位' : typeof raw}`);
     return null;
   }
+  // 免責句只留在預測那一句（`tidyDisclaimers`）；之後的字數與用字都檢查整理過的字
+  const value = tidyDisclaimers(raw);
   const n = charCount(value);
   if (n < range.min || n > range.max) errors.push(`${where}：${n} 字，超出 ${range.min}–${range.max} 的範圍`);
   return value;
@@ -298,6 +300,14 @@ export function validateT1Report(value: unknown, input: T1ReportInput): T1Report
 
   const questions = questionTextsOf(input.answers);
   for (const { where, text } of texts) for (const hit of findT1ReportViolations(text, questions)) errors.push(`${where}：用字 ${hit}`);
+
+  // 「优先安排专业咨询」只給紅燈；黃燈寫「建议进一步了解」（題目原文先挖掉，免得題目裡的字被當成方面名）
+  const statuses = input.answers.dimensions.map(d => ({ name: d.dimensionName, status: d.status }));
+  for (const { where, text } of texts) {
+    let scrubbed = text;
+    for (const q of questions) scrubbed = scrubbed.split(q).join('');
+    for (const hit of findAdviceMismatch(scrubbed, statuses)) errors.push(`${where}：${hit}`);
+  }
 
   if (errors.length) return { ok: false, errors };
   // 照被標記的順序排（紅燈在前），畫面不必再排。

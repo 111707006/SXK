@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import T2PromoCard from '../src/components/T2PromoCard';
@@ -42,8 +44,8 @@ describe('幾項、哪幾個方面', () => {
 
 describe('卡', () => {
   const promo = { count: 2, dimensions: ['动作发展', '情绪行为'] };
-  const render = (locked: boolean) =>
-    renderToStaticMarkup(createElement(T2PromoCard, { promo, locked, priceFen: 1990, onUnlock: () => {}, onStart: () => {} }));
+  const render = (locked: boolean, freePeriod = false) =>
+    renderToStaticMarkup(createElement(T2PromoCard, { promo, locked, freePeriod, priceFen: 1990, onUnlock: () => {}, onStart: () => {} }));
 
   it('未解鎖：幾項、特惠價（伺服器的 priceFen）、劃掉的指導價、解鎖鈕', () => {
     const html = render(true);
@@ -62,6 +64,24 @@ describe('卡', () => {
     expect(html).not.toContain('19.9');
     expect(html).not.toContain('指导价格');
     expect(html).toContain('t2-promo-start-btn');
+  });
+
+  it('免費期間（PAYWALL_FREE，已解鎖）：價錢照畫當參考、註明現在免費、按鈕是開始（使用者 2026-10-11）', () => {
+    const html = render(false, true);
+    expect(html).toContain('19.9');
+    expect(html).toContain('指导价格 ¥400');
+    expect(html).toContain('目前免费开放');
+    expect(html).toContain('t2-promo-start-btn');
+    expect(html).not.toContain('t2-promo-unlock-btn');
+    expect(render(true)).not.toContain('目前免费开放');
+  });
+
+  it('免費期間一路傳到卡：/api/unlocks 的 free → App → 報告 → 入口 → 卡', () => {
+    const read = (f: string) => readFileSync(path.join(__dirname, '..', f), 'utf8');
+    expect(read('src/App.tsx')).toContain('setT2FreePeriod(data.free === true)');
+    expect(read('src/App.tsx')).toContain('freePeriod: t2FreePeriod');
+    expect(read('src/components/AnalysisReport.tsx')).toContain('freePeriod={t2.freePeriod === true}');
+    for (const f of ['src/components/T2Entrance.tsx', 'src/components/T2EntranceV3.tsx']) expect(read(f), f).toContain('freePeriod={freePeriod}');
   });
 
   it('卡上沒有逐份清單、題量、分鐘', () => {

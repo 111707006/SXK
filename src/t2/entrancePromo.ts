@@ -26,6 +26,8 @@ export const PROMO_PRICE_LABEL = '特惠';
 export const PROMO_GUIDE_LABEL = '指导价格';
 export const PROMO_UNLOCK = '解锁深度评估';
 export const PROMO_START = '开始深度评估';
+/** 免費期間（`PAYWALL_FREE`）價錢底下那一行：價錢只是參考，現在不收費。 */
+export const PROMO_FREE_NOTE = '目前免费开放，直接开始即可';
 
 export interface EntrancePromo {
   /** 幾項深度評估（＝要填幾份）。 */

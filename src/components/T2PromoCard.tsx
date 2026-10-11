@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { formatFen } from '../utils/price';
 import {
+  PROMO_FREE_NOTE,
   PROMO_GUIDE_LABEL,
   PROMO_PRICE_LABEL,
   PROMO_START,
@@ -15,8 +16,10 @@ import {
 
 interface T2PromoCardProps {
   promo: EntrancePromo;
-  /** 未解鎖（`locked`／`demo`）才出價錢；已解鎖（含免費期間）只出幾項與「开始」。 */
+  /** 未解鎖（`locked`／`demo`）：價錢＋解鎖鈕。已解鎖：「开始」鈕；真的買過的不再出價錢。 */
   locked: boolean;
+  /** 免費期間（`PAYWALL_FREE`）：已解鎖，但價錢照畫當參考，旁邊註明現在免費（使用者 2026-10-11）。 */
+  freePeriod?: boolean;
   priceFen: number;
   onUnlock: () => void;
   onStart: () => void;
@@ -29,9 +32,10 @@ interface T2PromoCardProps {
  * 逐份問卷的清單不在這裡 —— 按下去之後的作答頁才列（理由見 `src/t2/entrancePromo.ts` 檔頭）。
  * 字都在 `entrancePromo.ts`；這一檔只排版。
  */
-export default function T2PromoCard({ promo, locked, priceFen, onUnlock, onStart, children }: T2PromoCardProps) {
+export default function T2PromoCard({ promo, locked, freePeriod = false, priceFen, onUnlock, onStart, children }: T2PromoCardProps) {
   const sentence = promoSentence(promo.dimensions);
   const [lead, tail] = PROMO_TITLE.split('T2');
+  const showPrice = locked || freePeriod;
   return (
     <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 md:p-6 shadow-sm text-left space-y-4" id="t2-promo-card">
       <div className="space-y-2">
@@ -46,7 +50,7 @@ export default function T2PromoCard({ promo, locked, priceFen, onUnlock, onStart
       </div>
 
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pt-3 border-t border-brand-cream/80">
-        {locked ? (
+        {showPrice ? (
           <div className="flex items-end gap-3 flex-wrap">
             <div className="leading-tight">
               <div className="text-sm font-bold text-brand-forest">{promoCountLabel(promo.count)}</div>
@@ -58,6 +62,7 @@ export default function T2PromoCard({ promo, locked, priceFen, onUnlock, onStart
             <div className="text-[11px] text-brand-charcoal/50 line-through pb-0.5">
               {PROMO_GUIDE_LABEL} ¥{formatFen(T2_GUIDE_PRICE_FEN)}
             </div>
+            {!locked && <div className="basis-full text-[11px] font-semibold text-brand-moss">{PROMO_FREE_NOTE}</div>}
           </div>
         ) : (
           <div className="text-sm font-bold text-brand-forest">{promoCountLabel(promo.count)}</div>

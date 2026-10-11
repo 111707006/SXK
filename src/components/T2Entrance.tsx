@@ -23,6 +23,8 @@ interface T2EntranceProps {
   access: DimensionAccess;
   /** 單價（分），付費牆同一個來源。 */
   priceFen: number;
+  /** 免費期間（`PAYWALL_FREE`）：已解鎖，但卡上照樣畫價錢當參考、註明現在免費（使用者 2026-10-11）。 */
+  freePeriod?: boolean;
   /** 未解鎖時按「解鎖」→ App 導向付費牆。 */
   onUnlock: () => void;
   /** 已解鎖時按「開始作答」→ App 導向逐支作答（票 #58）。 */
@@ -53,7 +55,7 @@ interface T2EntranceProps {
  * 已解鎖的家長在這裡看到同一份清單，CTA 是「開始作答」→ 逐支作答畫面（`T2Assessment.tsx`，票 #58），
  * 那邊的工具清單就是這份 plan。
  */
-export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
+export default function T2Entrance({ access, priceFen, freePeriod = false, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
   const [plan, setPlan] = useState<PlanResponse | ParentPlanV3 | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
 
@@ -138,6 +140,7 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
         plan={plan}
         locked={access === 'locked' || access === 'demo'}
         priceFen={priceFen}
+        freePeriod={freePeriod}
         onUnlock={onUnlock}
         onStart={onStart}
         serviceButtons={serviceButtons}
@@ -170,7 +173,7 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
 
   // 報告上只出一張短卡（使用者 2026-10-11）；逐份清單在作答頁（T2Assessment）。沒工具的維度照舊在卡底下說清楚、導四種服務（§4.5）。
   return (
-    <T2PromoCard promo={promoFromV2(planV2)} locked={locked} priceFen={priceFen} onUnlock={onUnlock} onStart={onStart}>
+    <T2PromoCard promo={promoFromV2(planV2)} locked={locked} freePeriod={freePeriod} priceFen={priceFen} onUnlock={onUnlock} onStart={onStart}>
       {planV2.noTool.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           {noToolNotes(planV2).map(note => (

@@ -198,7 +198,7 @@ interface AnalysisReportProps {
    * 只在**即時**報告上出現（`historicalRecord` 為 null）—— plan 是伺服器依最新篩查算的，
    * 掛在一份舊報告底下會對不上那份報告的判定。
    */
-  t2?: { access: DimensionAccess; priceFen: number; onUnlock: () => void; onStart: () => void };
+  t2?: { access: DimensionAccess; priceFen: number; freePeriod?: boolean; onUnlock: () => void; onStart: () => void };
   /**
    * B→A 交接（ADR-0009）：專案 B 在 T2 插槽的位置放「到 A 做深度評估」那張卡。A 不會收到（A 有 `t2`）。
    * 同 `t2`，只掛在即時報告上 —— 帶過去的是**現在**的篩查。卡自己問伺服器交接開了沒，沒開就不出現。
@@ -550,6 +550,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       <T2Entrance
         access={t2.access}
         priceFen={t2.priceFen}
+        freePeriod={t2.freePeriod === true}
         onUnlock={t2.onUnlock}
         onStart={t2.onStart}
         onBookService={openBookingModal}

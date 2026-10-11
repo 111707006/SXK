@@ -64,14 +64,22 @@ describe('no_tool 的文案與位置', () => {
     expect(entrance).toContain('disabled={!c.onSelect}');
   });
 
-  it('入口掛在報告本體的雷達圖之後、語言專項入口之前', () => {
+  it('入口掛在報告本體「接下来怎么做」之後、二維碼卡的正上方（使用者 2026-10-11）', () => {
     const body = stripComments(read('src/components/ReportBody.tsx'));
-    const radar = body.indexOf('<RadarSection');
+    const prognosis = body.indexOf('aiReport.prognosisPrediction');
     const t2 = body.indexOf('{t2Slot}');
-    const language = body.indexOf('{languageSlot}');
-    expect(radar).toBeGreaterThan(-1);
-    expect(t2).toBeGreaterThan(radar);
-    expect(language).toBeGreaterThan(t2);
+    const takeaway = body.indexOf('{takeawaySlot}');
+    expect(prognosis).toBeGreaterThan(-1);
+    expect(t2).toBeGreaterThan(prognosis);
+    expect(takeaway).toBeGreaterThan(t2);
+    expect(body.slice(t2 + '{t2Slot}'.length, takeaway).trim()).toBe('');
+  });
+
+  it('T1 報告不再出語言專項評估的入口（使用者 2026-10-11）', () => {
+    const body = stripComments(read('src/components/ReportBody.tsx'));
+    const report = stripComments(read('src/components/AnalysisReport.tsx'));
+    expect(body).not.toContain('languageSlot');
+    expect(report).not.toContain('进入语言专项评估');
   });
 
   it('只掛在即時報告上，歸檔的報告沒有', () => {
@@ -107,22 +115,27 @@ describe('完整版入口（T2 v3，T2EntranceV3）', () => {
     expect(v3).not.toMatch(/serviceChoices/);
   });
 
-  it('只畫、不組句：理由、誰填、提示、缺口、NO_T2 那一句都讀 plan 上的字', () => {
-    for (const field of ['t.reason', 't.rater', 'n.text', 'g.text', 'plan.noT2Text']) expect(v3, field).toContain(field);
+  it('只畫、不組句：提示、缺口、NO_T2 那一句都讀 plan 上的字', () => {
+    for (const field of ['n.text', 'g.text', 'plan.noT2Text']) expect(v3, field).toContain(field);
     expect(v3).not.toMatch(/from '\.\.\/t2\/recommend\/engine'/);
     expect(v3).not.toContain('目前不需要第二层检查');
-  });
-
-  it('第一次／第二次分組、合計分鐘、兩次才說「建议分 2 次」；NO_T2 不出 CTA', () => {
-    expect(v3).toContain('第一次填写');
-    expect(v3).toContain('第二次填写');
-    expect(v3).toMatch(/plan\.totalMinutes/);
-    expect(v3).toMatch(/plan\.sessions === 2 && <>\{' '\}问卷比较多，建议分 2 次填写/);
     const noT2 = v3.slice(v3.indexOf("plan.status === 'NO_T2'"), v3.indexOf('plan.tools.length === 0'));
     expect(noT2).not.toMatch(/onUnlock|onStart/);
   });
 
+  it('報告上不再列逐份問卷、分鐘、第一次／第二次（使用者 2026-10-11），改畫 T2PromoCard', () => {
+    for (const [name, src] of [['T2EntranceV3', v3], ['T2Entrance', entrance]] as const) {
+      expect(src, name).toContain('<T2PromoCard');
+      expect(src, name).not.toContain('建议填写');
+      expect(src, name).not.toContain('第一次填写');
+      expect(src, name).not.toMatch(/totalMinutes|describePlanItem|t\.reason|t\.rater/);
+    }
+    expect(v3).toContain('promoFromV3(plan)');
+    expect(entrance).toContain('promoFromV2(planV2)');
+  });
+
   it('新檔案在家長用字掃描的清單上', () => {
-    expect(read('test/parentWording.structure.test.ts')).toContain("'src/components/T2EntranceV3.tsx'");
+    const scan = read('test/parentWording.structure.test.ts');
+    for (const f of ['src/components/T2EntranceV3.tsx', 'src/components/T2PromoCard.tsx', 'src/t2/entrancePromo.ts']) expect(scan, f).toContain(`'${f}'`);
   });
 });

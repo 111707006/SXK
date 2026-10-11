@@ -1349,7 +1349,6 @@ export default function App() {
                       setFocusBooking(false); setFocusT2(false);
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
-                    onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     // T2 入口只掛在即時報告上（票 #56）；B 沒有 T2。
                     t2={PRODUCT.features.tier2And3 ? { access: t2Access, priceFen: unlockPriceFen, onUnlock: enterT2, onStart: enterT2 } : undefined}
                     // B 在同一個位置放「到 A 做深度評估」（ADR-0009）；卡自己問伺服器交接開了沒。
@@ -1375,7 +1374,6 @@ export default function App() {
                       setFocusBooking(false); setFocusT2(false);
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
-                    onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     historicalRecord={activeT1Record}
                     reportHistory={reportHistory}
                     // 從干預包的「联系专家」進來時要捲到預約區塊 —— 這一支是

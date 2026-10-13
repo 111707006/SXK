@@ -53,13 +53,13 @@ export default function T2PromoCard({ promo, locked, freePeriod = false, pricing
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pt-3 border-t border-brand-cream/80">
         {showPrice && pricing ? (
           <div className="flex items-end gap-3 flex-wrap">
-            <div className="text-sm font-bold text-brand-forest leading-tight pb-0.5">{promoCountLabel(promo.count)}</div>
-            {/* 「套餐价」貼著 ¥（使用者 2026-10-13：比例較協調） */}
-            <div className="flex items-end gap-1">
-              <span className="text-[11px] text-brand-charcoal/60 pb-0.5">{PROMO_PRICE_LABEL}</span>
-              <div className="text-3xl md:text-4xl font-extrabold text-brand-forest leading-none">
-                <span className="text-lg align-top mr-0.5">¥</span>{formatFen(pricing.priceFen)}
-              </div>
+            {/* 「套餐价」在「N 项深度评估」底下靠右，貼近 ¥（使用者 2026-10-14） */}
+            <div className="leading-tight">
+              <div className="text-sm font-bold text-brand-forest">{promoCountLabel(promo.count)}</div>
+              <div className="text-[11px] text-brand-charcoal/60 text-right">{PROMO_PRICE_LABEL}</div>
+            </div>
+            <div className="text-3xl md:text-4xl font-extrabold text-brand-forest leading-none">
+              <span className="text-lg align-top mr-0.5">¥</span>{formatFen(pricing.priceFen)}
             </div>
             <div className="text-[11px] text-brand-charcoal/50 line-through pb-0.5">
               {PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}

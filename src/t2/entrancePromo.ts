@@ -5,6 +5,8 @@
  * 也不想做了」。報告上改成一張短卡：哪幾個方面、幾項、價錢、一顆按鈕；**逐份清單留到按下去之後的作答頁**
  * （`T2Assessment`／`T2AssessmentV3` 照舊列）。
  *
+ * 價錢（套餐價與劃掉的原價，使用者 2026-10-13 定名）照幾項分檔，表在 `pricing.ts`，伺服器算好放在 plan 的 `pricing`（2026-10-13）。
+ *
  * 「幾項」與「哪幾個方面」都從伺服器算好的 plan 數，這裡不重算：
  * - 舊題庫（暫行題量）：必做那幾份；方面＝它們為哪幾個維度做的。
  * - 完整版（`T2_RECOMMEND_V3`）：推薦的每一份；方面＝有對到單一維度的那幾份（綜合問卷沒有單一維度，不列）。
@@ -15,15 +17,9 @@ import { DIMENSION_CODES } from './types';
 import type { DimensionCode, T2Plan } from './types';
 import type { ParentPlanV3 } from './recommend/parentPlan';
 
-/**
- * 顯示用的指導價（分）：使用者 2026-10-11 給的版面上寫「指导价格：400元」。
- * **只畫在卡上、劃掉**，不參與任何計費；實收一律是伺服器回的 `priceFen`（`/api/unlocks`）。
- */
-export const T2_GUIDE_PRICE_FEN = 40000;
-
 export const PROMO_TITLE = '建议进入 T2 深度评估';
-export const PROMO_PRICE_LABEL = '特惠';
-export const PROMO_GUIDE_LABEL = '指导价格';
+export const PROMO_PRICE_LABEL = '套餐价';
+export const PROMO_GUIDE_LABEL = '原价';
 export const PROMO_UNLOCK = '解锁深度评估';
 export const PROMO_START = '开始深度评估';
 /** 免費期間（`PAYWALL_FREE`）價錢底下那一行：價錢只是參考，現在不收費。 */

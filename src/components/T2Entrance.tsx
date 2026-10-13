@@ -11,18 +11,22 @@ import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import type { ParentPlanV3 } from '../t2/recommend/parentPlan';
 import T2EntranceV3 from './T2EntranceV3';
 import type { DimensionCode, T1Flag, T2Plan } from '../t2/types';
+import type { T2Pricing } from '../t2/pricing';
 
 /** `GET /api/t2/plan` 的回應：`planT2()` 的結果加兩樣附帶資料。 */
 interface PlanResponse extends T2Plan {
   t1Flags: Record<DimensionCode, T1Flag>;
   entrance: EntranceState;
+  /** 這次的價錢（照幾項分檔，`src/t2/pricing.ts`）；沒有要做的是 null。 */
+  pricing: T2Pricing | null;
 }
+
+/** 完整版的 plan 加上伺服器附的價錢。 */
+type PlanV3WithPricing = ParentPlanV3 & { pricing?: T2Pricing | null };
 
 interface T2EntranceProps {
   /** 整份 T2 的權益狀態（`getT2Access`）。`needs_login` 時整塊不出現 —— 那時整個畫面本來就是登入頁。 */
   access: DimensionAccess;
-  /** 單價（分），付費牆同一個來源。 */
-  priceFen: number;
   /** 免費期間（`PAYWALL_FREE`）：已解鎖，但卡上照樣畫價錢當參考、註明現在免費（使用者 2026-10-11）。 */
   freePeriod?: boolean;
   /** 未解鎖時按「解鎖」→ App 導向付費牆。 */
@@ -55,8 +59,8 @@ interface T2EntranceProps {
  * 已解鎖的家長在這裡看到同一份清單，CTA 是「開始作答」→ 逐支作答畫面（`T2Assessment.tsx`，票 #58），
  * 那邊的工具清單就是這份 plan。
  */
-export default function T2Entrance({ access, priceFen, freePeriod = false, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
-  const [plan, setPlan] = useState<PlanResponse | ParentPlanV3 | null>(null);
+export default function T2Entrance({ access, freePeriod = false, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
+  const [plan, setPlan] = useState<PlanResponse | PlanV3WithPricing | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
 
   const enabled = access !== 'needs_login';
@@ -65,13 +69,13 @@ export default function T2Entrance({ access, priceFen, freePeriod = false, onUnl
    * 讀 plan。401／404（沒篩查）都當「這裡沒東西好顯示」—— 報告頁本來就是篩查之後才到得了的地方，
    * 真的碰到只代表資料還沒同步，不是要對家長解釋的事。
    */
-  const fetchPlan = async (): Promise<PlanResponse | ParentPlanV3 | null> => {
+  const fetchPlan = async (): Promise<PlanResponse | PlanV3WithPricing | null> => {
     const resp = await authFetch('/api/t2/plan');
     const ct = resp.headers.get('content-type');
     if (!ct || !ct.includes('application/json')) throw new Error('bad content type');
     if (resp.status === 401 || resp.status === 404) return null;
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return (await resp.json()) as PlanResponse | ParentPlanV3;
+    return (await resp.json()) as PlanResponse | PlanV3WithPricing;
   };
 
   useEffect(() => {
@@ -139,7 +143,7 @@ export default function T2Entrance({ access, priceFen, freePeriod = false, onUnl
       <T2EntranceV3
         plan={plan}
         locked={access === 'locked' || access === 'demo'}
-        priceFen={priceFen}
+        pricing={plan.pricing ?? null}
         freePeriod={freePeriod}
         onUnlock={onUnlock}
         onStart={onStart}
@@ -173,7 +177,7 @@ export default function T2Entrance({ access, priceFen, freePeriod = false, onUnl
 
   // 報告上只出一張短卡（使用者 2026-10-11）；逐份清單在作答頁（T2Assessment）。沒工具的維度照舊在卡底下說清楚、導四種服務（§4.5）。
   return (
-    <T2PromoCard promo={promoFromV2(planV2)} locked={locked} freePeriod={freePeriod} priceFen={priceFen} onUnlock={onUnlock} onStart={onStart}>
+    <T2PromoCard promo={promoFromV2(planV2)} locked={locked} freePeriod={freePeriod} pricing={planV2.pricing ?? null} onUnlock={onUnlock} onStart={onStart}>
       {planV2.noTool.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           {noToolNotes(planV2).map(note => (

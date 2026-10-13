@@ -4,7 +4,8 @@ import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import T2PromoCard from '../src/components/T2PromoCard';
-import { promoFromV2, promoFromV3, promoSentence, T2_GUIDE_PRICE_FEN } from '../src/t2/entrancePromo';
+import { promoFromV2, promoFromV3, promoSentence } from '../src/t2/entrancePromo';
+import { t2PriceFor } from '../src/t2/pricing';
 import { SITE_DIMENSION_NAME } from '../src/t2/dimensionMap';
 import type { ParentPlanTool } from '../src/t2/recommend/parentPlan';
 import { DIMENSION_CODES } from '../src/t2/types';
@@ -44,16 +45,16 @@ describe('幾項、哪幾個方面', () => {
 
 describe('卡', () => {
   const promo = { count: 2, dimensions: ['动作发展', '情绪行为'] };
-  const render = (locked: boolean, freePeriod = false) =>
-    renderToStaticMarkup(createElement(T2PromoCard, { promo, locked, freePeriod, priceFen: 1990, onUnlock: () => {}, onStart: () => {} }));
+  const render = (locked: boolean, freePeriod = false, pricing = t2PriceFor(2)) =>
+    renderToStaticMarkup(createElement(T2PromoCard, { promo, locked, freePeriod, pricing, onUnlock: () => {}, onStart: () => {} }));
 
-  it('未解鎖：幾項、特惠價（伺服器的 priceFen）、劃掉的指導價、解鎖鈕', () => {
+  it('未解鎖：幾項、套餐價（伺服器 plan 的 pricing）、劃掉的原價、解鎖鈕', () => {
     const html = render(true);
     expect(html).toContain('建议进入 ');
     expect(html).toContain('2 项深度评估');
     expect(html).toContain('19.9');
-    expect(html).toMatch(/line-through[^>]*>指导价格 ¥400/);
-    expect(T2_GUIDE_PRICE_FEN).toBe(40000);
+    expect(html).toContain('套餐价');
+    expect(html).toMatch(/line-through[^>]*>原价 ¥500/);
     expect(html).toContain('t2-promo-unlock-btn');
     expect(html).toContain('“动作发展、情绪行为”');
   });
@@ -62,14 +63,14 @@ describe('卡', () => {
     const html = render(false);
     expect(html).toContain('2 项深度评估');
     expect(html).not.toContain('19.9');
-    expect(html).not.toContain('指导价格');
+    expect(html).not.toContain('原价');
     expect(html).toContain('t2-promo-start-btn');
   });
 
   it('免費期間（PAYWALL_FREE，已解鎖）：價錢照畫當參考、註明現在免費、按鈕是開始（使用者 2026-10-11）', () => {
     const html = render(false, true);
     expect(html).toContain('19.9');
-    expect(html).toContain('指导价格 ¥400');
+    expect(html).toContain('原价 ¥500');
     expect(html).toContain('目前免费开放');
     expect(html).toContain('t2-promo-start-btn');
     expect(html).not.toContain('t2-promo-unlock-btn');
@@ -82,6 +83,15 @@ describe('卡', () => {
     expect(read('src/App.tsx')).toContain('freePeriod: t2FreePeriod');
     expect(read('src/components/AnalysisReport.tsx')).toContain('freePeriod={t2.freePeriod === true}');
     for (const f of ['src/components/T2Entrance.tsx', 'src/components/T2EntranceV3.tsx']) expect(read(f), f).toContain('freePeriod={freePeriod}');
+  });
+
+  it('價錢跟著項數分檔：5 項是 ¥29.9、指導價 ¥800；沒有 pricing 不出價錢', () => {
+    const html = render(true, false, t2PriceFor(5));
+    expect(html).toContain('29.9');
+    expect(html).toContain('原价 ¥800');
+    const none = render(true, false, null);
+    expect(none).not.toContain('原价');
+    expect(none).toContain('t2-promo-unlock-btn');
   });
 
   it('卡上沒有逐份清單、題量、分鐘', () => {

@@ -23,6 +23,8 @@ import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
 import { calculateAgeMonth } from './src/utils/dateUtils';
 import { planT2 } from './src/t2/routing';
 import { entranceState, t1FlagsFromScores } from './src/t2/entrance';
+import { promoFromV2, promoFromV3 } from './src/t2/entrancePromo';
+import { t2PriceFor } from './src/t2/pricing';
 import { scoreTool } from './src/t2/scoring';
 import { buildT2Findings, latestCompleteResults } from './src/t2/findings';
 import { readToolSubmission, refusalToHttp, toolBands } from './src/t2/toolResults';
@@ -233,7 +235,10 @@ const WEARABLES_PROMPT_CLAUSE = APP_MODE === 'full'
 // 用字規範那一段（`PARENT_WORDING_CLAUSE`）住在 src/utils/parentWording.ts，與禁字清單同一處；
 // T1 報告的新版提示（src/t1report/prompt.ts）也要用它。
 
-/** ¥19.9 per dimension, in 分 — WeChat Pay's amount.total is an integer in 分. */
+/**
+ * ¥19.9, in 分 — WeChat Pay's amount.total is an integer in 分. T3 (per dimension) charges this; T2 is tiered by how
+ * many items the plan has (`src/t2/pricing.ts`, 2026-10-13) and this is only the `/api/unlocks` fallback for it.
+ */
 const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;
 
 // WeChat Pay credentials. Absent until the merchant id and ICP filing exist, so
@@ -1132,33 +1137,51 @@ async function planV3(userId: UserId, child: any, t1Scores: any[], liveAgeMonth:
   };
 }
 
+/**
+ * 這位家長現在的 T2 安排，與卡上「N 项深度评估」的 N（`items`）。價錢照 N 分檔（`src/t2/pricing.ts`）：
+ * `/api/t2/plan` 給畫面看的、`/api/payment/create` 實收的都從這一個函式算，畫面與帳單不會各數各的。
+ */
+type T2PlanOutcome =
+  | { ok: true; plan: Record<string, unknown>; items: number }
+  | { ok: false; status: number; body: { error: string; code: string } };
+
+async function t2PlanFor(userId: UserId): Promise<T2PlanOutcome> {
+  const data = await loadParentData(userId);
+  const t1Scores = (data?.completedScores ?? []).filter((s: any) => s && typeof s === 'object' && s.tierId === 'T1');
+  if (!data?.child || t1Scores.length === 0) {
+    return { ok: false, status: 404, body: { error: '请先完成筛查，再查看深度评估的安排。', code: 'T1_REQUIRED' } };
+  }
+  const ageMonth = liveAgeMonthOf(data.child);
+  if (ageMonth === null) {
+    return { ok: false, status: 400, body: { error: '孩子档案里没有可用的月龄，请先补齐出生日期。', code: 'CHILD_AGE_REQUIRED' } };
+  }
+
+  if (T2_RECOMMEND_V3) {
+    const plan = await planV3(userId, data.child, t1Scores, ageMonth);
+    return { ok: true, plan, items: promoFromV3(plan).count };
+  }
+
+  const t1Flags = t1FlagsFromScores(t1Scores);
+  // 暫行（使用者 2026-09-29）：每個被標記的維度只列一份、全部必做；選做／加測／補充問卷先不出（src/t2/interimPlan.ts）
+  const full = planT2(t1Flags, ageMonth);
+  const plan = SINGLE_FORM_PER_DIMENSION ? singleFormPlan(full, t1Flags) : full;
+  const entrance = entranceState(plan, t1Flags);
+  // 入口不出現（只導專家／全綠）就沒有卡，也沒有東西可賣
+  return { ok: true, plan: { ...plan, t1Flags, entrance }, items: entrance === 'show' ? promoFromV2(plan).count : 0 };
+}
+
 tier2Only.get('/api/t2/plan', async (req, res) => {
   try {
     const userId = await requireT2Parent(req, res);
     if (!userId) return;
 
-    const data = await loadParentData(userId);
-    const t1Scores = (data?.completedScores ?? []).filter((s: any) => s && typeof s === 'object' && s.tierId === 'T1');
-    if (!data?.child || t1Scores.length === 0) {
-      res.status(404).json({ error: '请先完成筛查，再查看深度评估的安排。', code: 'T1_REQUIRED' });
+    const outcome = await t2PlanFor(userId);
+    if (!outcome.ok) {
+      res.status(outcome.status).json(outcome.body);
       return;
     }
-    const ageMonth = liveAgeMonthOf(data.child);
-    if (ageMonth === null) {
-      res.status(400).json({ error: '孩子档案里没有可用的月龄，请先补齐出生日期。', code: 'CHILD_AGE_REQUIRED' });
-      return;
-    }
-
-    if (T2_RECOMMEND_V3) {
-      res.json(await planV3(userId, data.child, t1Scores, ageMonth));
-      return;
-    }
-
-    const t1Flags = t1FlagsFromScores(t1Scores);
-    // 暫行（使用者 2026-09-29）：每個被標記的維度只列一份、全部必做；選做／加測／補充問卷先不出（src/t2/interimPlan.ts）
-    const full = planT2(t1Flags, ageMonth);
-    const plan = SINGLE_FORM_PER_DIMENSION ? singleFormPlan(full, t1Flags) : full;
-    res.json({ ...plan, t1Flags, entrance: entranceState(plan, t1Flags) });
+    // 價錢跟著 plan 走（每 3 項跳一檔，src/t2/pricing.ts）；沒有要做的是 null，畫面不出價錢
+    res.json({ ...outcome.plan, pricing: t2PriceFor(outcome.items) });
   } catch (err: any) {
     console.error('[T2] plan failed:', err.message);
     res.status(500).json({ error: '暂时无法读取深度评估的安排，请稍后重试。' });
@@ -2601,6 +2624,19 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       return;
     }
 
+    // T2 照這次要做幾項分檔（src/t2/pricing.ts，與卡上畫的同一份 plan）；T3 照舊單一價
+    let amountFen = UNLOCK_PRICE_FEN;
+    if (scope === 't2') {
+      const outcome = await t2PlanFor(userId);
+      const pricing = outcome.ok ? t2PriceFor(outcome.items) : null;
+      if (!pricing) {
+        // 沒做篩查、或這次沒有要做的問卷：沒有東西可賣，不開單
+        res.status(409).json({ error: '目前没有需要进行的深度评估。', code: 'NOTHING_TO_BUY' });
+        return;
+      }
+      amountFen = pricing.priceFen;
+    }
+
     const outTradeNo = generateOutTradeNo();
     if (!isValidOutTradeNo(outTradeNo)) {
       // Can only fire if the generator is changed badly; failing here beats
@@ -2613,7 +2649,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     const paymentId = await mysqlDb.createPayment({
       userId: user.id,
       outTradeNo,
-      amountFen: UNLOCK_PRICE_FEN,
+      amountFen,
       scope,
       dimensionId: paidDimensionId,
     });
@@ -2622,7 +2658,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     // with. Say so; the client must never read this as success.
     if (!wechatPayStatus.config) {
       res.json({
-        alreadyUnlocked: false, outTradeNo, paymentId, amountFen: UNLOCK_PRICE_FEN,
+        alreadyUnlocked: false, outTradeNo, paymentId, amountFen,
         scope, dimensionId: paidDimensionId,
         wechatReady: false,
         reason: `微信支付尚未配置：缺少 ${wechatPayStatus.missing.join('、')}`,
@@ -2653,7 +2689,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     const order = await wechatPay.placeOrder(wechatPayStatus.config, 'h5', {
       description: orderDescription,
       outTradeNo,
-      amountFen: UNLOCK_PRICE_FEN,
+      amountFen,
       payerClientIp,
     });
 
@@ -2661,7 +2697,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       alreadyUnlocked: false,
       outTradeNo,
       paymentId,
-      amountFen: UNLOCK_PRICE_FEN,
+      amountFen,
       scope,
       dimensionId: paidDimensionId,
       wechatReady: true,

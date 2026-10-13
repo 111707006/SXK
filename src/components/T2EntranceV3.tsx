@@ -1,6 +1,7 @@
 import React from 'react';
 import { Info, Layers } from 'lucide-react';
 import type { ParentPlanV3 } from '../t2/recommend/parentPlan';
+import type { T2Pricing } from '../t2/pricing';
 import { promoFromV3 } from '../t2/entrancePromo';
 import T2PromoCard from './T2PromoCard';
 
@@ -8,7 +9,8 @@ interface T2EntranceV3Props {
   plan: ParentPlanV3;
   /** 未解鎖（`locked`／`demo`）時 CTA 是「解鎖」。 */
   locked: boolean;
-  priceFen: number;
+  /** 這次的價錢（照幾項分檔，伺服器 plan 的 `pricing`）。 */
+  pricing: T2Pricing | null;
   /** 免費期間：卡上照樣畫價錢當參考（見 `T2Entrance`）。 */
   freePeriod?: boolean;
   onUnlock: () => void;
@@ -26,7 +28,7 @@ interface T2EntranceV3Props {
  * `NO_T2`：入口不出現，只留那一句「目前不需要第二层检查……」（規格 §5，取代舊入口 `none` 的整塊不出）。
  * 量表名稱是客戶給的專有名詞，照用（規格 §5）。
  */
-export default function T2EntranceV3({ plan, locked, priceFen, freePeriod = false, onUnlock, onStart, serviceButtons }: T2EntranceV3Props) {
+export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false, onUnlock, onStart, serviceButtons }: T2EntranceV3Props) {
   // 規則觸發改成的提示（社交溝通警訊、抽動、情緒那一題，ADR-0011）底下附預約按鈕；有了這一組，缺口那一格就不再重複一組按鈕
   const bookAtNotices = plan.notices.some(n => n.book);
   const notices = plan.notices.length > 0 && (
@@ -75,7 +77,7 @@ export default function T2EntranceV3({ plan, locked, priceFen, freePeriod = fals
 
   // 報告上只出一張短卡（使用者 2026-10-11：「客人看到这么多题也不想做了」）；逐份清單、分鐘、第一次／第二次在作答頁（T2AssessmentV3）。
   return (
-    <T2PromoCard promo={promoFromV3(plan)} locked={locked} freePeriod={freePeriod} priceFen={priceFen} onUnlock={onUnlock} onStart={onStart}>
+    <T2PromoCard promo={promoFromV3(plan)} locked={locked} freePeriod={freePeriod} pricing={pricing} onUnlock={onUnlock} onStart={onStart}>
       {notices}
       {plan.gaps.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">

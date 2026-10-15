@@ -1440,17 +1440,34 @@ async function loadT2Context(userId: UserId, res: express.Response): Promise<T2C
   };
 }
 
-/** 活動庫。沒有資料庫（展示站）時是空的 —— 配不到就是「準備中」（§7.4）。 */
-async function loadActivityLibrary(): Promise<Activity[]> {
+/** 上一次讀成功的活動庫：讀失敗時拿它頂著（活動庫很少變；審查 #1）。 */
+let lastActivityLibrary: Activity[] | null = null;
+
+/**
+ * 活動庫。讀失敗先重試一次，再失敗就用上一次讀到的那份；兩者都沒有才回 `null`。
+ * 回 `null` 時呼叫端這一次不能寫任何東西：當成空庫往下走的話，`replaceInactive` 會把這一週每一格都當成停用、
+ * 改成准备中並存回，之後再也恢復不了（審查 #1）。沒有資料庫（展示站）時是空的 —— 配不到就是「準備中」（§7.4）。
+ */
+async function readActivityLibrary(): Promise<Activity[] | null> {
   if (!mysqlDb.isConfigured()) return [];
-  try {
-    return await withTimeout(listActivityLibrary(), 2000);
-  } catch (err: any) {
-    // 活動庫讀不出來不該讓整份報告生不出來：報告的判定與目標都不靠它，
-    // 少的只是「本週四支」那一段，而那一段本來就有「準備中」這個出口。
-    console.error('[T2] 活動庫讀取失敗，本次以空庫配對:', err.message);
-    return [];
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      lastActivityLibrary = await withTimeout(listActivityLibrary(), 2000);
+      return lastActivityLibrary;
+    } catch (err: any) {
+      console.error(`[T2] 活動庫讀取失敗（第 ${attempt} 次）:`, err.message);
+    }
   }
+  if (lastActivityLibrary) console.warn('[T2] 活動庫改用上一次讀到的那份');
+  return lastActivityLibrary;
+}
+
+/**
+ * 報告生成用的活動庫。讀不出來不該讓整份報告生不出來：報告的判定與目標都不靠它，
+ * 少的只是「本週四支」那一段，而那一段本來就有「準備中」這個出口；這裡只算不存，當成空庫無妨。
+ */
+async function loadActivityLibrary(): Promise<Activity[]> {
+  return (await readActivityLibrary()) ?? [];
 }
 
 async function storeT2Findings(userId: UserId, input: t2FindingsStore.FindingsInsert): Promise<FindingsRecord> {
@@ -1884,7 +1901,8 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
     }
 
     // 活動庫一次請求讀一次：配對要它，把編號配回內容也要它。
-    const library = await loadActivityLibrary();
+    const loaded = await readActivityLibrary();
+    const library = loaded ?? [];
     let record = await loadWeeklyPlan(userId, weekStart);
     if (!record) {
       // 報告生成之前的週次不補一列（Keep 規格 §4.5）：計劃的第 1 週是這份快照「最早的 week_start」，
@@ -1894,7 +1912,10 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
         res.status(400).json({ error: '这一周在报告生成之前，还没有安排活动。', code: 'WEEK_OUT_OF_RANGE' });
         return;
       }
-      if (TRAINING_PUSH_V3) {
+      if (loaded === null) {
+        // 讀不到活動庫、手上也沒有上一份：這一次回空的一週，不開期、不補位、不存這一週 —— 重新整理就恢復（審查 #1）
+        record = { id: 0, weekStart, findingsId: snapshot.id, activities: { picks: [], preparing: [] }, createdAt: null };
+      } else if (TRAINING_PUSH_V3) {
         // v3：這一週屬於哪一期、第幾週（需要時開新的一期、期末判檔、補停用的），那幾格就是這一週
         const resolved = await periodForWeek(weekStart, t2PeriodContext(snapshot, data, library), t2PeriodDeps(userId));
         if (resolved.kind !== 'ok') {

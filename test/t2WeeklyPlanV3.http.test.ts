@@ -38,6 +38,9 @@ const FINDINGS: T2Findings = t2FindingsFixture(
 
 let findingsRow: FindingsRecord;
 let library: Activity[] = [];
+/** 接下來幾次讀活動庫要失敗（審查 #1）；`libraryCalls` 數實際讀了幾次（看重試）。 */
+let libraryFailures = 0;
+let libraryCalls = 0;
 const weeklyTable: Array<{ userId: number; record: WeeklyPlanRecord }> = [];
 const periods: TrainingPeriodRecord[] = [];
 
@@ -65,7 +68,16 @@ vi.mock('../src/db/t2ToolResults', () => ({ insertToolResult: async () => 1, lis
 
 vi.mock('../src/db/t2Findings', () => ({ insertFindings: async () => 1, latestFindings: async () => findingsRow }));
 
-vi.mock('../src/db/t2Activities', () => ({ listActivityLibrary: async () => library }));
+vi.mock('../src/db/t2Activities', () => ({
+  listActivityLibrary: async () => {
+    libraryCalls += 1;
+    if (libraryFailures > 0) {
+      libraryFailures -= 1;
+      throw new Error('timeout');
+    }
+    return library;
+  },
+}));
 
 vi.mock('../src/db/t2Checkins', async importOriginal => ({
   ...(await importOriginal<typeof import('../src/db/t2Checkins')>()),
@@ -123,6 +135,8 @@ beforeEach(() => {
   weeklyTable.length = 0;
   periods.length = 0;
   library = [...ACTIVITY_SEED];
+  libraryFailures = 0;
+  libraryCalls = 0;
   findingsRow = {
     id: 77,
     createdAt: '2026-09-07T00:00:00.000Z',
@@ -133,6 +147,41 @@ beforeEach(() => {
   };
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-12-30T04:00:00.000Z'));
+});
+
+// 審查 #1（2026-10-15）：讀取逾時一次被當成空庫，replaceInactive 把整週改成准备中並寫回，之後再也恢復不了。
+// 這一段要排在檔案最前面：第一支測試要在「伺服器還沒讀成功過活動庫」的狀態下跑。
+describe('活動庫讀不到（審查 #1）', () => {
+  it('從沒讀成功過、兩次都失敗：這一次回空的一週、不開期也不存；下一次就恢復', async () => {
+    libraryFailures = 2;
+    const resp = await get(FIRST);
+    expect(resp.status).toBe(200);
+    expect((await resp.json()).activities).toEqual([]);
+    expect(libraryCalls).toBe(2);
+    expect(periods).toEqual([]);
+    expect(weeklyTable).toEqual([]);
+
+    const again = await get(FIRST);
+    expect((await again.json()).activities).toHaveLength(3);
+    expect(periods).toHaveLength(1);
+  });
+
+  it('第一次失敗、重試成功：照常排', async () => {
+    libraryFailures = 1;
+    const resp = await get(FIRST);
+    expect(libraryCalls).toBe(2);
+    expect((await resp.json()).activities).toHaveLength(3);
+  });
+
+  it('兩次都失敗但讀成功過：用上一次的那份照常排，已開好的一期不被改寫', async () => {
+    await get(FIRST);
+    const before = JSON.stringify(periods[0].plan);
+    libraryFailures = 2;
+    const resp = await get(weekOf(2));
+    expect(resp.status).toBe(200);
+    expect((await resp.json()).activities).toHaveLength(3);
+    expect(JSON.stringify(periods[0].plan)).toBe(before);
+  });
 });
 
 describe('GET /api/t2/weekly-plan（TRAINING_PUSH_V3=1）', () => {

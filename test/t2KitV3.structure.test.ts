@@ -28,7 +28,7 @@ describe('完整版題庫：抽取地基', () => {
       const src = loadV3Source(zip, name.split('网页版/')[1]);
       expect(src.consts.size, name).toBeGreaterThan(0);
     }
-  });
+  }, 30_000); // 31 支網頁整批解析：單跑半秒，全套滿載時會超過預設 5 秒
 
   it('純資料檢查：字串相加放行，識別字照樣擋', () => {
     expect(isPureData('"a"+\n"b"')).toBe(true);
@@ -59,5 +59,5 @@ describe('完整版題庫：抽取地基', () => {
     for (const f of fs.readdirSync(path.join(ROOT, KITV3_DIR))) {
       if (!handwritten.has(f)) expect(produced.has(f), f).toBe(true);
     }
-  });
+  }, 30_000); // 24 支整批重抽（含量表详解的說明）：單跑一秒內，全套滿載時會超過預設 5 秒
 });

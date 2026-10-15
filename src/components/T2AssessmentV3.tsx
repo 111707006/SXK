@@ -434,7 +434,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
 
       <div className="pt-5 border-t border-brand-stone/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
-          {doneCount === 0 ? '还没有完成任何一份问卷；先答完第一次的几份，报告会更完整。' : `已完成的 ${doneCount} 份会整理成一份报告。`}
+          {doneCount === 0 ? '还没有完成任何一份问卷；至少答完一份才能生成报告。' : `已完成的 ${doneCount} 份会整理成一份报告。`}
         </p>
         <div className="flex flex-wrap gap-2 shrink-0">
           {hasReport && (
@@ -452,7 +452,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
             type="button"
             id="t2v3-generate-report-btn"
             onClick={() => onOpenReport(true)}
-            className="px-5 py-2.5 rounded-xl bg-brand-forest hover:bg-brand-forest/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-forest/20 active:scale-[0.98] transition cursor-pointer"
+            // 一份都沒做不能生成（伺服器也回 409，審查 #8）
+            disabled={doneCount === 0}
+            className="px-5 py-2.5 rounded-xl bg-brand-forest hover:bg-brand-forest/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-forest/20 active:scale-[0.98] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
           >
             <Sparkles size={13} />
             生成报告

@@ -1,27 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, Layers, Loader2, Lock, UserRound } from 'lucide-react';
+import { Layers, Loader2, UserRound } from 'lucide-react';
 import { authFetch } from '../utils/api';
-import { formatFen } from '../utils/price';
 import type { DimensionAccess } from '../utils/access';
 import type { ServiceType } from '../utils/serviceTypes';
 import { ServiceNote, serviceChoices } from './serviceChoices';
-import { describePlan, describePlanItem, expertOnlyCopy, noToolNotes, type EntranceState } from '../t2/entrance';
+import { expertOnlyCopy, noToolNotes, type EntranceState } from '../t2/entrance';
+import { promoFromV2 } from '../t2/entrancePromo';
+import T2PromoCard from './T2PromoCard';
 import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import type { ParentPlanV3 } from '../t2/recommend/parentPlan';
 import T2EntranceV3 from './T2EntranceV3';
-import type { DimensionCode, PlanItem, T1Flag, T2Plan } from '../t2/types';
+import type { DimensionCode, T1Flag, T2Plan } from '../t2/types';
+import type { T2Pricing } from '../t2/pricing';
 
 /** `GET /api/t2/plan` 的回應：`planT2()` 的結果加兩樣附帶資料。 */
 interface PlanResponse extends T2Plan {
   t1Flags: Record<DimensionCode, T1Flag>;
   entrance: EntranceState;
+  /** 這次的價錢（照幾項分檔，`src/t2/pricing.ts`）；沒有要做的是 null。 */
+  pricing: T2Pricing | null;
 }
+
+/** 完整版的 plan 加上伺服器附的價錢。 */
+type PlanV3WithPricing = ParentPlanV3 & { pricing?: T2Pricing | null };
 
 interface T2EntranceProps {
   /** 整份 T2 的權益狀態（`getT2Access`）。`needs_login` 時整塊不出現 —— 那時整個畫面本來就是登入頁。 */
   access: DimensionAccess;
-  /** 單價（分），付費牆同一個來源。 */
-  priceFen: number;
+  /** 免費期間（`PAYWALL_FREE`）：已解鎖，但卡上照樣畫價錢當參考、註明現在免費（使用者 2026-10-11）。 */
+  freePeriod?: boolean;
   /** 未解鎖時按「解鎖」→ App 導向付費牆。 */
   onUnlock: () => void;
   /** 已解鎖時按「開始作答」→ App 導向逐支作答（票 #58）。 */
@@ -35,7 +42,8 @@ interface T2EntranceProps {
 /**
  * T2 深度評估的入口 —— **家長端專屬**，放進 T1 報告本體的插槽（票 #56，規格 §4.3–4.5、§9.2）。
  *
- * 家長在付費前就看到：要答幾份、約幾題；哪些被標記的維度在這個年齡沒有工具（直接導向專家）。
+ * 家長在付費前看到一張短卡（`T2PromoCard`，2026-10-11）：哪幾個方面、幾項、價錢；哪些被標記的維度在這個年齡沒有工具（直接導向專家）。
+ * 逐份清單與題量不在報告上（「客人看到这么多题也不想做了」），按下去之後的作答頁才列。
  * 原本還有一格「医生是否已告知诊断方向」（十選一），2026-09-29 使用者要求前後端一起拿掉。
  * 全部被標記的維度都沒有工具時，入口不出現，只剩專家導向 —— 家長不該為一份答不了的東西付錢。
  *
@@ -51,8 +59,8 @@ interface T2EntranceProps {
  * 已解鎖的家長在這裡看到同一份清單，CTA 是「開始作答」→ 逐支作答畫面（`T2Assessment.tsx`，票 #58），
  * 那邊的工具清單就是這份 plan。
  */
-export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
-  const [plan, setPlan] = useState<PlanResponse | ParentPlanV3 | null>(null);
+export default function T2Entrance({ access, freePeriod = false, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
+  const [plan, setPlan] = useState<PlanResponse | PlanV3WithPricing | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
 
   const enabled = access !== 'needs_login';
@@ -61,13 +69,13 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
    * 讀 plan。401／404（沒篩查）都當「這裡沒東西好顯示」—— 報告頁本來就是篩查之後才到得了的地方，
    * 真的碰到只代表資料還沒同步，不是要對家長解釋的事。
    */
-  const fetchPlan = async (): Promise<PlanResponse | ParentPlanV3 | null> => {
+  const fetchPlan = async (): Promise<PlanResponse | PlanV3WithPricing | null> => {
     const resp = await authFetch('/api/t2/plan');
     const ct = resp.headers.get('content-type');
     if (!ct || !ct.includes('application/json')) throw new Error('bad content type');
     if (resp.status === 401 || resp.status === 404) return null;
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return (await resp.json()) as PlanResponse | ParentPlanV3;
+    return (await resp.json()) as PlanResponse | PlanV3WithPricing;
   };
 
   useEffect(() => {
@@ -135,7 +143,8 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
       <T2EntranceV3
         plan={plan}
         locked={access === 'locked' || access === 'demo'}
-        priceFen={priceFen}
+        pricing={plan.pricing ?? null}
+        freePeriod={freePeriod}
         onUnlock={onUnlock}
         onStart={onStart}
         serviceButtons={serviceButtons}
@@ -164,46 +173,11 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
     );
   }
 
-  const text = describePlan(planV2);
-  const groups: Array<{ title: string; items: PlanItem[] }> = [
-    { title: '必做', items: planV2.required },
-    { title: '选做', items: planV2.optional },
-    { title: '之后可能加测', items: planV2.followup },
-    { title: '补充问卷（不出判定）', items: planV2.extras },
-  ].filter(g => g.items.length > 0);
   const locked = access === 'locked' || access === 'demo';
 
+  // 報告上只出一張短卡（使用者 2026-10-11）；逐份清單在作答頁（T2Assessment）。沒工具的維度照舊在卡底下說清楚、導四種服務（§4.5）。
   return (
-    <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left space-y-4">
-      <div className="space-y-1.5">
-        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
-          <Layers size={10} /> 第二层 · 深度评估
-        </span>
-        <h3 className="text-sm font-extrabold text-brand-forest">{text.headline}</h3>
-        <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">
-          依筛查中被标记的方面安排要答的问卷，由家长填写；答完生成深度报告与每周家庭活动。
-          {text.followup && <>{' '}{text.followup}。</>}
-          {text.extras && <>{' '}{text.extras}。</>}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {groups.map(g => (
-          <div key={g.title} className="space-y-1">
-            <div className="text-[10px] font-bold text-brand-charcoal/50 uppercase tracking-wider">{g.title}</div>
-            <ul className="space-y-1">
-              {g.items.map(item => (
-                <li key={item.toolId} className="text-xs text-brand-charcoal/85 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-moss shrink-0" />
-                  {describePlanItem(item)}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-
-      {/* 有工具的維度照上面走；沒工具的維度在入口就說清楚，直接導向四種服務（§4.5）。 */}
+    <T2PromoCard promo={promoFromV2(planV2)} locked={locked} freePeriod={freePeriod} pricing={planV2.pricing ?? null} onUnlock={onUnlock} onStart={onStart}>
       {planV2.noTool.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           {noToolNotes(planV2).map(note => (
@@ -212,28 +186,6 @@ export default function T2Entrance({ access, priceFen, onUnlock, onStart, onBook
           {serviceButtons}
         </div>
       )}
-
-      {!locked && (
-        <button
-          type="button"
-          onClick={onStart}
-          className="w-full md:w-auto px-6 py-3 rounded-xl bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-extrabold transition shadow-md shadow-brand-moss/20 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-1.5"
-        >
-          开始作答
-          <ChevronRight size={13} />
-        </button>
-      )}
-
-      {locked && (
-        <button
-          type="button"
-          onClick={onUnlock}
-          className="w-full md:w-auto px-6 py-3 rounded-xl bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-extrabold transition shadow-md shadow-brand-moss/20 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-1.5"
-        >
-          <Lock size={13} />
-          ¥{formatFen(priceFen)} 解锁深度评估
-        </button>
-      )}
-    </div>
+    </T2PromoCard>
   );
 }

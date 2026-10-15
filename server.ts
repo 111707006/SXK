@@ -23,6 +23,8 @@ import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
 import { calculateAgeMonth } from './src/utils/dateUtils';
 import { planT2 } from './src/t2/routing';
 import { entranceState, t1FlagsFromScores } from './src/t2/entrance';
+import { promoFromV2, promoFromV3 } from './src/t2/entrancePromo';
+import { t2PriceFor } from './src/t2/pricing';
 import { scoreTool } from './src/t2/scoring';
 import { buildT2Findings, latestCompleteResults } from './src/t2/findings';
 import { readToolSubmission, refusalToHttp, toolBands } from './src/t2/toolResults';
@@ -52,6 +54,7 @@ import type { ToolResultRecordV3 } from './src/db/t2ToolResultsV3';
 import { readV3Submission, scoreToolV3, type ToolResultV3, type V3ChildContext } from './src/t2/kitv3/submit';
 import { TOOLKIT_VERSION_V3 } from './src/t2/kitv3/types';
 import { assertV3Switches, buildFindingsV3, isFindingsV3, recentResultsV3 } from './src/t2/findingsV3';
+import { scaleDetailEntriesOf } from './src/t2/scaleDetailEntries';
 import { REPORT_NOTICE_KINDS, parentPlanV3, runRecommendation } from './src/t2/recommend/parentPlan';
 import { correctedAgeMonth } from './src/t2/recommend/input';
 import { RECOMMEND_CONFIG } from './src/t2/recommend/config';
@@ -171,8 +174,12 @@ const TRAINING_PUSH_V3 = resolvePaywallSwitch('TRAINING_PUSH_V3', process.env.TR
 // （body 帶 `toolkitVersion: 'kit-20260923'`，`src/t2/kitv3/submit.ts`），`GET ?kit=v3` 讀完整版的作答。
 // 關著時一行不動：完整版的工具代碼舊路徑不認得（400 TOOL_UNKNOWN）。同一套 fail-closed 解析。
 const T2_RECOMMEND_V3 = resolvePaywallSwitch('T2_RECOMMEND_V3', process.env.T2_RECOMMEND_V3);
+// 量表详解（使用者 2026-10-15，規格 docs/specs/t2-v3-scale-detail-report.md）：開著時生成完整版報告順便存每支量表的详解
+//（`scaleDetails`），報告頁看快照有沒有這一欄決定畫不畫。關著＝新報告沒有這一段；舊報告照存的樣子。同一套 fail-closed 解析。
+const T2_SCALE_DETAIL = resolvePaywallSwitch('T2_SCALE_DETAIL', process.env.T2_SCALE_DETAIL);
 // 完整版的報告快照只有維度判定、沒有舊配對要的標籤：每週活動只能走 v3 推送規則。開一個沒開另一個 → 起不來。
-assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3);
+// 量表详解只在完整版快照裡：開了詳解沒開完整版 → 起不來。
+assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3, T2_SCALE_DETAIL);
 
 // T1 報告改用真實資料（使用者 2026-10-08）：開著時 `/api/report` 改走 `src/t1report/`——給模型逐題作答、
 // 回來先過驗證器、不過退模板；模板也照這個孩子的作答組；不再產四個儀表數字（`criticalMetrics`）。
@@ -233,7 +240,10 @@ const WEARABLES_PROMPT_CLAUSE = APP_MODE === 'full'
 // 用字規範那一段（`PARENT_WORDING_CLAUSE`）住在 src/utils/parentWording.ts，與禁字清單同一處；
 // T1 報告的新版提示（src/t1report/prompt.ts）也要用它。
 
-/** ¥19.9 per dimension, in 分 — WeChat Pay's amount.total is an integer in 分. */
+/**
+ * ¥19.9, in 分 — WeChat Pay's amount.total is an integer in 分. T3 (per dimension) charges this; T2 is tiered by how
+ * many items the plan has (`src/t2/pricing.ts`, 2026-10-13) and this is only the `/api/unlocks` fallback for it.
+ */
 const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;
 
 // WeChat Pay credentials. Absent until the merchant id and ICP filing exist, so
@@ -344,6 +354,8 @@ app.use('/api/expert-booking', bookingLimiter);
 app.use('/api/admin/login', authLimiter);
 app.use(['/api/report', '/api/specialized-report', '/api/motion-eval',
   '/api/motion-report', '/api/ali-language-eval', '/api/asr'], aiLimiter);
+// 生成 T2 報告也叫模型（審查 #7）。只限 POST：讀報告（`GET /api/t2/findings/latest`）不算進 AI 的額度。
+app.post('/api/t2/findings', aiLimiter);
 app.use(['/api/auth/sms/request', '/api/auth/sms/verify'], authLimiter);
 // B→A 交接的兩支公開端點與登入同一道速率限制。內部兌換（/internal/handoff/redeem）不套：
 // 呼叫它的是 A 的伺服器（永遠是同一個 127.0.0.1），套了等於全站共用一格額度；那一支靠密鑰擋。
@@ -1019,8 +1031,8 @@ function t2IcsRequestUserId(req: express.Request): UserId | null {
 const TRAINING_PRICE_FEN = resolveTrainingPriceFen(process.env.TRAINING_PRICE_FEN);
 
 /**
- * 線上干預那幾支（週活動、片庫、單支活動、打卡、提醒）的閘門。要登入；價錢是 0 就放行，**不看 T2 買了沒** ——
- * 線上干預是自己的一站，不再跟著 T2 一起賣。記憶體模式、展示開關同 T2 閘門放行。
+ * 線上干預那幾支（週活動、片庫、單支活動、打卡、提醒）自己的收費站，疊在 T2 閘門**後面**（ADR-0012：先買 T2，
+ * 才能在 T2 報告裡買線上干預）。這一支只管線上干預的權益：要登入；價錢是 0 就放行。記憶體模式、展示開關同 T2 閘門放行。
  */
 async function denyIfTrainingLocked(userId: UserId | null): Promise<UnlockDenial | null> {
   if (!mysqlDb.isConfigured()) return null;
@@ -1045,8 +1057,8 @@ tier2Only.use('/api/t2', async (req: express.Request, res: express.Response, nex
       return;
     }
     const userId = isT2IcsPath(req.path) ? t2IcsRequestUserId(req) : currentUserId(req);
-    // 線上干預走自己的收費站（現在免費），不走 T2 的；其餘照舊要買 T2。
-    const denial = isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : await denyIfT2Locked(req, userId);
+    // 線上干預要先買過 T2，再過自己的收費站（現在免費；ADR-0012）；其餘照舊只看 T2。
+    const denial = (await denyIfT2Locked(req, userId)) ?? (isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : null);
     if (denial) {
       res.status(denial.status).json(denial.body);
       return;
@@ -1090,6 +1102,42 @@ async function loadParentData(userId: UserId): Promise<{ child: any; completedSc
 }
 
 /**
+ * 孩子檔案的建檔時間（`child.t2Since`，審查 #20）：T2 的作答與報告只掛在家長帳號上，家長「清除档案」再建一個孩子時，
+ * 前一個孩子的 T2 會原封不動帶過來。建新檔時記下這個時間（伺服器的鐘，`/api/db/save`），T2 只看這之後的；
+ * 舊檔案沒有就是 `null`（不篩）。資料不刪。
+ */
+async function t2SinceOf(userId: UserId): Promise<number | null> {
+  const since = (await loadParentData(userId))?.child?.t2Since;
+  const ms = typeof since === 'string' ? Date.parse(since) : NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function sinceFilter<T extends { createdAt: string }>(since: number | null): (r: T) => boolean {
+  return r => since === null || Date.parse(r.createdAt) >= since;
+}
+
+/**
+ * 存檔時的建檔時間（審查 #20）：前端本機的孩子物件沒有這個欄位，回存時從資料庫那一份帶過來；
+ * 先前沒有孩子（第一次建檔、或剛清除檔案）才從現在起算。讀不到原本那一份就不動 —— 寧可不篩，
+ * 也不要把一個舊孩子誤當成新檔、藏掉他的 T2。
+ */
+async function withT2Since(userId: UserId, child: any): Promise<any> {
+  if (!child || typeof child !== 'object' || Array.isArray(child)) return child;
+  let previous: any;
+  try {
+    previous = (await loadParentData(userId))?.child ?? null;
+  } catch {
+    return child;
+  }
+  // 只認伺服器記的：前端送來的 `t2Since` 一律不看
+  const { t2Since: _ignored, ...rest } = child;
+  if (previous && typeof previous === 'object') {
+    return typeof previous.t2Since === 'string' ? { ...rest, t2Since: previous.t2Since } : rest;
+  }
+  return { ...rest, t2Since: new Date().toISOString() };
+}
+
+/**
  * 孩子今天的實足月齡。出生日期算得出來就用它；算不出來（舊檔案沒有出生日期）退回檔案上的
  * `ageMonth`。兩個都沒有回 `null` —— 不猜一個數字，`planT2` 對月齡是嚴格的。
  */
@@ -1118,12 +1166,14 @@ async function requireT2Parent(req: express.Request, res: express.Response): Pro
 
 // T2 v3（`T2_RECOMMEND_V3`）：入口改成量表推薦引擎的輸出（客規 §13.2；推薦規格 §5）。
 // 「近 3 個月做過的」＝完整版近 90 天每支最新一筆（R-29）；家長端的字在 `parentPlanV3`，客規原句不出去；T3 不回。
-// `completed` 是近 90 天做完的（入口上標「已完成」，引擎已經不再推它們）。
+// `completed` 是近 90 天做完的（入口與作答清單標「已完成」）。
+// 清單用不排除做過的那一份（`run.full`，報告快照的「推了哪些」也是它）：排除做過的再算，引擎會以為那個方面還沒有問卷、
+// 補推別份，清單永遠做不完（審查 #3）。做過的留在清單裡打勾；「N 项」與價錢因此不會越做越少（使用者 2026-10-15）。
 async function planV3(userId: UserId, child: any, t1Scores: any[], liveAgeMonth: number) {
   const recent = recentResultsV3(await loadT2ToolResultsV3(userId), new Date());
   const run = runRecommendation({ child, t1Scores, liveAgeMonth, doneCodes: recent.map(r => r.result.toolId) });
   return {
-    ...parentPlanV3(run.rec, run.itemsMissing, run.socialItems),
+    ...parentPlanV3(run.full, run.itemsMissing, run.socialItems),
     ageMonth: run.ageM,
     // 作答用今天的月齡（早產 < 24 月矯正）與孩子檔案的情境 —— 畫面出的題要跟伺服器驗卷的同一份
     answerAgeMonth: correctedAgeMonth(liveAgeMonth, child?.gestationWeeks),
@@ -1132,33 +1182,51 @@ async function planV3(userId: UserId, child: any, t1Scores: any[], liveAgeMonth:
   };
 }
 
+/**
+ * 這位家長現在的 T2 安排，與卡上「N 项深度评估」的 N（`items`）。價錢照 N 分檔（`src/t2/pricing.ts`）：
+ * `/api/t2/plan` 給畫面看的、`/api/payment/create` 實收的都從這一個函式算，畫面與帳單不會各數各的。
+ */
+type T2PlanOutcome =
+  | { ok: true; plan: Record<string, unknown>; items: number }
+  | { ok: false; status: number; body: { error: string; code: string } };
+
+async function t2PlanFor(userId: UserId): Promise<T2PlanOutcome> {
+  const data = await loadParentData(userId);
+  const t1Scores = (data?.completedScores ?? []).filter((s: any) => s && typeof s === 'object' && s.tierId === 'T1');
+  if (!data?.child || t1Scores.length === 0) {
+    return { ok: false, status: 404, body: { error: '请先完成筛查，再查看深度评估的安排。', code: 'T1_REQUIRED' } };
+  }
+  const ageMonth = liveAgeMonthOf(data.child);
+  if (ageMonth === null) {
+    return { ok: false, status: 400, body: { error: '孩子档案里没有可用的月龄，请先补齐出生日期。', code: 'CHILD_AGE_REQUIRED' } };
+  }
+
+  if (T2_RECOMMEND_V3) {
+    const plan = await planV3(userId, data.child, t1Scores, ageMonth);
+    return { ok: true, plan, items: promoFromV3(plan).count };
+  }
+
+  const t1Flags = t1FlagsFromScores(t1Scores);
+  // 暫行（使用者 2026-09-29）：每個被標記的維度只列一份、全部必做；選做／加測／補充問卷先不出（src/t2/interimPlan.ts）
+  const full = planT2(t1Flags, ageMonth);
+  const plan = SINGLE_FORM_PER_DIMENSION ? singleFormPlan(full, t1Flags) : full;
+  const entrance = entranceState(plan, t1Flags);
+  // 入口不出現（只導專家／全綠）就沒有卡，也沒有東西可賣
+  return { ok: true, plan: { ...plan, t1Flags, entrance }, items: entrance === 'show' ? promoFromV2(plan).count : 0 };
+}
+
 tier2Only.get('/api/t2/plan', async (req, res) => {
   try {
     const userId = await requireT2Parent(req, res);
     if (!userId) return;
 
-    const data = await loadParentData(userId);
-    const t1Scores = (data?.completedScores ?? []).filter((s: any) => s && typeof s === 'object' && s.tierId === 'T1');
-    if (!data?.child || t1Scores.length === 0) {
-      res.status(404).json({ error: '请先完成筛查，再查看深度评估的安排。', code: 'T1_REQUIRED' });
+    const outcome = await t2PlanFor(userId);
+    if (!outcome.ok) {
+      res.status(outcome.status).json(outcome.body);
       return;
     }
-    const ageMonth = liveAgeMonthOf(data.child);
-    if (ageMonth === null) {
-      res.status(400).json({ error: '孩子档案里没有可用的月龄，请先补齐出生日期。', code: 'CHILD_AGE_REQUIRED' });
-      return;
-    }
-
-    if (T2_RECOMMEND_V3) {
-      res.json(await planV3(userId, data.child, t1Scores, ageMonth));
-      return;
-    }
-
-    const t1Flags = t1FlagsFromScores(t1Scores);
-    // 暫行（使用者 2026-09-29）：每個被標記的維度只列一份、全部必做；選做／加測／補充問卷先不出（src/t2/interimPlan.ts）
-    const full = planT2(t1Flags, ageMonth);
-    const plan = SINGLE_FORM_PER_DIMENSION ? singleFormPlan(full, t1Flags) : full;
-    res.json({ ...plan, t1Flags, entrance: entranceState(plan, t1Flags) });
+    // 價錢跟著 plan 走（每 3 項跳一檔，src/t2/pricing.ts）；沒有要做的是 null，畫面不出價錢
+    res.json({ ...outcome.plan, pricing: t2PriceFor(outcome.items) });
   } catch (err: any) {
     console.error('[T2] plan failed:', err.message);
     res.status(500).json({ error: '暂时无法读取深度评估的安排，请稍后重试。' });
@@ -1214,8 +1282,10 @@ async function storeT2ToolResult(userId: UserId, childSnapshot: ChildSnapshot, r
 
 async function loadT2ToolResults(userId: UserId): Promise<ToolResultRecord[]> {
   const dbUserId = toDbUserId(userId);
-  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2Store.listToolResults(dbUserId), 2000);
-  return offlineT2ToolResults.get(userId) ?? [];
+  const records = mysqlDb.isConfigured() && dbUserId !== null
+    ? await withTimeout(t2Store.listToolResults(dbUserId), 2000)
+    : offlineT2ToolResults.get(userId) ?? [];
+  return records.filter(sinceFilter(await t2SinceOf(userId)));
 }
 
 /** 交卷當下的孩子檔案。`ageMonth` 是今天算的實足月齡，可以與 body 的 `assessedAgeMonth` 不同（表單開著跨了月）。 */
@@ -1258,8 +1328,10 @@ async function storeT2ToolResultV3(userId: UserId, childSnapshot: ChildSnapshot,
 
 async function loadT2ToolResultsV3(userId: UserId): Promise<ToolResultRecordV3[]> {
   const dbUserId = toDbUserId(userId);
-  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2StoreV3.listToolResultsV3(dbUserId), 2000);
-  return offlineT2ToolResultsV3.get(userId) ?? [];
+  const records = mysqlDb.isConfigured() && dbUserId !== null
+    ? await withTimeout(t2StoreV3.listToolResultsV3(dbUserId), 2000)
+    : offlineT2ToolResultsV3.get(userId) ?? [];
+  return records.filter(sinceFilter(await t2SinceOf(userId)));
 }
 
 /** 每支工具最新的一筆（完整版存進去的都是完整的：缺答在交卷時就擋了）。 */
@@ -1412,17 +1484,34 @@ async function loadT2Context(userId: UserId, res: express.Response): Promise<T2C
   };
 }
 
-/** 活動庫。沒有資料庫（展示站）時是空的 —— 配不到就是「準備中」（§7.4）。 */
-async function loadActivityLibrary(): Promise<Activity[]> {
+/** 上一次讀成功的活動庫：讀失敗時拿它頂著（活動庫很少變；審查 #1）。 */
+let lastActivityLibrary: Activity[] | null = null;
+
+/**
+ * 活動庫。讀失敗先重試一次，再失敗就用上一次讀到的那份；兩者都沒有才回 `null`。
+ * 回 `null` 時呼叫端這一次不能寫任何東西：當成空庫往下走的話，`replaceInactive` 會把這一週每一格都當成停用、
+ * 改成准备中並存回，之後再也恢復不了（審查 #1）。沒有資料庫（展示站）時是空的 —— 配不到就是「準備中」（§7.4）。
+ */
+async function readActivityLibrary(): Promise<Activity[] | null> {
   if (!mysqlDb.isConfigured()) return [];
-  try {
-    return await withTimeout(listActivityLibrary(), 2000);
-  } catch (err: any) {
-    // 活動庫讀不出來不該讓整份報告生不出來：報告的判定與目標都不靠它，
-    // 少的只是「本週四支」那一段，而那一段本來就有「準備中」這個出口。
-    console.error('[T2] 活動庫讀取失敗，本次以空庫配對:', err.message);
-    return [];
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      lastActivityLibrary = await withTimeout(listActivityLibrary(), 2000);
+      return lastActivityLibrary;
+    } catch (err: any) {
+      console.error(`[T2] 活動庫讀取失敗（第 ${attempt} 次）:`, err.message);
+    }
   }
+  if (lastActivityLibrary) console.warn('[T2] 活動庫改用上一次讀到的那份');
+  return lastActivityLibrary;
+}
+
+/**
+ * 報告生成用的活動庫。讀不出來不該讓整份報告生不出來：報告的判定與目標都不靠它，
+ * 少的只是「本週四支」那一段，而那一段本來就有「準備中」這個出口；這裡只算不存，當成空庫無妨。
+ */
+async function loadActivityLibrary(): Promise<Activity[]> {
+  return (await readActivityLibrary()) ?? [];
 }
 
 async function storeT2Findings(userId: UserId, input: t2FindingsStore.FindingsInsert): Promise<FindingsRecord> {
@@ -1441,9 +1530,15 @@ async function storeT2Findings(userId: UserId, input: t2FindingsStore.FindingsIn
 
 async function loadLatestT2Findings(userId: UserId): Promise<FindingsRecord | null> {
   const dbUserId = toDbUserId(userId);
-  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2FindingsStore.latestFindings(dbUserId), 2000);
-  const list = offlineT2Findings.get(userId) ?? [];
-  return list.length === 0 ? null : list[list.length - 1];
+  let latest: FindingsRecord | null;
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    latest = await withTimeout(t2FindingsStore.latestFindings(dbUserId), 2000);
+  } else {
+    const list = offlineT2Findings.get(userId) ?? [];
+    latest = list.length === 0 ? null : list[list.length - 1];
+  }
+  // 最新那一份早於建檔時間，就是前一個孩子的（之後的不會比它舊）
+  return latest && sinceFilter<FindingsRecord>(await t2SinceOf(userId))(latest) ? latest : null;
 }
 
 /**
@@ -1493,6 +1588,7 @@ async function generateFindingsV3(userId: UserId, context: T2Context): Promise<F
     ...(sex ? { sex } : {}),
     fallbackAgeMonth: run.ageM,
     now,
+    ...(T2_SCALE_DETAIL ? { scaleDetails: scaleDetailEntriesOf(records, now) } : {}),
   });
   const childName = typeof context.child?.name === 'string' ? context.child.name : undefined;
   const outcome = await generateProseV3({ findings, ...(childName ? { childName } : {}) }, generateReportJSON);
@@ -1509,6 +1605,12 @@ tier2Only.post('/api/t2/findings', async (req, res) => {
     if (!context) return;
 
     if (T2_RECOMMEND_V3) {
+      // 一份都沒做不生成（審查 #8）：v3 的報告只講做了問卷的方面，0 份時模板會寫成「都还稳定」，線上干預也會把
+      // 沒做的方面標成 T2 分級（#9）。舊題庫照勘誤 P4 放行（它的報告會寫「這幾項還沒做」）。
+      if (recentResultsV3(await loadT2ToolResultsV3(userId), new Date()).length === 0) {
+        res.status(409).json({ error: '还没有完成任何一份问卷，请先作答再生成报告。', code: 'T2_NO_RESULTS' });
+        return;
+      }
       res.status(201).json(findingsEntry(await generateFindingsV3(userId, context)));
       return;
     }
@@ -1855,7 +1957,8 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
     }
 
     // 活動庫一次請求讀一次：配對要它，把編號配回內容也要它。
-    const library = await loadActivityLibrary();
+    const loaded = await readActivityLibrary();
+    const library = loaded ?? [];
     let record = await loadWeeklyPlan(userId, weekStart);
     if (!record) {
       // 報告生成之前的週次不補一列（Keep 規格 §4.5）：計劃的第 1 週是這份快照「最早的 week_start」，
@@ -1865,7 +1968,10 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
         res.status(400).json({ error: '这一周在报告生成之前，还没有安排活动。', code: 'WEEK_OUT_OF_RANGE' });
         return;
       }
-      if (TRAINING_PUSH_V3) {
+      if (loaded === null) {
+        // 讀不到活動庫、手上也沒有上一份：這一次回空的一週，不開期、不補位、不存這一週 —— 重新整理就恢復（審查 #1）
+        record = { id: 0, weekStart, findingsId: snapshot.id, activities: { picks: [], preparing: [] }, createdAt: null };
+      } else if (TRAINING_PUSH_V3) {
         // v3：這一週屬於哪一期、第幾週（需要時開新的一期、期末判檔、補停用的），那幾格就是這一週
         const resolved = await periodForWeek(weekStart, t2PeriodContext(snapshot, data, library), t2PeriodDeps(userId));
         if (resolved.kind !== 'ok') {
@@ -1964,6 +2070,8 @@ function weeklyPlanResponse(
         console.warn(`[T2] 每週活動 ${record.weekStart} 的 ${pick.id} 不在活動庫裡，略過`);
         return null;
       }
+      // 後台停用的（「关闭后这支不再派给任何孩子」）：已存的週次也不列，免得家長練到最後一步才被拒打卡（審查 #11）
+      if (!activity.active) return null;
       // v3 排的多帶 `push`（第幾期、做法、顏色來源、模組、是否放寬）；舊週次沒有就不出這個鍵
       return { activity, dimension: pick.dimension, reason: pick.reason, ...(pick.push ? { push: pick.push } : {}) };
     })
@@ -1977,7 +2085,7 @@ function weeklyPlanResponse(
     for (const dimension of DIMENSION_CODES) {
       const found = (record.activities.alternates[dimension] ?? [])
         .map(id => byId.get(id))
-        .filter((a): a is Activity => a !== undefined);
+        .filter((a): a is Activity => a !== undefined && a.active);
       if (found.length > 0) alternates[dimension] = found;
     }
   }
@@ -2601,6 +2709,19 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       return;
     }
 
+    // T2 照這次要做幾項分檔（src/t2/pricing.ts，與卡上畫的同一份 plan）；T3 照舊單一價
+    let amountFen = UNLOCK_PRICE_FEN;
+    if (scope === 't2') {
+      const outcome = await t2PlanFor(userId);
+      const pricing = outcome.ok ? t2PriceFor(outcome.items) : null;
+      if (!pricing) {
+        // 沒做篩查、或這次沒有要做的問卷：沒有東西可賣，不開單
+        res.status(409).json({ error: '目前没有需要进行的深度评估。', code: 'NOTHING_TO_BUY' });
+        return;
+      }
+      amountFen = pricing.priceFen;
+    }
+
     const outTradeNo = generateOutTradeNo();
     if (!isValidOutTradeNo(outTradeNo)) {
       // Can only fire if the generator is changed badly; failing here beats
@@ -2613,7 +2734,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     const paymentId = await mysqlDb.createPayment({
       userId: user.id,
       outTradeNo,
-      amountFen: UNLOCK_PRICE_FEN,
+      amountFen,
       scope,
       dimensionId: paidDimensionId,
     });
@@ -2622,7 +2743,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     // with. Say so; the client must never read this as success.
     if (!wechatPayStatus.config) {
       res.json({
-        alreadyUnlocked: false, outTradeNo, paymentId, amountFen: UNLOCK_PRICE_FEN,
+        alreadyUnlocked: false, outTradeNo, paymentId, amountFen,
         scope, dimensionId: paidDimensionId,
         wechatReady: false,
         reason: `微信支付尚未配置：缺少 ${wechatPayStatus.missing.join('、')}`,
@@ -2653,7 +2774,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     const order = await wechatPay.placeOrder(wechatPayStatus.config, 'h5', {
       description: orderDescription,
       outTradeNo,
-      amountFen: UNLOCK_PRICE_FEN,
+      amountFen,
       payerClientIp,
     });
 
@@ -2661,7 +2782,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       alreadyUnlocked: false,
       outTradeNo,
       paymentId,
-      amountFen: UNLOCK_PRICE_FEN,
+      amountFen,
       scope,
       dimensionId: paidDimensionId,
       wechatReady: true,
@@ -3274,8 +3395,12 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     // 直接比對雜湊，沒有任何一條「儲存值不像雜湊就當明文比」的旁路 ——
     // `sms_codes` 裡若因故存進明碼，那條旁路會讓明碼直接通過，
     // 而唯一的症狀是「登入正常」。（那正是 #27 一併移除的舊 verifyPassword。）
+    // 先佔一次嘗試再比對（審查 #4）：同時送來的那幾個，只有前幾個佔得到
+    if (!(await withTimeout(mysqlDb.claimSmsCodeAttempt(row.id, SMS_CODE_MAX_ATTEMPTS), 2000))) {
+      res.status(401).json({ error: '错误次数过多，请重新获取验证码。' });
+      return;
+    }
     if (!(await bcrypt.compare(code, row.code_hash))) {
-      await withTimeout(mysqlDb.incrementSmsCodeAttempts(row.id), 2000);
       const left = SMS_CODE_MAX_ATTEMPTS - (Number(row.attempts) + 1);
       res.status(401).json({
         error: left > 0 ? `验证码错误，还可以再试 ${left} 次。` : '错误次数过多，请重新获取验证码。',
@@ -3507,7 +3632,8 @@ app.get('/api/db/load', async (req, res) => {
 // Endpoint to save child assessment records
 app.post('/api/db/save', async (req, res) => {
   try {
-    const { deviceId, child, completedScores, orders, reportHistory } = req.body;
+    const { deviceId, completedScores, orders, reportHistory } = req.body;
+    let { child } = req.body;
     const identity = resolveSyncIdentity(req);
     if (identity === 'unauthorized') {
       res.status(401).json({ error: '未授权：请重新登录' });
@@ -3526,6 +3652,8 @@ app.post('/api/db/save', async (req, res) => {
       res.status(401).json({ error: '帐号已不存在，请重新登录' });
       return;
     }
+
+    if (userId) child = await withT2Since(userId, child);
 
     // Always save to memory as hot-backup
     if (userId) {

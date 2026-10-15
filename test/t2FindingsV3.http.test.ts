@@ -111,7 +111,19 @@ function worst(toolId: string, ageM: number): Record<string, number | null> {
 }
 
 describe('POST /api/t2/findings（v3）', () => {
-  it('還沒交卷：存一份完整版快照，T1 紅的注意力推了沒做 → partial；推了哪些照存；模型全掛 → 存模板', async () => {
+  it('還沒交卷 → 409 T2_NO_RESULTS，不叫模型、不存（審查 #8）', async () => {
+    const resp = await client.postJson('/api/t2/findings', {}, bearer(PARENT));
+    expect(resp.status).toBe(409);
+    expect((await resp.json()).code).toBe('T2_NO_RESULTS');
+    expect(llmCalls).toEqual([]);
+    expect((await client.get('/api/t2/findings/latest', bearer(PARENT))).status).toBe(404);
+  });
+
+  it('交了一份別的：存一份完整版快照，T1 紅的注意力推了沒做 → partial；推了哪些照存；模型全掛 → 存模板', async () => {
+    // 生活質量不餵任何維度：交了它，注意力仍是「推了沒做」
+    const other = 'SXK-QOL';
+    const sub = await client.postJson('/api/t2/tool-results', { toolkitVersion: 'kit-20260923', toolId: other, assessedAgeMonth: 96, rater: 'mother', answers: worst(other, 96) }, bearer(PARENT));
+    expect(sub.status).toBe(201);
     const resp = await client.postJson('/api/t2/findings', {}, bearer(PARENT));
     expect(resp.status).toBe(201);
     const body = await resp.json();
@@ -124,6 +136,8 @@ describe('POST /api/t2/findings（v3）', () => {
     expect(body.aiEngine).toBe(ALL_ENGINES_FAILED);
     expect(body.prose).toEqual(templateProseV3({ findings: body.findings, childName: '小明' }));
     expect(validateProseV3(body.prose, { findings: body.findings }).ok).toBe(true);
+    // 沒開 T2_SCALE_DETAIL：快照沒有量表详解（開著的情形在 t2ScaleDetail.http.test.ts）
+    expect(body.findings.scaleDetails).toBeUndefined();
   });
 
   it('交了 AB（全「总是」）→ 注意力 refer；推了哪些仍是不排除做過的那一份（R-30）', async () => {

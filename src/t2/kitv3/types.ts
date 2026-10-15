@@ -82,6 +82,19 @@ export interface KitV3Bank<S = unknown> {
   options: Record<string, KitV3Option[]>;
   forms: KitV3Form[];
   scoring: S;
+  /**
+   * 客戶網頁裡治療師寫的說明（量表详解規格 §3）：**原文**，只去掉 HTML 標記。家長端不直接用 ——
+   * 一律經 `textAdapt.ts` 照用字表改寫後才出現。沒有說明的工具沒有這一欄。
+   */
+  texts?: KitV3Texts;
+}
+
+/** 量表详解的素材（原文）。 */
+export interface KitV3Texts {
+  /** 面向 key（CHEXI 是副量表、氣質是向度名稱）→ 在看什麼、在家怎麼練（氣質的練法分偏高／偏低兩頭：`poleTips`）。 */
+  facets: Record<string, { what: string; tips: string[]; poleTips?: { hi: string; lo: string } }>;
+  /** 頁面 `LEVELS` 各段的標題與建議，順序同頁面（好 → 壞）；LQ 是 `RULES`（`head` 是整支分段的名稱）。 */
+  levels?: Array<{ head: string; txt: string }>;
 }
 
 /** 頁面的一段分級（好 → 壞的順序）。`name` 只進後台與測試，家長端不出。 */

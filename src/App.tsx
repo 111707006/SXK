@@ -134,6 +134,8 @@ export default function App() {
   const [t2Unlocked, setT2Unlocked] = useState<boolean | null>(null);
   /** 後端是否有持久層可承載購買；`null` 代表尚未確定，一律當作付費牆會執行。 */
   const [unlocksAvailable, setUnlocksAvailable] = useState<boolean | null>(null);
+  // 免費期間（伺服器 `PAYWALL_FREE`，`/api/unlocks` 回 `free: true`）：權益照開，但 T1 報告上的 T2 卡仍畫價錢當參考（使用者 2026-10-11）
+  const [t2FreePeriod, setT2FreePeriod] = useState(false);
   /** 單價（分）。以後端回傳為準，前端不自己寫死金額。 */
   const [unlockPriceFen, setUnlockPriceFen] = useState<number>(DEFAULT_UNLOCK_PRICE_FEN);
   /**
@@ -441,6 +443,7 @@ export default function App() {
         // 把兩種權益混成一份清單，正是「買了一個維度就打開整份 T2」的走法。
         setT2Unlocked(data.t2 === true);
         setUnlocksAvailable(data.available === true);
+        setT2FreePeriod(data.free === true);
         if (typeof data.priceFen === 'number' && data.priceFen > 0) setUnlockPriceFen(data.priceFen);
       } catch (err) {
         // 保持 null（尚未確定）—— 讀不到權益時 fail-closed，不樂觀放行。
@@ -567,7 +570,7 @@ export default function App() {
   };
 
   const handleClearProfile = () => {
-    if (confirm('确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位！')) {
+    if (confirm('确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位，深度评估与线上干预也会从头开始！')) {
       setChildProfile(null);
       setCompletedScores([]);
       setOrders([]);
@@ -1349,9 +1352,8 @@ export default function App() {
                       setFocusBooking(false); setFocusT2(false);
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
-                    onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     // T2 入口只掛在即時報告上（票 #56）；B 沒有 T2。
-                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, priceFen: unlockPriceFen, onUnlock: enterT2, onStart: enterT2 } : undefined}
+                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, freePeriod: t2FreePeriod, onUnlock: enterT2, onStart: enterT2 } : undefined}
                     // B 在同一個位置放「到 A 做深度評估」（ADR-0009）；卡自己問伺服器交接開了沒。
                     handoff={PRODUCT.features.handoff === 'send' ? { onShowPrivacy: () => setShowPrivacyModal(true) } : undefined}
                     historicalRecord={null}
@@ -1375,7 +1377,6 @@ export default function App() {
                       setFocusBooking(false); setFocusT2(false);
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
-                    onGoToLanguageSpecial={PRODUCT.features.tier2And3 ? () => enterDimension('language', 'language_special') : undefined}
                     historicalRecord={activeT1Record}
                     reportHistory={reportHistory}
                     // 從干預包的「联系专家」進來時要捲到預約區塊 —— 這一支是
@@ -1592,8 +1593,8 @@ export default function App() {
               </div>
             ) : currentView === 'training' && PRODUCT.features.tier2And3 ? (
               /*
-                线上干预（2026-09-28 起從導覽列開，不在報告裡）。它是報告之後的另一站（src/t2/trainingGate.ts，
-                2026-09-29：現在免費、直接通過），不看 T2 買了沒；沒有報告時頁面自己說要先做什麼。
+                线上干预（2026-09-28 起從導覽列開，不在報告裡）。要先買過 T2，再在 T2 報告裡另外買（ADR-0012；
+                src/t2/trainingGate.ts，現在免費）；沒買 T2、沒有報告時頁面自己說要先做什麼。
               */
               <div className="animate-fade-in">
                 <LazyBoundary>

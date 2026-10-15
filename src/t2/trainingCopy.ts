@@ -112,9 +112,12 @@ export function planCardMeta(activityCount: number, sessions: number | null): st
   return sessions === null ? base : `${base} · 已练 ${sessions} 次`;
 }
 
-/** 配對用的月齡與年齡段（票 #60 那一行）；兩個月齡不同時接 `AGE_SPLIT_NOTE`。 */
+/**
+ * 配對用的月齡與年齡段（票 #60 那一行）；兩個月齡不同時接 `AGE_SPLIT_NOTE`。
+ * `ageMonth` 是那一週星期一的月齡，不寫「现在」：孩子週中滿月時，「现在」已經多一個月（審查 #28）。
+ */
 export function weekAgeLine(ageMonth: number, ageBand: string, reportAgeMonth: number): string {
-  const line = `按孩子现在 ${ageMonth} 个月${ageBand ? `、${ageBand}这一段` : ''}安排。`;
+  const line = `这一周按孩子 ${ageMonth} 个月${ageBand ? `、${ageBand}这一段` : ''}安排。`;
   return ageMonth === reportAgeMonth ? line : `${line}${AGE_SPLIT_NOTE}（答题时 ${reportAgeMonth} 个月）。`;
 }
 
@@ -424,6 +427,8 @@ export const PLAYER = {
   done: '做完了，打卡',
   posting: '正在打卡…',
   failed: '没打上卡，请再按一次。',
+  /** 打卡回 404 ACTIVITY_NOT_FOUND：這一支剛被後台停用（審查 #11）。再按一次也不會成功。 */
+  gone: '这个活动已经下架，打不了卡；回到本周的活动换一个练吧。',
   soundOn: '打开声音',
   soundOff: '静音',
   tapToPlay: '点一下播放',

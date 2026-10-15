@@ -320,9 +320,9 @@ describe('GET /api/t2/weekly-plan', () => {
     expect(weeklyTable).toHaveLength(0);
   });
 
-  it('沒買 T2 也不擋（線上干預 2026-09-29 起是自己一站、現在免費）', async () => {
+  it('沒買 T2 → 403（線上干預要先買過 T2，ADR-0012）', async () => {
     const resp = await client.get(`${URL}?week=${WEEK}`, bearer(LOCKED));
-    expect(resp.status).not.toBe(403);
+    expect(resp.status).toBe(403);
   });
 
   it('未登入 → 401', async () => {

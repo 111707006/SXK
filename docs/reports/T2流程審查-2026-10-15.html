@@ -1,0 +1,464 @@
+<title>T2 流程審查</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* 版面：一欄讀的報告；先講怎麼驗、驗出什麼，再放各種圖，最後是問題清單（依修的順序分批） */
+:root{
+  --bg:#f6f7f3; --surface:#ffffff; --ink:#1f2a22; --muted:#5d6b61; --line:#d9ded5;
+  --moss:#3f6b4a; --moss-soft:#e3ece4;
+  --high:#a23b2a; --high-soft:#f6e3df; --mid:#9a6a12; --mid-soft:#f5ecd8; --low:#4d6a87; --low-soft:#e2eaf2;
+  --display:"Noto Serif SC","Songti SC",serif; --body:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a16; --surface:#1c241f; --ink:#e3e9e3; --muted:#9fb0a4; --line:#2e3a32;
+  --moss:#86b892; --moss-soft:#22352a; --high:#f08f7d; --high-soft:#3a221d; --mid:#e2b45a; --mid-soft:#372c16; --low:#9cbbdb; --low-soft:#1f2b38; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141a16; --surface:#1c241f; --ink:#e3e9e3; --muted:#9fb0a4; --line:#2e3a32;
+  --moss:#86b892; --moss-soft:#22352a; --high:#f08f7d; --high-soft:#3a221d; --mid:#e2b45a; --mid-soft:#372c16; --low:#9cbbdb; --low-soft:#1f2b38; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.75;margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px;padding-block:40px 80px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.35;margin:0}
+h1{font-size:30px}
+h2{font-size:22px;margin-top:48px;padding-top:20px;border-top:1px solid var(--line)}
+h3{font-size:17px;margin-top:28px}
+p{margin:10px 0;max-width:70ch}
+.meta{color:var(--muted);font-size:13px;margin-top:6px}
+code{font-family:var(--mono);font-size:12.5px;background:var(--moss-soft);padding:1px 5px;border-radius:4px;word-break:break-all}
+pre.cmd{font-family:var(--mono);font-size:12.5px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;overflow-x:auto}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:20px}
+.summary div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+.summary b{display:block;font-size:13px;color:var(--muted);font-weight:500;letter-spacing:.02em}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:14px;overflow-x:auto}
+.diagram pre{margin:0;min-width:640px}
+.src{font-size:13px;color:var(--muted);margin-top:6px}
+.tablebox{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:860px;font-size:13.5px;line-height:1.6}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font-weight:700;color:var(--muted);font-size:12.5px;letter-spacing:.03em;background:var(--moss-soft)}
+tr:last-child td{border-bottom:0}
+td:first-child{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:700}
+.sev,.how{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.sev.h{color:var(--high);background:var(--high-soft)} .sev.m{color:var(--mid);background:var(--mid-soft)} .sev.l{color:var(--low);background:var(--low-soft)}
+.how.run{color:var(--moss);background:var(--moss-soft)} .how.read{color:var(--low);background:var(--low-soft)} .how.todo{color:var(--muted);border:1px dashed var(--line)}
+ul{margin:8px 0;padding-left:22px} li{margin:4px 0;max-width:74ch}
+.note{background:var(--surface);border-left:3px solid var(--moss);padding:10px 14px;margin-top:14px;border-radius:0 6px 6px 0}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:12px}
+.shots figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px;min-width:0}
+.shots img{display:block;width:100%;height:auto;border-radius:4px}
+.shots figcaption{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+</style>
+
+<div class="wrap">
+<h1>T2 流程審查</h1>
+<p class="meta">森心康專案 A · 分支 <code>t2-v3</code> · 2026-10-15 · 開關：<code>T2_RECOMMEND_V3=1</code>、<code>TRAINING_PUSH_V3=1</code>、<code>T2_SCALE_DETAIL=1</code></p>
+<p>範圍：家長從 T1 走到 T2 量表、生成個人化報告、進線上干預的全程，後台改活動對家長端的影響，以及伺服器的資安面。程式碼一行都還沒改。</p>
+
+<h2>一、怎麼驗的</h2>
+<p>在本機起一份真的伺服器（<code>server.ts</code>，三個開關打開），用 HTTP 一支一支打。資料庫換成測試檔裡的記憶體表，模型換成一律失敗（報告退回模板）。測試環境會先清空資料庫與簡訊金鑰，所以不會碰到正式站。</p>
+<p>每一條測試寫的是「應該要怎樣」。紅燈代表那個問題真的存在，失敗訊息就是伺服器實際回的內容。</p>
+<pre class="cmd">npx vitest run test/verify-2026-10-15/</pre>
+<div class="summary">
+  <div><b>全程情境</b>題量 → 交 3 份問卷 → 生成報告 → 本週 3 支活動 → 打卡 → 整期計劃，<strong>全部 2xx，走得通</strong>。</div>
+  <div><b>流程問題</b>重現測試 10 條，<strong>10 條紅燈</strong>：問題都真的存在。</div>
+  <div><b>資安</b>實測 4 條，<strong>4 條紅燈</strong>；對照組（同一來源連送 6 次）有在第 4 次被擋。</div>
+  <div><b>相依套件</b><code>pnpm audit --prod</code> 實跑：29 個漏洞，1 critical、12 high。</div>
+  <div><b>瀏覽器實走</b>本機真資料庫、手機寬度，從登入走到打卡全程走通；#3、#8、#11、#19 在畫面上重現，另外新找到 4 條（#27–#30）。</div>
+</div>
+<h3>瀏覽器實際走一遍</h3>
+<p>在本機另起一顆官方 MySQL 8（只聽 127.0.0.1:3307，資料在暫存目錄），灌 <code>deploy/schema.sql</code> 並跑完 67 項遷移驗證，再起一份正式建置的伺服器（<code>dist/server.cjs</code>）接它。<code>.env</code> 裡每一個鍵都先蓋成空值：簡訊走 console、模型不叫、示範片不向正式站拿。登入用展示驗證碼（只在資料庫是本機時才收）。</p>
+<p>用手機寬度（375×812）從登入走到打卡：登入 → 建孩子資料 → 做完 T1 36 題 → 生成 T1 報告 → T2 入口 → 填完感覺處理量表 67 題並交卷 → 生成 T2 報告 → 線上干預 → 跟練 → 打卡。之後在後台停用一支活動，再回家長端看結果。</p>
+<p>Docker Desktop 起不來（它的 socket 檔損壞，改名資料夾後仍在別處重複發生），所以改用上面這套，沒有用 <code>deploy/demo/</code> 的映像檔。</p>
+
+<h2>二、各種圖</h2>
+<p class="src">每張圖都標了出處：「實跑」是照上面那次測試實際走出來的請求畫的，「設定檔」是照 repo 裡的檔案畫的、沒有在主機上確認。標「⚠ 數字」的地方對應下方問題清單的編號。</p>
+
+<h3>截圖：瀏覽器實走（375×812）</h3>
+<div class="shots">
+  <figure><img src="shots/01-child-profile.jpg" alt="孩子資料表：4 歲（48 個月）、男孩、有上學、做過聽力檢查"><figcaption>建孩子資料：48 個月</figcaption></figure>
+  <figure><img src="shots/02-t1-start.jpg" alt="T1 第 1 個方面：動作發展，三個選項"><figcaption>T1 36 題，每題三選一</figcaption></figure>
+  <figure><img src="shots/03-t1-result.jpg" alt="T1 結果：動作、感覺處理、社交需要較多支持"><figcaption>T1 結果：三項需要較多支持</figcaption></figure>
+  <figure><img src="shots/04-t2-entrance.jpg" alt="T2 入口卡：3 項深度評估、19.9 元、目前免費"><figcaption>T2 入口：3 項、免費期</figcaption></figure>
+  <figure><img src="shots/05-t2-list-before.jpg" alt="T2 清單：感覺處理、粗大動作、社會能力，已完成 0/3"><figcaption>作答清單：0 / 3</figcaption></figure>
+  <figure><img src="shots/06-t2-list-after-one.jpg" alt="交完感覺處理後：已完成 1/4，多出婴幼儿气质评估"><figcaption>交完一份後變成 1 / 4，多出一份 ⚠3</figcaption></figure>
+  <figure><img src="shots/07-checkin-success.jpg" alt="打卡成功：我们来爬行第 1 次，本週 1/3"><figcaption>打卡成功（截到抽屜滑入中；量過版面沒有超出）</figcaption></figure>
+</div>
+
+<h3>循序圖：瀏覽器實走的請求順序（實跑，取自瀏覽器網路紀錄）</h3>
+<div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  actor 家長
+  participant 前端
+  participant 伺服器
+  participant DB as 本機 MySQL
+  家長->>前端: 手機號＋驗證碼
+  前端->>伺服器: POST /api/auth/sms/request、/verify
+  伺服器-->>前端: 200 登入
+  家長->>前端: 建孩子資料、做完 T1
+  前端->>伺服器: POST /api/db/save
+  家長->>前端: 一键生成 AI 发展报告
+  前端->>伺服器: POST /api/report
+  伺服器-->>前端: 200（模板）
+  前端->>伺服器: GET /api/t2/plan
+  伺服器->>DB: 讀孩子、T1、近 90 天作答
+  伺服器-->>前端: 200：3 項、¥19.9、免費期
+  家長->>前端: 开始深度评估
+  前端->>伺服器: GET /api/t2/plan、/tool-results、/findings/latest
+  伺服器-->>前端: 200、200、404（還沒報告）
+  家長->>前端: 填完感覺處理 67 題、交卷
+  前端->>伺服器: POST /api/t2/tool-results
+  伺服器->>DB: 存一列
+  伺服器-->>前端: 201
+  家長->>前端: 回報告再進來
+  前端->>伺服器: GET /api/t2/plan
+  伺服器-->>前端: 200：已完成 1、清單變 4 份 ⚠3
+  家長->>前端: 生成报告
+  前端->>伺服器: POST /api/t2/findings
+  伺服器-->>前端: 201（模板；各方面點錯名 ⚠27）
+  家長->>前端: 打开线上干预
+  前端->>伺服器: GET /api/t2/findings/latest、/weekly-plan、/checkins、/practice-prefs
+  伺服器->>DB: 開第 1 期、存本週
+  伺服器-->>前端: 200：A001、A021、A121（月齡寫 47 ⚠28）
+  家長->>前端: 跟練到最後一步、打卡
+  前端->>伺服器: POST /api/t2/checkins
+  伺服器-->>前端: 201 第 1 次
+  Note over 伺服器: 後台停用 A001（PATCH 200）
+  家長->>前端: 重新整理，A001 仍在清單上，再跟練、打卡
+  前端->>伺服器: POST /api/t2/checkins
+  伺服器-->>前端: 404，畫面寫「没打上卡，请再按一次」⚠11
+</pre></div>
+
+<h3>循序圖：一位家長走完全程（實跑，HTTP 測試）</h3>
+<div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  actor 家長
+  participant 前端
+  participant 伺服器
+  participant 資料庫
+  participant 模型
+  家長->>前端: 打開 T2 入口
+  前端->>伺服器: GET /api/t2/plan
+  伺服器->>資料庫: 讀孩子、T1、近 90 天的作答
+  伺服器-->>前端: 200 推薦 SXK-SP、SXK-GM、SXK-AB（月齡 48）
+  loop 每一份問卷
+    家長->>前端: 作答
+    前端->>伺服器: POST /api/t2/tool-results
+    伺服器->>資料庫: 存一列
+    伺服器-->>前端: 201
+    前端->>伺服器: GET /api/t2/plan
+    伺服器-->>前端: 200 又補進一份新的 ⚠3
+  end
+  Note over 伺服器: 做完三份後清單仍是 ITQ/TTS/BSQ、SXK-ASQ3、CHEXI
+  家長->>前端: 生成报告
+  前端->>伺服器: POST /api/t2/findings
+  伺服器->>模型: 寫報告文字
+  模型--x伺服器: 失敗（測試裡刻意的）
+  伺服器->>資料庫: 存快照（模板文字）
+  伺服器-->>前端: 201 ATT、MOT、SEN 要留意；量表详解 3 份
+  家長->>前端: 打開线上干预
+  前端->>伺服器: GET /api/t2/weekly-plan
+  伺服器->>資料庫: 開第 1 期（36 格）、存本週
+  伺服器-->>前端: 200 A001（動作）、A121（注意）、A021（感覺）
+  家長->>前端: 跟練完打卡
+  前端->>伺服器: POST /api/t2/checkins
+  伺服器-->>前端: 201 A001 第 1 次
+</pre></div>
+
+<h3>活動圖 1：從 T1 到交出 T2 問卷（實跑）</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TD
+  subgraph PA[家長]
+    p1([做完 T1 筛查])
+    p2[按「开始」]
+    p3[付費]
+    p4[逐題作答]
+  end
+  subgraph FE[前端]
+    f1[存 T1 成績，顯示 T1 報告]
+    f2[T2 入口卡：題量與價錢]
+    f3[入口卡不出現 ⚠22]
+    f4[「目前不需要第二层检查」]
+    f5[作答清單：題庫打開才載入]
+    f6[交不出去 400 ⚠2]
+  end
+  subgraph SV[伺服器]
+    s1[GET /api/t2/plan]
+    s2{有孩子與 T1 成績？}
+    s3[推薦：用 T1 當時的月齡 ⚠2；做過的排除後補推別份 ⚠3]
+    s4{有要做的問卷？}
+    g1{已解鎖？免費期一律是}
+    s5[POST /api/t2/tool-results：驗卷、計分]
+    s6{在月齡窗內、題目齊全？}
+  end
+  subgraph DB[資料庫]
+    d1[(user_data、t2_tool_results 近 90 天)]
+    d2[(t2_tool_results 每次交卷一列)]
+  end
+  p1 --> f1 --> s1
+  s1 --> d1 --> s2
+  s2 -- 否 --> f3
+  s2 -- 是 --> s3 --> s4
+  s4 -- 否 --> f4
+  s4 -- 是 --> f2 --> p2 --> g1
+  g1 -- 否 --> p3 --> g1
+  g1 -- 是 --> f5 --> p4 --> s5 --> s6
+  s6 -- 否 --> f6
+  s6 -- 是 --> d2 --> f5
+</pre></div>
+
+<h3>活動圖 2：生成個人化報告（實跑）</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TD
+  subgraph PA[家長]
+    p1[按「生成报告」，0 份也能按 ⚠8]
+    p2[看報告，按「去线上干预」]
+  end
+  subgraph SV[伺服器]
+    s1[POST /api/t2/findings，沒有 AI 限流 ⚠7]
+    s2[九個方面的判定：有 T2 分級用 T2，沒做的看 T1 ⚠9]
+    s3[量表详解：每份問卷的結論與上一次對照]
+    s4{模型輸出通過驗證？}
+    s5[退回模板：0 份時寫「都还稳定」⚠8]
+  end
+  subgraph MD[模型]
+    m1[Qwen → 豆包 → DashScope]
+  end
+  subgraph DB[資料庫]
+    d1[(近 90 天每支最新一筆)]
+    d2[(t2_findings 新增一列，不覆蓋)]
+  end
+  subgraph FE[前端]
+    f1[報告頁：提示、九宮格、各方面、量表详解、作答回顧]
+  end
+  p1 --> s1 --> d1 --> s2 --> s3 --> m1 --> s4
+  s4 -- 否 --> s5 --> d2
+  s4 -- 是 --> d2
+  d2 --> f1 --> p2
+</pre></div>
+
+<h3>活動圖 3：線上干預與後台（實跑）</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TD
+  subgraph AD[後台]
+    a1[改活動、停用、改適齡、傳片]
+  end
+  subgraph PA[家長]
+    p1[打開「线上干预」]
+    p2[看活動、按 GO 跟練]
+  end
+  subgraph FE[前端]
+    f1[讀最新報告：沒買 T2 回 403 ⚠15]
+    f2[本週三支、換著玩、第幾週]
+    f3[打卡成功、心情、日曆]
+  end
+  subgraph SV[伺服器]
+    s1[GET /api/t2/weekly-plan]
+    s2{本週已經存過？}
+    s3[讀活動庫：失敗就當空庫 ⚠1]
+    s4{這份報告已有一期？}
+    s5[開第 1 期：顏色、名額、月齡窗、36 格]
+    s6[第 1–12 週：補停用的；空庫時全變准备中 ⚠1]
+    s7[超過 12 週：完成率判檔 ⚠12，開下一期]
+    s8[POST /api/t2/checkins：停用的回 404 ⚠11]
+  end
+  subgraph DB[資料庫]
+    d0[(activities)]
+    d1[(t2_training_periods、t2_weekly_plans)]
+    d2[(t2_checkins)]
+  end
+  a1 --> d0
+  p1 --> f1 --> s1 --> s2
+  s2 -- 是：照存的回，新報告不生效 ⚠10，停用的照列 ⚠11 --> f2
+  s2 -- 否 --> s3 --> s4
+  d0 --> s3
+  s4 -- 沒有 --> s5
+  s4 -- 有 --> s6
+  s4 -- 已過 12 週 --> s7
+  s5 --> d1
+  s6 --> d1
+  s7 --> d1
+  d1 --> f2 --> p2 --> s8 --> d2 --> f3
+</pre></div>
+
+<h3>狀態圖：一份問卷在家長端的狀態（實跑）</h3>
+<div class="diagram"><pre class="mermaid">
+stateDiagram-v2
+  [*] --> 推薦中: 題量列出
+  推薦中 --> 作答中: 打開問卷（草稿存在手機上）
+  作答中 --> 已完成: 交卷 201
+  作答中 --> 交不出去: 已過月齡上限 400 ⚠2
+  交不出去 --> 交不出去: 只能重做 T1
+  已完成 --> 推薦中: 超過 90 天
+  已完成 --> 已完成: 重做（每次新增一列）
+  推薦中 --> 補推別份: 做完一份 ⚠3
+</pre></div>
+
+<h3>狀態圖：線上干預的「一期」（實跑）</h3>
+<div class="diagram"><pre class="mermaid">
+stateDiagram-v2
+  [*] --> 沒有期: 生成報告
+  沒有期 --> 第1到12週: 家長第一次打開本週活動
+  第1到12週 --> 第1到12週: 每週第一次打開時存那一週
+  第1到12週 --> 准备中: 活動庫讀取失敗 ⚠1
+  准备中 --> 准备中: 不會自己恢復
+  第1到12週 --> 期末判檔: 打開第 13 週
+  期末判檔 --> 第1到12週: 完成率 ≥80% 好／≥50% 穩定／<50% 困难（分母 36 格 ⚠12）
+  第1到12週 --> 新報告的第1期: 新報告生成後，下一個沒存過的週 ⚠10
+</pre></div>
+
+<h3>ER 圖：T2 相關的資料表（設定檔：deploy/schema.sql）</h3>
+<div class="diagram"><pre class="mermaid">
+erDiagram
+  users ||--o| user_data : "孩子、T1 成績（JSON）"
+  users ||--o{ t2_tool_results : "每次交卷一列"
+  users ||--o{ t2_findings : "每次生成一列"
+  t2_findings ||--o{ t2_training_periods : "findings_id"
+  t2_findings ||--o{ t2_weekly_plans : "findings_id"
+  users ||--o{ t2_weekly_plans : "user_id＋week_start 唯一"
+  users ||--o{ t2_checkins : "打卡"
+  activities ||--o{ t2_checkins : "activity_id（無外鍵）"
+  users ||--o| t2_practice_prefs : "提醒"
+  users ||--o{ unlocks : "付費權益"
+  users ||--o{ report_links : "token 存原文 ⚠25"
+  users {
+    int id
+    string phone
+    int company_id
+  }
+  t2_tool_results {
+    bigint id
+    int user_id
+    string toolkit_version
+    json result
+  }
+  t2_findings {
+    bigint id
+    int user_id
+    json findings
+    json prose
+  }
+  t2_training_periods {
+    bigint id
+    bigint findings_id
+    int period_no
+    json plan
+  }
+  t2_weekly_plans {
+    bigint id
+    bigint findings_id
+    date week_start
+    json activities
+  }
+  t2_checkins {
+    bigint id
+    string activity_id
+    bigint findings_id
+    date checkin_date
+  }
+</pre></div>
+<p class="src">T2 的作答、報告、一期、打卡都只掛在家長帳號上，沒有孩子這一層（⚠20）。刪家長會連帶刪掉這幾張表（<code>ON DELETE CASCADE</code>）。</p>
+
+<h3>部署圖（設定檔：deploy/nginx.conf、ecosystem.config.cjs；沒有在主機上確認）</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  u[家長手機瀏覽器] -->|443| ng[nginx<br>sxkscreen.com／t1.sxkscreen.com]
+  ng -->|127.0.0.1:5000| a[pm2 sxk-app<br>專案 A]
+  ng -->|127.0.0.1:5001| b[pm2 sxk-b<br>專案 B]
+  ng -. /internal/ 一律 404 .-> b
+  a -->|交接兌換，同一台主機| b
+  a --> rds[(RDS MySQL)]
+  b --> rds2[(B 的資料庫)]
+  a --> llm[模型：Coze（Qwen、豆包）、DashScope、Gemini ⚠23]
+  a --> sms[阿里雲簡訊]
+  x[任何人] -. 若 5000／5001 對外：直連 Node、自帶 X-Forwarded-For ⚠24 .-> a
+</pre></div>
+
+<h3>使用案例圖（讀程式碼）</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  parent((家長))
+  gadmin((全域管理員))
+  member((合作公司成員))
+  bsrv((專案 B 伺服器))
+  parent --- u1[簡訊登入]
+  parent --- u2[做 T1、看 T1 報告]
+  parent --- u3[看 T2 題量、付費、作答]
+  parent --- u4[生成並看 T2 報告]
+  parent --- u5[線上干預：看活動、跟練、打卡、提醒]
+  parent --- u6[預約專家]
+  gadmin --- v1[看家長、刪家長]
+  gadmin --- v2[改活動、傳示範片、批量匯入]
+  gadmin --- v3[看 T2 作答、報告與打卡：沒有這個功能 ⚠19]
+  member --- v1
+  bsrv --- w1[交接：把 T1 帶到 A]
+</pre></div>
+
+<h2>三、問題清單與修法</h2>
+<p>「驗證方式」一欄：<span class="how run">實測重現</span> 是本機跑測試、伺服器實際回出錯的結果；<span class="how read">讀程式碼</span> 是我打開程式碼或設定檔確認、沒有執行；<span class="how todo">待查</span> 只出自追蹤報告。動手修之前，每一條都會先寫進測試。</p>
+
+<h3>第一批：資安小改（牽連小）</h3>
+<div class="tablebox"><table>
+<thead><tr><th>#</th><th>嚴重度</th><th>問題</th><th>實測結果</th><th>修法</th><th>牽連範圍</th><th>驗證方式</th></tr></thead>
+<tbody>
+<tr><td>4</td><td><span class="sev h">高</span></td><td>驗證碼「最多錯 5 次」先讀次數、比對完才加一</td><td>同時送 20 個錯的驗證碼，<strong>被比對了 12 次</strong>（上限 5）</td><td>比對前先做原子的 <code>UPDATE … SET attempts=attempts+1 WHERE id=? AND attempts&lt;5</code>，影響 0 列就拒絕</td><td>只動驗證碼那一支</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>24</td><td><span class="sev h">高（若埠對外）</span></td><td>Node 綁在 <code>0.0.0.0</code>、信任一層代理</td><td>直連 Node、每次換 <code>X-Forwarded-For</code>：6 次都沒被擋（對照組同一來源第 4 次就 429）。經過 nginx 時 nginx 會把真 IP 接在最後，換不掉</td><td>正式站改綁 <code>127.0.0.1</code>（加 <code>HOST</code> 環境變數；Render 設 <code>0.0.0.0</code>）；確認安全組只開 80／443</td><td>只動啟動那一行與部署設定</td><td><span class="how run">實測重現</span>（埠是否對外待查）</td></tr>
+<tr><td>5</td><td><span class="sev h">高</span></td><td>相依套件有已知漏洞</td><td><code>pnpm audit --prod</code>：29 個（1 critical proxy-addr、12 high 以 axios 為主），另有 qs、ip-address、mysql2</td><td>升級 express、axios、mysql2、express-rate-limit；vite 那一串移到 devDependencies</td><td>axios 用在簡訊、通知、微信支付，升級後跑那三支的測試</td><td><span class="how run">實跑</span></td></tr>
+<tr><td>7</td><td><span class="sev m">中</span></td><td>生成 T2 報告沒有 AI 限流</td><td>AI 上限設 2，連生成 4 次：<strong>201、201、201、201</strong></td><td>把 <code>/api/t2/findings</code> 加進 <code>aiLimiter</code>；60 秒內重送回上一份</td><td>只動這一支</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>17</td><td><span class="sev m">中</span></td><td>全站每個請求都收 15 MB 的 JSON</td><td>10 MB 的請求送到 <code>/api/db/save</code>：<strong>200</strong></td><td>全站預設 100 KB；語音那幾支 15 MB；支付回調保留原文</td><td>要逐一確認哪些端點送大資料</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>16</td><td><span class="sev m">中</span></td><td>沒有 CSP；登入憑證存在 localStorage</td><td>回應標頭有 HSTS、X-Frame-Options 等 21 個，<strong>沒有 Content-Security-Policy</strong></td><td>先開「只回報不擋」的 CSP 一週，再改成擋；憑證之後改 HttpOnly cookie</td><td>影響字型、二維碼、示範片；要逐頁實測</td><td><span class="how run">實測重現</span></td></tr>
+</tbody></table></div>
+
+<h3>第二批：資料正確性（家長會看到錯的東西或卡住）</h3>
+<div class="tablebox"><table>
+<thead><tr><th>#</th><th>嚴重度</th><th>問題</th><th>實測結果</th><th>修法</th><th>牽連範圍</th><th>驗證方式</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><span class="sev h">高</span></td><td>活動庫讀取失敗一次，就把已開好的一期寫壞</td><td>下週原本是 A002、A022、A003；活動庫失敗那一次之後，<strong>三格都變成 null 並寫回</strong>，回應還是 200</td><td>每週活動與整期計劃讀不到活動庫就回 503、不寫；<code>replaceInactive</code> 遇到空庫不動</td><td>報告生成也用同一支讀取，要分成兩支</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>2</td><td><span class="sev h">高</span></td><td>推薦用 T1 當時的月齡，作答用今天的</td><td>T1 在 58 個月做、今天 61 個月：推薦 SXK-SP，交卷回 <strong>400「这份问卷适用 24–59 个月，孩子现在 61 个月」</strong></td><td>一支 <code>ageForT2()</code> 給推薦、作答、驗卷、報告共用；推薦改用今天的月齡</td><td>月齡有三種意思，先在 <code>CONTEXT.md</code> 定名；影響題量與價錢</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>3</td><td><span class="sev h">高</span></td><td>做完的問卷被排除後，引擎補推別份，清單永遠做不完</td><td>原本推 SXK-SP、SXK-GM、SXK-AB；每交一份就補一份，三份都交完後清單是 <strong>ITQ/TTS/BSQ、SXK-ASQ3、CHEXI</strong>。瀏覽器：交完感覺處理後清單從 0/3 變成 <strong>1/4</strong>，多出「婴幼儿气质评估」</td><td>做過的那一份仍算「這個方面已有主測」；這個方面標「已完成」，不補推</td><td>影響入口題量與價錢；推薦引擎的測試要補「做過一份」的情境</td><td><span class="how run">實測重現</span> <span class="how run">瀏覽器重現</span></td></tr>
+<tr><td>8</td><td><span class="sev m">中</span></td><td>0 份問卷也能生成報告</td><td>回 201，總覽寫<strong>「这份报告整理了小明近 3 个月填写的 0 份问卷。这次做了问卷的方面，目前看起来都还在稳定的范围里」</strong></td><td>0 份時按鈕不能按、伺服器回 409；模板另寫 0 份的說法</td><td>只動報告生成</td><td><span class="how run">實測重現</span> <span class="how run">瀏覽器重現</span></td></tr>
+<tr><td>9</td><td><span class="sev m">中</span></td><td>沒做 T2 的方面被標成「T2 分級」</td><td>T1 全綠、0 份問卷：線上干預的 <strong>LANG、MOT、COG 都標 source=t2</strong></td><td>顏色來源改看有沒有 T2 分數（<code>grade03</code>）</td><td>只影響線上干預的來源標示</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>27</td><td><span class="sev m">中</span></td><td>報告「各方面」那一段點名的面向與量表详解相反</td><td>瀏覽器：那一段寫「社会参与、视觉、听觉、触觉比较需要多陪孩子练」，量表详解顯示這四個<strong>常出现 0/7</strong>；真正 7/7 的本體覺、前庭、動作計劃、調節一個都沒點到</td><td><code>weakFacetsV3</code> 先照分段由重到輕排序再取前幾個（<code>src/t2/report/proseV3.ts:80</code>、<code>:116</code>）；給模型的那一份同樣排序</td><td>模板與模型提示都用它；舊快照不重算</td><td><span class="how run">瀏覽器重現</span></td></tr>
+<tr><td>28</td><td><span class="sev l">低</span></td><td>線上干預頁寫「按孩子现在 47 个月」，同一行又寫「答题时 48 个月」</td><td>瀏覽器：孩子 10 月 15 日剛滿 48 個月，本週一（10 月 12 日）還是 47 個月；頁面把週一的月齡說成「现在」</td><td>畫面上的「现在」改用今天的月齡；排活動照舊用週一</td><td>只動畫面那一句</td><td><span class="how run">瀏覽器重現</span></td></tr>
+<tr><td>20</td><td><span class="sev m">中</span></td><td>T2 資料只跟著家長帳號、不跟著孩子</td><td>—</td><td>先問要不要支援多孩子；短期改孩子資料時提示清掉 T2 進度</td><td>牽連面大</td><td><span class="how read">讀程式碼</span></td></tr>
+<tr><td>21</td><td><span class="sev l">低</span></td><td>交卷不檢查問卷在不在推薦裡、填寫人只查通用清單</td><td>—</td><td>填寫人照工具允許的名單驗</td><td>只動驗卷</td><td><span class="how todo">待查</span></td></tr>
+</tbody></table></div>
+
+<h3>第三批：流程（規格與程式碼不一致）</h3>
+<div class="tablebox"><table>
+<thead><tr><th>#</th><th>嚴重度</th><th>問題</th><th>實測結果</th><th>修法</th><th>牽連範圍</th><th>驗證方式</th></tr></thead>
+<tbody>
+<tr><td>10</td><td><span class="sev m">中</span></td><td>本週已在練時生成新報告，本週活動不跟新報告（規格 §3 說要馬上開新的一期）</td><td>新報告 id 22，本週那一列<strong>仍是 19</strong></td><td>本週那一列不是最新報告就重算（已打卡的保留）</td><td>動到每週活動與打卡統計</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>11</td><td><span class="sev m">中</span></td><td>停用的活動在已存的週次照樣列出，打卡卻被拒</td><td>停用後本週<strong>仍列出那一支</strong>，打卡回 404。瀏覽器：後台停用「我们来爬行」後，家長端照樣能跟練到最後一步，打卡顯示「没打上卡，请再按一次。」；後台的說明卻寫「关闭后这支不再派给任何孩子」</td><td>讀已存週次時也補位；打卡 404 改說「这一支已下架」；後台說明改成實際行為</td><td>與 #1 同一段，一起改</td><td><span class="how run">實測重現</span> <span class="how run">瀏覽器重現</span></td></tr>
+<tr><td>12</td><td><span class="sev m">中</span></td><td>期末完成率的分母含沒打開過的週</td><td>第 1 週三支都練了、之後沒打開：completion=<strong>0.083</strong>，第 2 期判成「困难」</td><td>分母只算打開過的週，或問客戶</td><td>只動期末判檔；寫進待問表</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>15</td><td><span class="sev m">中</span></td><td>線上干預那一頁讀報告的那支在 T2 付費閘門後面</td><td>沒買 T2：<code>findings/latest</code> <strong>403</strong>、本週活動 200，畫面會停在「上鎖」</td><td>線上干預另給一支只回顏色與日期的讀取</td><td><code>t2TrainingGate.test.ts</code> 要點名新路由</td><td><span class="how run">實測重現</span></td></tr>
+<tr><td>30</td><td><span class="sev l">低</span></td><td>感覺處理的「換着玩」出現畫線、握筆類活動（墙上大涂鸦、用短蜡笔画、画直线）</td><td>瀏覽器：48 個月、感覺處理紅燈的孩子，換着玩 5 支裡 4 支是畫畫寫字前的模組</td><td>請內容團隊確認感覺處理對應哪幾個模組（<code>DIM_MOD</code>）</td><td>內容判斷，不是程式錯誤</td><td><span class="how run">瀏覽器看到</span>（要內容確認）</td></tr>
+<tr><td>13</td><td><span class="sev l">低</span></td><td>示範片模式每一格都標「放寬」</td><td>—</td><td>示範片模式不標放寬</td><td>只影響展示站</td><td><span class="how read">讀程式碼</span></td></tr>
+<tr><td>14</td><td><span class="sev l">低</span></td><td>後台活動頁仍寫「没填目标月龄就配不到」</td><td>—</td><td>改字</td><td>只動後台文字</td><td><span class="how todo">待查</span></td></tr>
+<tr><td>22</td><td><span class="sev l">低</span></td><td>T1 剛存、題量回 404 時入口卡安靜消失</td><td>—</td><td>存檔完成後重試一次</td><td>只動入口卡</td><td><span class="how todo">待查</span></td></tr>
+</tbody></table></div>
+
+<h3>第四批：比較大的工程（要先決定）</h3>
+<div class="tablebox"><table>
+<thead><tr><th>#</th><th>嚴重度</th><th>問題</th><th>實測結果</th><th>修法</th><th>牽連範圍</th><th>驗證方式</th></tr></thead>
+<tbody>
+<tr><td>18</td><td><span class="sev m">中</span></td><td>後台沒有兩步驗證、沒有按帳號鎖定</td><td>—</td><td>全域管理員加 TOTP；連錯 10 次鎖 15 分鐘</td><td>帳號表加欄位</td><td><span class="how read">讀程式碼</span></td></tr>
+<tr><td>19</td><td><span class="sev m">中</span></td><td>後台看不到 T2 作答、報告與打卡</td><td>瀏覽器：這位家長已有 T2 報告與一筆打卡，後台詳情<strong>只有 T1 成績與 T1 報告</strong></td><td>家長詳情加兩區，只讀</td><td>要套公司視野護欄</td><td><span class="how run">瀏覽器重現</span></td></tr>
+<tr><td>23</td><td><span class="sev m">中</span></td><td>孩子的姓名與作答送到第三方模型；若設了 Gemini 就是跨境</td><td>—</td><td>確認正式站金鑰；送模型前拿掉姓名</td><td>動提示組裝</td><td><span class="how todo">待查</span>（要看正式站設定）</td></tr>
+<tr><td>29</td><td><span class="sev m">中（看正式站開關）</span></td><td>沒開 <code>T1_REPORT_REAL</code> 時，家長看到的 T1 報告仍是舊版：編出來的「居同龄前 28%」「突触传导发育潜力 64%」、預測曲線、「8 到 12 周……提升可达 30% 以上」</td><td>瀏覽器（本機沒開這個開關）：後台與家長端都照這樣顯示；同一頁還寫「整体发展处于同龄常见水平偏上」，但三個方面需要較多支持</td><td>確認正式站已開 <code>T1_REPORT_REAL=1</code>；沒開就排進上線清單</td><td>只是開關</td><td><span class="how run">瀏覽器看到</span>（正式站待查）</td></tr>
+<tr><td>25</td><td><span class="sev l">低</span></td><td>扫码报告連結 token 存原文</td><td>—</td><td>改存 SHA-256</td><td>一份遷移</td><td><span class="how read">讀 schema</span></td></tr>
+<tr><td>26</td><td><span class="sev l">低</span></td><td>限流計數在記憶體；pm2 現在只開 1 個</td><td>—</td><td>ecosystem 檔註明多開前要改</td><td>只是註記</td><td><span class="how read">讀設定檔</span></td></tr>
+</tbody></table></div>
+
+<div class="note">
+<p><b>看過、沒有問題的：</b>對照組的限流有正確擋下；後台與家長的憑證分開簽，後台每次回資料庫確認帳號；驗證碼用 bcrypt 存、作廢是原子的；上傳先驗權限才讀檔、檢查檔頭、原子改名；公開報告頁有轉義；展示用固定驗證碼只在資料庫在本機時才收；沒有用 <code>query()</code> 拼物件條件；刪家長會連帶刪 T2 各表。（這一段是讀程式碼確認的，限流對照組是實測。）</p>
+</div>
+
+<h2>四、還沒做的</h2>
+<ul>
+<li><b>Docker Desktop 仍起不來</b>：改名了兩個資料夾（<code>Docker\run</code> → <code>run.bak-20261015</code>、<code>docker-secrets-engine</code> → <code>docker-secrets-engine.bak-20261015</code>）。新建的 socket 檔在 Docker 被強制關掉後又打不開，看起來根因不是舊檔，而是這台電腦上 Windows 的 AF_UNIX socket 檔一被留下就刪不掉；要另外查（防毒或 Cloudflare WARP 之類的檔案過濾）。</li>
+<li><b>瀏覽器沒走到的</b>：粗大動作與社會能力兩份問卷沒填（只填了感覺處理）、示範片沒播（刻意不向正式站拿片）、提醒與 .ics、打卡日曆、整期列印。</li>
+<li><b>只能在主機上確認的</b>：5000／5001 埠是否對外、nginx 日誌有沒有記到 <code>/r/</code> 的 token、正式站有沒有設 Gemini 金鑰、備份留多久。都是唯讀查看，但要你同意才連正式站。</li>
+<li>資安檢查清單（<code>docs/reference/資安檢查清單-2026-10-15.md</code>，約 140 項）只對了前 10 項。</li>
+<li>重現測試在 <code>test/verify-2026-10-15/</code>，還沒 commit。它們現在是紅的，修好一條就會轉綠，之後留著當護欄。在那之前，跑全套測試會看到這 14 條紅燈。</li>
+</ul>
+</div>

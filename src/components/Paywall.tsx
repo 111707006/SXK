@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../utils/api';
 import { formatFen } from '../utils/price';
+import type { T2Pricing } from '../t2/pricing';
+import { PROMO_GUIDE_LABEL } from '../t2/entrancePromo';
 import {
   ArrowLeft, Lock, ShieldCheck, Sparkles, Infinity as InfinityIcon,
   Loader2, AlertCircle, FileText, Activity, Eye,
@@ -13,7 +15,10 @@ import {
 const PENDING_ORDER_KEY = 'senxinkang_pending_order';
 
 interface PaywallProps {
-  /** 單價（分）。來源是 `GET /api/unlocks` 的 `priceFen`，不在前端寫死。 */
+  /**
+   * 讀不到這次的分檔價時的退路（`GET /api/unlocks` 的 `priceFen`）。T2 的價錢照幾項分檔（2026-10-13），
+   * 畫面讀 `GET /api/t2/plan` 的 `pricing` —— 下單時伺服器照同一份 plan 收。
+   */
   priceFen: number;
   /**
    * 展示模式：後端沒有持久層，付費牆擋不住也不該擋。畫面照常呈現，
@@ -47,6 +52,22 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
   const [error, setError] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState<{ outTradeNo: string; amountFen: number; reason?: string | null } | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [pricing, setPricing] = useState<T2Pricing | null>(null);
+
+  // 這次幾項、多少錢：與報告上那張卡同一份 plan（/api/t2/plan 在付費前就讀得到）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await authFetch('/api/t2/plan');
+        if (!resp.ok) return;
+        const data = await resp.json().catch(() => null);
+        if (!cancelled && data?.pricing && typeof data.pricing.priceFen === 'number') setPricing(data.pricing);
+      } catch { /* 讀不到就用退路的價錢 */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const shownFen = pricing?.priceFen ?? priceFen;
 
   /**
    * 從微信 H5 頁回跳後確認付款結果。
@@ -162,8 +183,11 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
         <div className="px-6 py-5 space-y-4">
           <div className="flex items-baseline gap-1">
             <span className="text-sm font-bold text-brand-forest">¥</span>
-            <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(priceFen)}</span>
-            <span className="text-[11px] text-brand-charcoal/60 ml-1">/ 整份一次</span>
+            <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(shownFen)}</span>
+            <span className="text-[11px] text-brand-charcoal/60 ml-1">/ {pricing ? `${pricing.items} 项深度评估` : '整份一次'}</span>
+            {pricing && (
+              <span className="text-[11px] text-brand-charcoal/50 line-through ml-2">{PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}</span>
+            )}
           </div>
 
           <ul className="space-y-2">
@@ -265,7 +289,7 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
               ) : (
                 <>
                   <Lock size={14} />
-                  ¥{formatFen(priceFen)} 解锁深度评估
+                  ¥{formatFen(shownFen)} 解锁深度评估
                 </>
               )}
             </button>

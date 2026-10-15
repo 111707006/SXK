@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 import { bearer } from './helpers/session';
 import { parentPlanV3, runRecommendation } from '../src/t2/recommend/parentPlan';
+import { t2PriceFor } from '../src/t2/pricing';
 import type { ToolResultRecordV3 } from '../src/db/t2ToolResultsV3';
 
 /**
@@ -92,7 +93,9 @@ describe('GET /api/t2/plan（v3）', () => {
     expect(resp.status).toBe(200);
     const body = await resp.json();
     const run = runRecommendation({ child: CHILD, t1Scores: SCORES, liveAgeMonth: 96, doneCodes: [] });
-    expect(body).toEqual({ ...parentPlanV3(run.rec, run.itemsMissing, run.socialItems), ageMonth: 96, answerAgeMonth: 96, context: { inSchool: true, sex: 'male' }, completed: [] });
+    const plan = parentPlanV3(run.rec, run.itemsMissing, run.socialItems);
+    // 價錢照卡上的項數分檔（2026-10-13，src/t2/pricing.ts）
+    expect(body).toEqual({ ...plan, ageMonth: 96, answerAgeMonth: 96, context: { inSchool: true, sex: 'male' }, completed: [], pricing: t2PriceFor(plan.tools.length) });
     expect(body.status).toBe('RECOMMEND');
     // 每維一份（ADR-0011）：被標記的維度各一份，不補足到 3 份；沒有深度、基線、補足
     expect(body.tools.length).toBeGreaterThanOrEqual(1);
@@ -100,11 +103,12 @@ describe('GET /api/t2/plan（v3）', () => {
     expect(JSON.stringify(body)).not.toMatch(/"t3"|红旗|落后|治疗师/);
   });
 
-  it('近 90 天做過的不再推、列在 completed；超過 90 天的照推', async () => {
-    const first = (await (await client.get(PLAN, bearer(PARENT))).json()).tools[0].code;
+  it('近 90 天做過的留在清單、列在 completed，不補推別份（審查 #3）；超過 90 天的照推', async () => {
+    const original = (await (await client.get(PLAN, bearer(PARENT))).json()).tools.map((t: any) => t.code);
+    const first = original[0];
     v3Rows = { [PARENT]: [done(first, 10)] };
     const body = await (await client.get(PLAN, bearer(PARENT))).json();
-    expect(body.tools.map((t: any) => t.code)).not.toContain(first);
+    expect(body.tools.map((t: any) => t.code)).toEqual(original);
     expect(body.completed).toEqual([expect.objectContaining({ code: first })]);
     v3Rows = { [PARENT]: [done(first, 120)] };
     const old = await (await client.get(PLAN, bearer(PARENT))).json();

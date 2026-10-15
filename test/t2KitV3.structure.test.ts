@@ -28,7 +28,7 @@ describe('完整版題庫：抽取地基', () => {
       const src = loadV3Source(zip, name.split('网页版/')[1]);
       expect(src.consts.size, name).toBeGreaterThan(0);
     }
-  });
+  }, 30_000); // 31 支網頁整批解析：單跑半秒，全套滿載時會超過預設 5 秒
 
   it('純資料檢查：字串相加放行，識別字照樣擋', () => {
     expect(isPureData('"a"+\n"b"')).toBe(true);
@@ -53,11 +53,11 @@ describe('完整版題庫：抽取地基', () => {
       expect(fs.existsSync(abs), rel).toBe(true);
       expect(sameToolkitContent(fs.readFileSync(abs, 'utf8'), text), `${rel}：重跑 npx tsx scripts/t2-extract-kitv3.ts`).toBe(true);
     }
-    // 目錄裡沒有配方以外的產出檔（手寫的只有 types、index、lazy、score、submit）
-    const handwritten = new Set(['types.ts', 'index.ts', 'lazy.ts', 'score.ts', 'submit.ts']);
+    // 目錄裡沒有配方以外的產出檔（手寫的只有 types、index、lazy、score、submit，與量表详解的改寫表 textAdapt）
+    const handwritten = new Set(['types.ts', 'index.ts', 'lazy.ts', 'score.ts', 'submit.ts', 'textAdapt.ts']);
     const produced = new Set(V3_RECIPES.map(r => `${r.slug}.ts`));
     for (const f of fs.readdirSync(path.join(ROOT, KITV3_DIR))) {
       if (!handwritten.has(f)) expect(produced.has(f), f).toBe(true);
     }
-  });
+  }, 30_000); // 24 支整批重抽（含量表详解的說明）：單跑一秒內，全套滿載時會超過預設 5 秒
 });

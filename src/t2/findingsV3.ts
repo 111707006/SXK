@@ -13,6 +13,8 @@
 
 import { judgeDimensionsV3, type DimensionFindingV3 } from './judgeV3';
 import type { ToolResultV3 } from './kitv3/submit';
+// 只取型別：這一檔前端也會載（`isFindingsV3`），量表详解要用整套題庫，算的那一支在 `scaleDetailEntries.ts`（只有伺服器載）。
+import type { ScaleDetail } from './scaleDetail';
 import { TOOLKIT_VERSION_V3, type ToolkitVersionV3 } from './kitv3/types';
 import type { DimensionCode, T1Flag } from './types';
 
@@ -38,7 +40,19 @@ export interface T2FindingsV3 {
    * `book` 是底下要不要附預約按鈕。2026-10-08 之前的快照沒有這一欄。
    */
   t1Notices?: Array<{ kind: string; text: string; book: boolean }>;
+  /**
+   * 量表详解（規格 `t2-v3-scale-detail-report.md`，開關 `T2_SCALE_DETAIL`）：每支一份，順序同 `toolResults`；沒有详解的工具（氣質）不列。
+   * 生成當下算好存下來，之後照存的樣子讀（題庫說明或講法改了，舊報告不變）。沒開開關、或 2026-10-15 之前的快照沒有這一欄。
+   */
+  scaleDetails?: ScaleDetailEntry[];
   computedAt: string;
+}
+
+export interface ScaleDetailEntry {
+  toolId: string;
+  detail: ScaleDetail;
+  /** 同一支更早的一次完整作答（不限 90 天）：各面向那時候的題數，畫面寫「上次 4/8 → 这次 6/8」。沒有就不出。 */
+  previous?: { computedAt: string; facets: Array<{ key: string; counts: [number, number, number] }> };
 }
 
 /** 報告最上方要講的旗標（其餘旗標只進後台）。 */
@@ -66,6 +80,8 @@ export interface BuildFindingsV3Input {
   /** 沒有任何結果時的測評月齡（報告講「那時候」的月齡；有結果就取最新那一筆的）。 */
   fallbackAgeMonth: number;
   now: Date;
+  /** 量表详解（`T2_SCALE_DETAIL` 開著時由伺服器用 `scaleDetailEntries.ts` 算好傳進來）；沒傳就不存這一欄。 */
+  scaleDetails?: ScaleDetailEntry[];
 }
 
 export function buildFindingsV3(input: BuildFindingsV3Input): T2FindingsV3 {
@@ -82,6 +98,7 @@ export function buildFindingsV3(input: BuildFindingsV3Input): T2FindingsV3 {
     toolResults: picked,
     ...(input.t1Notices ? { t1Notices: input.t1Notices.map(n => ({ ...n })) } : {}),
     notices: picked.flatMap(r => (r.score.flags ?? []).filter(f => NOTICE_FLAGS.includes(f)).map(flag => ({ toolId: r.toolId, flag }))),
+    ...(input.scaleDetails ? { scaleDetails: input.scaleDetails } : {}),
     computedAt: input.now.toISOString(),
   };
 }
@@ -90,9 +107,12 @@ export function buildFindingsV3(input: BuildFindingsV3Input): T2FindingsV3 {
  * 開關組合（server.ts 啟動時呼叫）：完整版的快照只有維度判定、沒有舊配對要的標籤，每週活動只能走 v3 推送規則 ——
  * 開了 `T2_RECOMMEND_V3` 卻沒開 `TRAINING_PUSH_V3`，丟錯讓程序起不來，不要等第一位家長打開線上干預才 500。
  */
-export function assertV3Switches(recommendV3: boolean, trainingPushV3: boolean): void {
+export function assertV3Switches(recommendV3: boolean, trainingPushV3: boolean, scaleDetail = false): void {
   if (recommendV3 && !trainingPushV3) {
     throw new Error('T2_RECOMMEND_V3=1 需要同時設 TRAINING_PUSH_V3=1（完整版的報告只能用 v3 推送規則排活動）');
+  }
+  if (scaleDetail && !recommendV3) {
+    throw new Error('T2_SCALE_DETAIL=1 需要同時設 T2_RECOMMEND_V3=1（量表详解只存在完整版的報告快照裡）');
   }
 }
 

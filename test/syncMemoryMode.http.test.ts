@@ -40,7 +40,8 @@ describe('記憶體模式仍然可運作（#15）', () => {
 
     const body = await (await client.get('/api/db/load', auth(1))).json();
     expect(body.source).toBe('memory');
-    expect(body.child).toEqual({ name: '小明' });
+    // 建檔時伺服器加上建檔時間（審查 #20）
+    expect(body.child).toEqual({ name: '小明', t2Since: expect.any(String) });
     expect(body.completedScores).toEqual([{ dimensionId: 'language' }]);
   });
 
@@ -48,8 +49,8 @@ describe('記憶體模式仍然可運作（#15）', () => {
     await client.postJson('/api/db/save', { deviceId: 'd-a', child: { name: 'A 的孩子' } }, auth(2));
     await client.postJson('/api/db/save', { deviceId: 'd-b', child: { name: 'B 的孩子' } }, auth(3));
 
-    expect((await (await client.get('/api/db/load', auth(2))).json()).child).toEqual({ name: 'A 的孩子' });
-    expect((await (await client.get('/api/db/load', auth(3))).json()).child).toEqual({ name: 'B 的孩子' });
+    expect((await (await client.get('/api/db/load', auth(2))).json()).child).toEqual({ name: 'A 的孩子', t2Since: expect.any(String) });
+    expect((await (await client.get('/api/db/load', auth(3))).json()).child).toEqual({ name: 'B 的孩子', t2Since: expect.any(String) });
   });
 
   it('同一位家長換一張新的通行證，讀到的是同一份', async () => {
@@ -58,7 +59,7 @@ describe('記憶體模式仍然可運作（#15）', () => {
     await client.postJson('/api/db/save', { deviceId: 'd-4', child: { name: '小華' } }, auth(4));
 
     const body = await (await client.get('/api/db/load', auth(4))).json();
-    expect(body.child).toEqual({ name: '小華' });
+    expect(body.child).toEqual({ name: '小華', t2Since: expect.any(String) });
   });
 
   it('未登入時裝置模式照舊 —— 沒有資料庫就沒有東西可讀', async () => {

@@ -132,10 +132,8 @@ export interface ReportBodyProps {
   isAiGenerated?: boolean | null;
   /** 報告編號由它算出。`null` 代表還沒存進歷史，此時整行不出現。 */
   reportId?: string | null;
-  /** 家長端專屬：T2 深度評估入口（票 #56）。放在雷達圖之後、語言專項入口之前。 */
+  /** 家長端專屬：T2 深度評估入口（票 #56）。放在掃碼帶走那張卡的正上方（2026-10-11）。 */
   t2Slot?: React.ReactNode;
-  /** 家長端專屬：語言專項評估入口。放在雷達圖與發育進度對比之間。 */
-  languageSlot?: React.ReactNode;
   /** 家長端專屬：掃碼把報告帶回家的二維碼卡。放在預後說明與每週課表之間。 */
   takeawaySlot?: React.ReactNode;
   /** 家長端專屬：專家預約入口。放在每週課表底下，與它同屬最後那一區。 */
@@ -156,7 +154,6 @@ export default function ReportBody({
   isAiGenerated,
   reportId,
   t2Slot,
-  languageSlot,
   takeawaySlot,
   bookingSlot,
   history,
@@ -306,11 +303,10 @@ export default function ReportBody({
       {/* SECTION 3: 重点问题标注 KEY FINDINGS - 雷达图 */}
       <RadarSection scores={scores} />
 
-      {/* 家長端專屬：T2 深度評估入口。後台不放 —— 同語言專項，那是一顆按下去會開始做事的按鈕。 */}
-      {t2Slot}
-
-      {/* 家長端專屬：語言專項評估入口。後台不放 —— 那是一顆按下去會開始做事的按鈕。 */}
-      {languageSlot}
+      {/*
+        語言專項評估的入口原本在這裡，2026-10-11 依使用者要求從 T1 報告拿掉（「这个板块不要在 T1 报告中体现」）。
+        專項評估本身還在，從九大維度的語言那一格進得去。
+      */}
 
       {real ? (
         /*
@@ -369,6 +365,12 @@ export default function ReportBody({
           </p>
         </div>
       </div>
+
+      {/*
+        家長端專屬：T2 深度評估入口。後台不放 —— 那是一顆按下去會開始做事的按鈕。
+        2026-10-11 使用者：從雷達圖底下移到二維碼卡的正上方（讀完整份報告、「接下来怎么做」之後才請家長往下一步）。
+      */}
+      {t2Slot}
 
       {/* 家長端專屬：掃碼把報告帶回自己的手機（issue #22）。 */}
       {takeawaySlot}

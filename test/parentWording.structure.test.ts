@@ -111,6 +111,13 @@ const PARENT_FACING_FILES = [
   // 孩子資料的「补充资料」畫面。它的字檔 `t2/recommend/childFieldsCopy.ts` 刻意不掃（醫師講的診斷名稱，理由在檔頭）。
   'src/t2/pushCopy.ts',
   'src/components/ChildExtraFields.tsx',
+  // 2026-10-11：T1 報告上的 T2 短卡與它的字。
+  'src/components/T2PromoCard.tsx',
+  'src/t2/entrancePromo.ts',
+  // 2026-10-15：量表详解的家長端字（量表名、作答種類、面向狀態、總覽句）。客戶說明的改寫表 `kitv3/textAdapt.ts` 刻意不掃 ——
+  // 它裡面放著客戶原句（踩禁字的那幾句）；改寫後的句子由 `t2ScaleDetailTexts.test.ts` 逐句掃。
+  'src/t2/scaleDetailCopy.ts',
+  'src/components/ScaleDetailCard.tsx',
   // T2 v3 的入口：推薦結果給家長的字（引擎的客規原句不給家長，這一檔另寫）。
   'src/t2/recommend/parentPlan.ts',
   'src/t2/answeringV3.ts',

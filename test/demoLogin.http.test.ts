@@ -51,9 +51,11 @@ vi.mock('../src/db/mysql', () => ({
   countRecentSmsCodesByPhone: async () => { throw new Error('demo path must not rate-limit'); },
   countRecentSmsCodesByIp: async () => { throw new Error('demo path must not rate-limit'); },
   deleteSmsCode: async () => {},
-  incrementSmsCodeAttempts: async (id: number) => {
+  claimSmsCodeAttempt: async (id: number, max: number) => {
     const row = codes.find(c => c.id === id);
-    if (row) row.attempts += 1;
+    if (!row || row.attempts >= max) return false;
+    row.attempts += 1;
+    return true;
   },
   consumeSmsCode: async (id: number) => {
     const row = codes.find(c => c.id === id);

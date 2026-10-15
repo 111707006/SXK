@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { findBannedWords } from './helpers/parentWording';
 import { recommend } from '../src/t2/recommend/engine';
+import { RECOMMEND_CONFIG } from '../src/t2/recommend/config';
 import { NO_T2_TEXT, parentPlanV3, raterOf, reasonOf, runRecommendation } from '../src/t2/recommend/parentPlan';
 import type { DxCode, Level, RecommendInput, ToolClass } from '../src/t2/recommend/types';
 import { DIMENSION_CODES } from '../src/t2/types';
@@ -81,9 +82,19 @@ describe('形狀', () => {
 describe('runRecommendation', () => {
   const t1 = (dim: string, score: number, assessedAgeMonth?: number) => ({ tierId: 'T1', dimensionId: dim, score, ...(assessedAgeMonth !== undefined ? { assessedAgeMonth } : {}) });
 
-  it('月齡用最新一筆 T1 的測評月齡，沒有才用今天的', () => {
-    expect(runRecommendation({ child: {}, t1Scores: [t1('attention', 2, 50)], liveAgeMonth: 60, doneCodes: [] }).ageM).toBe(50);
+  it('選問卷用今天的月齡（跟出題、交卷同一個；審查 #2），不是做 T1 那時候的', () => {
+    expect(runRecommendation({ child: {}, t1Scores: [t1('attention', 2, 50)], liveAgeMonth: 60, doneCodes: [] }).ageM).toBe(60);
     expect(runRecommendation({ child: {}, t1Scores: [t1('attention', 2)], liveAgeMonth: 60, doneCodes: [] }).ageM).toBe(60);
+  });
+
+  it('讀 T1 逐題作答仍照做 T1 那時候的年齡段（題目是照那一段出的）', () => {
+    const k = RECOMMEND_CONFIG.keyItems.find(x => x.band === 'A')!;
+    const base: RecommendInput = {
+      ageM: 50, levels: Object.fromEntries(DIMENSION_CODES.map(d => [d, 1])) as Record<DimensionCode, Level>,
+      rfdims: [], items: { [`${k.dim}_${k.idx}`]: 2 }, dx: [], school: false, done: [], extraTags: [], hearingChecked: true,
+    };
+    expect(recommend({ ...base, t1AgeM: 20 }).tags).toContain(k.tag);
+    expect(recommend(base).tags).not.toContain(k.tag);
   });
 
   it('rec 排除近 90 天做過的；full 不排除（報告快照的「推了哪些」）', () => {

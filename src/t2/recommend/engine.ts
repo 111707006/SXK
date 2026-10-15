@@ -166,6 +166,8 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
   const one = options.onePerDimension === true;
   const levels = one ? levelsWithScreenColors(input.levels, input.t1Colors) : input.levels;
   const band = bandOf(ageM);
+  // T1 的題目照做 T1 那時候的年齡段出；讀逐題作答要用那一段（審查 #2）
+  const itemBand = bandOf(input.t1AgeM ?? ageM);
 
   // ── 第 1 步：可用填寫人 ──
   const raters = new Set<Rater>(['P']);
@@ -173,9 +175,9 @@ export function recommend(input: RecommendInput, config: RecommendConfig = RECOM
   if (ageM >= SELF_MIN_AGE) raters.add('S');
 
   // ── 第 2 步：標籤 ──
-  const tags = new Set<KeyTag>([...scanKeyItems(band, input.items, config), ...input.extraTags]);
+  const tags = new Set<KeyTag>([...scanKeyItems(itemBand, input.items, config), ...input.extraTags]);
   const rfdims = new Set<DimensionCode>(input.rfdims);
-  if (band === 'A' && rfdims.has('ATT')) rfdims.add('SOC'); // A 組「叫名字」紅旗同時視為社交紅旗
+  if (itemBand === 'A' && rfdims.has('ATT')) rfdims.add('SOC'); // A 組「叫名字」紅旗同時視為社交紅旗
   if (rfdims.has('SOC')) tags.add('ASD_SIG');
 
   // ── 第 3 步：診斷過濾 ──

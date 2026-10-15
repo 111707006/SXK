@@ -63,16 +63,19 @@ export interface BuiltInput {
 }
 
 /**
- * 組推薦輸入。`ageM` 是做 T1 那時候的測評月齡（沒有就用實足月齡）；`doneCodes` 是近 3 個月完成的量表（客戶代碼）。
+ * 組推薦輸入。`ageM` 是做 T1 那時候的測評月齡（沒有就用實足月齡），讀 T1 逐題作答用；`nowAgeM` 是今天的實足月齡，
+ * 選問卷用（沒給就同 `ageM`；審查 #2）。`doneCodes` 是近 3 個月完成的量表（客戶代碼）。
  * 認不得的診斷碼略過、超過 2 個只取前 2 個。
  */
 export function buildRecommendInput(args: {
   ageM: number;
+  nowAgeM?: number;
   child: ChildRecommendFields;
   t1Scores: ReadonlyArray<T1ScoreInput>;
   doneCodes?: ReadonlyArray<string>;
 }): BuiltInput {
-  const ageM = correctedAgeMonth(args.ageM, args.child.gestationWeeks);
+  const ageM = correctedAgeMonth(args.nowAgeM ?? args.ageM, args.child.gestationWeeks);
+  const t1AgeM = correctedAgeMonth(args.ageM, args.child.gestationWeeks);
   const band = getT1AgeBand(args.ageM); // 題目是照當時的實足月齡出的（範圍外落到最近一段；E 段之後照 E，待問表 R-5）
   const levels = {} as Record<DimensionCode, Level>;
   const t1Colors: Partial<Record<DimensionCode, 0 | 1 | 2>> = {};
@@ -110,6 +113,7 @@ export function buildRecommendInput(args: {
   return {
     input: {
       ageM,
+      t1AgeM,
       levels,
       rfdims,
       items,

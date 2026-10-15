@@ -168,7 +168,7 @@ export function parentPlanV3(rec: Recommendation, itemsMissing: boolean, socialI
 
 /** `GET /api/t2/plan` 在 v3 回的整份（畫面讀它）。 */
 export interface PlanV3Response extends ParentPlanV3 {
-  /** 推薦用的月齡（做 T1 那時候）。 */
+  /** 推薦用的月齡（今天的實足月齡，矯正後；審查 #2）。 */
   ageMonth: number;
   /** 作答用的月齡（今天，早產 < 24 月矯正）。 */
   answerAgeMonth: number;
@@ -181,7 +181,7 @@ export interface PlanV3Response extends ParentPlanV3 {
 export interface RunRecommendationArgs {
   child: ChildRecommendFields;
   t1Scores: ReadonlyArray<T1ScoreInput & { assessedAgeMonth?: number }>;
-  /** 今天的實足月齡（T1 沒記測評月齡時的退路）。 */
+  /** 今天的實足月齡：選問卷用（審查 #2）；T1 沒記測評月齡時也拿它讀 T1。 */
   liveAgeMonth: number;
   /** 近 90 天做完的量表（客規代碼）。 */
   doneCodes: ReadonlyArray<string>;
@@ -219,7 +219,8 @@ export function socialSignalItems(ageM: number, items: Readonly<Record<string, 0
 }
 
 /**
- * 跑一次推薦：月齡用做 T1 那時候的測評月齡（最新一筆 T1 的 `assessedAgeMonth`，沒有才用今天的）。
+ * 跑一次推薦：選問卷用今天的實足月齡（矯正後）—— 跟出題、交卷驗月齡窗同一個（審查 #2，CONTEXT.md「矯正月齡」）；
+ * 讀 T1 逐題作答用做 T1 那時候的測評月齡（最新一筆 T1 的 `assessedAgeMonth`，沒有才用今天的）。
  * 回 `rec`（含已做過的排除）與 `full`（不排除做過的 —— 報告快照的「推了哪些」用它，規格 §5.1、R-30），
  * 以及觸發社交溝通警訊的題目（提示要點名）。
  */
@@ -234,7 +235,7 @@ export function runRecommendation(args: RunRecommendationArgs): {
   const stamped = [...t1].reverse().find(s => typeof s.assessedAgeMonth === 'number');
   const ageM = stamped?.assessedAgeMonth ?? args.liveAgeMonth;
   const child = ONE_TOOL_PER_DIMENSION ? { ...args.child, diagnoses: [] } : args.child;
-  const built = buildRecommendInput({ ageM, child, t1Scores: t1, doneCodes: args.doneCodes });
+  const built = buildRecommendInput({ ageM, nowAgeM: args.liveAgeMonth, child, t1Scores: t1, doneCodes: args.doneCodes });
   const options = { onePerDimension: ONE_TOOL_PER_DIMENSION };
   return {
     rec: recommend(built.input, undefined, options),

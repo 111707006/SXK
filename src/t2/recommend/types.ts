@@ -57,8 +57,13 @@ export interface RecommendConfig {
 
 /** 客規 §3 的輸入。 */
 export interface RecommendInput {
-  /** 月齡（早產 24 個月內已用矯正月齡）。 */
+  /** 今天的實足月齡（早產 24 個月內已用矯正月齡）：選問卷（月齡窗、填寫人、首選順序）都看它（CONTEXT.md「矯正月齡」）。 */
   ageM: number;
+  /**
+   * 做 T1 那時候的測評月齡（同樣矯正），只用來讀 T1 的逐題作答（關鍵題的年齡段、A 組紅旗）：題目是照那時候的年齡段出的。
+   * 沒有就等於 `ageM`。
+   */
+  t1AgeM?: number;
   /** 九維 T1 等級（已含紅旗升級）。 */
   levels: Record<DimensionCode, Level>;
   /** 紅旗題答「还不能」的維度。 */

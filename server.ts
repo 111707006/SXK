@@ -354,6 +354,8 @@ app.use('/api/expert-booking', bookingLimiter);
 app.use('/api/admin/login', authLimiter);
 app.use(['/api/report', '/api/specialized-report', '/api/motion-eval',
   '/api/motion-report', '/api/ali-language-eval', '/api/asr'], aiLimiter);
+// 生成 T2 報告也叫模型（審查 #7）。只限 POST：讀報告（`GET /api/t2/findings/latest`）不算進 AI 的額度。
+app.post('/api/t2/findings', aiLimiter);
 app.use(['/api/auth/sms/request', '/api/auth/sms/verify'], authLimiter);
 // B→A 交接的兩支公開端點與登入同一道速率限制。內部兌換（/internal/handoff/redeem）不套：
 // 呼叫它的是 A 的伺服器（永遠是同一個 127.0.0.1），套了等於全站共用一格額度；那一支靠密鑰擋。

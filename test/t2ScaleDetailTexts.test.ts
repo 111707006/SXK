@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { KITV3_BANKS } from '../src/t2/kitv3';
 import { REWRITES, adaptForParents, splitSentences } from '../src/t2/kitv3/textAdapt';
 import { findBannedWords } from '../src/utils/parentWording';
+import { DIAGNOSIS_NAMES, INSTRUMENT_AND_TREATMENT_NAMES, REPLACED_SCALE_NAMES } from '../src/t2/report/blacklist';
 
 /**
  * 客戶說明的改寫表（量表详解規格 §3、票 D-2）。三條護欄：
@@ -42,6 +43,12 @@ describe('客戶說明的改寫表', () => {
 
   it('家長版的說明全文沒有禁字', () => {
     const hits = allTexts().map(adaptForParents).flatMap(findBannedWords);
+    expect(hits).toEqual([]);
+  });
+
+  it('家長版的說明也過報告黑名單的診斷名、量表商品名、儀器療程藥物（分段內部名稱那一類不套：說明裡的「明显」是一般形容詞）', () => {
+    const words = [...REPLACED_SCALE_NAMES, ...DIAGNOSIS_NAMES, ...INSTRUMENT_AND_TREATMENT_NAMES];
+    const hits = allTexts().map(adaptForParents).flatMap(t => words.filter(w => t.toLowerCase().includes(w.toLowerCase())).map(w => `${w} ← ${t.slice(0, 30)}`));
     expect(hits).toEqual([]);
   });
 

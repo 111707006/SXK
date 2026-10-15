@@ -1,0 +1,51 @@
+/**
+ * 量表详解的家長端字（量表详解規格 §4、§5）：量表給家長看的名稱與一句說明、作答種類、面向狀態的白話、總覽句。
+ * 這一檔在家長用字掃描裡；客戶的面向說明與練法不在這裡（題庫 `texts` 原文 → `kitv3/textAdapt.ts` 改寫）。
+ *
+ * 不寫常模、不寫「相当于几岁」、不寫題目的起始月齡（規格 D2、待問 S-1）。
+ */
+
+/** 量表給家長看的名稱與「這份在看什麼」一句。名稱含禁字的換白話名（規格 D5、待問 S-3）。 */
+export const SCALE_DISPLAY: Readonly<Record<string, { name: string; oneLiner: string }>> = {
+  'SXK-GM': { name: '粗大动作发展问卷', oneLiner: '看孩子用大肌肉做的动作：从抬头、翻身、坐、爬、走，到跑跳与平衡。' },
+  'SXK-SOC': { name: '社会能力发展问卷', oneLiner: '看孩子和人互动的能力：注意别人、轮流、分享、跟同伴玩，到理解规则与别人的感受。' },
+  'SXK-ADP': { name: '适应能力发展问卷', oneLiner: '看孩子认识周围、解决小问题、记住与学习新东西的能力。' },
+  'SXK-PLC': { name: '语言前能力发展问卷', oneLiner: '看孩子开口说话以前的沟通基础：看人、听声音、用手势和声音表达、轮流互动。' },
+  'SXK-LANG': { name: '语言能力发展问卷', oneLiner: '看孩子听懂、表达、发音与用语言和人沟通的能力。' },
+  'SXK-VOC': { name: '0–3 岁词汇与沟通问卷', oneLiner: '看孩子听懂与说出的词、手势与句子，是不是一步一步在增加。' },
+  'SXK-ASQ3': { name: '分龄发育综合问卷', oneLiner: '用这个月龄的一组题，一次看沟通、粗大动作、精细动作、解决问题与个人社交五个方面。' },
+};
+
+/** 達成率族（已经会／偶尔会／还不会）。 */
+export const ACHIEVEMENT_KINDS = ['已经会', '偶尔会', '还不会'] as const;
+
+/** 面向狀態的白話（好 → 壞），依那一支頁面分段的段數挑。 */
+export const ACHIEVEMENT_PLAIN: Readonly<Record<3 | 4, readonly string[]>> = {
+  4: ['已经稳定', '大部分会了，还有几项不稳', '还在发展中，需要多练', '需要优先关注'],
+  3: ['已经稳定', '还有几项不稳', '需要优先关注'],
+};
+
+/** 句中用的短說法（同上順序）。 */
+export const ACHIEVEMENT_SHORT: Readonly<Record<3 | 4, readonly string[]>> = {
+  4: ['已经稳定', '大部分会了，还有几项不稳', '还在发展中', '需要优先关注'],
+  3: ['已经稳定', '还有几项不稳', '需要优先关注'],
+};
+
+export const FEW_ITEMS = '题数太少，这次不单独判断';
+
+/** 總覽：有需要練的面向時（規格 §5 第 1 條）。 */
+export function achievementOverall(asked: number, done: number, focus: ReadonlyArray<{ name: string; short: string }>): string {
+  const [a, b] = focus;
+  return `这次 ${asked} 题里已经会 ${done} 题。`
+    + `「${a.name}」${a.short ? `${a.short}，` : ''}是这次最需要练的地方`
+    + (b ? `；「${b.name}」${b.short || '也还有几项不稳'}` : '')
+    + '。下面把还不稳的题目列出来，可以直接当作练习目标。';
+}
+
+/** 總覽：各面向都穩、題庫又沒有那一段的建議時（規格 §5 第 2 條的退路）。 */
+export function achievementAllSteady(asked: number, done: number): string {
+  return `这次 ${asked} 题里已经会 ${done} 题，各方面都比较稳定。维持日常的游戏与活动机会就好，三个月后可以再做一次，看看前后的变化。`;
+}
+
+/** 「下一步先练」那一句的說明。 */
+export const NEXT_STEP_NOTE = '这是这一面还没稳定的项目里最早的一项，先把它练稳，后面的会比较顺。';

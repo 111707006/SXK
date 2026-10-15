@@ -81,6 +81,8 @@ export function weakFacetsV3(findings: Pick<T2FindingsV3, 'toolResults'>, d: Dim
     r.score.facets
       .filter(f => f.band !== null && f.band > 0)
       .filter(f => !domainDim || domainDim[f.key] === d.dimensionId)
+      // 由重到輕（同一段照題庫順序）：呼叫端只取前幾個，照題庫順序取會漏掉最重的（審查 #27）
+      .sort((a, b) => b.band! - a.band!)
       .map(f => f.name),
   )].filter(name => findBlacklisted(name).length === 0);
 }

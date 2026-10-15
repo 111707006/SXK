@@ -116,6 +116,39 @@ describe('面向的說法（使用者 2026-10-08）', () => {
     expect(lang).not.toContain('这几方面');
   });
 
+  // 審查 #27（2026-10-15 瀏覽器實走）：感覺處理那一段點名「社会参与、视觉、听觉、触觉」（量表详解顯示常出现 0/7），
+  // 真正 7/7 的本體覺、前庭……一個都沒點到 —— 面向照題庫順序取前 4 個，不是照輕重
+  it('感覺處理：前幾個面向輕、後面的重，點名的是重的那幾個（模板與給模型的那一份都是）', () => {
+    const ageM = 48;
+    const child = { inSchool: true, sex: 'male' as const };
+    const form = formV3(KITV3_BANKS['SXK-SP'], { ageM, ...child });
+    const light = form.sections.slice(0, 4).map(s => s.key);
+    const answers: Record<string, number | null> = {};
+    for (const s of form.sections) for (const it of s.items) {
+      const vals = s.options.map(o => o.value).filter(v => v !== null) as number[];
+      answers[it.key] = light.includes(s.key) ? vals[1] : vals[vals.length - 1];
+    }
+    const got = scoreToolV3({ toolId: 'SXK-SP', assessedAgeMonth: ageM, rater: 'mother', answers }, child, NOW);
+    if (!got.ok) throw new Error(got.body.error);
+    const findings = buildFindingsV3({ t1: t1({ SEN: 2 }), recommended: ['SXK-SP'], records: [{ createdAt: NOW.toISOString(), result: got.result }], sex: 'boy', fallbackAgeMonth: ageM, now: NOW });
+
+    const facets = got.result.score.facets;
+    const worst = Math.max(...facets.map(f => f.band ?? 0));
+    const heavy = facets.filter(f => f.band === worst).map(f => f.name);
+    // 前提：輕的那 4 個也算弱（band > 0），重的至少 4 個 —— 不然照順序取也會碰巧對
+    expect(facets.filter(f => light.includes(f.key)).every(f => f.band !== null && f.band > 0 && f.band < worst)).toBe(true);
+    expect(heavy.length).toBeGreaterThanOrEqual(4);
+
+    const sen = templateProseV3({ findings }).perDimension.find(p => p.dimensionId === 'SEN')!.whatWeSaw;
+    const named = [...sen.slice(sen.indexOf('其中')).matchAll(/「(.+?)」/g)].map(m => m[1]);
+    expect(named.length).toBe(4);
+    for (const n of named) expect(heavy, `模板點名了 ${n}`).toContain(n);
+
+    const line = buildProsePromptV3({ findings }).user.split('\n').find(l => l.startsWith('- SEN') && l.includes('比较弱的几面'))!;
+    const listed = line.slice(line.indexOf('比较弱的几面：') + '比较弱的几面：'.length).replace(/。$/, '').split('、');
+    expect(listed.slice(0, heavy.length).sort()).toEqual([...heavy].sort());
+  });
+
   it('SNAP-IV 全答最差：注意力那一段不點名「对立违抗」', () => {
     const findings = findingsOf(['SNAP-IV'], 84, -1, Object.fromEntries(DIMENSION_CODES.map(d => [d, 2])) as any);
     const prose = templateProseV3({ childName: '小安', findings });

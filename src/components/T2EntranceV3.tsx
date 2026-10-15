@@ -6,7 +6,8 @@ import { promoFromV3 } from '../t2/entrancePromo';
 import T2PromoCard from './T2PromoCard';
 
 interface T2EntranceV3Props {
-  plan: ParentPlanV3;
+  /** `completed`：近 90 天做完的（`GET /api/t2/plan` 回的那一份帶著）。 */
+  plan: ParentPlanV3 & { completed?: ReadonlyArray<{ code: string }> };
   /** 未解鎖（`locked`／`demo`）時 CTA 是「解鎖」。 */
   locked: boolean;
   /** 這次的價錢（照幾項分檔，伺服器 plan 的 `pricing`）。 */
@@ -77,7 +78,15 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
 
   // 報告上只出一張短卡（使用者 2026-10-11：「客人看到这么多题也不想做了」）；逐份清單、分鐘、第一次／第二次在作答頁（T2AssessmentV3）。
   return (
-    <T2PromoCard promo={promoFromV3(plan)} locked={locked} freePeriod={freePeriod} pricing={pricing} onUnlock={onUnlock} onStart={onStart}>
+    <T2PromoCard
+      promo={promoFromV3(plan)}
+      locked={locked}
+      freePeriod={freePeriod}
+      pricing={pricing}
+      onUnlock={onUnlock}
+      onStart={onStart}
+      allDone={plan.tools.every(t => plan.completed?.some(c => c.code === t.code) ?? false)}
+    >
       {notices}
       {plan.gaps.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">

@@ -103,11 +103,12 @@ describe('GET /api/t2/plan（v3）', () => {
     expect(JSON.stringify(body)).not.toMatch(/"t3"|红旗|落后|治疗师/);
   });
 
-  it('近 90 天做過的不再推、列在 completed；超過 90 天的照推', async () => {
-    const first = (await (await client.get(PLAN, bearer(PARENT))).json()).tools[0].code;
+  it('近 90 天做過的留在清單、列在 completed，不補推別份（審查 #3）；超過 90 天的照推', async () => {
+    const original = (await (await client.get(PLAN, bearer(PARENT))).json()).tools.map((t: any) => t.code);
+    const first = original[0];
     v3Rows = { [PARENT]: [done(first, 10)] };
     const body = await (await client.get(PLAN, bearer(PARENT))).json();
-    expect(body.tools.map((t: any) => t.code)).not.toContain(first);
+    expect(body.tools.map((t: any) => t.code)).toEqual(original);
     expect(body.completed).toEqual([expect.objectContaining({ code: first })]);
     v3Rows = { [PARENT]: [done(first, 120)] };
     const old = await (await client.get(PLAN, bearer(PARENT))).json();

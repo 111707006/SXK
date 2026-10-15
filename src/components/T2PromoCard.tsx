@@ -5,10 +5,12 @@ import {
   PROMO_FREE_NOTE,
   PROMO_GUIDE_LABEL,
   PROMO_PRICE_LABEL,
+  PROMO_ALL_DONE,
   PROMO_START,
   PROMO_TITLE,
   PROMO_UNLOCK,
   promoCountLabel,
+  promoDoneLabel,
   promoSentence,
   type EntrancePromo,
 } from '../t2/entrancePromo';
@@ -24,6 +26,8 @@ interface T2PromoCardProps {
   pricing: T2Pricing | null;
   onUnlock: () => void;
   onStart: () => void;
+  /** 推薦的每一份都做完了（已解鎖時才看）：不出價錢，寫「已完成 N / N 项」，按鈕是「查看并生成报告」（審查 #3）。 */
+  allDone?: boolean;
   /** 卡底下的附加區（安全提示、這個年齡沒有問卷的方面）；沒有就不出。 */
   children?: React.ReactNode;
 }
@@ -33,10 +37,11 @@ interface T2PromoCardProps {
  * 逐份問卷的清單不在這裡 —— 按下去之後的作答頁才列（理由見 `src/t2/entrancePromo.ts` 檔頭）。
  * 字都在 `entrancePromo.ts`；這一檔只排版。
  */
-export default function T2PromoCard({ promo, locked, freePeriod = false, pricing, onUnlock, onStart, children }: T2PromoCardProps) {
+export default function T2PromoCard({ promo, locked, freePeriod = false, pricing, onUnlock, onStart, allDone = false, children }: T2PromoCardProps) {
   const sentence = promoSentence(promo.dimensions);
   const [lead, tail] = PROMO_TITLE.split('T2');
-  const showPrice = (locked || freePeriod) && pricing !== null;
+  const done = allDone && !locked;
+  const showPrice = (locked || freePeriod) && pricing !== null && !done;
   return (
     <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 md:p-6 shadow-sm text-left space-y-4" id="t2-promo-card">
       <div className="space-y-2">
@@ -67,7 +72,7 @@ export default function T2PromoCard({ promo, locked, freePeriod = false, pricing
             {!locked && <div className="basis-full text-[11px] font-semibold text-brand-moss">{PROMO_FREE_NOTE}</div>}
           </div>
         ) : (
-          <div className="text-sm font-bold text-brand-forest">{promoCountLabel(promo.count)}</div>
+          <div className="text-sm font-bold text-brand-forest">{done ? promoDoneLabel(promo.count) : promoCountLabel(promo.count)}</div>
         )}
 
         <button
@@ -76,7 +81,7 @@ export default function T2PromoCard({ promo, locked, freePeriod = false, pricing
           onClick={locked ? onUnlock : onStart}
           className="w-full md:w-auto px-6 py-3 rounded-xl bg-brand-moss hover:bg-brand-moss/90 text-white text-sm font-extrabold transition shadow-md shadow-brand-moss/20 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
         >
-          {locked ? PROMO_UNLOCK : PROMO_START}
+          {locked ? PROMO_UNLOCK : done ? PROMO_ALL_DONE : PROMO_START}
           <ChevronRight size={15} />
         </button>
       </div>

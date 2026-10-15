@@ -22,6 +22,8 @@ export const PROMO_PRICE_LABEL = '套餐价';
 export const PROMO_GUIDE_LABEL = '原价';
 export const PROMO_UNLOCK = '解锁深度评估';
 export const PROMO_START = '开始深度评估';
+/** 推薦的每一份都做完了（審查 #3）：按鈕改成這句，按下去是作答頁（底下有「生成报告」）。 */
+export const PROMO_ALL_DONE = '查看并生成报告';
 /** 免費期間（`PAYWALL_FREE`）價錢底下那一行：價錢只是參考，現在不收費。 */
 export const PROMO_FREE_NOTE = '目前免费开放，直接开始即可';
 
@@ -65,4 +67,8 @@ export function promoSentence(dimensions: ReadonlyArray<string>): { before: stri
 
 export function promoCountLabel(count: number): string {
   return `${count} 项深度评估`;
+}
+
+export function promoDoneLabel(count: number): string {
+  return `已完成 ${count} / ${count} 项`;
 }

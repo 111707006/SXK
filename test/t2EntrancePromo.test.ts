@@ -99,3 +99,26 @@ describe('卡', () => {
     expect(html).not.toMatch(/分钟|份问卷|第一次填写/);
   });
 });
+
+describe('推薦的每一份都做完了（審查 #3）', () => {
+  const promo = { count: 3, dimensions: inOrder('SEN', 'MOT', 'ATT') };
+  const pricing = t2PriceFor(3);
+  const render = (locked: boolean, freePeriod: boolean) =>
+    renderToStaticMarkup(createElement(T2PromoCard, { promo, locked, freePeriod, pricing, allDone: true, onUnlock: () => {}, onStart: () => {} }));
+
+  it('已解鎖（含免費期間）：寫「已完成 3 / 3 项」、按鈕是「查看并生成报告」、不出價錢', () => {
+    for (const freePeriod of [false, true]) {
+      const html = render(false, freePeriod);
+      expect(html).toContain('已完成 3 / 3 项');
+      expect(html).toContain('查看并生成报告');
+      expect(html).not.toContain('开始深度评估');
+      expect(html).not.toContain('¥');
+    }
+  });
+
+  it('未解鎖：照舊是解鎖鈕（做完卻沒解鎖的情況不該出現，出現也不放行）', () => {
+    const html = render(true, false);
+    expect(html).toContain('解锁深度评估');
+    expect(html).not.toContain('查看并生成报告');
+  });
+});

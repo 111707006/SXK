@@ -1164,12 +1164,14 @@ async function requireT2Parent(req: express.Request, res: express.Response): Pro
 
 // T2 v3（`T2_RECOMMEND_V3`）：入口改成量表推薦引擎的輸出（客規 §13.2；推薦規格 §5）。
 // 「近 3 個月做過的」＝完整版近 90 天每支最新一筆（R-29）；家長端的字在 `parentPlanV3`，客規原句不出去；T3 不回。
-// `completed` 是近 90 天做完的（入口上標「已完成」，引擎已經不再推它們）。
+// `completed` 是近 90 天做完的（入口與作答清單標「已完成」）。
+// 清單用不排除做過的那一份（`run.full`，報告快照的「推了哪些」也是它）：排除做過的再算，引擎會以為那個方面還沒有問卷、
+// 補推別份，清單永遠做不完（審查 #3）。做過的留在清單裡打勾；「N 项」與價錢因此不會越做越少（使用者 2026-10-15）。
 async function planV3(userId: UserId, child: any, t1Scores: any[], liveAgeMonth: number) {
   const recent = recentResultsV3(await loadT2ToolResultsV3(userId), new Date());
   const run = runRecommendation({ child, t1Scores, liveAgeMonth, doneCodes: recent.map(r => r.result.toolId) });
   return {
-    ...parentPlanV3(run.rec, run.itemsMissing, run.socialItems),
+    ...parentPlanV3(run.full, run.itemsMissing, run.socialItems),
     ageMonth: run.ageM,
     // 作答用今天的月齡（早產 < 24 月矯正）與孩子檔案的情境 —— 畫面出的題要跟伺服器驗卷的同一份
     answerAgeMonth: correctedAgeMonth(liveAgeMonth, child?.gestationWeeks),

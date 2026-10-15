@@ -93,7 +93,7 @@ export interface KitV3Bank<S = unknown> {
 export interface KitV3Texts {
   /** 面向 key（CHEXI 是副量表、氣質是向度名稱）→ 在看什麼、在家怎麼練（氣質的練法分偏高／偏低兩頭：`poleTips`）。 */
   facets: Record<string, { what: string; tips: string[]; poleTips?: { hi: string; lo: string } }>;
-  /** 頁面 `LEVELS` 各段的標題與建議，順序同頁面（好 → 壞）。 */
+  /** 頁面 `LEVELS` 各段的標題與建議，順序同頁面（好 → 壞）；LQ 是 `RULES`（`head` 是整支分段的名稱）。 */
   levels?: Array<{ head: string; txt: string }>;
 }
 

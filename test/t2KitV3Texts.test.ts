@@ -6,13 +6,13 @@ import { KITV3_BANKS } from '../src/t2/kitv3';
  * 重跑一致由 `t2KitV3.structure` 盯著；這裡釘住每一支抽到了什麼，客戶換版少了一段會紅。
  */
 
-/** 代碼 → [面向說明幾段, LEVELS 幾段]。LQ、M-CHAT、EMO 頁面沒有面向說明（規格 §4 另外處理）。 */
+/** 代碼 → [面向說明幾段, LEVELS 幾段]。LQ 只有結論規則（RULES）；EMO 的向度說明只有一句（DIMS.d）；M-CHAT 的分段說明寫給治療師，不抽。 */
 const COVERAGE: Record<string, [number, number] | null> = {
   'SXK-GM': [7, 4], 'SXK-SOC': [7, 4], 'SXK-ADP': [7, 4], 'SXK-PLC': [7, 4], 'SXK-LANG': [6, 4],
-  'SXK-LQ': null, 'M-CHAT-R/F': null, 'SXK-ASQ3': [5, 4], 'SXK-VOC': [3, 0],
+  'SXK-LQ': [0, 4], 'M-CHAT-R/F': null, 'SXK-ASQ3': [5, 4], 'SXK-VOC': [3, 0],
   'SXK-ASB': [5, 3], 'SXK-ASR': [5, 0], 'SXK-QOL': [5, 0],
   'SXK-AB': [6, 3], 'SXK-ATT': [7, 3], 'SNAP-IV': [3, 0], 'CHEXI': [4, 0], 'SXK-LDP': [7, 4], 'SXK-LDS': [7, 4],
-  'SXK-SP': [9, 3], 'SXK-SPb': [9, 3], 'SXK-ADL': [7, 3], 'SXK-EMO': null, 'SXK-TIC': [2, 4], 'ITQ/TTS/BSQ': [9, 0],
+  'SXK-SP': [9, 3], 'SXK-SPb': [9, 3], 'SXK-ADL': [7, 3], 'SXK-EMO': [7, 0], 'SXK-TIC': [2, 4], 'ITQ/TTS/BSQ': [9, 0],
 };
 
 /** 面向 key 不是題庫段落 key 的：CHEXI 是副量表、氣質是向度、ATT 的 CA 是頁面另一個情境（家長版不出題，說明照抄）。 */

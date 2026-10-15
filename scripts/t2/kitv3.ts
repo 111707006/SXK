@@ -122,10 +122,12 @@ export function extractTexts(src: V3Source): KitV3Texts | null {
       if (!o || typeof o !== 'object' || Array.isArray(o)) continue;
       const rec = o as Record<string, unknown>;
       const key = typeof rec.key === 'string' ? rec.key : typeof rec.k === 'string' ? rec.k : null;
-      if (key === null || typeof rec.what !== 'string') continue;
+      // EMO 的向度說明叫 `DIMS[].d`（只有一句「在看什麼」，沒有練法）。
+      const what = typeof rec.what === 'string' ? rec.what : name === 'DIMS' && typeof rec.d === 'string' ? rec.d : null;
+      if (key === null || what === null) continue;
       if (owner[key]) throw new Error(`${src.file}：面向 ${key} 的說明同時出現在 ${owner[key]} 與 ${name}`);
       owner[key] = name;
-      facets[key] = { what: plain(rec.what), tips: asTips(rec.tips, `${src.file} ${name}.${key}`) };
+      facets[key] = { what: plain(what), tips: asTips(rec.tips, `${src.file} ${name}.${key}`) };
     }
   }
   const desc = src.consts.get('DIM_DESC')?.value as Record<string, unknown> | undefined;
@@ -143,9 +145,13 @@ export function extractTexts(src: V3Source): KitV3Texts | null {
     }
   }
   const levelsRaw = src.consts.get('LEVELS')?.value;
+  const rulesRaw = src.consts.get('RULES')?.value;
   const levels = Array.isArray(levelsRaw) && levelsRaw.every(l => l && typeof (l as { txt?: unknown }).txt === 'string')
     ? (levelsRaw as Array<{ head?: unknown; txt: string }>).map(l => ({ head: typeof l.head === 'string' ? plain(l.head) : '', txt: plain(l.txt) }))
-    : undefined;
+    // LQ 沒有 LEVELS，結論的建議寫在 `RULES[]`（`n` 就是整支分段的名稱，量表详解照名稱對）。
+    : Array.isArray(rulesRaw) && rulesRaw.every(r => r && typeof (r as { txt?: unknown }).txt === 'string' && typeof (r as { n?: unknown }).n === 'string')
+      ? (rulesRaw as Array<{ n: string; txt: string }>).map(r => ({ head: plain(r.n), txt: plain(r.txt) }))
+      : undefined;
   if (Object.keys(facets).length === 0 && !levels) return null;
   return { facets, ...(levels ? { levels } : {}) };
 }

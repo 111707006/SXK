@@ -28,6 +28,11 @@ import {
   CONCERN_SHORT,
   FACET_NAME_ALIAS,
   FEW_ITEMS,
+  LQ_KINDS,
+  MCHAT_KINDS,
+  MCHAT_PLAIN,
+  TIC_KINDS,
+  mchatOverall,
   SCALE_DISPLAY,
   SNAP_KINDS,
   achievementAllSteady,
@@ -92,8 +97,8 @@ type Asked = ReturnType<typeof askedItems>;
 
 interface FamilyStyle {
   kinds: readonly [string, string, string];
-  /** 選項 → 作答種類；`null`＝不計（不適用、不確定）。 */
-  kindOf: (value: number | null, options: readonly KitV3Option[]) => AnswerKind | null;
+  /** 選項 → 作答種類；`null`＝不計（不適用、不確定）。M-CHAT 要看是哪一題（哪一邊的回答算要留意）。 */
+  kindOf: (value: number | null, options: readonly KitV3Option[], item: KitV3Item, bank: KitV3Bank) => AnswerKind | null;
   plain: Readonly<Record<3 | 4, readonly string[]>>;
   short: Readonly<Record<3 | 4, readonly string[]>>;
   mode: 'next' | 'frequent';
@@ -103,14 +108,22 @@ interface FamilyStyle {
   itemsOf?: (bank: KitV3Bank, facetKey: string, asked: Asked) => Asked;
   /** 一個面向的說明；預設＝`texts.facets[key]`（CHEXI 把因素底下的副量表接起來）。 */
   textsOf?: (bank: KitV3Bank, facetKey: string) => { what: string; tips: string[] } | undefined;
+  /** 不列的面向（EMO 的「功能影响」選項是影響程度，不是頻率；報告最上方另有提示）。 */
+  skipFacets?: readonly string[];
+  /** 題目在畫面上怎麼寫；預設＝題目原文（抽動的題是向度名，要接上選了的那一句錨點）。 */
+  describe?: (item: KitV3Item, value: number | null) => string;
+  /** 有需要練的面向時，要不要接上題庫的分段建議（預設：整支不是最好那段就接）。LQ 只接「需要特别注意」那一條 —— 其餘幾條講「带」，家長讀不懂。 */
+  appendLevelTxt?: (bandName: string | null, band: number | null) => boolean;
+  /** 總覽句要看整支分段時（M-CHAT），整段由它寫，`overall`／`allSteady` 不用。 */
+  overallByBand?: (asked: number, counts: Counts, band: number | null) => string;
 }
 
-/** 達成率：最高那個值＝已經會、0＝還不會、其間＝偶爾會（GM 一族 2／1／0、ASQ3 10／5／0、VOC 的「会／还不会」）。 */
+/** 達成率：最高那個值＝已經會、最低＝還不會、其間＝偶爾會（GM 一族 2／1／0、ASQ3 10／5／0、LQ 3／2／1、VOC 的「会／还不会」）。 */
 const achievementKind: FamilyStyle['kindOf'] = (value, options) => {
   if (value === null) return null;
-  const max = Math.max(...options.map(o => (typeof o.value === 'number' ? o.value : -Infinity)));
-  if (value === max) return 0;
-  if (value === 0) return 2;
+  const values = options.map(o => o.value).filter((v): v is number => typeof v === 'number');
+  if (value === Math.max(...values)) return 0;
+  if (value === Math.min(...values)) return 2;
   return 1;
 };
 
@@ -157,7 +170,33 @@ const ADL_STYLE: FamilyStyle = {
   overall: adlOverall, allSteady: adlAllSteady,
 };
 
-/** 族 → 講法。還沒登記的族（D-5：LQ、M-CHAT、EMO、TIC、QOL、氣質）回 `null`。 */
+/** M-CHAT：第 2、5、12 題答「是」算要留意，其餘答「否」算要留意（`scoring.riskIsYes`）。 */
+const MCHAT_STYLE: FamilyStyle = {
+  ...CONCERN,
+  kinds: MCHAT_KINDS,
+  plain: MCHAT_PLAIN,
+  short: MCHAT_PLAIN,
+  kindOf: (value, _options, item, bank) => {
+    if (value === null) return null;
+    const riskIsYes = (bank.scoring as { riskIsYes?: string[] }).riskIsYes ?? [];
+    const risky = riskIsYes.includes(item.key) ? value === 1 : value === 0;
+    return risky ? 2 : 0;
+  },
+  overallByBand: mchatOverall,
+};
+
+/** 抽動：每題 0–5 分；題目是向度名（数量、频率……），畫面接上選了的那一句錨點。 */
+const TIC_STYLE: FamilyStyle = {
+  ...CONCERN,
+  kinds: TIC_KINDS,
+  kindOf: value => (value === null ? null : value <= 0 ? 0 : value <= 2 ? 1 : 2),
+  describe: (item, value) => {
+    const anchors = (item as { anchors?: string[] }).anchors;
+    return value !== null && anchors?.[value] ? `${item.text}：${anchors[value]}` : item.text;
+  },
+};
+
+/** 族 → 講法。氣質不在這裡：它是九個向度的偏向，報告上另有一段（不分「好壞」，不套三種作答）。 */
 const STYLES: Readonly<Record<string, FamilyStyle>> = {
   pct: ACHIEVEMENT,
   voc: ACHIEVEMENT,
@@ -167,6 +206,11 @@ const STYLES: Readonly<Record<string, FamilyStyle>> = {
   snap: { ...CONCERN, kinds: SNAP_KINDS },
   chexi: CHEXI_STYLE,
   adl: ADL_STYLE,
+  lq: { ...ACHIEVEMENT, kinds: LQ_KINDS, appendLevelTxt: name => name === '有需要特别注意的情形' },
+  mchat: MCHAT_STYLE,
+  emo: { ...CONCERN, skipFacets: ['IMP'] },
+  tic: TIC_STYLE,
+  qol: CONCERN,
 };
 
 /** 同一族裡選項意思不同的工具（ASR 是「和同龄孩子比起来」）。 */
@@ -206,12 +250,19 @@ export function scaleDetailOf({ bank, answers, score, context }: ScaleDetailInpu
   const itemsOf = style.itemsOf ?? ((_b: KitV3Bank, key: string, all: Asked) => all.filter(a => a.section === key));
   const linesOf = (facetKey: string): Line[] =>
     itemsOf(bank, facetKey, asked)
-      .map((a, order) => ({ item: a.item, order, kind: style.kindOf(answers[a.item.key] ?? null, optionsOf(a.section)) }))
+      .map((a, order) => ({ item: a.item, order, kind: style.kindOf(answers[a.item.key] ?? null, optionsOf(a.section), a.item, bank) }))
       .filter((l): l is Line => l.kind !== null);
 
   const alias = FACET_NAME_ALIAS[bank.code] ?? {};
-  const facetLines = score.facets
-    .filter(f => f.n > 0)
+  // 計分沒有分面向的工具（M-CHAT）：每個出了題的段落當一個面向，分段照整支。
+  const scored = score.facets.length > 0
+    ? score.facets
+    : [...new Set(asked.map(a => a.section))].map(key => ({
+      key, name: bank.forms.flatMap(f => f.sections).find(sec => sec.key === key)?.name || '这次的题目',
+      n: asked.filter(a => a.section === key).length, value: score.total.value, band: score.total.band,
+    }));
+  const facetLines = scored
+    .filter(f => f.n > 0 && !(style.skipFacets ?? []).includes(f.key))
     .map(f => ({ f: { ...f, name: alias[f.key] ?? f.name }, lines: linesOf(f.key) }));
   const facets: ScaleDetailFacet[] = facetLines.map(({ f, lines }) => ({
     key: f.key,
@@ -232,6 +283,7 @@ export function scaleDetailOf({ bank, answers, score, context }: ScaleDetailInpu
     ((b.f.band ?? 0) - (a.f.band ?? 0)) ||
     (notBestRatio(facets.find(x => x.key === b.f.key)!.counts) - notBestRatio(facets.find(x => x.key === a.f.key)!.counts)));
   const textsOf = style.textsOf ?? ((b: KitV3Bank, key: string) => b.texts?.facets[key]);
+  const describe = (item: KitV3Item) => (style.describe ? style.describe(item, answers[item.key] ?? null) : item.text);
   const focus: ScaleDetailFocus[] = candidates.slice(0, 2).map(({ f, lines }) => {
     const gaps = lines.filter(l => l.kind > 0);
     const byMonth = [...gaps].sort((a, b) => ((a.item.month ?? Infinity) - (b.item.month ?? Infinity)) || (a.order - b.order));
@@ -243,8 +295,8 @@ export function scaleDetailOf({ bank, answers, score, context }: ScaleDetailInpu
       name: f.name,
       plain: facets.find(x => x.key === f.key)!.plain,
       what: t ? adaptForParents(t.what) : '',
-      items: ordered.map(l => ({ kind: l.kind as 1 | 2, text: l.item.text })),
-      next: style.mode === 'next' ? byMonth[0]?.item.text ?? null : null,
+      items: ordered.map(l => ({ kind: l.kind as 1 | 2, text: describe(l.item) })),
+      next: style.mode === 'next' && byMonth[0] ? describe(byMonth[0].item) : null,
       tips: (t?.tips ?? []).map(adaptForParents).filter(Boolean),
     };
   });
@@ -253,11 +305,16 @@ export function scaleDetailOf({ bank, answers, score, context }: ScaleDetailInpu
   const total = facets.reduce<[number, number, number]>((acc, f) => [acc[0] + f.counts[0], acc[1] + f.counts[1], acc[2] + f.counts[2]], [0, 0, 0]);
   const totalAsked = total[0] + total[1] + total[2];
   const band = score.total.band;
-  const levelTxt = band === null ? '' : adaptForParents(bank.texts?.levels?.[band]?.txt ?? '');
+  // 題庫的分段建議：先照名稱對（LQ 的 RULES 依序不是好 → 壞），對不到照位置。
+  const levels = bank.texts?.levels ?? [];
+  const level = levels.find(l => l.head && l.head === score.total.bandName) ?? (band === null ? undefined : levels[band]);
+  const levelTxt = adaptForParents(level?.txt ?? '');
   // 規格 §5：有需要練的面向時，不用「各面向都好」的那一段（它會被早就會的題撐高）；整支分段不是最好那段時，接上題庫那一段的建議。
-  const overall = focus.length > 0
+  const overall = style.overallByBand
+    ? style.overallByBand(totalAsked, total, band)
+    : focus.length > 0
     ? style.overall(totalAsked, total, focus.map(f => ({ name: f.name, short: shortOf(style, n, facetLines.find(x => x.f.key === f.key)!.f.band) })), style.kinds)
-      + (band !== null && band > 0 && levelTxt ? levelTxt : '')
+      + ((style.appendLevelTxt ? style.appendLevelTxt(score.total.bandName, band) : band !== null && band > 0) && levelTxt ? levelTxt : '')
     : (band === 0 && levelTxt) || style.allSteady(totalAsked, total, style.kinds);
 
   return {

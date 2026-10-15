@@ -116,10 +116,6 @@ describe('達成率族：其他情形', () => {
     expect(detailFor('SXK-LANG', 48).facets.map(f => f.key)).not.toContain('LS');
   });
 
-  it('登記了的：達成率族（D-3）＋頻率族與七級（D-4）；LQ、M-CHAT、EMO、TIC、QOL、氣質等 D-5', () => {
-    const off = Object.values(KITV3_BANKS).filter(b => !hasScaleDetail(b)).map(b => b.code).sort();
-    expect(off).toEqual(['ITQ/TTS/BSQ', 'M-CHAT-R/F', 'SXK-EMO', 'SXK-LQ', 'SXK-QOL', 'SXK-TIC']);
-  });
 });
 
 // ── D-4：頻率族與七級 ──
@@ -209,5 +205,70 @@ describe('面向名稱', () => {
       for (const [k, n] of names) if (findBannedWords(FACET_NAME_ALIAS[b.code]?.[k] ?? n).length) bad.push(`${b.code} ${k} ${n}`);
     }
     expect(bad).toEqual([]);
+  });
+});
+
+// ── D-5：LQ、M-CHAT、EMO、TIC、QOL ──
+
+function detailWith(code: string, ageM: number, pick: (vals: number[], section: string, key: string) => number | null, ctx: Record<string, unknown> = {}): ScaleDetail {
+  const bank = KITV3_BANKS[code];
+  const context = { ageM, ...ctx };
+  const answers: Record<string, number | null> = {};
+  for (const { section, item } of askedItems(bank, context)) {
+    const sec = bank.forms.flatMap(f => f.sections).find(s => s.key === section)!;
+    const vals = bank.options[sec.options].map(o => o.value).filter((v): v is number => typeof v === 'number');
+    answers[item.key] = pick(vals, section, item.key);
+  }
+  const d = scaleDetailOf({ bank, answers, score: scoreKitV3(bank, answers, context), context });
+  if (!d) throw new Error(code);
+  return d;
+}
+
+describe('D-5', () => {
+  it('LQ：3／2／1 分三種，「不确定」不算；理解那一面還不行時是最需要練的', () => {
+    const d = detailWith('SXK-LQ', 36, (vals, section) => (section === 'L1' ? 1 : section === 'FLAGS' ? 0 : Math.max(...vals)));
+    expect(d.kinds.map(k => k.label)).toEqual(['已经可以', '偶尔可以', '还不行']);
+    expect(d.focus[0].key).toBe('L1');
+    expect(d.focus[0].next).not.toBeNull();
+    expect(d.overall).not.toContain('带');
+    expect(findBannedWords(allText(d))).toEqual([]);
+  });
+
+  it('M-CHAT：沒有分面向，整份當一個；第 2、5、12 題答「是」才算要留意', () => {
+    const allNo = detailWith('M-CHAT-R/F', 24, () => 0);
+    // 全答「否」：除了 2、5、12 題，其餘 17 題都是要留意的那一邊。
+    expect(allNo.kinds[2].count).toBe(17);
+    expect(allNo.facets).toHaveLength(1);
+    expect(allNo.overall).toContain('近期请专业人员当面评估');
+    const typical = detailWith('M-CHAT-R/F', 24, (_v, _s, key) => (['q2', 'q5', 'q12'].includes(key) ? 0 : 1));
+    expect(typical.kinds[2].count).toBe(0);
+    expect(typical.focus).toEqual([]);
+    expect(typical.overall).toContain('两岁时可以再做一次');
+    expect(findBannedWords(allText(allNo) + allText(typical))).toEqual([]);
+  });
+
+  it('EMO：七個向度照頻率講，「功能影响」不列；向度說明是客戶的 DIMS（改寫過）', () => {
+    const d = detailWith('SXK-EMO', 72, (vals, section) => (section === 'E2' ? 3 : section === 'DUR' ? 0 : 0));
+    expect(d.facets.map(f => f.key)).not.toContain('IMP');
+    expect(d.focus[0].key).toBe('E2');
+    expect(d.focus[0].what).toContain('担心');
+    expect(findBannedWords(allText(d))).toEqual([]);
+  });
+
+  it('TIC：題目接上選了的那一句錨點', () => {
+    const d = detailWith('SXK-TIC', 96, (vals, section) => (section === 'M' ? 3 : section === 'FLAGS' ? 0 : 0));
+    expect(d.focus[0].key).toBe('M');
+    expect(d.focus[0].items[0].text).toMatch(/^数量：/);
+    expect(findBannedWords(allText(d))).toEqual([]);
+  });
+
+  it('QOL：頻率族四段', () => {
+    const d = detailWith('SXK-QOL', 72, (vals, section) => (section === 'EM' ? 3 : 0), { inSchool: true });
+    expect(d.focus[0].key).toBe('EM');
+    expect(findBannedWords(allText(d))).toEqual([]);
+  });
+
+  it('只剩氣質沒有量表详解（報告另一段）', () => {
+    expect(Object.values(KITV3_BANKS).filter(b => !hasScaleDetail(b)).map(b => b.code)).toEqual(['ITQ/TTS/BSQ']);
   });
 });

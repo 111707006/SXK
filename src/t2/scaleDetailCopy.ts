@@ -26,6 +26,12 @@ export const SCALE_DISPLAY: Readonly<Record<string, { name: string; oneLiner: st
   'SXK-SP': { name: '感觉处理问卷', oneLiner: '看孩子对声音、光线、触碰、动作、味道等感觉的反应，以及这些反应对日常的影响。' },
   'SXK-SPb': { name: '感觉处理问卷（学龄）', oneLiner: '看孩子对声音、光线、触碰、动作、味道等感觉的反应，以及这些反应对上学与日常的影响。' },
   'SXK-ADL': { name: '生活自理问卷', oneLiner: '看孩子吃饭、穿衣、如厕、洗漱、移动与日常照顾自己的事，能自己做到多少。' },
+  // ── D-5
+  'SXK-LQ': { name: '语言发展家长问卷', oneLiner: '看孩子听懂、说出、发音清楚与愿意沟通四个方面，各自稳定做到哪一个阶段。' },
+  'M-CHAT-R/F': { name: 'M-CHAT 早期社交沟通问卷', oneLiner: '用 20 个日常情形，看孩子在注意别人、分享兴趣、模仿与回应上的样子。' },
+  'SXK-EMO': { name: '情绪与担心问卷', oneLiner: '看孩子在分开、担心、和人相处、害怕、身体不舒服、反复的念头与情绪调节上，哪些情形比较常出现。' },
+  'SXK-TIC': { name: '抽动情形问卷', oneLiner: '看孩子最近一周动作型与声音型抽动的种类、次数与强度，以及对生活的影响。' },
+  'SXK-QOL': { name: '生活质量问卷', oneLiner: '看孩子在体力与身体、心情、朋友、上学与家庭生活里，过得顺不顺。' },
 };
 
 /** 面向名稱踩禁字的換一個講法（24 支裡只有這一個；`t2ScaleDetail.test.ts` 掃全部面向名稱）。 */
@@ -121,3 +127,25 @@ export function adlOverall(asked: number, counts: readonly [number, number, numb
 export function adlAllSteady(asked: number, counts: readonly [number, number, number]): string {
   return `这次 ${asked} 题里，孩子自己做到 ${counts[0]} 题，各方面都比较稳定。日常里继续给孩子自己动手的机会，三个月后可以再做一次，看看前后的变化。`;
 }
+
+// ── D-5
+
+export const LQ_KINDS = ['已经可以', '偶尔可以', '还不行'] as const;
+
+/** M-CHAT：每一題答「是／否」，只分「这一题的回答需要多留意」與否（沒有中間那種）。 */
+export const MCHAT_KINDS = ['没有需要留意的', '', '需要多留意'] as const;
+export const MCHAT_PLAIN: Readonly<Record<3 | 4, readonly string[]>> = {
+  3: ['没有需要特别留意的', '有几题需要多留意', '有好几题需要多留意'],
+  4: ['没有需要特别留意的', '有几题需要多留意', '有好几题需要多留意', '有好几题需要多留意'],
+};
+
+/** M-CHAT 的總覽：頁面那幾段寫給施測者（第二階段訪談、轉介診斷），家長做不了，這裡自己寫（規格 §4）。 */
+export function mchatOverall(asked: number, counts: readonly [number, number, number], band: number | null): string {
+  const head = `这次 ${asked} 题里，有 ${counts[2]} 题的回答需要多留意。`;
+  if (band === 2) return head + '建议近期请专业人员当面评估孩子的社交与沟通。';
+  if (band === 1) return head + '建议请专业人员当面再了解一下这几题的情形，必要时安排进一步评估。';
+  return head + '目前没有需要特别留意的地方；如果孩子还不满两岁，两岁时可以再做一次。';
+}
+
+/** 抽動：每一題是一個向度（種類、次數、強度……）0–5 分，0 沒有、1–2 有一些、3 以上比較明顯。 */
+export const TIC_KINDS = ['没有', '有一些', '比较明显'] as const;

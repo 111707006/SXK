@@ -14,8 +14,8 @@ import type { PracticePrefs } from '../src/t2/practice';
  * 1. 連結就是憑證：過期、竄改都 401；一條連結只換得到簽它的那位家長的日曆，別人的連結拿不到自己的，
  *    也改不成別人的。
  * 2. 連結只開 `.ics` 這一支：帶到別的 `/api/t2/*` 上不算登入。
- * 3. 閘門照連結上的人檢查：線上干預 2026-09-29 起是自己一站、現在免費（`src/t2/trainingGate.ts`），
- *    沒買 T2 也拿得到**他自己的**日曆檔；帳號不在 → 401；沒設提醒 → 404。
+ * 3. 閘門照連結上的人檢查：線上干預要先買過 T2（ADR-0012），連結上的家長沒買 → 403；
+ *    帳號不在 → 401；沒設提醒 → 404。
  * 4. 網址裡沒有個資（手機號、使用者 id）。
  * 專案 B 沒有這兩支（404）在 `t2PracticeProjectB.http.test.ts`。
  */
@@ -115,11 +115,11 @@ describe('POST /api/t2/practice-prefs/ics-link', () => {
     expect((await resp.json()).code).toBe('REMINDER_NOT_SET');
   });
 
-  it('未登入 → 401；沒買 T2 也換得到（線上干預現在免費，不看 T2）', async () => {
+  it('未登入 → 401；沒買 T2 → 403（線上干預要先買過 T2，ADR-0012）', async () => {
     const anon = await client.request('/api/t2/practice-prefs/ics-link', { method: 'POST' });
     expect(anon.status).toBe(401);
-    const free = await client.request('/api/t2/practice-prefs/ics-link', { method: 'POST', headers: bearer(LOCKED) });
-    expect(free.status).toBe(200);
+    const locked = await client.request('/api/t2/practice-prefs/ics-link', { method: 'POST', headers: bearer(LOCKED) });
+    expect(locked.status).toBe(403);
   });
 });
 
@@ -180,11 +180,10 @@ describe('GET /api/t2/practice-prefs.ics 的兩種身分', () => {
     expect((await client.request(`/api/t2/practice-prefs/ics-link?t=${token}`, { method: 'POST' })).status).toBe(401);
   });
 
-  it('連結對應的家長沒買 T2 → 拿到的是他自己的日曆（線上干預不看 T2）', async () => {
+  it('連結對應的家長沒買 T2 → 403（閘門照連結上的人看 T2 權益，ADR-0012）', async () => {
     const lockedToken = createIcsLinkToken(String(LOCKED), process.env.SESSION_SECRET!);
     const resp = await client.get(`/api/t2/practice-prefs.ics?t=${lockedToken}`);
-    expect(resp.status).toBe(200);
-    expect(bydayOf(await resp.text())).toBe('TU');
+    expect(resp.status).toBe(403);
   });
 
   it('Express 也認的寫法（大小寫不同、結尾斜線）：閘門與路由認的是同一個人', async () => {
@@ -193,10 +192,9 @@ describe('GET /api/t2/practice-prefs.ics 的兩種身分', () => {
     const lockedToken = createIcsLinkToken(String(LOCKED), process.env.SESSION_SECRET!);
     const ghostToken = createIcsLinkToken('999', process.env.SESSION_SECRET!);
     for (const path of ['/api/t2/PRACTICE-PREFS.ics', '/api/t2/practice-prefs.ics/', '/api/t2/Practice-Prefs.ICS/']) {
-      // 連結上是誰就是誰：拿到 LOCKED 的（TU），不是帶著 Bearer 的 OTHER 的（SA）
+      // 連結上是誰就是誰：閘門看的是沒買 T2 的 LOCKED（403），不是帶著 Bearer、買過的 OTHER（會是 200）
       const withOtherBearer = await client.get(`${path}?t=${lockedToken}`, bearer(OTHER));
-      expect(withOtherBearer.status, path).toBe(200);
-      expect(bydayOf(await withOtherBearer.text()), path).toBe('TU');
+      expect(withOtherBearer.status, path).toBe(403);
       // 連結上的帳號不在：401，不退回 Bearer
       expect((await client.get(`${path}?t=${ghostToken}`, bearer(OTHER))).status, path).toBe(401);
       // 付費家長自己的連結在這幾種寫法上照樣能用

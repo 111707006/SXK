@@ -155,9 +155,9 @@ describe('GET /api/t2/library', () => {
     expect((await client.get(URL, bearer(UNLOCKED))).status).toBe(500);
   });
 
-  it('沒買 T2 也看得到（線上干預 2026-09-29 起是自己一站、現在免費）', async () => {
+  it('沒買 T2 → 403（線上干預要先買過 T2，ADR-0012）', async () => {
     const resp = await client.get(URL, bearer(LOCKED));
-    expect(resp.status).toBe(200);
+    expect(resp.status).toBe(403);
   });
 
   it('未登入 → 401', async () => {
@@ -209,9 +209,9 @@ describe('GET /api/t2/activities/:id', () => {
     expect((await client.get(`${URL}/A001`, bearer(UNLOCKED))).status).toBe(500);
   });
 
-  it('沒買 T2 也看得到（線上干預 2026-09-29 起是自己一站、現在免費）', async () => {
+  it('沒買 T2 → 403（線上干預要先買過 T2，ADR-0012）', async () => {
     const resp = await client.get(`${URL}/A001`, bearer(LOCKED));
-    expect(resp.status).toBe(200);
+    expect(resp.status).toBe(403);
   });
 
   it('未登入 → 401', async () => {

@@ -1029,8 +1029,8 @@ function t2IcsRequestUserId(req: express.Request): UserId | null {
 const TRAINING_PRICE_FEN = resolveTrainingPriceFen(process.env.TRAINING_PRICE_FEN);
 
 /**
- * 線上干預那幾支（週活動、片庫、單支活動、打卡、提醒）的閘門。要登入；價錢是 0 就放行，**不看 T2 買了沒** ——
- * 線上干預是自己的一站，不再跟著 T2 一起賣。記憶體模式、展示開關同 T2 閘門放行。
+ * 線上干預那幾支（週活動、片庫、單支活動、打卡、提醒）自己的收費站，疊在 T2 閘門**後面**（ADR-0012：先買 T2，
+ * 才能在 T2 報告裡買線上干預）。這一支只管線上干預的權益：要登入；價錢是 0 就放行。記憶體模式、展示開關同 T2 閘門放行。
  */
 async function denyIfTrainingLocked(userId: UserId | null): Promise<UnlockDenial | null> {
   if (!mysqlDb.isConfigured()) return null;
@@ -1055,8 +1055,8 @@ tier2Only.use('/api/t2', async (req: express.Request, res: express.Response, nex
       return;
     }
     const userId = isT2IcsPath(req.path) ? t2IcsRequestUserId(req) : currentUserId(req);
-    // 線上干預走自己的收費站（現在免費），不走 T2 的；其餘照舊要買 T2。
-    const denial = isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : await denyIfT2Locked(req, userId);
+    // 線上干預要先買過 T2，再過自己的收費站（現在免費；ADR-0012）；其餘照舊只看 T2。
+    const denial = (await denyIfT2Locked(req, userId)) ?? (isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : null);
     if (denial) {
       res.status(denial.status).json(denial.body);
       return;

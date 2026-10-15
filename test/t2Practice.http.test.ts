@@ -455,7 +455,7 @@ describe('GET /api/t2/practice-prefs.ics', () => {
   });
 });
 
-describe('收費站與登入（線上干預 2026-09-29 起是自己一站、現在免費）', () => {
+describe('收費站與登入（線上干預要先買過 T2，ADR-0012）', () => {
   const cases: Array<[string, (h?: Record<string, string>) => Promise<Response>]> = [
     ['POST /api/t2/checkins', h => client.postJson('/api/t2/checkins', { activityId: 'A001' }, h)],
     ['PATCH /api/t2/checkins/1', h => send('PATCH', '/api/t2/checkins/1', { mood: 'ok' }, h)],
@@ -465,9 +465,9 @@ describe('收費站與登入（線上干預 2026-09-29 起是自己一站、現�
     ['GET /api/t2/practice-prefs.ics', h => client.get('/api/t2/practice-prefs.ics', h)],
   ];
 
-  it.each(cases)('%s：沒買 T2 也不擋（不回 403）', async (_label, call) => {
+  it.each(cases)('%s：沒買 T2 → 403（線上干預要先買過 T2，ADR-0012）', async (_label, call) => {
     const resp = await call(bearer(LOCKED));
-    expect(resp.status).not.toBe(403);
+    expect(resp.status).toBe(403);
   });
 
   it.each(cases)('%s：未登入 → 401', async (_label, call) => {

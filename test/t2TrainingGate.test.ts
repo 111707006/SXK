@@ -67,14 +67,14 @@ describe('價錢', () => {
 describe('server.ts 怎麼接', () => {
   const server = read('server.ts');
 
-  it('/api/t2 閘門：線上干預走自己的收費站，其餘照舊走 T2', () => {
+  it('/api/t2 閘門：每一支都先過 T2；線上干預再過自己的收費站（ADR-0012）', () => {
     expect(server).toContain(
-      'const denial = isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : await denyIfT2Locked(req, userId);',
+      'const denial = (await denyIfT2Locked(req, userId)) ?? (isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : null);',
     );
     expect(server).toContain('const TRAINING_PRICE_FEN = resolveTrainingPriceFen(process.env.TRAINING_PRICE_FEN);');
   });
 
-  it('線上干預的閘門不看 T2 權益，但要登入', () => {
+  it('線上干預自己的收費站只管線上干預的權益（T2 由前面那一道看），要登入', () => {
     const fn = server.slice(server.indexOf('async function denyIfTrainingLocked'), server.indexOf('// Mounted on tier2Only rather than paidOnly'));
     expect(fn).not.toContain('hasT2Unlock');
     expect(fn).toContain("code: 'UNAUTHENTICATED'");

@@ -1593,8 +1593,8 @@ export default function App() {
               </div>
             ) : currentView === 'training' && PRODUCT.features.tier2And3 ? (
               /*
-                线上干预（2026-09-28 起從導覽列開，不在報告裡）。它是報告之後的另一站（src/t2/trainingGate.ts，
-                2026-09-29：現在免費、直接通過），不看 T2 買了沒；沒有報告時頁面自己說要先做什麼。
+                线上干预（2026-09-28 起從導覽列開，不在報告裡）。要先買過 T2，再在 T2 報告裡另外買（ADR-0012；
+                src/t2/trainingGate.ts，現在免費）；沒買 T2、沒有報告時頁面自己說要先做什麼。
               */
               <div className="animate-fade-in">
                 <LazyBoundary>

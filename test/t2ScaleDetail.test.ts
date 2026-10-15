@@ -116,8 +116,98 @@ describe('達成率族：其他情形', () => {
     expect(detailFor('SXK-LANG', 48).facets.map(f => f.key)).not.toContain('LS');
   });
 
-  it('登記了的只有達成率族（其餘 D-4、D-5）', () => {
-    const on = Object.values(KITV3_BANKS).filter(hasScaleDetail).map(b => b.code).sort();
-    expect(on).toEqual(['SXK-ADP', 'SXK-ASQ3', 'SXK-GM', 'SXK-LANG', 'SXK-PLC', 'SXK-SOC', 'SXK-VOC']);
+  it('登記了的：達成率族（D-3）＋頻率族與七級（D-4）；LQ、M-CHAT、EMO、TIC、QOL、氣質等 D-5', () => {
+    const off = Object.values(KITV3_BANKS).filter(b => !hasScaleDetail(b)).map(b => b.code).sort();
+    expect(off).toEqual(['ITQ/TTS/BSQ', 'M-CHAT-R/F', 'SXK-EMO', 'SXK-LQ', 'SXK-QOL', 'SXK-TIC']);
+  });
+});
+
+// ── D-4：頻率族與七級 ──
+
+/** 每支一個孩子：各段第一個面向的題全答「最差」，其餘最好（ADL 反過來：最差＝1）。 */
+function worstFirstFacet(code: string, ageM: number): ScaleDetail {
+  const bank = KITV3_BANKS[code];
+  const context = { ageM };
+  const asked = askedItems(bank, context);
+  const firstFacet = scoreKitV3(bank, {}, context).facets[0]?.key;
+  const answers: Record<string, number> = {};
+  for (const { section, item } of asked) {
+    const sec = bank.forms.flatMap(f => f.sections).find(s => s.key === section)!;
+    const vals = bank.options[sec.options].map(o => o.value).filter((v): v is number => typeof v === 'number');
+    const good = bank.family === 'adl' || bank.family === 'pct' ? Math.max(...vals) : Math.min(...vals);
+    const bad = bank.family === 'adl' || bank.family === 'pct' ? Math.min(...vals) : Math.max(...vals);
+    const inFirst = section === firstFacet || ((item as { tags?: string[] }).tags ?? []).some(t => ['wm', 'pl'].includes(t));
+    answers[item.key] = inFirst && sec.options === 'main' ? bad : good;
+  }
+  const score = scoreKitV3(bank, answers, context);
+  const d = scaleDetailOf({ bank, answers, score, context });
+  if (!d) throw new Error(`${code} 沒有详解`);
+  return d;
+}
+
+const D4: Array<[string, number]> = [
+  ['SXK-ASB', 48], ['SXK-ASR', 48], ['SXK-AB', 72], ['SXK-ATT', 72], ['SNAP-IV', 96], ['CHEXI', 96],
+  ['SXK-LDP', 96], ['SXK-LDS', 160], ['SXK-SP', 48], ['SXK-SPb', 96], ['SXK-ADL', 48],
+];
+
+describe('頻率族與七級（D-4）', () => {
+  it.each(D4)('%s：第一個面向是最需要關心的，全文（含面向名稱）沒有禁字', (code, age) => {
+    const d = worstFirstFacet(code, age);
+    expect(d.focus.length).toBeGreaterThan(0);
+    expect(d.focus[0].items.length).toBeGreaterThan(0);
+    const names = d.facets.map(f => f.name).join('\n');
+    expect(findBannedWords(allText(d) + '\n' + names + '\n' + d.focus.map(f => f.name).join('\n'))).toEqual([]);
+  });
+
+  it('頻率族不講「下一步」，最常出現的題排前面', () => {
+    const d = worstFirstFacet('SXK-ASB', 48);
+    expect(d.mode).toBe('frequent');
+    expect(d.focus.every(f => f.next === null)).toBe(true);
+    expect(d.kinds.map(k => k.label)).toEqual(['很少或没有', '偶尔', '常出现']);
+    expect(d.focus[0].items[0].kind).toBe(2);
+  });
+
+  it('ASR 的作答種類用「和同龄孩子比起来」的說法（原選項的「轻度／中度不同」踩禁字）', () => {
+    expect(worstFirstFacet('SXK-ASR', 48).kinds.map(k => k.label)).toEqual(['和同龄孩子相近', '有一点不同', '很不一样']);
+  });
+
+  it('CHEXI：因素的題由副量表標籤組成，說明把兩個副量表接起來', () => {
+    const d = worstFirstFacet('CHEXI', 96);
+    const f1 = d.facets.find(f => f.key === 'F1')!;
+    expect(f1.asked).toBe(13);
+    expect(f1.counts[2]).toBe(13);
+    const focus = d.focus.find(f => f.key === 'F1')!;
+    expect(focus.what.length).toBeGreaterThan(20);
+    expect(focus.tips.length).toBeGreaterThan(2);
+  });
+
+  it('ADL：七級分三種，講「下一步」', () => {
+    const d = worstFirstFacet('SXK-ADL', 48);
+    expect(d.mode).toBe('next');
+    expect(d.kinds.map(k => k.label)).toEqual(['自己做到', '需要一点帮忙', '大人做为主']);
+    expect(d.focus[0].next).not.toBeNull();
+  });
+
+  it('全部最好：頻率族不展開', () => {
+    const bank = KITV3_BANKS['SXK-SP'];
+    const context = { ageM: 48 };
+    const answers: Record<string, number> = {};
+    for (const { item } of askedItems(bank, context)) answers[item.key] = 0;
+    const d = scaleDetailOf({ bank, answers, score: scoreKitV3(bank, answers, context), context })!;
+    expect(d.focus).toEqual([]);
+    expect(findBannedWords(d.overall)).toEqual([]);
+  });
+});
+
+describe('面向名稱', () => {
+  it('24 支的段落與因素名稱，經過換名之後都沒有禁字', async () => {
+    const { FACET_NAME_ALIAS } = await import('../src/t2/scaleDetailCopy');
+    const bad: string[] = [];
+    for (const b of Object.values(KITV3_BANKS)) {
+      const names = b.forms.flatMap(f => f.sections.map(s => [s.key, s.name] as const));
+      for (const f of (b.scoring as { factors?: Array<{ key: string; name: string }> }).factors ?? []) names.push([f.key, f.name]);
+      for (const [k, n] of names) if (findBannedWords(FACET_NAME_ALIAS[b.code]?.[k] ?? n).length) bad.push(`${b.code} ${k} ${n}`);
+    }
+    expect(bad).toEqual([]);
   });
 });

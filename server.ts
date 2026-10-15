@@ -1100,6 +1100,42 @@ async function loadParentData(userId: UserId): Promise<{ child: any; completedSc
 }
 
 /**
+ * 孩子檔案的建檔時間（`child.t2Since`，審查 #20）：T2 的作答與報告只掛在家長帳號上，家長「清除档案」再建一個孩子時，
+ * 前一個孩子的 T2 會原封不動帶過來。建新檔時記下這個時間（伺服器的鐘，`/api/db/save`），T2 只看這之後的；
+ * 舊檔案沒有就是 `null`（不篩）。資料不刪。
+ */
+async function t2SinceOf(userId: UserId): Promise<number | null> {
+  const since = (await loadParentData(userId))?.child?.t2Since;
+  const ms = typeof since === 'string' ? Date.parse(since) : NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function sinceFilter<T extends { createdAt: string }>(since: number | null): (r: T) => boolean {
+  return r => since === null || Date.parse(r.createdAt) >= since;
+}
+
+/**
+ * 存檔時的建檔時間（審查 #20）：前端本機的孩子物件沒有這個欄位，回存時從資料庫那一份帶過來；
+ * 先前沒有孩子（第一次建檔、或剛清除檔案）才從現在起算。讀不到原本那一份就不動 —— 寧可不篩，
+ * 也不要把一個舊孩子誤當成新檔、藏掉他的 T2。
+ */
+async function withT2Since(userId: UserId, child: any): Promise<any> {
+  if (!child || typeof child !== 'object' || Array.isArray(child)) return child;
+  let previous: any;
+  try {
+    previous = (await loadParentData(userId))?.child ?? null;
+  } catch {
+    return child;
+  }
+  // 只認伺服器記的：前端送來的 `t2Since` 一律不看
+  const { t2Since: _ignored, ...rest } = child;
+  if (previous && typeof previous === 'object') {
+    return typeof previous.t2Since === 'string' ? { ...rest, t2Since: previous.t2Since } : rest;
+  }
+  return { ...rest, t2Since: new Date().toISOString() };
+}
+
+/**
  * 孩子今天的實足月齡。出生日期算得出來就用它；算不出來（舊檔案沒有出生日期）退回檔案上的
  * `ageMonth`。兩個都沒有回 `null` —— 不猜一個數字，`planT2` 對月齡是嚴格的。
  */
@@ -1242,8 +1278,10 @@ async function storeT2ToolResult(userId: UserId, childSnapshot: ChildSnapshot, r
 
 async function loadT2ToolResults(userId: UserId): Promise<ToolResultRecord[]> {
   const dbUserId = toDbUserId(userId);
-  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2Store.listToolResults(dbUserId), 2000);
-  return offlineT2ToolResults.get(userId) ?? [];
+  const records = mysqlDb.isConfigured() && dbUserId !== null
+    ? await withTimeout(t2Store.listToolResults(dbUserId), 2000)
+    : offlineT2ToolResults.get(userId) ?? [];
+  return records.filter(sinceFilter(await t2SinceOf(userId)));
 }
 
 /** 交卷當下的孩子檔案。`ageMonth` 是今天算的實足月齡，可以與 body 的 `assessedAgeMonth` 不同（表單開著跨了月）。 */
@@ -1286,8 +1324,10 @@ async function storeT2ToolResultV3(userId: UserId, childSnapshot: ChildSnapshot,
 
 async function loadT2ToolResultsV3(userId: UserId): Promise<ToolResultRecordV3[]> {
   const dbUserId = toDbUserId(userId);
-  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2StoreV3.listToolResultsV3(dbUserId), 2000);
-  return offlineT2ToolResultsV3.get(userId) ?? [];
+  const records = mysqlDb.isConfigured() && dbUserId !== null
+    ? await withTimeout(t2StoreV3.listToolResultsV3(dbUserId), 2000)
+    : offlineT2ToolResultsV3.get(userId) ?? [];
+  return records.filter(sinceFilter(await t2SinceOf(userId)));
 }
 
 /** 每支工具最新的一筆（完整版存進去的都是完整的：缺答在交卷時就擋了）。 */
@@ -1486,9 +1526,15 @@ async function storeT2Findings(userId: UserId, input: t2FindingsStore.FindingsIn
 
 async function loadLatestT2Findings(userId: UserId): Promise<FindingsRecord | null> {
   const dbUserId = toDbUserId(userId);
-  if (mysqlDb.isConfigured() && dbUserId !== null) return withTimeout(t2FindingsStore.latestFindings(dbUserId), 2000);
-  const list = offlineT2Findings.get(userId) ?? [];
-  return list.length === 0 ? null : list[list.length - 1];
+  let latest: FindingsRecord | null;
+  if (mysqlDb.isConfigured() && dbUserId !== null) {
+    latest = await withTimeout(t2FindingsStore.latestFindings(dbUserId), 2000);
+  } else {
+    const list = offlineT2Findings.get(userId) ?? [];
+    latest = list.length === 0 ? null : list[list.length - 1];
+  }
+  // 最新那一份早於建檔時間，就是前一個孩子的（之後的不會比它舊）
+  return latest && sinceFilter<FindingsRecord>(await t2SinceOf(userId))(latest) ? latest : null;
 }
 
 /**
@@ -3570,7 +3616,8 @@ app.get('/api/db/load', async (req, res) => {
 // Endpoint to save child assessment records
 app.post('/api/db/save', async (req, res) => {
   try {
-    const { deviceId, child, completedScores, orders, reportHistory } = req.body;
+    const { deviceId, completedScores, orders, reportHistory } = req.body;
+    let { child } = req.body;
     const identity = resolveSyncIdentity(req);
     if (identity === 'unauthorized') {
       res.status(401).json({ error: '未授权：请重新登录' });
@@ -3589,6 +3636,8 @@ app.post('/api/db/save', async (req, res) => {
       res.status(401).json({ error: '帐号已不存在，请重新登录' });
       return;
     }
+
+    if (userId) child = await withT2Since(userId, child);
 
     // Always save to memory as hot-backup
     if (userId) {

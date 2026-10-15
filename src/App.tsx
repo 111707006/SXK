@@ -570,7 +570,7 @@ export default function App() {
   };
 
   const handleClearProfile = () => {
-    if (confirm('确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位！')) {
+    if (confirm('确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位，深度评估与线上干预也会从头开始！')) {
       setChildProfile(null);
       setCompletedScores([]);
       setOrders([]);

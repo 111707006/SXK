@@ -54,6 +54,7 @@ import type { ToolResultRecordV3 } from './src/db/t2ToolResultsV3';
 import { readV3Submission, scoreToolV3, type ToolResultV3, type V3ChildContext } from './src/t2/kitv3/submit';
 import { TOOLKIT_VERSION_V3 } from './src/t2/kitv3/types';
 import { assertV3Switches, buildFindingsV3, isFindingsV3, recentResultsV3 } from './src/t2/findingsV3';
+import { scaleDetailEntriesOf } from './src/t2/scaleDetailEntries';
 import { REPORT_NOTICE_KINDS, parentPlanV3, runRecommendation } from './src/t2/recommend/parentPlan';
 import { correctedAgeMonth } from './src/t2/recommend/input';
 import { RECOMMEND_CONFIG } from './src/t2/recommend/config';
@@ -173,8 +174,12 @@ const TRAINING_PUSH_V3 = resolvePaywallSwitch('TRAINING_PUSH_V3', process.env.TR
 // （body 帶 `toolkitVersion: 'kit-20260923'`，`src/t2/kitv3/submit.ts`），`GET ?kit=v3` 讀完整版的作答。
 // 關著時一行不動：完整版的工具代碼舊路徑不認得（400 TOOL_UNKNOWN）。同一套 fail-closed 解析。
 const T2_RECOMMEND_V3 = resolvePaywallSwitch('T2_RECOMMEND_V3', process.env.T2_RECOMMEND_V3);
+// 量表详解（使用者 2026-10-15，規格 docs/specs/t2-v3-scale-detail-report.md）：開著時生成完整版報告順便存每支量表的详解
+//（`scaleDetails`），報告頁看快照有沒有這一欄決定畫不畫。關著＝新報告沒有這一段；舊報告照存的樣子。同一套 fail-closed 解析。
+const T2_SCALE_DETAIL = resolvePaywallSwitch('T2_SCALE_DETAIL', process.env.T2_SCALE_DETAIL);
 // 完整版的報告快照只有維度判定、沒有舊配對要的標籤：每週活動只能走 v3 推送規則。開一個沒開另一個 → 起不來。
-assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3);
+// 量表详解只在完整版快照裡：開了詳解沒開完整版 → 起不來。
+assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3, T2_SCALE_DETAIL);
 
 // T1 報告改用真實資料（使用者 2026-10-08）：開著時 `/api/report` 改走 `src/t1report/`——給模型逐題作答、
 // 回來先過驗證器、不過退模板；模板也照這個孩子的作答組；不再產四個儀表數字（`criticalMetrics`）。
@@ -1516,6 +1521,7 @@ async function generateFindingsV3(userId: UserId, context: T2Context): Promise<F
     ...(sex ? { sex } : {}),
     fallbackAgeMonth: run.ageM,
     now,
+    ...(T2_SCALE_DETAIL ? { scaleDetails: scaleDetailEntriesOf(records, now) } : {}),
   });
   const childName = typeof context.child?.name === 'string' ? context.child.name : undefined;
   const outcome = await generateProseV3({ findings, ...(childName ? { childName } : {}) }, generateReportJSON);

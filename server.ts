@@ -1440,29 +1440,11 @@ async function loadT2Context(userId: UserId, res: express.Response): Promise<T2C
   };
 }
 
-/** 活動庫，讀不到就丟錯。沒有資料庫（展示站）時是空的 —— 配不到就是「準備中」（§7.4）。 */
-async function loadActivityLibraryStrict(): Promise<Activity[]> {
-  return mysqlDb.isConfigured() ? withTimeout(listActivityLibrary(), 2000) : [];
-}
-
-/**
- * 每週活動與整期計劃用的活動庫：讀不到就回 503、回 `null`（呼叫端直接 return）。
- * 不能當空庫往下走：空庫會讓 `replaceInactive` 把這一週每一格都當成停用、改成准备中並寫回（審查 #1）。
- */
-async function activityLibraryOr503(res: express.Response): Promise<Activity[] | null> {
-  try {
-    return await loadActivityLibraryStrict();
-  } catch (err: any) {
-    console.error('[T2] 活動庫讀取失敗，本次不排活動:', err.message);
-    res.status(503).json({ error: '暂时读不到活动，请稍后再试。', code: 'ACTIVITY_LIBRARY_UNAVAILABLE' });
-    return null;
-  }
-}
-
-/** 報告生成用的活動庫：讀不到就當空庫（報告照樣生得出來）。 */
+/** 活動庫。沒有資料庫（展示站）時是空的 —— 配不到就是「準備中」（§7.4）。 */
 async function loadActivityLibrary(): Promise<Activity[]> {
+  if (!mysqlDb.isConfigured()) return [];
   try {
-    return await loadActivityLibraryStrict();
+    return await withTimeout(listActivityLibrary(), 2000);
   } catch (err: any) {
     // 活動庫讀不出來不該讓整份報告生不出來：報告的判定與目標都不靠它，
     // 少的只是「本週四支」那一段，而那一段本來就有「準備中」這個出口。
@@ -1856,9 +1838,7 @@ tier2Only.get('/api/t2/training-period', async (req, res) => {
       res.status(404).json({ error: '请先打开本周的家庭活动，整期计划会在那时排好。', code: 'PERIOD_NOT_STARTED' });
       return;
     }
-    const library = await activityLibraryOr503(res);
-    if (!library) return;
-    res.json(periodSheetOf({ ...latest, plan: latest.plan }, library));
+    res.json(periodSheetOf({ ...latest, plan: latest.plan }, await loadActivityLibrary()));
   } catch (err: any) {
     console.error('[T2] training-period failed:', err.message);
     res.status(500).json({ error: '暂时读不到整期计划，请稍后再试。' });
@@ -1904,8 +1884,7 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
     }
 
     // 活動庫一次請求讀一次：配對要它，把編號配回內容也要它。
-    const library = await activityLibraryOr503(res);
-    if (!library) return;
+    const library = await loadActivityLibrary();
     let record = await loadWeeklyPlan(userId, weekStart);
     if (!record) {
       // 報告生成之前的週次不補一列（Keep 規格 §4.5）：計劃的第 1 週是這份快照「最早的 week_start」，
@@ -2050,11 +2029,11 @@ function weeklyPlanResponse(
 
 // ── T2 示範片庫與單支活動（Keep 規格 K09、§5.3）──
 // 處理函式在 `src/t2/libraryRoutes.ts`。掛在 `tier2Only`、在上面 `/api/t2` 付費閘門之後（不在
-// `T2_OPEN_PATHS` 上）。活動庫讀不出來要丟錯（500），所以用 `loadActivityLibraryStrict`、不用吞錯的版本；
+// `T2_OPEN_PATHS` 上）。活動庫讀不出來要丟錯（500），所以不用 `loadActivityLibrary` 那個吞錯的版本；
 // 記憶體模式照舊是空的活動庫 —— 片庫空陣列、單支 404。
 tier2Only.use(createT2LibraryRouter({
   requireParent: requireT2Parent,
-  loadLibrary: loadActivityLibraryStrict,
+  loadLibrary: async () => (mysqlDb.isConfigured() ? withTimeout(listActivityLibrary(), 2000) : []),
 }));
 
 // ── 示範片與封面的靜態目錄 `/media`（Keep 規格 K05、§6.2 甲，使用者 2026-09-24 定）──

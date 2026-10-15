@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { collectDataDeclarations, type DataDeclaration } from './literals';
 import { readZip } from './zip';
-import type { KitV3Bank } from '../../src/t2/kitv3/types';
+import type { KitV3Bank, KitV3Texts } from '../../src/t2/kitv3/types';
 
 export const KITV3_ZIP = 'NEWT2/森心康评估工具包_完整版_20260923.zip';
 export const KITV3_ROOT = '森心康评估工具包_完整版/网页版/';
@@ -87,8 +87,67 @@ export function h1Title(src: V3Source): string {
 export function extractKitV3(zip: Map<string, Buffer>, recipes: ReadonlyArray<V3Recipe>): KitV3Bank[] {
   return recipes.map(r => {
     const src = loadV3Source(zip, r.file);
-    return { code: r.code, source: { zip: KITV3_ZIP, file: r.file, sha256: src.sha256 }, ...r.build(src) };
+    const built = r.build(src);
+    const texts = extractTexts(src);
+    return { code: r.code, source: { zip: KITV3_ZIP, file: r.file, sha256: src.sha256 }, ...built, ...(texts ? { texts } : {}) };
   });
+}
+
+/** 去掉 HTML 標記（`<b>`、`<br>`），合併空白。只動標記，不動字。 */
+function plain(s: string): string {
+  return s.replace(/<br\s*\/?>/g, '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function asTips(v: unknown, where: string): string[] {
+  if (v === undefined) return [];
+  if (typeof v === 'string') return [plain(v)];
+  if (Array.isArray(v) && v.every(x => typeof x === 'string')) return v.map(x => plain(x as string));
+  throw new Error(`${where}：tips 不是字串或字串陣列`);
+}
+
+/**
+ * 量表详解的素材（量表详解規格 §3）：掃第一段 script 的純資料宣告。
+ * - 面向：陣列裡帶 `key`（或 `k`）與字串 `what` 的物件 → `{what, tips}`（GM 一族的 SECS、ASQ3 的 DOMAINS、CHEXI 的 SUBS……）。
+ *   同一個 key 出現在兩個宣告裡就停下來（不猜哪一個才對）。
+ * - 氣質：`DIM_DESC`／`TIPS` 兩張表，以向度名稱為鍵。
+ * - 分段：`LEVELS` 各段的 `head`／`txt`。
+ * 只抄原文；改寫在 `src/t2/kitv3/textAdapt.ts`。
+ */
+export function extractTexts(src: V3Source): KitV3Texts | null {
+  const facets: KitV3Texts['facets'] = {};
+  const owner: Record<string, string> = {};
+  for (const [name, d] of src.consts) {
+    if (!Array.isArray(d.value)) continue;
+    for (const o of d.value as unknown[]) {
+      if (!o || typeof o !== 'object' || Array.isArray(o)) continue;
+      const rec = o as Record<string, unknown>;
+      const key = typeof rec.key === 'string' ? rec.key : typeof rec.k === 'string' ? rec.k : null;
+      if (key === null || typeof rec.what !== 'string') continue;
+      if (owner[key]) throw new Error(`${src.file}：面向 ${key} 的說明同時出現在 ${owner[key]} 與 ${name}`);
+      owner[key] = name;
+      facets[key] = { what: plain(rec.what), tips: asTips(rec.tips, `${src.file} ${name}.${key}`) };
+    }
+  }
+  const desc = src.consts.get('DIM_DESC')?.value as Record<string, unknown> | undefined;
+  const tips = src.consts.get('TIPS')?.value as Record<string, unknown> | undefined;
+  if (desc && typeof desc === 'object' && !Array.isArray(desc)) {
+    for (const [dim, what] of Object.entries(desc)) {
+      if (typeof what !== 'string') throw new Error(`${src.file}：DIM_DESC.${dim} 不是字串`);
+      if (facets[dim]) throw new Error(`${src.file}：向度 ${dim} 的說明重複`);
+      const t = tips?.[dim];
+      const poles = t && typeof t === 'object' && !Array.isArray(t) ? (t as Record<string, unknown>) : null;
+      if (poles && (typeof poles.hi !== 'string' || typeof poles.lo !== 'string')) throw new Error(`${src.file}：TIPS.${dim} 不是 {hi, lo}`);
+      facets[dim] = poles
+        ? { what: plain(what), tips: [], poleTips: { hi: plain(poles.hi as string), lo: plain(poles.lo as string) } }
+        : { what: plain(what), tips: asTips(t, `${src.file} TIPS.${dim}`) };
+    }
+  }
+  const levelsRaw = src.consts.get('LEVELS')?.value;
+  const levels = Array.isArray(levelsRaw) && levelsRaw.every(l => l && typeof (l as { txt?: unknown }).txt === 'string')
+    ? (levelsRaw as Array<{ head?: unknown; txt: string }>).map(l => ({ head: typeof l.head === 'string' ? plain(l.head) : '', txt: plain(l.txt) }))
+    : undefined;
+  if (Object.keys(facets).length === 0 && !levels) return null;
+  return { facets, ...(levels ? { levels } : {}) };
 }
 
 /** 一支工具的模組原文：JSON 字面量、兩格縮排、沒有時間戳，逐位元可重現。 */

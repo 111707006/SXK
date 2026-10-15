@@ -252,13 +252,15 @@ export async function countRecentSmsCodesByIp(ip: string, withinHours: number): 
 }
 
 /**
- * 累加錯誤次數。在資料庫裡做加法而不是「讀出來加一再寫回去」——
- * 後者在兩個請求同時猜的時候會把其中一次的計數蓋掉，於是上限形同虛設。
+ * 比對**之前**先佔一次嘗試：次數還沒到上限才加一，回 `true`＝這一次可以比對。
+ * 「先讀次數、比對完才加一」在同時送好幾個的時候，每一個都讀到同一個舊次數，上限形同虛設
+ * （審查 #4：同時 20 個錯的，被比對了 12 次）。條件與加法在同一句 UPDATE 裡，資料庫保證不超過。
  */
-export async function incrementSmsCodeAttempts(id: number): Promise<void> {
+export async function claimSmsCodeAttempt(id: number, max: number): Promise<boolean> {
   const p = getPool();
-  if (!p) return;
-  await p.execute('UPDATE sms_codes SET attempts = attempts + 1 WHERE id = ?', [id]);
+  if (!p) return false;
+  const [result] = await p.execute('UPDATE sms_codes SET attempts = attempts + 1 WHERE id = ? AND attempts < ?', [id, max]);
+  return Number((result as any)?.affectedRows ?? 0) === 1;
 }
 
 /**

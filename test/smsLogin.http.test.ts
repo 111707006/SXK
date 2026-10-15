@@ -113,9 +113,11 @@ vi.mock('../src/db/mysql', () => ({
     smsCodes.filter(c => c.phone === phone && c.created_at >= hoursAgo(withinHours)).length,
   countRecentSmsCodesByIp: async (ip: string, withinHours: number) =>
     smsCodes.filter(c => c.request_ip === ip && c.created_at >= hoursAgo(withinHours)).length,
-  incrementSmsCodeAttempts: async (id: number) => {
+  claimSmsCodeAttempt: async (id: number, max: number) => {
     const row = smsCodes.find(c => c.id === id);
-    if (row) row.attempts += 1;
+    if (!row || row.attempts >= max) return false;
+    row.attempts += 1;
+    return true;
   },
   consumeSmsCode: async (id: number) => {
     const row = smsCodes.find(c => c.id === id);
@@ -478,6 +480,17 @@ describe('驗證碼的核對', () => {
     expect(resp.status).toBe(401);
     expect((await resp.json()).token).toBeUndefined();
     expect(smsCodes[0].attempts).toBe(1);
+  });
+
+  it('同時送 20 個錯的：真的拿去比對的不超過 5 個，其餘直接回「错误次数过多」（審查 #4）', async () => {
+    await requestCode();
+    const resps = await Promise.all(
+      Array.from({ length: 20 }, () => client.postJson('/api/auth/sms/verify', { phone: PHONE, code: '000000' })),
+    );
+    const errors = await Promise.all(resps.map(async r => (await r.json()).error as string));
+    expect(resps.every(r => r.status === 401)).toBe(true);
+    expect(errors.filter(e => e.startsWith('验证码错误')).length).toBeLessThanOrEqual(5);
+    expect(smsCodes[0].attempts).toBe(5);
   });
 
   it('錯誤次數達上限即鎖定該筆，之後連正確的驗證碼也不放行', async () => {

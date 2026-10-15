@@ -3395,8 +3395,12 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     // 直接比對雜湊，沒有任何一條「儲存值不像雜湊就當明文比」的旁路 ——
     // `sms_codes` 裡若因故存進明碼，那條旁路會讓明碼直接通過，
     // 而唯一的症狀是「登入正常」。（那正是 #27 一併移除的舊 verifyPassword。）
+    // 先佔一次嘗試再比對（審查 #4）：同時送來的那幾個，只有前幾個佔得到
+    if (!(await withTimeout(mysqlDb.claimSmsCodeAttempt(row.id, SMS_CODE_MAX_ATTEMPTS), 2000))) {
+      res.status(401).json({ error: '错误次数过多，请重新获取验证码。' });
+      return;
+    }
     if (!(await bcrypt.compare(code, row.code_hash))) {
-      await withTimeout(mysqlDb.incrementSmsCodeAttempts(row.id), 2000);
       const left = SMS_CODE_MAX_ATTEMPTS - (Number(row.attempts) + 1);
       res.status(401).json({
         error: left > 0 ? `验证码错误，还可以再试 ${left} 次。` : '错误次数过多，请重新获取验证码。',

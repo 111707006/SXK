@@ -70,7 +70,7 @@ vi.mock('../src/db/mysql', () => ({
   },
   countRecentSmsCodesByPhone: async () => 0,
   countRecentSmsCodesByIp: async () => 0,
-  incrementSmsCodeAttempts: async () => {},
+  claimSmsCodeAttempt: async () => true,
   consumeSmsCode: async (id: number) => {
     const row = smsCodes.find(c => c.id === id);
     if (!row || row.consumed_at) return false;

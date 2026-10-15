@@ -1,5 +1,5 @@
 ---
-status: draft
+status: implemented（D-1…D-7，開關 T2_SCALE_DETAIL 預設關；D-8 部署待使用者）
 date: 2026-10-15
 amends: t2-v3-toolkit-full-edition.md §5.3（報告畫面）；src/t2/report/proseV3.ts 檔頭「不寫量表名稱」與「各方面段落的素材」
 scope: 專案 A 的 T2 完整版報告（`T2FindingsV3`）：每份做完的量表多一段「量表详解」

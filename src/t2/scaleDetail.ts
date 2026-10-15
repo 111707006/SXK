@@ -48,6 +48,13 @@ export const SCALE_DETAIL_VERSION = 1 as const;
 /** 一題的作答種類：0 最好、2 最差。 */
 export type AnswerKind = 0 | 1 | 2;
 
+export type Tone = 0 | 1 | 2 | 3;
+
+function toneOf(band: number | null, n: 3 | 4): Tone | null {
+  if (band === null) return null;
+  return (n === 4 ? band : ([0, 1, 3] as const)[band] ?? 3) as Tone;
+}
+
 export interface ScaleDetailFacet {
   key: string;
   name: string;
@@ -55,6 +62,8 @@ export interface ScaleDetailFacet {
   plain: string | null;
   /** 題數太少、不單獨判。 */
   fewItems: boolean;
+  /** 畫面上色用：0 最好 … 3 最需要關心（三段的量表對到 0／1／3）；不分面向判或題數太少是 `null`。 */
+  tone: Tone | null;
   asked: number;
   /** 各種作答幾題（順序同 `kinds`）。 */
   counts: [number, number, number];
@@ -64,6 +73,9 @@ export interface ScaleDetailFocus {
   key: string;
   name: string;
   plain: string | null;
+  tone: Tone | null;
+  /** 已經會的題裡起始月齡最晚的三題（`next` 模式才有；頻率族是空的）—— 讓家長先看到孩子會什麼。 */
+  strengths: string[];
   /** 這一面在看什麼（客戶說明，改寫後）；沒有說明是空字串。 */
   what: string;
   /** 還沒穩定的題（題目原文）：`kind` 1＝中間那種、2＝最差那種。 */
@@ -269,6 +281,7 @@ export function scaleDetailOf({ bank, answers, score, context }: ScaleDetailInpu
     name: f.name,
     plain: f.band === null ? null : style.plain[n][f.band] ?? null,
     fewItems: f.value === null,
+    tone: f.value === null ? null : toneOf(f.band, n),
     asked: lines.length,
     counts: [0, 1, 2].map(k => lines.filter(l => l.kind === k).length) as [number, number, number],
   }));
@@ -290,10 +303,16 @@ export function scaleDetailOf({ bank, answers, score, context }: ScaleDetailInpu
     // 頻率族：最常出現的先（常出現 → 偶爾），同種照題目順序。
     const ordered = style.mode === 'frequent' ? [...gaps].sort((a, b) => (b.kind - a.kind) || (a.order - b.order)) : gaps;
     const t = textsOf(bank, f.key);
+    const strengths = style.mode === 'next'
+      ? lines.filter(l => l.kind === 0).sort((a, b) => ((b.item.month ?? -1) - (a.item.month ?? -1)) || (b.order - a.order)).slice(0, 3).map(l => describe(l.item))
+      : [];
+    const facet = facets.find(x => x.key === f.key)!;
     return {
       key: f.key,
       name: f.name,
-      plain: facets.find(x => x.key === f.key)!.plain,
+      plain: facet.plain,
+      tone: facet.tone ?? (score.total.band === null ? null : toneOf(score.total.band, n)),
+      strengths,
       what: t ? adaptForParents(t.what) : '',
       items: ordered.map(l => ({ kind: l.kind as 1 | 2, text: describe(l.item) })),
       next: style.mode === 'next' && byMonth[0] ? describe(byMonth[0].item) : null,

@@ -20,6 +20,8 @@ import {
 import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
 import { STATUS_CLASS } from './reportStatusClass';
 import PrintButton from './PrintButton';
+import ScaleDetailCard from './ScaleDetailCard';
+import { SCALE_DETAIL_FOOTER, SCALE_DETAIL_LEAD, SCALE_DETAIL_TITLE } from '../t2/scaleDetailCopy';
 
 /** 氣質與生活品質那兩支的客規代碼（不進九宮格，各有一段）。 */
 const TEMPERAMENT_TOOL = 'ITQ/TTS/BSQ';
@@ -91,8 +93,11 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
   const t1Notices = findings.t1Notices ?? [];
   const grid = findings.dimensions.filter(d => d.band !== 'not_screened');
   const noTool = findings.dimensions.filter(d => d.band === 'no_tool');
+  // 量表详解（T2_SCALE_DETAIL，2026-10-15）：快照有這一欄才畫；舊快照沒有，照舊。
+  const scaleDetails = findings.scaleDetails ?? [];
   const qolResult = findings.toolResults.find(r => r.toolId === QOL_TOOL);
-  const qol = qolResult ? qolSummaryV3(qolResult) : null;
+  // 生活品質有详解時，那一張卡講得比「日常生活」那一句完整，不重複出
+  const qol = qolResult && !scaleDetails.some(e => e.toolId === QOL_TOOL) ? qolSummaryV3(qolResult) : null;
   const tempResult = findings.toolResults.find(r => r.toolId === TEMPERAMENT_TOOL);
   const tempLines = tempResult && banks[TEMPERAMENT_TOOL] ? temperamentLinesV3(tempResult, banks[TEMPERAMENT_TOOL]) : [];
   const review = reviewGroupsV3(findings, banks);
@@ -188,6 +193,16 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
               </article>
             );
           })}
+        </section>
+      )}
+
+      {/* 2.5 量表详解：每一份問卷照它自己的分法講（規格 t2-v3-scale-detail-report.md） */}
+      {scaleDetails.length > 0 && (
+        <section className="space-y-3" id="t2v3-scale-details">
+          {sectionTitle(<ClipboardList size={15} />, SCALE_DETAIL_TITLE)}
+          <p className="text-[11px] text-brand-charcoal/75 leading-relaxed">{SCALE_DETAIL_LEAD}</p>
+          {scaleDetails.map(e => <ScaleDetailCard key={e.toolId} entry={e} />)}
+          <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">{SCALE_DETAIL_FOOTER}</p>
         </section>
       )}
 

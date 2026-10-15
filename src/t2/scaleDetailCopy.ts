@@ -149,3 +149,17 @@ export function mchatOverall(asked: number, counts: readonly [number, number, nu
 
 /** 抽動：每一題是一個向度（種類、次數、強度……）0–5 分，0 沒有、1–2 有一些、3 以上比較明顯。 */
 export const TIC_KINDS = ['没有', '有一些', '比较明显'] as const;
+
+// ── 報告畫面（D-7）
+
+export const SCALE_DETAIL_TITLE = '量表详解';
+export const SCALE_DETAIL_LEAD = '每一份问卷照它自己的方式整理：各方面做到哪里、哪几题还不稳、接下来先练什么。';
+export const FOCUS_TITLE: Readonly<Record<'next' | 'frequent', string>> = {
+  next: '这次最需要练的方面',
+  frequent: '这次最需要先关心的方面',
+};
+export const NEXT_STEP_LABEL = '下一步先练';
+export const STRENGTHS_LABEL = '已经会的（列最近几项）';
+export const TIPS_LABEL = '在家可以这样练';
+export const PREVIOUS_LABEL = '上次';
+export const SCALE_DETAIL_FOOTER = '三个月后再做一次同一份问卷，报告会把各方面逐一和这次对照。这些问卷没有同龄比较的标准，以上是孩子自己作答的结果。';

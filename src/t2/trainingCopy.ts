@@ -427,6 +427,8 @@ export const PLAYER = {
   done: '做完了，打卡',
   posting: '正在打卡…',
   failed: '没打上卡，请再按一次。',
+  /** 打卡回 404 ACTIVITY_NOT_FOUND：這一支剛被後台停用（審查 #11）。再按一次也不會成功。 */
+  gone: '这个活动已经下架，打不了卡；回到本周的活动换一个练吧。',
   soundOn: '打开声音',
   soundOff: '静音',
   tapToPlay: '点一下播放',

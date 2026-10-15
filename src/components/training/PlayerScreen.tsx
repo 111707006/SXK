@@ -23,7 +23,7 @@ import type { Activity } from '../../t2/types';
 import { tryNativeCast } from './device';
 import type { DetailSource } from './layerStack';
 import { useTraining } from './TrainingContext';
-import { postCheckin } from './trainingApi';
+import { TrainingApiError, postCheckin } from './trainingApi';
 import { clipClock, hasClip } from './trainingData';
 import { useActivity } from './useActivity';
 import { StepImage } from './ui';
@@ -82,7 +82,8 @@ function SayList({ activity }: { activity: Activity }) {
 function useFinish(activity: Activity) {
   const { data, nav } = useTraining();
   const [posting, setPosting] = useState(false);
-  const [failed, setFailed] = useState(false);
+  /** 打卡失敗時畫面那一句；`null` 是沒失敗。 */
+  const [failed, setFailed] = useState<string | null>(null);
   const alive = useRef(true);
   useEffect(
     () => () => {
@@ -93,7 +94,7 @@ function useFinish(activity: Activity) {
   const finish = async () => {
     if (posting) return;
     setPosting(true);
-    setFailed(false);
+    setFailed(null);
     try {
       const created = await postCheckin(activity.id);
       void data.reloadCheckins();
@@ -107,7 +108,7 @@ function useFinish(activity: Activity) {
       });
     } catch (err) {
       console.warn('Failed to check in:', err);
-      setFailed(true);
+      setFailed(err instanceof TrainingApiError && err.code === 'ACTIVITY_NOT_FOUND' ? PLAYER.gone : PLAYER.failed);
       setPosting(false);
     }
   };
@@ -121,7 +122,7 @@ function StepButtons({ i, n, onPrev, onNext, finish, posting, failed, dark }: {
   onNext: () => void;
   finish: () => void;
   posting: boolean;
-  failed: boolean;
+  failed: string | null;
   dark: boolean;
 }) {
   const last = n === 0 || i === n - 1;
@@ -129,7 +130,7 @@ function StepButtons({ i, n, onPrev, onNext, finish, posting, failed, dark }: {
     <div className="shrink-0 px-4 pt-3 pb-[calc(16px+env(safe-area-inset-bottom))]">
       {failed && (
         <p role="alert" className={`mb-2 text-center text-[13px] ${dark ? 'text-brand-sand' : 'text-brand-clay'}`}>
-          {PLAYER.failed}
+          {failed}
         </p>
       )}
       <div className="grid grid-cols-[auto_1fr] gap-2.5">

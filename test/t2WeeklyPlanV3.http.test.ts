@@ -184,6 +184,17 @@ describe('活動庫讀不到（審查 #1）', () => {
   });
 });
 
+describe('後台停用（審查 #11）', () => {
+  it('已存的這一週裡有一支被停用：不再列出（後台寫「关闭后这支不再派给任何孩子」），其他照列', async () => {
+    const first = await (await get(FIRST)).json();
+    const gone = first.activities[0].activity.id;
+    library = library.map(a => (a.id === gone ? { ...a, active: false } : a));
+    const again = await (await get(FIRST)).json();
+    expect(again.activities.map((x: any) => x.activity.id)).not.toContain(gone);
+    expect(again.activities).toHaveLength(first.activities.length - 1);
+  });
+});
+
 describe('GET /api/t2/weekly-plan（TRAINING_PUSH_V3=1）', () => {
   it('第一次查：開第 1 期、這一週 3 支、每一支帶 push', async () => {
     const resp = await get(FIRST);

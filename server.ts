@@ -2070,6 +2070,8 @@ function weeklyPlanResponse(
         console.warn(`[T2] 每週活動 ${record.weekStart} 的 ${pick.id} 不在活動庫裡，略過`);
         return null;
       }
+      // 後台停用的（「关闭后这支不再派给任何孩子」）：已存的週次也不列，免得家長練到最後一步才被拒打卡（審查 #11）
+      if (!activity.active) return null;
       // v3 排的多帶 `push`（第幾期、做法、顏色來源、模組、是否放寬）；舊週次沒有就不出這個鍵
       return { activity, dimension: pick.dimension, reason: pick.reason, ...(pick.push ? { push: pick.push } : {}) };
     })
@@ -2083,7 +2085,7 @@ function weeklyPlanResponse(
     for (const dimension of DIMENSION_CODES) {
       const found = (record.activities.alternates[dimension] ?? [])
         .map(id => byId.get(id))
-        .filter((a): a is Activity => a !== undefined);
+        .filter((a): a is Activity => a !== undefined && a.active);
       if (found.length > 0) alternates[dimension] = found;
     }
   }

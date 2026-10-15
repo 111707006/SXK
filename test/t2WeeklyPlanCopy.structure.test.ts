@@ -126,7 +126,7 @@ describe('年齡段與週次', () => {
     // 那一句在句子層接 AGE_SPLIT_NOTE（兩個月齡不同時）
     expect(trainingCopy).toContain('AGE_SPLIT_NOTE');
     expect(trainingCopy).toMatch(/ageMonth === reportAgeMonth/);
-    expect(AGE_SPLIT_NOTE).toContain('现在的月龄');
+    expect(AGE_SPLIT_NOTE).toContain('这一周开始时的月龄'); // 不寫「现在」（審查 #28）
     expect(AGE_SPLIT_NOTE).toContain('答题');
   });
 });

@@ -47,7 +47,7 @@ export const AGE_BAND_LABEL: Readonly<Record<AgeKey, string>> = {
 export const PREPARING_SENTENCE = '这方面的活动还在准备中，可以先和专家聊聊这一周可以做什么';
 
 /** 兩個月齡不同時的說明（檔頭「年齡段」）。 */
-export const AGE_SPLIT_NOTE = '这一周的活动按孩子现在的月龄安排；报告里的描述按答题那时候的月龄写';
+export const AGE_SPLIT_NOTE = '这一周的活动按这一周开始时的月龄安排；报告里的描述按答题那时候的月龄写';
 
 /** 這一支是往前取的（`belowWindow`）時多說的一句。 */
 export const BELOW_WINDOW_NOTE = '这一支比同龄的一般安排再往前一点，从孩子已经做得到的地方开始';

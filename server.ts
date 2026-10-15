@@ -1603,6 +1603,12 @@ tier2Only.post('/api/t2/findings', async (req, res) => {
     if (!context) return;
 
     if (T2_RECOMMEND_V3) {
+      // 一份都沒做不生成（審查 #8）：v3 的報告只講做了問卷的方面，0 份時模板會寫成「都还稳定」，線上干預也會把
+      // 沒做的方面標成 T2 分級（#9）。舊題庫照勘誤 P4 放行（它的報告會寫「這幾項還沒做」）。
+      if (recentResultsV3(await loadT2ToolResultsV3(userId), new Date()).length === 0) {
+        res.status(409).json({ error: '还没有完成任何一份问卷，请先作答再生成报告。', code: 'T2_NO_RESULTS' });
+        return;
+      }
       res.status(201).json(findingsEntry(await generateFindingsV3(userId, context)));
       return;
     }

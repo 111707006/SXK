@@ -139,8 +139,7 @@ describe('POST /api/t2/findings（v3）＋ T2_SCALE_DETAIL', () => {
     expect(latest.findings.scaleDetails).toEqual(entries);
   });
 
-  it('還沒交卷：量表详解是空的陣列', async () => {
-    const body = await (await client.postJson('/api/t2/findings', {}, bearer(PARENT))).json();
-    expect(body.findings.scaleDetails).toEqual([]);
+  it('還沒交卷：生不出報告（409，審查 #8），也就沒有量表详解', async () => {
+    expect((await client.postJson('/api/t2/findings', {}, bearer(PARENT))).status).toBe(409);
   });
 });

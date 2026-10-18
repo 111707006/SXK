@@ -32,6 +32,7 @@ import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/in
 import { mediaUrlOf, readSeconds, saveActivityMedia, type MediaKind } from './activityMedia';
 import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf } from './parentSummary';
 import { developmentIndex } from '../developmentIndex/developmentIndex';
+import type { DevelopmentIndexOf } from './parentSummary';
 import { summaryFileName, summaryWorkbook } from './summaryXlsx';
 
 const BCRYPT_ROUNDS = 10;
@@ -105,6 +106,11 @@ export interface AdminRouterHooks {
    * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
    */
   t2Reports?: boolean;
+  /**
+   * 匯總表的發育指數用哪一支算（開關 `DEV_INDEX_BASIS`，`src/developmentIndex/basis.ts`）。
+   * 沒傳就是同齡估算（#68 的預設）。
+   */
+  developmentIndexOf?: DevelopmentIndexOf;
 }
 
 export interface HandoffInviteReport {
@@ -118,6 +124,7 @@ export interface HandoffInviteReport {
  *   錯誤，而不是安靜地退回多公司行為 —— 那在專案 A 上的樣子是一個空列表。
  */
 export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHooks = {}): express.Router {
+  const indexOf: DevelopmentIndexOf = hooks.developmentIndexOf ?? developmentIndex;
   const router = express.Router();
 
   /**
@@ -311,7 +318,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     try {
       const options = readSummaryOptions(req.query);
       const table = summaryPageOf(
-        buildSummaryTable(await store.listSummarySources(condition), shape, options, developmentIndex),
+        buildSummaryTable(await store.listSummarySources(condition), shape, options, indexOf),
         readSummaryPage(req.query)
       );
       // 畫面上的彙總一樣是整批電話：看過也記一筆（與導出同一張表、kind 不同）。記不下來不擋畫面 —— 導出那一支才是不給檔。
@@ -342,7 +349,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     if (!condition) return;
     try {
       const options = readSummaryOptions(req.body);
-      const table = buildSummaryTable(await store.listSummarySources(condition), shape, options, developmentIndex);
+      const table = buildSummaryTable(await store.listSummarySources(condition), shape, options, indexOf);
       const file = await summaryWorkbook(table);
       await store.recordExport({
         adminUserId: req.admin!.adminUserId,

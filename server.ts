@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 // tcb import removed - replaced with MySQL
 import * as mysqlDb from './src/db/mysql';
 import { createAdminRouter } from './src/admin/routes';
+import { developmentIndexFor, resolveDevIndexBasis } from './src/developmentIndex/basis';
 import { notifyExpertBooking } from './src/notify';
 import { inviteChannelStatus, sendHandoffInvite, sendVerificationCode } from './src/sms';
 import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
@@ -204,6 +205,11 @@ const T2_RATER_V2 = resolvePaywallSwitch('T2_RATER_V2', process.env.T2_RATER_V2)
 // 不畫 `WeeklyRehabPlanner`（新舊快照都不畫，AI 建議照存），T2 付費區（B 是交接卡）移到二維碼卡下面、專家預約上面。
 // 畫面要知道 —— 舊快照沒有東西可看 —— 所以由 `GET /api/report-config` 帶到前端。A、B 都適用。同一套 fail-closed 解析。
 const T1_NO_WEEKLY_PLAN = resolvePaywallSwitch('T1_NO_WEEKLY_PLAN', process.env.T1_NO_WEEKLY_PLAN);
+
+// 後台匯總的發育指數用哪一種算法（使用者 2026-10-18：「兩個都做，用開關來調整」）：`peer`（預設）＝同齡估算（#68）、
+// `attainment`＝達成率（客戶 SXK-ASQ3 HTML 的 85／70／55 參考帶，`src/developmentIndex/attainment.ts`）。A、B 都適用；
+// 兩種都只出那五個值，欄位不變。認不得的值起不來。
+const DEV_INDEX_BASIS = resolveDevIndexBasis(process.env.DEV_INDEX_BASIS);
 
 // 新版首頁（客戶 10/17 第 4 項，issue #72，規格 docs/specs/client-changes-2026-10-17.md §5）：開著時 A 的家長端
 // 登入前後都先停在首頁（banner＋三張卡），導覽列最前面多「首页」。前端讀 `GET /api/home/config` 知道開了沒；
@@ -4010,6 +4016,8 @@ app.use(
       activityMediaDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
       // 家長詳情與列印帶出最新的 T2 報告（#67）。只有專案 A（B 沒有 T2）。
       t2Reports: APP_MODE === 'full',
+      // 發育指數的算法（`DEV_INDEX_BASIS`）。
+      developmentIndexOf: developmentIndexFor(DEV_INDEX_BASIS),
     }
   )
 );

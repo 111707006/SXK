@@ -17,11 +17,31 @@ export const BANNER = {
   poster: '/media/activities/A012.jpg',
 } as const;
 
-/** 人物照與醫院照先放佔位（D17：生成前要先給使用者看提示詞，不在這張做）。換圖時換掉這三格。 */
-const CARD_ART: Record<HomeCard['id'], { icon: typeof HeartHandshake; tint: string }> = {
+/**
+ * 醫院照（D17）：從客戶 10/17 示意圖裁切（使用者已確認可用），避開示意圖上壓的字與「了解更多」；
+ * 檔案在 `public/home/`，WebP＋JPG 備援。首頁卡與線下服務點頁用同一張。
+ */
+export const HOSPITAL_PHOTO = {
+  webp: '/home/offline-hospital.webp',
+  jpg: '/home/offline-hospital.jpg',
+  alt: '上海禾新医院外观',
+} as const;
+
+/** 有照片就畫照片的一格；`object-cover` 填滿，卡的大小不跟著照片走。 */
+export function Photo({ photo, className = '' }: { photo: { webp: string; jpg: string; alt: string }; className?: string }) {
+  return (
+    <picture className={`block overflow-hidden ${className}`}>
+      <source srcSet={photo.webp} type="image/webp" />
+      <img src={photo.jpg} alt={photo.alt} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+    </picture>
+  );
+}
+
+/** 兩張人物照先放佔位（D17：生成前要先給使用者看提示詞）。換圖時給那一格 `photo`。 */
+const CARD_ART: Record<HomeCard['id'], { icon: typeof HeartHandshake; tint: string; photo?: typeof HOSPITAL_PHOTO }> = {
   training: { icon: HeartHandshake, tint: 'from-brand-sage/50 to-brand-moss/30' },
   t1: { icon: ClipboardCheck, tint: 'from-brand-beige to-brand-sand/60' },
-  offline: { icon: Building2, tint: 'from-brand-stone/60 to-brand-beige' },
+  offline: { icon: Building2, tint: 'from-brand-stone/60 to-brand-beige', photo: HOSPITAL_PHOTO },
 };
 
 export default function HomePage({ onOpen }: { onOpen: (target: HomeTarget) => void }) {
@@ -70,7 +90,8 @@ export default function HomePage({ onOpen }: { onOpen: (target: HomeTarget) => v
 }
 
 function CardButton({ card, onOpen, large = false }: { card: HomeCard; onOpen: (target: HomeTarget) => void; large?: boolean }) {
-  const { icon: Icon, tint } = CARD_ART[card.id];
+  const { icon: Icon, tint, photo } = CARD_ART[card.id];
+  const art = large ? 'min-h-40 md:min-h-64' : 'min-h-24 md:min-h-28';
   return (
     <button
       type="button"
@@ -80,12 +101,16 @@ function CardButton({ card, onOpen, large = false }: { card: HomeCard; onOpen: (
         large ? 'col-span-2 md:row-span-2' : ''
       }`}
     >
-      <div
-        data-placeholder={`home-card-${card.id}`}
-        className={`flex w-full flex-1 items-center justify-center bg-gradient-to-br ${tint} ${large ? 'min-h-40 md:min-h-64' : 'min-h-24 md:min-h-28'}`}
-      >
-        <Icon size={large ? 48 : 32} className="text-brand-forest/40" aria-hidden="true" />
-      </div>
+      {photo ? (
+        <Photo photo={photo} className={`relative w-full flex-1 ${art} [&>img]:absolute [&>img]:inset-0`} />
+      ) : (
+        <div
+          data-placeholder={`home-card-${card.id}`}
+          className={`flex w-full flex-1 items-center justify-center bg-gradient-to-br ${tint} ${art}`}
+        >
+          <Icon size={large ? 48 : 32} className="text-brand-forest/40" aria-hidden="true" />
+        </div>
+      )}
       {/* 手機上小卡只有半寬：標題與「了解更多」上下排，標題不從中間斷行。 */}
       <div className={`flex gap-1 px-4 py-3 ${large ? 'items-center justify-between' : 'flex-col items-start sm:flex-row sm:items-center sm:justify-between'}`}>
         <span className={`font-extrabold text-brand-forest whitespace-nowrap ${large ? 'text-lg' : 'text-sm'}`}>{card.title}</span>

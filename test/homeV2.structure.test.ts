@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -87,12 +87,18 @@ describe('banner', () => {
   });
 });
 
-describe('圖片先放佔位（生成要使用者先看提示詞，不在這張做）', () => {
-  it('首頁與線下服務點頁沒有 <img>，只有標了 data-placeholder 的佔位', () => {
-    expect(home).not.toMatch(/<img\b/);
-    expect(offline).not.toMatch(/<img\b/);
+describe('圖片：醫院照用示意圖裁切的那張，人物照先放佔位（生成要使用者先看提示詞）', () => {
+  it('醫院照有 WebP＋JPG 兩份（各 ≤300 KB）、首頁卡與線下服務點頁共用；人物照那兩格仍是佔位', () => {
+    for (const f of ['public/home/offline-hospital.webp', 'public/home/offline-hospital.jpg']) {
+      const size = statSync(join(root, f)).size;
+      expect(size).toBeGreaterThan(0);
+      expect(size).toBeLessThanOrEqual(300 * 1024);
+    }
+    expect(home).toMatch(/offline: \{[^}]*photo: HOSPITAL_PHOTO/);
+    expect(offline).toContain('HOSPITAL_PHOTO');
+    expect(offline).not.toContain('data-placeholder');
+    expect(home).not.toMatch(/(training|t1): \{[^}]*photo:/);
     expect(home).toContain('data-placeholder');
-    expect(offline).toContain('data-placeholder');
   });
 
   it('線下服務點：醫院名稱、「即将开放」，沒有預約鈕', () => {

@@ -1,9 +1,10 @@
-import { ArrowLeft, Building2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { HOME_COPY } from './homeNav';
+import { HOSPITAL_PHOTO, Photo } from './HomePage';
 
 /**
  * 線下服務點介紹頁（首頁第三張卡，D16、Q-8）：只放醫院名稱、照片、「即将开放」；預約先不開。
- * 醫院照片先放佔位 —— 從客戶示意圖裁切的那一張進來時換掉 `data-placeholder` 那一格。
+ * 醫院照片與首頁那張卡同一張（`HOSPITAL_PHOTO`，從客戶示意圖裁切）。
  */
 export default function OfflineServicePage({ onBack }: { onBack: () => void }) {
   return (
@@ -17,12 +18,7 @@ export default function OfflineServicePage({ onBack }: { onBack: () => void }) {
         {HOME_COPY.offline.back}
       </button>
       <div className="overflow-hidden rounded-3xl border border-brand-stone/50 bg-white shadow-sm">
-        <div
-          data-placeholder="offline-hospital"
-          className="flex aspect-video w-full items-center justify-center bg-gradient-to-br from-brand-stone/60 to-brand-beige"
-        >
-          <Building2 size={56} className="text-brand-forest/40" aria-hidden="true" />
-        </div>
+        <Photo photo={HOSPITAL_PHOTO} className="aspect-video w-full bg-brand-stone/40" />
         <div className="space-y-2 p-5">
           <p className="text-xs font-bold text-brand-charcoal/80">{HOME_COPY.offline.title}</p>
           <div className="flex flex-wrap items-center gap-2">

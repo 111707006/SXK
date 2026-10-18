@@ -4,6 +4,7 @@ import App from './App.tsx';
 import LazyBoundary from './components/LazyBoundary.tsx';
 import ScanReportPage from './components/ScanReportPage.tsx';
 import {captureCompanySlug} from './utils/attribution.ts';
+import {loadReportLayout} from './utils/reportLayout.ts';
 import './index.css';
 
 /**
@@ -12,6 +13,12 @@ import './index.css';
  * 必須在 render 之前 —— 家長可能一進站就直接註冊，而歸屬只在註冊那一刻寫得進去。
  */
 captureCompanySlug();
+
+/**
+ * 報告版面的開關（`GET /api/report-config`，#71）一進站就開始問：家長端、後台、掃碼頁都畫 `ReportBody`，
+ * 等報告畫出來時通常已經回來了，版面不會在家長眼前換一次。
+ */
+void loadReportLayout();
 
 /**
  * 管理中心走 `/admin`，與家長端共用同一個部署與資料庫。

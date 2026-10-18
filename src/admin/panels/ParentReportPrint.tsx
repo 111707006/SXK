@@ -18,6 +18,7 @@ import { useAsyncData } from '../ui';
 import { latestReportOf } from '../../utils/reportHistory';
 import ReportBody from '../../components/ReportBody';
 import { T2ReportSnapshot } from '../../components/T2Report';
+import { useReportLayout } from '../../utils/reportLayout';
 
 export default function ParentReportPrint({ id }: { id: number }) {
   const load = useCallback(() => adminApi.parent(id), [id]);
@@ -30,7 +31,9 @@ export default function ParentReportPrint({ id }: { id: number }) {
   // T2 報告（完整版）的作答回顧與氣質要先載題庫；載完才叫列印，不然紙上少那兩段。
   const [t2Ready, setT2Ready] = useState(false);
   const onT2Ready = useCallback(() => setT2Ready(true), []);
-  const readyToPrint = !!report && (!t2Report || t2Ready);
+  // 報告版面的開關（#71）問完才印：不然紙上可能是換版前那一份（還有週計劃圖）。
+  const layout = useReportLayout();
+  const readyToPrint = !!report && (!t2Report || t2Ready) && layout.ready;
 
   useEffect(() => {
     document.title = data?.parent.childName
@@ -75,6 +78,7 @@ export default function ParentReportPrint({ id }: { id: number }) {
         reportId={report.id}
         history={data.parent.reportHistory}
         reportCreatedAt={report.createdAt}
+        noWeeklyPlan={layout.noWeeklyPlan}
       />
       {/*
         T2 報告（#67）接在 T1 後面、另起一頁。只讀（不給 `actions`）；沒做過或專案 B（沒有這一欄）就不出。

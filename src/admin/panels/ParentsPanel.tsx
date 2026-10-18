@@ -48,6 +48,7 @@ import { latestReportOf, screeningReportCount } from '../../utils/reportHistory'
 import { isOfflineService, serviceTypeLabel } from '../../utils/serviceTypes';
 import ReportBody from '../../components/ReportBody';
 import { T2ReportSnapshot } from '../../components/T2Report';
+import { useReportLayout } from '../../utils/reportLayout';
 import ParentSummaryView from './ParentSummaryView';
 import {
   Button,
@@ -697,6 +698,7 @@ function DeleteParentModal({
 }
 
 function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
+  const { noWeeklyPlan } = useReportLayout();
   const latestReport = latestReportOf(parent.reportHistory);
   // 只算篩查報告：整串 `reportHistory` 還包含深度評估與沒生成過報告的篩查紀錄，
   // 拿它的長度去說「共 N 份」會報一個與畫面上那一份對不起來的數字。
@@ -866,6 +868,7 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
                 reportId={latestReport.id}
                 history={parent.reportHistory}
                 reportCreatedAt={latestReport.createdAt}
+                noWeeklyPlan={noWeeklyPlan}
               />
             </div>
           </div>

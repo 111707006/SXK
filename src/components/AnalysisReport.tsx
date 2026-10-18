@@ -26,6 +26,7 @@ import {
 import { BUILTIN_SPECIALISTS } from '../builtinSpecialists';
 import { STATUS_WORDING } from '../utils/statusWording';
 import ReportBody from './ReportBody';
+import { useReportLayout } from '../utils/reportLayout';
 import T2Entrance from './T2Entrance';
 import HandoffCard from './HandoffCard';
 import type { DimensionAccess } from '../utils/access';
@@ -301,12 +302,16 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [bookingError, setBookingError] = useState('');
   const bookingSectionRef = useRef<HTMLDivElement>(null);
   const t2SlotRef = useRef<HTMLDivElement>(null);
+  // 報告版面的開關（#71）：開著時 T2 卡在專家預約上面，關著在二維碼卡上面。
+  const layout = useReportLayout();
 
   // 付費回來：報告在（接續上一份）、入口卡在，就捲到那張卡。只捲一次。
   const t2AutoScrolledRef = useRef(false);
   useEffect(() => {
     if (!focusT2) { t2AutoScrolledRef.current = false; return; }
     if (t2AutoScrolledRef.current || !aiReport) return;
+    // 版面開關還沒問完不捲：捲完才換版的話，T2 卡被移到預約上面，畫面停在一個不相干的地方。
+    if (!layout.ready) return;
     // 報告底下的圖表是掛上去之後才長高的，捲一次會被後面的版面位移推回去；
     // 捲兩次（畫完那一輪、圖表長完之後），用瞬間捲不用平滑 —— 平滑捲會被位移打斷。
     // 「捲過了」在真的捲到時才記：StrictMode 會把 effect 跑兩次，第一次的計時器被清掉，
@@ -317,7 +322,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
     };
     const timers = [setTimeout(scroll, 250), setTimeout(scroll, 1200)];
     return () => timers.forEach(clearTimeout);
-  }, [focusT2, aiReport]);
+  }, [focusT2, aiReport, layout.ready, layout.noWeeklyPlan]);
 
   // 名單是非同步來的，預設選擇不能寫死成 'spec-1' —— 那個 id 在合作公司的名單裡
   // 根本不存在，會讓「已選定」與「選了一個不存在的人」長得一模一樣。
@@ -857,6 +862,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           bookingSlot={bookingSlot}
           history={reportHistory}
           reportCreatedAt={reportCreatedAt}
+          noWeeklyPlan={layout.noWeeklyPlan}
         />
       )}
 

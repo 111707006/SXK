@@ -194,6 +194,11 @@ const T1_REPORT_REAL = APP_MODE === 'full' && T1_REPORT_REAL_REQUESTED;
 // 照舊回伺服器拼的 HTML，一字不差。A、B 都適用。同一套 fail-closed 解析。
 const REPORT_SCAN_SPA = resolvePaywallSwitch('REPORT_SCAN_SPA', process.env.REPORT_SCAN_SPA);
 
+// T1 報告拿掉週計劃圖、T2 付費區移到原位置（客戶 10/17 第 6 項，規格 §7、D19、D20，#71）：開著時 `ReportBody`
+// 不畫 `WeeklyRehabPlanner`（新舊快照都不畫，AI 建議照存），T2 付費區（B 是交接卡）移到二維碼卡下面、專家預約上面。
+// 畫面要知道 —— 舊快照沒有東西可看 —— 所以由 `GET /api/report-config` 帶到前端。A、B 都適用。同一套 fail-closed 解析。
+const T1_NO_WEEKLY_PLAN = resolvePaywallSwitch('T1_NO_WEEKLY_PLAN', process.env.T1_NO_WEEKLY_PLAN);
+
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
 
@@ -2601,6 +2606,14 @@ app.get('/api/db/status', (req, res) => {
     configured: mysqlDb.isConfigured(),
     engine: mysqlDb.isConfigured() ? 'mysql' : 'memory',
   });
+});
+
+/**
+ * 報告版面的伺服器開關（#71）。家長端、後台、掃碼頁畫同一個 `ReportBody`，三處都讀這一支
+ * （`src/utils/reportLayout.ts`），所以公開、不需登入；只帶開關，不帶任何資料。
+ */
+app.get('/api/report-config', (_req, res) => {
+  res.json({ noWeeklyPlan: T1_NO_WEEKLY_PLAN });
 });
 
 /**

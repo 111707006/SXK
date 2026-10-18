@@ -16,6 +16,7 @@
 import { T1_AGE_BANDS } from '../t1Data';
 import type { T1AgeBand } from '../t1Data';
 import { t1AnswersOf } from '../t1report/answers';
+import { ageBandRange } from '../utils/ageBandDrift';
 import { T1_PASS_RATES } from './passRates';
 import type { DenverRow, PassRateRow } from './passRates';
 
@@ -75,15 +76,17 @@ const CDC_RATIOS: readonly [number, number, number, number] = (() => {
 export function passProbability(questionId: string, ageMonth: number): number | null {
   const row = ROWS.get(questionId);
   const band = BAND_OF.get(questionId);
-  if (!row || !band) return null;
-  const month = clamp(ageMonth, band.minAge, band.maxAge);
+  const range = band ? ageBandRange(band.id) : null;
+  if (!row || !range) return null;
+  const [bandStart, bandEnd] = range;
+  const month = clamp(ageMonth, bandStart, bandEnd);
   let p: number;
   if (row.source === 'denver') {
     p = polyline(row.ages.map((a, i) => [a, DENVER_P[i]] as const), month);
   } else if (row.source === 'cdc') {
     p = polyline(CDC_RATIOS.map((r, i) => [row.ageMonths * r, DENVER_P[i]] as const), month);
   } else {
-    p = polyline([[band.minAge, row.atMin], [band.maxAge, row.atMax]], month);
+    p = polyline([[bandStart, row.atMin], [bandEnd, row.atMax]], month);
   }
   return clamp(p, P_FLOOR, P_CAP);
 }

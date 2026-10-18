@@ -23,6 +23,7 @@ import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
 import { activityFromRow } from '../db/activities';
 import type { ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
+import type { SummarySource } from './parentSummary';
 
 // ── 對外型別 ──
 
@@ -399,6 +400,88 @@ export async function getParentDetail(
   };
 }
 
+
+/**
+ * 家長彙總（#69）的原始資料：視野裡**有 `user_data`** 的每一位家長，不設筆數上限（導出是拿去分析的整批，
+ * 截在 500 會安靜地少人）。沒做過 T1 的由 `parentSummary.ts` 濾掉 —— 那要讀成績 JSON 才知道。
+ *
+ * 轉入紀錄另外一句、同樣帶公司條件（JOIN `users`），整批交出去，最早那一次在 `channelOf` 挑：
+ * 篩查渠道「轉入兩次取最早」這條規則因此只有一處、測得到。
+ */
+export async function listSummarySources(condition: CompanyCondition): Promise<SummarySource[]> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+
+  const [rows] = await p.execute(
+    `SELECT u.id, u.phone, u.company_id, c.name AS company_name,
+            ud.child, ud.completed_scores, ud.report_history,
+            (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count
+       FROM users u
+       JOIN user_data ud ON ud.user_id = u.id
+       LEFT JOIN companies c ON c.id = u.company_id
+      WHERE ${scope.sql}`,
+    scope.params
+  );
+  const [importRows] = await p.execute(
+    `SELECT h.id, h.user_id, h.created_at, h.source_company_name
+       FROM handoff_imports h
+       JOIN users u ON u.id = h.user_id
+      WHERE ${scope.sql}`,
+    scope.params
+  );
+
+  const imports = new Map<number, SummarySource['handoffImports']>();
+  for (const h of importRows as any[]) {
+    const at = toIso(h.created_at);
+    if (at === null) continue;
+    const list = imports.get(Number(h.user_id)) ?? [];
+    list.push({ id: Number(h.id), at, companyName: h.source_company_name ?? null });
+    imports.set(Number(h.user_id), list);
+  }
+
+  return (rows as any[]).map(row => ({
+    userId: Number(row.id),
+    phone: row.phone ?? null,
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
+    child: parseJson<any>(row.child, null),
+    scores: parseJson<DimensionScore[]>(row.completed_scores, []),
+    reportHistory: parseJson<AssessmentRecord[]>(row.report_history, []),
+    bookingCount: Number(row.booking_count) || 0,
+    handoffImports: imports.get(Number(row.id)) ?? [],
+  }));
+}
+
+/** 一次導出（#69）：誰、哪個視野、哪一種、幾筆、用了哪組篩選。 */
+export interface AdminExportEntry {
+  adminUserId: number;
+  condition: CompanyCondition;
+  kind: 'parent_summary';
+  rowCount: number;
+  filters: string;
+  requestIp: string | null;
+}
+
+/**
+ * 每一次導出都留下紀錄（`admin_exports`）。寫的是檢視者自己的行為，與 `recordCompanySwitch` 同一類；
+ * 範圍取自條件本身，不取自請求。
+ */
+export async function recordExport(entry: AdminExportEntry): Promise<void> {
+  const p = requirePool();
+  await p.execute(
+    `INSERT INTO admin_exports (admin_user_id, scope_kind, company_id, kind, row_count, filters, request_ip)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      entry.adminUserId,
+      entry.condition.kind,
+      entry.condition.kind === 'company' ? entry.condition.companyId : null,
+      entry.kind,
+      entry.rowCount,
+      entry.filters,
+      entry.requestIp,
+    ]
+  );
+}
 
 /**
  * 刪除一位家長的結果。

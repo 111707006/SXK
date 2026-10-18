@@ -236,6 +236,20 @@ describe('掃碼打開的那一頁', () => {
 });
 
 /**
+ * 開關 `REPORT_SCAN_SPA` 關著（本檔不設它）：掃碼頁的資料端點根本不註冊，`/r/:token` 照舊是
+ * 伺服器拼的 HTML（上面整段就是在驗它）。開著的那一半在 `reportScanSpa.http.test.ts`。
+ */
+describe('掃碼頁走 SPA 的開關關著', () => {
+  it('GET /api/r/:token 不存在 —— 與其他沒註冊的 /api 路徑同一個 404', async () => {
+    const { url } = await issue(OWNER_ID, OWNER_REPORT_ID);
+    const token = pathOf(url).replace(/^\/r\//, '');
+    const resp = await client.get(`/api/r/${token}`);
+    expect(resp.status).toBe(404);
+    expect(await resp.json()).toEqual({ error: 'Not found' });
+  });
+});
+
+/**
  * 備案號。
  *
  * 這不是裝飾：中國大陸已備案的網站必須在頁面底部掛 ICP 備案號並連回工信部，

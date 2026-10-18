@@ -41,7 +41,8 @@ describe('換版：看快照、只在專案 A', () => {
     const realBranch = body.slice(body.indexOf('{real ? ('), body.indexOf(') : (', body.indexOf('{real ? (')));
     expect(realBranch).toContain('<AnswersOverview');
     expect(realBranch).not.toMatch(/PeerComparison|IntegrationGauges/);
-    expect(body).toMatch(/real\s*\n?\s*\?\s*<ScreeningHistory[\s\S]*?:\s*<PrognosisTrajectoryChart/);
+    // 掃碼頁（#65）拿不到其他報告：`historyUnavailable` 時歷次對照整塊不畫，仍不退回預測曲線。
+    expect(body).toMatch(/real\s*\n?\s*\?\s*\(historyUnavailable \? null : <ScreeningHistory[\s\S]*?:\s*<PrognosisTrajectoryChart/);
     expect(body).toContain('plain={real}');
   });
 

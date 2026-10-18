@@ -17,6 +17,7 @@ import {
   resolveReportLinkBase,
 } from './src/utils/reportLink';
 import { renderParentExportHtml } from './src/admin/exportView';
+import { renderableReportOf } from './src/utils/reportHistory';
 import { readServiceType } from './src/utils/serviceTypes';
 import { isValidCompanySlug } from './src/utils/companySlug';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
@@ -187,6 +188,11 @@ assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3, T2_SCALE_DETAIL);
 // **只在專案 A**：B 設了也不生效（啟動時印一行），B 的報告一個字都不變。同一套 fail-closed 解析。
 const T1_REPORT_REAL_REQUESTED = resolvePaywallSwitch('T1_REPORT_REAL', process.env.T1_REPORT_REAL);
 const T1_REPORT_REAL = APP_MODE === 'full' && T1_REPORT_REAL_REQUESTED;
+
+// 掃碼頁改走 SPA（客戶 10/17 第 1 項，規格 docs/specs/client-changes-2026-10-17.md §2）：開著時 `/r/:token` 交給 SPA，
+// 前端打 `GET /api/r/:token` 拿那一筆報告快照、畫與 App 同一個 `ReportBody`。關著＝那支端點不註冊、`/r/:token`
+// 照舊回伺服器拼的 HTML，一字不差。A、B 都適用。同一套 fail-closed 解析。
+const REPORT_SCAN_SPA = resolvePaywallSwitch('REPORT_SCAN_SPA', process.env.REPORT_SCAN_SPA);
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -3778,12 +3784,63 @@ app.post('/api/report-link', async (req, res) => {
 });
 
 /**
+ * 掃碼頁（開關 `REPORT_SCAN_SPA` 開著時）的資料：token 指的**那一筆**報告快照，收乾淨後只剩
+ * 報告本體要的欄位（`renderableReportOf`），加上當時的孩子（姓名、月齡、性別）。**公開，不需要登入**。
+ *
+ * 查法與下面的 `/r/:token` 相同：token 形狀不對不碰資料庫；查無、報告已不在歷史裡一律 404，
+ * **不退回最新一份**；2 秒逾時。不帶手機號、帳號、其他報告 —— 這條連結撤不回來。
+ * 歷次對照因此畫不出來（那要其他報告），掃碼頁不畫那一塊。
+ */
+async function findScannedReport(token: string) {
+  if (!isValidReportLinkToken(token) || !mysqlDb.isConfigured()) return null;
+  const link = await withTimeout(mysqlDb.findReportLinkByToken(token), 2000);
+  if (!link) return null;
+  const row = await withTimeout(mysqlDb.getUserDataByUserId(link.userId), 2000);
+  const data = row ? mysqlDb.parseUserDataRow(row) : null;
+  const history: unknown[] = Array.isArray(data?.reportHistory) ? data.reportHistory : [];
+  const raw: any = history.find((r: any) => r?.id === link.reportId);
+  const record = raw ? renderableReportOf(raw) : null;
+  if (!record) return null;
+  const child = raw.child ?? {};
+  return {
+    child: {
+      name: typeof child.name === 'string' ? child.name : null,
+      ageMonth: typeof child.ageMonth === 'number' ? child.ageMonth : null,
+      gender: child.gender === 'boy' || child.gender === 'girl' ? child.gender : null,
+    },
+    record,
+  };
+}
+
+if (REPORT_SCAN_SPA) {
+  app.get('/api/r/:token', async (req, res) => {
+    try {
+      const found = await findScannedReport(req.params.token);
+      if (!found) {
+        res.status(404).json({ error: 'REPORT_LINK_NOT_FOUND' });
+        return;
+      }
+      res.json(found);
+    } catch (err: any) {
+      console.error('[ReportLink] scan data failed:', err.message);
+      res.status(500).json({ error: 'REPORT_LINK_UNAVAILABLE' });
+    }
+  });
+}
+
+/**
  * 掃碼之後打開的那一頁。**公開，不需要登入** —— 那正是這個功能存在的理由。
  *
  * 走的是伺服器端渲染的 HTML，不是 SPA：手機上打開就是一頁純文件，
  * 不必下載整個前端，離線存下來也還讀得到。
  */
-app.get('/r/:token', async (req, res) => {
+app.get('/r/:token', async (req, res, next) => {
+  // 開關開著：交給 SPA（正式站是 `startServer()` 的 `app.get('*')`、開發是 Vite 的 SPA 兜底），
+  // 前端看路徑畫掃碼報告頁（`src/components/ScanReportPage.tsx`）。失效字樣也由前端畫，這裡不先查。
+  if (REPORT_SCAN_SPA) {
+    next();
+    return;
+  }
   try {
     const token = req.params.token;
     // 形狀不對的一律 404，不去碰資料庫。這是一條公開路徑，每一次查詢都是

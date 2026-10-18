@@ -87,18 +87,25 @@ describe('banner', () => {
   });
 });
 
-describe('圖片：醫院照用示意圖裁切的那張，人物照先放佔位（生成要使用者先看提示詞）', () => {
-  it('醫院照有 WebP＋JPG 兩份（各 ≤300 KB）、首頁卡與線下服務點頁共用；人物照那兩格仍是佔位', () => {
-    for (const f of ['public/home/offline-hospital.webp', 'public/home/offline-hospital.jpg']) {
-      const size = statSync(join(root, f)).size;
-      expect(size).toBeGreaterThan(0);
-      expect(size).toBeLessThanOrEqual(300 * 1024);
+describe('圖片：三張卡都有照片（規格 §5.2：WebP＋JPG、各 ≤300 KB）', () => {
+  it('三張照片都在 public/home/、各兩份；醫院照首頁卡與線下服務點頁共用；不再有佔位', () => {
+    for (const name of ['home-training', 'home-t1', 'offline-hospital']) {
+      for (const ext of ['webp', 'jpg']) {
+        const f = `public/home/${name}.${ext}`;
+        expect(home + offline).toContain(name);
+        const size = statSync(join(root, f)).size;
+        expect(size).toBeGreaterThan(0);
+        expect(size).toBeLessThanOrEqual(300 * 1024);
+      }
     }
-    expect(home).toMatch(/offline: \{[^}]*photo: HOSPITAL_PHOTO/);
+    expect(home).toMatch(/offline: HOSPITAL_PHOTO/);
     expect(offline).toContain('HOSPITAL_PHOTO');
-    expect(offline).not.toContain('data-placeholder');
-    expect(home).not.toMatch(/(training|t1): \{[^}]*photo:/);
-    expect(home).toContain('data-placeholder');
+    expect(home + offline).not.toContain('data-placeholder');
+  });
+
+  it('生成的人物照有提示詞確認紀錄（D17）', () => {
+    expect(home).toContain('docs/reference/home-photo-prompts-2026-10-18.md');
+    expect(read('docs/reference/home-photo-prompts-2026-10-18.md')).toMatch(/确认纪录：使用者 2026-10-18/);
   });
 
   it('線下服務點：醫院名稱、「即将开放」，沒有預約鈕', () => {

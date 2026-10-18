@@ -39,6 +39,7 @@ export async function summaryWorkbook(table: SummaryTable): Promise<Buffer> {
     '孩子名字', '电话', '年龄', '筛查渠道', '筛查日期',
     ...table.dimensions.map(d => d.name),
     '需关注几个方面',
+    '发育指数',
   ];
   sheet.addRow(header).font = { bold: true };
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -53,6 +54,7 @@ export async function summaryWorkbook(table: SummaryTable): Promise<Buffer> {
       shanghaiDate(r.screenedAt),
       ...r.cells.map(c => (c ? `${c.score}/${c.maxScore}` : '')),
       r.flaggedCount,
+      r.developmentIndex ?? null,
     ]);
     r.cells.forEach((c, i) => {
       if (!c) return;
@@ -63,7 +65,7 @@ export async function summaryWorkbook(table: SummaryTable): Promise<Buffer> {
   }
 
   sheet.columns.forEach((col, i) => {
-    col.width = i === 1 ? 14 : i < firstDimCol - 1 ? 12 : i === header.length - 1 ? 14 : 10;
+    col.width = i === 1 ? 14 : i < firstDimCol - 1 ? 12 : i >= header.length - 2 ? 14 : 10;
   });
 
   return Buffer.from(await wb.xlsx.writeBuffer());

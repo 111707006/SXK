@@ -31,6 +31,7 @@ import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { mediaUrlOf, readSeconds, saveActivityMedia, type MediaKind } from './activityMedia';
 import { buildSummaryTable, readSummaryOptions } from './parentSummary';
+import { developmentIndex } from '../developmentIndex/developmentIndex';
 import { summaryFileName, summaryWorkbook } from './summaryXlsx';
 
 const BCRYPT_ROUNDS = 10;
@@ -308,7 +309,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     const condition = withScope(req, res);
     if (!condition) return;
     try {
-      const table = buildSummaryTable(await store.listSummarySources(condition), shape, readSummaryOptions(req.query));
+      const table = buildSummaryTable(await store.listSummarySources(condition), shape, readSummaryOptions(req.query), developmentIndex);
       res.json(table);
     } catch (err: any) {
       console.error('[Admin] parent summary failed:', err.message);
@@ -325,7 +326,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     if (!condition) return;
     try {
       const options = readSummaryOptions(req.body);
-      const table = buildSummaryTable(await store.listSummarySources(condition), shape, options);
+      const table = buildSummaryTable(await store.listSummarySources(condition), shape, options, developmentIndex);
       const file = await summaryWorkbook(table);
       await store.recordExport({
         adminUserId: req.admin!.adminUserId,

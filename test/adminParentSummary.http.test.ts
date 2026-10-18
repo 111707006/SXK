@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import ExcelJS from 'exceljs';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
+import { bandScores } from './helpers/t1Scores';
+import { developmentIndex } from '../src/developmentIndex/developmentIndex';
 
 /**
  * 後台家長彙總與導出（#69，規格 docs/specs/client-changes-2026-10-17.md §3.1）—— 專案 B。
@@ -234,6 +236,36 @@ describe('彙總：一行的內容', () => {
   });
 });
 
+describe('彙總：發育指數（#73）', () => {
+  it('有逐題作答就算：全部做得到 100、全部还不能 70；沒有逐題作答是 null', async () => {
+    db.sources = [
+      source({ userId: 101, companyId: 1, companyName: '甲机构', child: { name: '都做得到' }, scores: bandScores(30, () => 2) }),
+      source({ userId: 102, companyId: 1, companyName: '甲机构', child: { name: '都还不能' }, scores: bandScores(30, () => 0) }),
+      source({ userId: 103, companyId: 1, companyName: '甲机构', child: { name: '旧成绩' }, scores: allNine() }),
+    ];
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const body = await (await client.get('/api/admin/parent-summary', h(token))).json();
+    const indexOf = (name: string) => body.rows.find((r: any) => r.childName === name)?.developmentIndex;
+    expect(indexOf('都做得到')).toBe(100);
+    expect(indexOf('都还不能')).toBe(70);
+    expect(indexOf('旧成绩')).toBeNull();
+  });
+
+  it('與計算函式逐筆一致，導出的檔案也是同一個數字', async () => {
+    const pick = (d: string, i: number) => ((d === 'language' || d === 'cognitive') && i < 3 ? 0 : i === 3 ? 1 : 2) as 0 | 1 | 2;
+    const scores = bandScores(30, pick);
+    db.sources = [source({ userId: 101, companyId: 1, companyName: '甲机构', child: { name: '甲家孩子' }, scores })];
+    const expected = developmentIndex(scores, 30);
+    expect([100, 90, 80, 75, 70]).toContain(expected);
+
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const body = await (await client.get('/api/admin/parent-summary', h(token))).json();
+    expect(body.rows[0].developmentIndex).toBe(expected);
+    const sheet = await readXlsx(await client.postJson('/api/admin/parent-summary/export', {}, h(token)));
+    expect(sheet.getRow(2).getCell(16).value).toBe(expected);
+  });
+});
+
 async function readXlsx(resp: Response): Promise<ExcelJS.Worksheet> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await resp.arrayBuffer());
@@ -269,13 +301,15 @@ describe('導出 xlsx', () => {
     expect(header).toEqual([
       '孩子名字', '电话', '年龄', '筛查渠道', '筛查日期',
       '动作发展', '感觉处理', '情绪与行为', '语言沟通', '社交互动', '认知', '注意力与执行', '生活自理与适应', '学习能力',
-      '需关注几个方面',
+      '需关注几个方面', '发育指数',
     ]);
     const row = sheet.getRow(2);
     expect((row.values as any[]).slice(1, 6)).toEqual(['甲家孩子', '13800000101', '2岁6个月', '甲机构', '2026-10-12']);
     expect(row.getCell(6).value).toBe('7/8');
     expect(row.getCell(9).value).toBe('3/8');
     expect(row.getCell(15).value).toBe(2);
+    // 這份成績沒有逐題作答（R1b 之前的樣子）：發育指數算不出來，留空、不補數字。
+    expect(row.getCell(16).value ?? null).toBeNull();
 
     const fill = (col: number) => (row.getCell(col).fill as any)?.fgColor?.argb;
     const green = fill(6);

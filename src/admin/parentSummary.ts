@@ -51,7 +51,15 @@ export interface SummaryRow {
   cells: Array<SummaryCell | null>;
   /** 紅＋黃的維度數。 */
   flaggedCount: number;
+  /** CONTEXT.md「發育指數」（100／90／80／75／70）；讀不到逐題作答是 null。 */
+  developmentIndex: number | null;
 }
+
+/**
+ * 算發育指數的那一支（`src/developmentIndex/`），由路由注入。這裡不直接 import：
+ * 後台畫面以型別 import 本檔，通過率表不能沿著它被走進前端（`test/developmentIndex.structure.test.ts`）。
+ */
+export type DevelopmentIndexOf = (scores: DimensionScore[], ageMonth: number | null) => number | null;
 
 export interface SummaryTable {
   dimensions: Array<{ id: string; name: string }>;
@@ -99,7 +107,11 @@ function latestT1ByDimension(scores: DimensionScore[]): Map<string, DimensionSco
   return out;
 }
 
-export function summaryRowOf(source: SummarySource, shape: AdminCenterShape): SummaryRow | null {
+export function summaryRowOf(
+  source: SummarySource,
+  shape: AdminCenterShape,
+  indexOf: DevelopmentIndexOf = () => null
+): SummaryRow | null {
   const t1 = latestT1ByDimension(Array.isArray(source.scores) ? source.scores : []);
   if (t1.size === 0) return null;
 
@@ -120,6 +132,8 @@ export function summaryRowOf(source: SummarySource, shape: AdminCenterShape): Su
     screenedAt,
     cells,
     flaggedCount: cells.filter(c => c !== null && c.status !== 'normal').length,
+    // 用與九維格同一組最新的 T1；跨了兩次篩查的話題目對不上，算出來就是 null。
+    developmentIndex: indexOf([...t1.values()], assessedAgeMonth),
   };
 }
 
@@ -133,12 +147,13 @@ function scoreRatio(row: SummaryRow): number {
 export function buildSummaryTable(
   sources: SummarySource[],
   shape: AdminCenterShape,
-  options: SummaryOptions
+  options: SummaryOptions,
+  indexOf?: DevelopmentIndexOf
 ): SummaryTable {
   const booked = sources.filter(s =>
     options.booked === 'booked' ? s.bookingCount > 0 : options.booked === 'not_booked' ? s.bookingCount === 0 : true
   );
-  const rows = booked.map(s => summaryRowOf(s, shape)).filter((r): r is SummaryRow => r !== null);
+  const rows = booked.map(s => summaryRowOf(s, shape, indexOf)).filter((r): r is SummaryRow => r !== null);
   const byTime = (a: SummaryRow, b: SummaryRow) => (a.screenedAt < b.screenedAt ? -1 : a.screenedAt > b.screenedAt ? 1 : 0);
   if (options.sort === 'oldest') rows.sort(byTime);
   else rows.sort((a, b) => byTime(b, a));

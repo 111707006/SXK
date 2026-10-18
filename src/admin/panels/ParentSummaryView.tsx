@@ -97,7 +97,8 @@ export default function ParentSummaryView({
                     {d.name}
                   </th>
                 ))}
-                <th className="py-2 text-right font-bold">需关注几个方面</th>
+                <th className="py-2 pr-3 text-right font-bold">需关注几个方面</th>
+                <th className="py-2 text-right font-bold">发育指数</th>
               </tr>
             </thead>
             <tbody>
@@ -122,7 +123,8 @@ export default function ParentSummaryView({
                       )}
                     </td>
                   ))}
-                  <td className="py-2 text-right font-bold tabular-nums">{r.flaggedCount}</td>
+                  <td className="py-2 pr-3 text-right font-bold tabular-nums">{r.flaggedCount}</td>
+                  <td className="py-2 text-right font-bold tabular-nums">{r.developmentIndex ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

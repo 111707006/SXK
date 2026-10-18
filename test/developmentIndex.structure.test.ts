@@ -61,4 +61,13 @@ describe('發育指數不進家長端 bundle', () => {
   it('走不到 src/developmentIndex/ 底下任何一檔', () => {
     expect([...reached].filter(f => f.startsWith(SERVER_ONLY_DIR)).map(rel)).toEqual([]);
   });
+
+  it('家長端的程式碼沒有「发育指数」這幾個字（只在後台的彙總表，#73）', () => {
+    const adminDir = path.join(ROOT, 'src/admin') + path.sep;
+    const offenders = [...reached]
+      .filter(f => /\.(ts|tsx)$/.test(f) && !f.startsWith(adminDir))
+      .filter(f => readFileSync(f, 'utf8').includes('发育指数'))
+      .map(rel);
+    expect(offenders).toEqual([]);
+  });
 });

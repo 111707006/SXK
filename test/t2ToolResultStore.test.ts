@@ -73,6 +73,16 @@ describe('insertToolResult', () => {
   });
 });
 
+describe('insertToolResult：填表人說明（#70）', () => {
+  it('有 raterNote 才多寫 rater_note 那一欄；沒有的 SQL 與以前一字不差（上一則）', async () => {
+    await store.insertToolResult(7, SNAPSHOT, { ...RESULT, rater: 'other', raterNote: '阿姨' });
+    const { sql, params } = executed[0];
+    expect(sql).toMatch(/^INSERT INTO t2_tool_results \(user_id, child_snapshot, tool_id, toolkit_version, assessed_age_month, rater, rater_note, pre, answers, result\) VALUES \(\?, \?, \?, \?, \?, \?, \?, \?, \?, \?\)$/);
+    expect(params.slice(5, 7)).toEqual(['other', '阿姨']);
+    expect(JSON.parse(params[9] as string)).toMatchObject({ raterNote: '阿姨' });
+  });
+});
+
 describe('listToolResults', () => {
   const row = (id: number, result: unknown, over: Record<string, unknown> = {}) => ({
     id,

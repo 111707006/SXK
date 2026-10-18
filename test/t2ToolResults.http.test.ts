@@ -137,6 +137,18 @@ describe('POST /api/t2/tool-results', () => {
     expect(table[0].record.result.overall.pct).toBe(72);
   });
 
+  /** 填表人 v2（#70）開關關著：照舊收「老师」、`raterNote` 不看也不存（`t2RaterV2.http.test.ts` 是開著的那一半）。 */
+  it('T2_RATER_V2 關著：老师照收、raterNote 被忽略', async () => {
+    const resp = await client.postJson(POST, { ...LANG_BODY, rater: 'teacher', raterNote: '阿姨' }, bearer(UNLOCKED));
+    expect(resp.status).toBe(201);
+    const got = await resp.json();
+    expect(got.result.rater).toBe('teacher');
+    expect('raterNote' in got.result).toBe(false);
+    expect('raterNote' in table[0].record.result).toBe(false);
+    const other = await client.postJson(POST, { ...LANG_BODY, rater: 'mother', raterNote: '一二三四五六七八九十一' }, bearer(UNLOCKED));
+    expect(other.status).toBe(201);
+  });
+
   it('少答一題 → 400 INCOMPLETE，訊息含缺題數，表裡零筆', async () => {
     const answers = { ...LANG_BODY.answers };
     delete answers['EX.3'];

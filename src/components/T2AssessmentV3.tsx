@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, FileText, Layers, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
 import { authFetch } from '../utils/api';
 import { formatAge } from '../utils/dateUtils';
-import { RATER_OPTIONS } from '../t2/answering';
+import { raterOptions, raterPayload } from '../t2/raterV2';
+import T2RaterNoteInput from './T2RaterNoteInput';
 import { GRADE_LABELS, formV3, isNa, keepAnswersFor, missingV3, setNa, type V3Answers } from '../t2/answeringV3';
 import { KITV3_LOADERS } from '../t2/kitv3/lazy';
 import { clearDraft, loadDraft, ownerOf, saveDraft } from '../t2/draftV3';
@@ -62,6 +63,10 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
   const [bank, setBank] = useState<KitV3Bank | null>(null);
   const [loadingBank, setLoadingBank] = useState(false);
   const [rater, setRater] = useState<Rater | null>(null);
+  /** 填表人選「其他」時的選填說明（#70）；不進草稿，換一支就清掉。 */
+  const [raterNote, setRaterNote] = useState('');
+  /** 伺服器開了 `T2_RATER_V2`（plan 上帶 `raterV2: true`）：沒有「老师」、「其他」可寫是谁。 */
+  const raterV2 = plan.raterV2 === true;
   const [grade, setGrade] = useState<number | undefined>(undefined);
   const [answers, setAnswers] = useState<V3Answers>({});
   const [submitting, setSubmitting] = useState(false);
@@ -97,6 +102,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     setSelected(tool);
     setBank(null);
     setRater(null);
+    setRaterNote('');
     setGrade(undefined);
     setAnswers({});
     setError(null);
@@ -110,7 +116,8 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
       const draft = owner ? loadDraft(owner, tool.code) : null;
       if (draft) {
         const g = loaded.family === 'ld' ? draft.grade : undefined;
-        setRater(draft.rater);
+        // 開關打開以前存的草稿選了老师：畫面上已經沒有這一項，請家長重選
+        setRater(raterV2 && draft.rater === 'teacher' ? null : draft.rater);
         setGrade(g);
         setAnswers(keepAnswersFor(formV3(loaded, { ageM: plan.answerAgeMonth, ...plan.context, ...(g !== undefined ? { grade: g } : {}) }), draft.answers));
         setResumed(Object.keys(draft.answers).length > 0);
@@ -156,7 +163,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           toolkitVersion: 'kit-20260923',
           toolId: selected.code,
           assessedAgeMonth: plan.answerAgeMonth,
-          rater,
+          ...raterPayload(raterV2, rater, raterNote),
           answers,
           ...(form.grade ? { grade: form.grade.value } : {}),
         }),
@@ -240,7 +247,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
         <section className="space-y-2">
           <h3 className="text-xs font-bold text-brand-forest">这份问卷由谁填写？</h3>
           <div className="flex flex-wrap gap-2">
-            {RATER_OPTIONS.map(o => (
+            {raterOptions(raterV2).map(o => (
               <button
                 key={o.value}
                 type="button"
@@ -253,6 +260,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
               </button>
             ))}
           </div>
+          <T2RaterNoteInput v2={raterV2} rater={rater} value={raterNote} onChange={setRaterNote} disabled={submitting} id="t2v3-rater-note" />
         </section>
 
         {form.grade && (

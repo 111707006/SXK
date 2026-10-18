@@ -4,7 +4,6 @@ import { authFetch } from '../utils/api';
 import { formatAge } from '../utils/dateUtils';
 import { describePlanItem } from '../t2/entrance';
 import {
-  RATER_OPTIONS,
   asrItemNotes,
   canSubmit,
   completedAt,
@@ -21,6 +20,8 @@ import type { AnswerValue, CompletedEntry, Draft, PreValue, ToolForm } from '../
 import type { PlanItem, T2Plan, ToolId } from '../t2/types';
 import type { PlanV3Response } from '../t2/recommend/parentPlan';
 import T2AssessmentV3 from './T2AssessmentV3';
+import T2RaterNoteInput from './T2RaterNoteInput';
+import { raterOptions, raterPayload } from '../t2/raterV2';
 
 /** `GET /api/t2/tool-results` 的回應：每支最新且完整的一筆，各附 band。這裡只讀四個欄位。 */
 interface ToolResultsResponse {
@@ -78,6 +79,8 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selected, setSelected] = useState<PlanItem | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  /** 填表人選「其他」時的選填說明（#70）；換一支、交卷成功就清掉。 */
+  const [raterNote, setRaterNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -113,6 +116,9 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
     return () => { cancelled = true; };
   }, []);
 
+  /** 伺服器開了 `T2_RATER_V2`（plan 上帶 `raterV2: true`）：沒有「老师」、「其他」可寫是谁（#70）。 */
+  const raterV2 = plan?.raterV2 === true;
+
   const form: ToolForm | null = useMemo(
     () => (plan && selected ? formFor(selected.toolId, plan.ageMonth) : null),
     [plan, selected],
@@ -121,6 +127,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
   const openTool = (item: PlanItem) => {
     setSelected(item);
     setDraft(EMPTY_DRAFT);
+    setRaterNote('');
     setSubmitError(null);
     setFlash(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -129,6 +136,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
   const closeTool = () => {
     setSelected(null);
     setDraft(EMPTY_DRAFT);
+    setRaterNote('');
     setSubmitError(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -149,7 +157,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
         body: JSON.stringify({
           toolId: form.toolId,
           assessedAgeMonth: plan.ageMonth,
-          rater: draft.rater,
+          ...raterPayload(raterV2, draft.rater, raterNote),
           pre: draft.pre,
           answers: draft.answers,
         }),
@@ -166,6 +174,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
       setFlash(`${describePlanItem(selected!)} 已完成，已记录。`);
       setSelected(null);
       setDraft(EMPTY_DRAFT);
+      setRaterNote('');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.warn('Failed to submit T2 tool result:', err);
@@ -250,7 +259,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
         <section className="space-y-2">
           <h3 className="text-xs font-bold text-brand-forest">这份问卷由谁填写？</h3>
           <div className="flex flex-wrap gap-2">
-            {RATER_OPTIONS.map(o => {
+            {raterOptions(raterV2).map(o => {
               const on = draft.rater === o.value;
               return (
                 <button
@@ -270,6 +279,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
               );
             })}
           </div>
+          <T2RaterNoteInput v2={raterV2} rater={draft.rater} value={raterNote} onChange={setRaterNote} disabled={submitting} id="t2-rater-note" />
         </section>
 
         {/* 前置題（§5.1）：先於題目，不計分 */}

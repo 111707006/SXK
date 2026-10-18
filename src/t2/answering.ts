@@ -29,6 +29,7 @@ import type { ToolId, ToolkitItem, ToolkitOption, ToolkitPreQuestion } from './t
 import { askedItems } from './scoring';
 import type { AnswerValue } from './scoring';
 import { RATERS } from './types';
+import { raterOptions } from './raterV2';
 import type { Band, DimensionCode, PlanItem, Rater, T2Plan } from './types';
 
 /** 表單上的一題：key 給交卷用、`item` 是題庫原物件（共用，不要改它的欄位）。 */
@@ -211,14 +212,11 @@ export function asrItemNotes(sectionKey: string, no: number): string[] {
   return [...(ASR_ITEM_NOTES[`${sectionKey}.${no}`] ?? [])];
 }
 
-/** 填表人五種（工具包的「填表人身份」去掉治療師，§5.1）。順序照 `RATERS`。 */
-export const RATER_OPTIONS: ReadonlyArray<{ value: Rater; label: string }> = [
-  { value: 'father', label: '父亲' },
-  { value: 'mother', label: '母亲' },
-  { value: 'caregiver', label: '主要照顾者' },
-  { value: 'teacher', label: '老师' },
-  { value: 'other', label: '其他' },
-];
+/**
+ * 填表人五種（工具包的「填表人身份」去掉治療師，§5.1）。順序照 `RATERS`。
+ * 開關 `T2_RATER_V2` 開著時畫面改用 `raterOptions(true)`（沒有老师，#70）。
+ */
+export const RATER_OPTIONS: ReadonlyArray<{ value: Rater; label: string }> = raterOptions(false);
 
 /**
  * `GET /api/t2/tool-results` 一筆裡這一層會讀的欄位：哪一支、什麼時候、對各維度的 band。

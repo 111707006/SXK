@@ -316,6 +316,7 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
                     <span className="text-xs font-bold text-brand-forest">{g.heading}</span>
                     <span className="text-[10px] text-brand-charcoal/50 shrink-0">{formatDay(g.computedAt)}</span>
                   </div>
+                  {g.raterLine && <p className="text-[10px] text-brand-charcoal/60">{g.raterLine}</p>}
                   <ul className="space-y-1.5">
                     {g.items.map(item => (
                       <li key={item.key} className="text-[11px] text-brand-charcoal leading-relaxed flex gap-2">

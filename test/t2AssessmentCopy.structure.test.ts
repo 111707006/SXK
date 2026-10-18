@@ -36,7 +36,7 @@ const answering = stripComments(read('src/t2/answering.ts'));
 describe('題目只存在於題庫，元件不手抄', () => {
   it('元件 import 純函式層，題目經 formFor 取得', () => {
     expect(component).toMatch(/from '\.\.\/t2\/answering'/);
-    for (const name of ['formFor', 'displayItemText', 'displayPrompt', 'asrItemNotes', 'RATER_OPTIONS', 'followupHints', 'canSubmit', 'missingCount', 'togglePreMulti', 'completedAt']) {
+    for (const name of ['formFor', 'displayItemText', 'displayPrompt', 'asrItemNotes', 'raterOptions', 'followupHints', 'canSubmit', 'missingCount', 'togglePreMulti', 'completedAt']) {
       expect(component, name).toContain(name);
     }
     expect(component).not.toMatch(/from '\.\.\/t2\/toolkit/);

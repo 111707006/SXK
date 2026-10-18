@@ -45,6 +45,8 @@ export interface T2FindingsV3 {
    * 生成當下算好存下來，之後照存的樣子讀（題庫說明或講法改了，舊報告不變）。沒開開關、或 2026-10-15 之前的快照沒有這一欄。
    */
   scaleDetails?: ScaleDetailEntry[];
+  /** 見 `T2Findings.raterV2`（#70）。 */
+  raterV2?: true;
   computedAt: string;
 }
 

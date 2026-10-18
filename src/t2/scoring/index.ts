@@ -44,6 +44,8 @@ export interface ScoreInput {
   /** 實足月齡，整數月不進位。 */
   assessedAgeMonth: number;
   rater: ToolResult['rater'];
+  /** 見 `ToolResult.raterNote`；沒有就不傳。 */
+  raterNote?: string;
   /** 題 key → 值。key 由 `askedItems()` 給，不要自己拼。 */
   answers: Record<string, AnswerValue>;
   /** 前置題答案，原樣存進 `ToolResult.pre`。 */
@@ -404,6 +406,7 @@ export function scoreTool(input: ScoreInput): ScoreOutcome {
       toolkitVersion: TOOLKIT_VERSION,
       assessedAgeMonth: age,
       rater: input.rater,
+      ...(input.raterNote ? { raterNote: input.raterNote } : {}),
       askedCount: asked.length,
       answeredCount: asked.length,
       // 複本，不是呼叫端傳進來的那個物件。`ToolResult` 是要存進資料庫、之後重讀的

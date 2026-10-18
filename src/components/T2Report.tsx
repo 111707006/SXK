@@ -629,6 +629,7 @@ function LegacyReport({
                       {redoByTool.has(g.toolId) && ` · ${redoSentence(redoByTool.get(g.toolId)!)}`}
                     </span>
                   </div>
+                  {g.raterLine && <p className="text-[10px] text-brand-charcoal/60">{g.raterLine}</p>}
                   <ul className="space-y-1.5">
                     {g.items.map(item => (
                       <li key={item.key} className="text-[11px] text-brand-charcoal leading-relaxed flex gap-2">

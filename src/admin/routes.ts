@@ -30,6 +30,8 @@ import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { mediaUrlOf, readSeconds, saveActivityMedia, type MediaKind } from './activityMedia';
+import { buildSummaryTable, readSummaryOptions } from './parentSummary';
+import { summaryFileName, summaryWorkbook } from './summaryXlsx';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -296,6 +298,54 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     } catch (err: any) {
       console.error('[Admin] listParents failed:', err.message);
       res.status(500).json({ error: '读取家长列表失败。' });
+    }
+  });
+
+  // ── 家長彙總（#69）──
+  // 所有後台帳號都看得到（使用者 2026-10-18）：**不加 `requireGlobal`**，範圍一律走 `withScope`，
+  // 公司成員只拿得到自家。與家長列表同一組篩選（`sort`、`booked`）。
+  router.get('/parent-summary', async (req: AuthedRequest, res) => {
+    const condition = withScope(req, res);
+    if (!condition) return;
+    try {
+      const table = buildSummaryTable(await store.listSummarySources(condition), shape, readSummaryOptions(req.query));
+      res.json(table);
+    } catch (err: any) {
+      console.error('[Admin] parent summary failed:', err.message);
+      res.status(500).json({ error: '读取家长汇总失败。' });
+    }
+  });
+
+  /**
+   * 導出彙總成 `.xlsx`。POST 而不是 GET：每一次導出都要在 `admin_exports` 留一筆（誰、何時、範圍、笔数），
+   * 是一個有副作用的動作。**記不下來就不給檔** —— 少一筆紀錄的導出等於沒有人知道資料出去過。
+   */
+  router.post('/parent-summary/export', async (req: AuthedRequest, res) => {
+    const condition = withScope(req, res);
+    if (!condition) return;
+    try {
+      const options = readSummaryOptions(req.body);
+      const table = buildSummaryTable(await store.listSummarySources(condition), shape, options);
+      const file = await summaryWorkbook(table);
+      await store.recordExport({
+        adminUserId: req.admin!.adminUserId,
+        condition,
+        kind: 'parent_summary',
+        rowCount: table.rows.length,
+        filters: JSON.stringify(options),
+        requestIp: req.ip ?? null,
+      });
+      const name = summaryFileName(new Date());
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="parent-summary-${name.replace(/\D/g, '')}.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}`
+      );
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(file);
+    } catch (err: any) {
+      console.error('[Admin] parent summary export failed:', err.message);
+      res.status(500).json({ error: '导出失败，请稍后再试。' });
     }
   });
 

@@ -91,7 +91,7 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
   const [state, setState] = useState<
     | { kind: 'idle' }
     | { kind: 'loading' }
-    | { kind: 'ready'; url: string; qrSvg: string }
+    | { kind: 'ready'; qrSvg: string }
     | { kind: 'unavailable' }
     | { kind: 'error'; message: string }
   >({ kind: 'idle' });
@@ -121,7 +121,7 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
           setState({ kind: 'unavailable' });
           return;
         }
-        setState({ kind: 'ready', url: data.url, qrSvg: data.qrSvg });
+        setState({ kind: 'ready', qrSvg: data.qrSvg });
       } catch (err: any) {
         if (!cancelled) setState({ kind: 'error', message: err.message || '产生报告连结失败。' });
       }
@@ -168,20 +168,11 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
         {state.kind === 'error' && (
           <p className="text-xs text-rose-600">{state.message}</p>
         )}
+        {/* 只留這一句（客戶 10/17，規格 client-changes-2026-10-17 §2.2 第 4 點）：網址與提醒句拿掉了。 */}
         {state.kind === 'ready' && (
-          <>
-            <p className="text-xs text-brand-charcoal/70 leading-relaxed max-w-md">
-              用手机相机扫一下，这份报告就会在您自己的手机上打开，之后随时都能再看。
-            </p>
-            {/*
-              網址也印出來：掃碼失敗（反光、鏡頭髒了）時還有一條路，
-              而且家長看得到自己收藏的是什麼。
-            */}
-            <p className="text-[10px] text-brand-charcoal/40 break-all max-w-md">{state.url}</p>
-            <p className="text-[10px] text-brand-clay leading-relaxed max-w-md">
-              这个连结长期有效，拿到的人都能打开这份报告，请不要转发给不相干的人。
-            </p>
-          </>
+          <p className="text-xs text-brand-charcoal/70 leading-relaxed max-w-md">
+            用手机相机扫一下，这份报告就会在您自己的手机上打开，之后随时都能再看。
+          </p>
         )}
       </div>
     </div>

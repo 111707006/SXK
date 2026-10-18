@@ -144,10 +144,13 @@ function shortDate(iso: string): string {
  * 改成固定高度、橫向用百分比，字就是真的 12px（家長端最小字級，#74）。折線因此拆成一段一段的 `<line>`
  * —— `polyline` 的座標不收百分比。
  */
+/** 小折線的橫向座標（SVG 長度單位，不是給家長看的字）。 */
+const pct = (v: number) => `${v}%`;
+
 function DimensionSpark({ name, points, id }: { name: string; points: ScreeningPoint[]; id: string }) {
   const H = 64, padX = 10, padTop = 18, padBottom = 8;
   const n = points.length;
-  const x = (i: number) => `${n === 1 ? 50 : padX + (i * (100 - 2 * padX)) / (n - 1)}%`;
+  const x = (i: number) => pct(n === 1 ? 50 : padX + (i * (100 - 2 * padX)) / (n - 1));
   // 關注分越高畫得越高（與雷達圖同一個方向：越凸出去越建議了解）。
   const y = (c: number) => padTop + (1 - c / 8) * (H - padTop - padBottom);
   const pts = points.map((p, i) => ({ i, v: p.dimensions[id] })).filter(p => p.v);
@@ -159,9 +162,9 @@ function DimensionSpark({ name, points, id }: { name: string; points: ScreeningP
         <div>{name}</div>
         {last && <div style={{ color: STATUS_HEX[last.status] }}>关注分 {last.concern}</div>}
       </div>
-      <svg width="100%" height={H} className="block mt-1 overflow-visible">
-        <line x1={`${padX}%`} y1={y(0)} x2={`${100 - padX}%`} y2={y(0)} stroke="#e5e7eb" strokeWidth="1" />
-        <line x1={`${padX}%`} y1={y(8)} x2={`${100 - padX}%`} y2={y(8)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3,3" />
+      <svg width={pct(100)} height={H} className="block mt-1 overflow-visible">
+        <line x1={pct(padX)} y1={y(0)} x2={pct(100 - padX)} y2={y(0)} stroke="#e5e7eb" strokeWidth="1" />
+        <line x1={pct(padX)} y1={y(8)} x2={pct(100 - padX)} y2={y(8)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3,3" />
         {pts.slice(1).map((p, k) => (
           <line
             key={`seg-${p.i}`}

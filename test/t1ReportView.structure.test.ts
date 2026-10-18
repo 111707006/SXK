@@ -65,7 +65,9 @@ describe('新版沒有編出來的比較、預測與腦神經術語', () => {
   it.each(['src/components/ReportRealBlocks.tsx', 'src/t1report/report.ts', 'src/t1report/answers.ts', 'src/t1report/abilityLinks.ts', 'src/components/AbilityLinksMap.tsx'])('%s', rel => {
     const src = stripComments(read(rel))
       // 驗證器自己的字表在 rules.ts，這幾檔不該有；`${...}%` 這種寬度樣式不是給家長看的字。
-      .replace(/width: `\$\{[^`]*\}%`/g, '');
+      .replace(/width: `\$\{[^`]*\}%`/g, '')
+      // 歷次對照小折線的橫向座標（SVG 長度，見 ReportRealBlocks 的 `pct`）。只豁免這一行定義。
+      .replace('const pct = (v: number) => `${v}%`;', '');
     const m = src.match(FORBIDDEN);
     expect(m, m ? `${rel}: 「${m[0]}」 …${src.slice(Math.max(0, m.index! - 30), m.index! + 30)}…` : '').toBeNull();
   });

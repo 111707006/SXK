@@ -126,6 +126,10 @@ vi.mock('../src/admin/adminStore', async () => {
       const p = db.parents.find(x => x.id === id && matchesCompanyCondition(condition, x));
       return p ? { ...p, scores: [], reportHistory: [], bookings: [] } : null;
     },
+    /** 專案 B 沒有 T2（#67）：詳情不該來問。被問到就是 A 的那一欄漏進了 B。 */
+    async latestT2Findings() {
+      throw new Error('專案 B 的後台不該讀 T2 報告');
+    },
     async deleteParent(condition: Cond, id: number) {
       // 順序與正式那一支相同：先看在不在視野裡，再看有沒有付款。
       // 反過來的話，別家公司的家長會因為「有付款」而收到 409 —— 而 409 等於
@@ -328,6 +332,13 @@ describe('公司隔離（#6）', () => {
     // 兩者回應完全相同：不同的回應就是一台「這個 id 存在嗎」的查詢機。
     expect(otherCompany.status).toBe(nonExistent.status);
     expect(await otherCompany.json()).toEqual(await nonExistent.json());
+  });
+
+  it('專案 B 的家長詳情沒有 T2 報告這一欄（#67：B 沒有 T2）', async () => {
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const resp = await client.get('/api/admin/parents/101', h(token!));
+    expect(resp.status).toBe(200);
+    expect((await resp.json()).parent).not.toHaveProperty('t2Report');
   });
 
   it('公司成員無法用查詢參數把自己換到別家公司', async () => {

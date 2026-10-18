@@ -97,6 +97,11 @@ export interface AdminRouterHooks {
    * 沒有就是關閉 —— 上傳那兩支不註冊（B 沒有活動與片子）。
    */
   activityMediaDir?: string;
+  /**
+   * 家長詳情帶不帶最新的 T2 報告快照（#67）。只有專案 A 傳 `true`；B 沒有 T2，
+   * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
+   */
+  t2Reports?: boolean;
 }
 
 export interface HandoffInviteReport {
@@ -311,6 +316,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         res.status(404).json({ error: '找不到该家长。' });
         return;
       }
+      // 列印頁呼叫的是同一支端點，所以詳情與列印拿到的是同一份快照。
+      if (hooks.t2Reports) detail.t2Report = await store.latestT2Findings(condition, id);
       res.json({ parent: detail });
     } catch (err: any) {
       console.error('[Admin] getParentDetail failed:', err.message);

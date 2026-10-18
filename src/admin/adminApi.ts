@@ -10,6 +10,7 @@ import type { AssessmentRecord } from '../types';
 import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
 import type { ScreeningTotal } from './adminView';
+import type { T2ReportEntry } from '../components/T2Report';
 
 const TOKEN_KEY = 'sxk_admin_token';
 
@@ -89,6 +90,11 @@ export interface AdminParentDetail extends AdminParentListItem {
    * 後台要畫的是家長看到的那一份報告，而那需要快照裡的孩子與成績，不只文字。
    */
   reportHistory: AssessmentRecord[];
+  /**
+   * 這位家長最新的一份 T2 報告快照（#67），照存的樣子；沒做過是 `null`。
+   * **只有專案 A 有這一欄**（B 沒有 T2，後端不回）—— 畫面看 `t2Report &&`，兩種「沒有」都不畫。
+   */
+  t2Report?: T2ReportEntry | null;
   bookings: Array<{
     id: number; specialistId: string; specialistName: string | null;
     parentName: string; parentPhone: string; preferredSlot: string | null;

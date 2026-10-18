@@ -21,6 +21,7 @@ import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
 import { STATUS_CLASS } from './reportStatusClass';
 import PrintButton from './PrintButton';
 import ScaleDetailCard from './ScaleDetailCard';
+import type { T2ReportActions } from './T2Report';
 import { SCALE_DETAIL_FOOTER, SCALE_DETAIL_LEAD, SCALE_DETAIL_TITLE } from '../t2/scaleDetailCopy';
 
 /** 氣質與生活品質那兩支的客規代碼（不進九宮格，各有一段）。 */
@@ -30,12 +31,13 @@ const QOL_TOOL = 'SXK-QOL';
 interface T2ReportV3Props {
   /** `prose` 是伺服器存的那一份（模型或模板）；舊的 v3 快照（2026-10-08 之前）是 null，那時只有規則輸出。 */
   entry: { createdAt: string; findings: T2FindingsV3; prose: unknown; isAiGenerated: boolean };
-  /** 「重新生成」那一顆與它底下那一行，`T2Report` 組好傳進來（生成的狀態在那邊）。 */
-  regenerate: React.ReactNode;
-  errorLine: React.ReactNode;
-  /** 四種服務的按鈕，`T2Report` 走 `serviceChoices` 組好傳進來。 */
-  serviceButtons: React.ReactNode;
-  onOpenTraining?: () => void;
+  /**
+   * 生成、預約、線上干預，家長端的 `T2Report` 組好傳進來（生成的狀態在那邊）。
+   * 不給＝只讀（後台，#67）：那幾顆、列印鈕與講「生成」的那一行都不出，作答回顧一打開就展開。
+   */
+  actions?: T2ReportActions;
+  /** 題庫載完（載不到的也算完）之後呼叫一次：後台列印頁等它才叫列印，不然回顧與氣質那兩段還沒出來。 */
+  onReady?: () => void;
   formatDay: (iso: string) => string;
 }
 
@@ -61,13 +63,13 @@ function proseOf(raw: unknown): T2ReportProseV3 | null {
  * 【題庫】氣質的兩極與作答回顧要題庫：打開時把快照裡用到的那幾支延遲載入（每支一個 chunk）；
  * 載不到的那一支，回顧先不列、氣質那一段不出 —— 不影響九宮格與提示。
  */
-export default function T2ReportV3({ entry, regenerate, errorLine, serviceButtons, onOpenTraining, formatDay }: T2ReportV3Props) {
+export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2ReportV3Props) {
   const { findings } = entry;
   const prose = proseOf(entry.prose);
   const proseById = new Map<DimensionCode, ProseDimensionV3>((prose?.perDimension ?? []).map(p => [p.dimensionId, p]));
   const flagged = findings.dimensions.filter(d => (d.band === 'refer' || d.band === 'watch') && proseById.has(d.dimensionId));
   const [banks, setBanks] = useState<Record<string, KitV3Bank>>({});
-  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(!actions);
 
   // 列印／存 PDF 時把作答回顧展開（紙上沒有「點開」這回事）
   useEffect(() => {
@@ -84,6 +86,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
       const loaded: Record<string, KitV3Bank> = {};
       for (const s of settled) if (s.status === 'fulfilled') loaded[s.value[0]] = s.value[1];
       setBanks(loaded);
+      onReady?.();
     });
     return () => { cancelled = true; };
   }, [findings]);
@@ -124,12 +127,14 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
             {formatDay(entry.createdAt) && `${formatDay(entry.createdAt)}生成 · `}按答题时 {ageMonth} 个月整理
           </p>
         </div>
-        <div className="flex flex-col items-start sm:items-end gap-2">
-          <div className="print:hidden">{regenerate}</div>
-          <PrintButton id="t2v3-print-btn" />
-        </div>
+        {actions && (
+          <div className="flex flex-col items-start sm:items-end gap-2">
+            <div className="print:hidden">{actions.regenerate}</div>
+            <PrintButton id="t2v3-print-btn" />
+          </div>
+        )}
       </div>
-      {errorLine}
+      {actions?.errorLine}
 
       {/*
         最上方的提示：先是生成當下 T1 帶來的（安全、社交溝通警訊、抽動……，ADR-0011，快照的 t1Notices，附預約），
@@ -145,7 +150,7 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
               </li>
             ))}
           </ul>
-          {t1Notices.some(n => n.book) && <div className="print:hidden">{serviceButtons}</div>}
+          {actions && t1Notices.some(n => n.book) && <div className="print:hidden">{actions.serviceButtons}</div>}
         </div>
       )}
 
@@ -225,8 +230,12 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
                 )}
               </div>
             ))}
-            <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊{t1Notices.some(n => n.book) ? '（预约按钮在最上方）' : '：'}</p>
-            {!t1Notices.some(n => n.book) && <div className="print:hidden">{serviceButtons}</div>}
+            {actions && (
+              <>
+                <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊{t1Notices.some(n => n.book) ? '（预约按钮在最上方）' : '：'}</p>
+                {!t1Notices.some(n => n.book) && <div className="print:hidden">{actions.serviceButtons}</div>}
+              </>
+            )}
           </div>
         </section>
       )}
@@ -262,14 +271,14 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
       )}
 
       {/* 6. 線上干預：只留一行連結（2026-09-28 起不放在報告裡） */}
-      {onOpenTraining && (
+      {actions?.onOpenTraining && (
         <section id="t2v3-weekly" className="print:hidden">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-2xl bg-brand-forest text-white px-5 py-4">
             <p className="text-xs leading-relaxed">{REPORT_TRAINING_LINK.text}</p>
             <button
               type="button"
               id="t2v3-open-training-btn"
-              onClick={onOpenTraining}
+              onClick={actions.onOpenTraining}
               className="shrink-0 px-4 py-2 rounded-xl bg-white text-brand-forest text-xs font-bold hover:bg-brand-cream active:scale-[0.98] transition cursor-pointer"
             >
               {REPORT_TRAINING_LINK.action}
@@ -325,10 +334,12 @@ export default function T2ReportV3({ entry, regenerate, errorLine, serviceButton
         )}
       </section>
 
-      <div className="print:hidden pt-2 flex items-center gap-2">
-        <RefreshCw size={12} className="text-brand-charcoal/40" />
-        <p className="text-[10px] text-brand-charcoal/50">每次生成都会另存一份，之后打开这一页看到的是最新的那一份。</p>
-      </div>
+      {actions && (
+        <div className="print:hidden pt-2 flex items-center gap-2">
+          <RefreshCw size={12} className="text-brand-charcoal/40" />
+          <p className="text-[10px] text-brand-charcoal/50">每次生成都会另存一份，之后打开这一页看到的是最新的那一份。</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -89,6 +89,10 @@ vi.mock('../src/admin/adminStore', async () => {
           }
         : null;
     },
+    // 專案 A 的詳情另外讀最新的 T2 報告（#67，`adminParentT2.http.test.ts`）；這裡的家長都沒做過。
+    async latestT2Findings() {
+      return null;
+    },
     async listSpecialists(condition: Cond) {
       // 專案 A 的專家寫死在報告頁（`PRODUCT.expertBooking.specialistSource`
       // 是 builtin），未歸屬底下一位都沒有。這裡照實回空陣列。

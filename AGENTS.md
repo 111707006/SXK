@@ -38,7 +38,7 @@
 │   │   ├── T2EntranceV3.tsx         # T2 v3 入口（`T2_RECOMMEND_V3`）：plan 是 `version: 'v3'` 时 T2Entrance 改画它；只画 parentPlanV3 组好的字
 │   │   ├── T2AssessmentV3.tsx       # T2 v3 逐支作答：推荐清单（第一次／第二次＋近 90 天做过的）、题库打开才载、formV3、交卷带 toolkitVersion
 │   │   ├── T2ReportV3.tsx           # T2 v3 报告页：快照是 kit-20260923 时 T2Report 改画它；提示、九宫格、各方面段落（伺服器存的 prose）、生活品质、气质偏向、作答回顾；页面本身不叫模型
-│   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段只留一行连到「线上干预」页（2026-09-28 起线上干预不在报告里）、可摺叠作答回顾（#61）
+│   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段只留一行连到「线上干预」页（2026-09-28 起线上干预不在报告里）、可摺叠作答回顾（#61）；`T2ReportSnapshot` 不给 actions＝只读（后台家长详情与列印画最新一份快照，#67）
 │   │   ├── training/                # 线上干预（Keep 式，Keep 规格 K11 起）：导览列「线上干预」那一页（2026-09-28 使用者：不放在报告里）＋盖在上面的计划页、详情、抽屉
 │   │   │   ├── TrainingPage.tsx     # 导览列「线上干预」那一页：自己读最新报告快照（没报告／没解锁时说要先做什么、带到 T2 入口），挂 TrainingSection
 │   │   │   ├── TrainingSection.tsx  # TrainingPage 只挂它：资料（useTrainingData）＋页面堆叠（useLayerStack）＋context

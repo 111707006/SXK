@@ -40,9 +40,13 @@ function stripComments(source: string): string {
  *
  * `handoff_imports` 2026-09-29 加入（ADR-0009 的「来源」欄，專案 A）：只在家長列表與詳情裡當子查詢讀，
  * 以 `h.user_id = u.id` 掛在外層那句已帶條件的 `users` 上。
+ *
+ * `t2_findings` 2026-10-18 加入（#67，專案 A 的家長詳情與列印帶出 T2 報告）：沒有 company_id，
+ * 一律 JOIN `users` 帶條件。
  */
 const SCOPED_TABLES = [
   'users', 'user_data', 'expert_bookings', 'specialists', 'payments', 'handoff_codes', 'handoff_invites', 'handoff_imports',
+  't2_findings',
 ];
 
 /**

@@ -16,7 +16,7 @@
  * 兩者分岔，此時詳情頂端會說出來，底下的「九维筛查结果」表就是現況那一份。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar, FileText, MessageSquare, Phone, Printer, Trash2, User, X } from 'lucide-react';
+import { AlertTriangle, Calendar, FileText, Layers, MessageSquare, Phone, Printer, Trash2, User, X } from 'lucide-react';
 import {
   adminApi,
   type AdminInviteConfig,
@@ -47,6 +47,7 @@ import { ageBandDrift } from '../../utils/ageBandDrift';
 import { latestReportOf, screeningReportCount } from '../../utils/reportHistory';
 import { isOfflineService, serviceTypeLabel } from '../../utils/serviceTypes';
 import ReportBody from '../../components/ReportBody';
+import { T2ReportSnapshot } from '../../components/T2Report';
 import {
   Button,
   EmptyState,
@@ -853,6 +854,22 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
           </div>
         )}
       </Section>
+
+      {/*
+        T2 報告（#67）：家長打開深度評估報告頁看到的那一份快照，照存的樣子畫，不重算、不叫模型。
+        只讀 —— 生成、預約、線上干預是家長的動作，不給 `actions` 就不出。沒做過（`null`）或專案 B
+        （沒有這一欄）整段不出，不留空區塊。
+      */}
+      {parent.t2Report && (
+        <Section icon={<Layers size={12} />} title="家长看到的深度评估报告">
+          <div className="space-y-2">
+            <p className="text-[10px] text-brand-charcoal/40">产生时间：{formatDateTime(parent.t2Report.createdAt)}</p>
+            <div className="-mx-2">
+              <T2ReportSnapshot entry={parent.t2Report} childName={parent.childName ?? undefined} />
+            </div>
+          </div>
+        </Section>
+      )}
     </>
   );
 }

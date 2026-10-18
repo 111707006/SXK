@@ -21,6 +21,7 @@ import { calculateAgeMonth } from '../utils/dateUtils';
 import { screeningTotal, type ScreeningTotal } from './adminView';
 import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
 import { activityFromRow } from '../db/activities';
+import { findingsFromRow, type FindingsRecord } from '../db/t2Findings';
 import type { ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
 
@@ -97,6 +98,11 @@ export interface ParentDetail extends ParentListItem {
    */
   assessedAgeMonth: number | null;
   assessedBandName: string | null;
+  /**
+   * 這位家長最新的一份 T2 報告快照（#67），照存的樣子（舊版 `T2Findings` 或完整版 `T2FindingsV3`），
+   * 不重算、不叫模型；沒有是 `null`。**只在專案 A**：B 沒有 T2，路由不問、回應裡沒有這一欄。
+   */
+  t2Report?: FindingsRecord | null;
 }
 
 export interface SpecialistRecord {
@@ -399,6 +405,33 @@ export async function getParentDetail(
   };
 }
 
+
+/**
+ * 這位家長最新的一份 T2 報告快照（#67）；沒有、或最新那一列讀不成快照時回 `null`。
+ *
+ * 與家長端的 `latestFindings`（`src/db/t2Findings.ts`）同一個「最新」（看 `id`）與同一支
+ * `findingsFromRow`，所以後台看到的就是家長打開報告頁看到的那一份。公司條件掛在 JOIN 的
+ * `users` 上 —— 詳情那一句已經帶過條件，這裡仍自己帶一次：一支函式只靠呼叫端先查過，
+ * 換個呼叫端就是一條不帶條件的路。
+ */
+export async function latestT2Findings(
+  condition: CompanyCondition,
+  parentId: number
+): Promise<FindingsRecord | null> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const [rows] = await p.execute(
+    `SELECT f.id, f.findings, f.prose, f.is_ai_generated, f.ai_engine, f.created_at
+       FROM t2_findings f
+       JOIN users u ON u.id = f.user_id
+      WHERE ${scope.sql} AND f.user_id = ?
+      ORDER BY f.id DESC
+      LIMIT 1`,
+    [...scope.params, parentId]
+  );
+  const row = (rows as any[])[0];
+  return row ? findingsFromRow(row) : null;
+}
 
 /**
  * 刪除一位家長的結果。

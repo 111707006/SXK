@@ -251,6 +251,11 @@ export interface ProductProfile {
      * 開不開由伺服器的 `HANDOFF_SECRET` 決定，這裡只決定畫面上掛哪一半。
      */
     handoff: 'send' | 'receive';
+    /**
+     * 新版首頁（客戶 10/17 第 4 項，issue #72）：banner＋三張卡、導覽列最前面的「首页」。只有 A 有；
+     * 開不開由伺服器的 `HOME_V2` 決定（`GET /api/home/config`），B 連問都不問。
+     */
+    home: boolean;
   };
 }
 
@@ -315,6 +320,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       paywall: true,
       mall: true,
       handoff: 'receive',
+      home: true,
     },
   },
 
@@ -389,6 +395,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       paywall: false,
       mall: false,
       handoff: 'send',
+      home: false,
     },
   },
 };

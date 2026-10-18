@@ -31,6 +31,9 @@ const Paywall = lazy(() => import('./components/Paywall'));
 const T2Assessment = lazy(() => import('./components/T2Assessment'));
 const T2Report = lazy(() => import('./components/T2Report'));
 const TrainingPage = lazy(() => import('./components/training/TrainingPage'));
+// 新版首頁（`HOME_V2`，issue #72）也只在 A：B 的 `PRODUCT.features.home` 是 false，永遠走不到。
+const HomePage = lazy(() => import('./home/HomePage'));
+const OfflineServicePage = lazy(() => import('./home/OfflineServicePage'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
@@ -43,13 +46,14 @@ import type { ServiceType } from './utils/serviceTypes';
 import { DEFAULT_UNLOCK_PRICE_FEN } from './utils/price';
 import { BeianFooter } from './components/BeianFooter';
 import { BrandMark } from './components/BrandMark';
+import { HOME_COPY, openHomeCard, viewAfterLogin, readHomeV2Hint, writeHomeV2Hint, type HomeTarget } from './home/homeNav';
 // 條款內文的唯一來源。登入頁（AuthScreen）渲染的是同一份 —— 見該檔說明。
 import { ServiceTerms, PrivacyTerms, LegalFooterLine } from './components/LegalTerms';
 import {
   Activity, ShoppingBag, BarChart3, User, RefreshCw, 
   Heart, HeartHandshake, FileText, CheckCircle2, ListFilter,
   ChevronDown, Truck, Package, LogOut, ArrowRight, UserCheck,
-  BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck, Loader2
+  BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck, Loader2, Home,
 } from 'lucide-react';
 import { TRAINING_PAGE } from './t2/trainingCopy';
 import { latestT1ReportFor } from './utils/reportResume';
@@ -75,7 +79,18 @@ export default function App() {
   const child = useMemo(() => refreshChildAge(childProfile, today), [childProfile, today]);
 
   // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'
-  const [currentView, setCurrentView] = useState<'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report' | 'training'>('dashboard');
+  /**
+   * 新版首頁（客戶 10/17 第 4 項，issue #72，規格 docs/specs/client-changes-2026-10-17.md §5）。
+   * `homeConfigOn`：伺服器說 `HOME_V2` 開了沒（`GET /api/home/config`）；回來之前先照這台裝置上次記的（`readHomeV2Hint`）。
+   * 開關關著（或 B）`homeV2` 一直是 false，下面每一處新畫面都包在它後面 —— 畫面一行不動。
+   */
+  const [homeConfigOn, setHomeConfigOn] = useState<boolean>(() => PRODUCT.features.home && readHomeV2Hint());
+  const homeV2 = PRODUCT.features.home && homeConfigOn;
+  /** 未登入時：開關開著先給首頁；點了卡或「登录／注册」才是登入頁。 */
+  const [homeLoginOpen, setHomeLoginOpen] = useState(false);
+  /** 未登入點的那張卡：登入後帶過去（`viewAfterLogin`）。 */
+  const [pendingHomeTarget, setPendingHomeTarget] = useState<HomeTarget | null>(null);
+  const [currentView, setCurrentView] = useState<'home' | 'offline_service' | 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report' | 'training'>(() => (homeV2 ? 'home' : 'dashboard'));
   // T2 報告頁（票 #61）是從作答清單的「生成报告」還是「查看上次的报告」進來的：前者一進去就打 POST。
   const [t2ReportGenerate, setT2ReportGenerate] = useState(false);
   
@@ -226,6 +241,8 @@ export default function App() {
     setSyncError(null);
     setSessionNotice('登录状态已失效，请重新登录。您已完成的评估已保存在云端，重新登录后即可看到。');
     setCurrentView('dashboard');
+    // 新版首頁開著時：那句話叫他重新登入，就直接給登入頁，不先停首頁。
+    setHomeLoginOpen(true);
   };
 
   /**
@@ -290,6 +307,48 @@ export default function App() {
   useEffect(() => {
     document.title = PRODUCT.brand.documentTitle;
   }, []);
+
+  /**
+   * 新版首頁開了沒（只有 A 問；B 沒有這支端點）。讀不到當成關著 —— 關著就是現在的畫面。
+   * 開著而且還停在預設的評估面板（剛開頁、還沒走去別處）就換到首頁；改成關著時離開首頁那兩頁。
+   */
+  useEffect(() => {
+    if (!PRODUCT.features.home) return;
+    let cancelled = false;
+    (async () => {
+      let on = false;
+      try {
+        const resp = await fetch('/api/home/config');
+        const ct = resp.headers.get('content-type');
+        if (resp.ok && ct && ct.includes('application/json')) on = (await resp.json())?.enabled === true;
+      } catch {
+        // 網路斷了：當成關著。
+      }
+      if (cancelled) return;
+      writeHomeV2Hint(on);
+      setHomeConfigOn(on);
+      setCurrentView(v => (on ? (v === 'dashboard' ? 'home' : v) : v === 'home' || v === 'offline_service' ? 'dashboard' : v));
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  /** 首頁的卡片：已登入直接去；未登入先到登入頁，登入後帶過去（`handleAuthSuccess`）。 */
+  const openHomeTarget = (target: HomeTarget) => {
+    const step = openHomeCard(target, Boolean(userIdentity));
+    if ('login' in step) {
+      setPendingHomeTarget(step.after);
+      setHomeLoginOpen(true);
+      return;
+    }
+    setCurrentView(step.view);
+    setSelectedDimensionId(null);
+  };
+
+  /** 頁首的「登录／注册」：純驗證碼登入沒有另外的註冊，兩顆都到同一個登入頁；登入後停首頁。 */
+  const openHomeLogin = () => {
+    setPendingHomeTarget(null);
+    setHomeLoginOpen(true);
+  };
 
   // Load from local storage and sync with Cloud Database on mount
   useEffect(() => {
@@ -544,8 +603,10 @@ export default function App() {
     localStorage.setItem('senxinkang_orders', JSON.stringify(cloudOrders));
     localStorage.setItem('senxinkang_history', JSON.stringify(cloudHistory));
 
-    // Send back to dashboard dashboard
-    setCurrentView('dashboard');
+    // Send back to dashboard dashboard —— 新版首頁開著時停首頁，或帶到未登入時點的那張卡（`viewAfterLogin`；關著就是 dashboard）。
+    setCurrentView(viewAfterLogin(pendingHomeTarget, homeV2));
+    setPendingHomeTarget(null);
+    setHomeLoginOpen(false);
   };
 
   // Save states to local storage and sync to Database
@@ -823,14 +884,16 @@ export default function App() {
           平板（640–1023px）也上下兩列：標題一列、導覽＋孩子一列。原本 sm 就並排，820px 寬時標題擠成兩行、
           孩子的選單掉到導覽底下（2026-09-29 三種寬度截圖時看到的）。
         */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4">
+        {/* 新版首頁、未登入：標題與「登录、注册」手機上也同一列（客戶示意圖）；其他情況照舊。 */}
+        <div className={homeV2 && !userIdentity ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-row items-center justify-between gap-3' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4'}>
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 bg-brand-moss rounded-xl flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-moss/10 scale-105">
               <BrandMark />
             </div>
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">{PRODUCT.brand.headerTitle}</h1>
+                {/* 新版首頁開著時頁首寫客戶示意圖上那一行（規格 §5.1）；關著照舊是系統名。 */}
+                <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">{homeV2 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}</h1>
                 {/*
                   建置模式標記 —— 2026-09-10 起**不顯示在畫面上**。
 
@@ -863,7 +926,28 @@ export default function App() {
           {child ? (
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {/* 手機寬度放四個分頁：小螢幕收掉圖示、縮一點邊距、字不換行（2026-09-28 加「线上干预」之後會擠成兩行） */}
-              <nav className="flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40">
+              {/*
+                新版首頁開著時多一顆「首页」（五顆）：375px 一行放不下就橫捲（`overflow-x-auto`），不換行、不縮字。
+                關著照舊（class 一字不差）。
+              */}
+              <nav className={homeV2 ? 'flex max-w-full overflow-x-auto bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40' : 'flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40'}>
+                {homeV2 && (
+                  <button
+                    id="nav-home-btn"
+                    onClick={() => {
+                      setCurrentView('home');
+                      setSelectedDimensionId(null);
+                    }}
+                    className={`shrink-0 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
+                      currentView === 'home' || currentView === 'offline_service'
+                        ? 'bg-white text-brand-forest shadow-sm font-extrabold'
+                        : 'text-brand-charcoal/80 hover:text-brand-forest'
+                    }`}
+                  >
+                    <Home size={12} className="hidden sm:block" />
+                    {HOME_COPY.navLabel}
+                  </button>
+                )}
                 <button
                   id="nav-dashboard-btn"
                   onClick={() => {
@@ -1137,6 +1221,26 @@ export default function App() {
                 )}
               </div>
             </div>
+          ) : homeV2 && !userIdentity ? (
+            /* 新版首頁、未登入：右上「登录、注册」（規格 §5.1）。純驗證碼登入沒有另外的註冊，兩顆到同一個登入頁。 */
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                id="header-login-btn"
+                onClick={openHomeLogin}
+                className="px-3.5 py-1.5 rounded-xl bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-extrabold transition shadow-sm cursor-pointer"
+              >
+                {HOME_COPY.login}
+              </button>
+              <button
+                type="button"
+                id="header-register-btn"
+                onClick={openHomeLogin}
+                className="px-3.5 py-1.5 rounded-xl border border-brand-moss/40 bg-white hover:bg-brand-sage/20 text-brand-forest text-xs font-extrabold transition shadow-sm cursor-pointer"
+              >
+                {HOME_COPY.register}
+              </button>
+            </div>
           ) : userIdentity ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-brand-charcoal/60 font-medium">
@@ -1200,7 +1304,27 @@ export default function App() {
                 {sessionNotice}
               </div>
             )}
-            <AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} />
+            {homeV2 && !homeLoginOpen ? (
+              <LazyBoundary>
+                <HomePage onOpen={openHomeTarget} />
+              </LazyBoundary>
+            ) : (
+              <>
+                <AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} />
+                {homeV2 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHomeLoginOpen(false);
+                      setPendingHomeTarget(null);
+                    }}
+                    className="text-xs font-bold text-brand-moss hover:text-brand-forest cursor-pointer"
+                  >
+                    {HOME_COPY.offline.back}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         ) : !child ? (
           /* Profile Registry form shown when child is unconfigured */
@@ -1234,9 +1358,18 @@ export default function App() {
             修手機的同時改掉了桌機。上面兩個分支用 `w-full` 是因為它們本來就
             該滿版，不是同一件事。
           */
-          <div className="min-w-0 space-y-6">
+          // 首頁要滿版（banner 撐滿寬度）；其他頁照舊依內容寬置中（上面那段說的桌機 723px）。
+          <div className={homeV2 && (currentView === 'home' || currentView === 'offline_service') ? 'min-w-0 w-full space-y-6' : 'min-w-0 space-y-6'}>
             
-            {currentView === 'dashboard' ? (
+            {currentView === 'home' && homeV2 ? (
+              <LazyBoundary>
+                <HomePage onOpen={openHomeTarget} />
+              </LazyBoundary>
+            ) : currentView === 'offline_service' && homeV2 ? (
+              <LazyBoundary>
+                <OfflineServicePage onBack={() => setCurrentView('home')} />
+              </LazyBoundary>
+            ) : currentView === 'dashboard' ? (
               <div className="space-y-8 animate-fade-in">
                 {/* Visual Hero Banner */}
                 <div className="bg-gradient-to-r from-brand-forest via-brand-forest/95 to-brand-moss text-white p-6 md:p-8 rounded-3xl text-left shadow-lg relative overflow-hidden">

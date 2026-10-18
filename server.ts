@@ -194,6 +194,11 @@ const T1_REPORT_REAL = APP_MODE === 'full' && T1_REPORT_REAL_REQUESTED;
 // 照舊回伺服器拼的 HTML，一字不差。A、B 都適用。同一套 fail-closed 解析。
 const REPORT_SCAN_SPA = resolvePaywallSwitch('REPORT_SCAN_SPA', process.env.REPORT_SCAN_SPA);
 
+// 新版首頁（客戶 10/17 第 4 項，issue #72，規格 docs/specs/client-changes-2026-10-17.md §5）：開著時 A 的家長端
+// 登入前後都先停在首頁（banner＋三張卡），導覽列最前面多「首页」。前端讀 `GET /api/home/config` 知道開了沒；
+// 關著＝畫面一行不動。**只在專案 A**：那支端點掛在 `tier2Only`，B 設了也是 404。同一套 fail-closed 解析。
+const HOME_V2_REQUESTED = resolvePaywallSwitch('HOME_V2', process.env.HOME_V2);
+
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
 
@@ -3784,6 +3789,14 @@ app.post('/api/report-link', async (req, res) => {
 });
 
 /**
+ * 新版首頁開了沒（開關 `HOME_V2`，issue #72）。**公開，不需要登入** —— 未登入的家長就是要看到新首頁。
+ * 只在專案 A（`tier2Only`）：B 沒有這支，前端也不問（`PRODUCT.features.home`）。
+ */
+tier2Only.get('/api/home/config', (_req, res) => {
+  res.json({ enabled: HOME_V2_REQUESTED });
+});
+
+/**
  * 掃碼頁（開關 `REPORT_SCAN_SPA` 開著時）的資料：token 指的**那一筆**報告快照，收乾淨後只剩
  * 報告本體要的欄位（`renderableReportOf`），加上當時的孩子（姓名、月齡、性別）。**公開，不需要登入**。
  *
@@ -4059,6 +4072,13 @@ export async function startServer() {
       console.log('[SenXinKang Server] T1_REPORT_REAL=1: T1 reports use per-item answers, validated AI text or the per-child template; no gauge numbers.');
     } else if (T1_REPORT_REAL_REQUESTED) {
       console.warn('[SenXinKang Server] T1_REPORT_REAL is set but ignored: project B keeps the old T1 report (A only).');
+    }
+    if (HOME_V2_REQUESTED) {
+      console.log(
+        APP_MODE === 'full'
+          ? '[SenXinKang Server] HOME_V2=1: parents land on the new home page (banner + three cards).'
+          : '[SenXinKang Server] HOME_V2 is set but ignored: project B has no new home page (A only).'
+      );
     }
     if (DEMO_LOGIN_CODE) {
       console.warn(

@@ -61,7 +61,7 @@ export default function ScanReportPage({ token }: { token: string }) {
   }, [state]);
 
   if (state.kind === 'loading') {
-    return <Centered><p className="text-sm text-brand-charcoal/70">正在载入报告…</p></Centered>;
+    return <Centered><p className="text-sm text-brand-charcoal/80">正在载入报告…</p></Centered>;
   }
 
   if (state.kind === 'failed') {
@@ -69,7 +69,7 @@ export default function ScanReportPage({ token }: { token: string }) {
       <Centered>
         <div className="bg-white rounded-2xl px-6 py-7 max-w-sm text-center leading-relaxed">
           <p className="text-[15px] text-brand-charcoal">{state.message}</p>
-          <p className="mt-2.5 text-[13px] text-brand-charcoal/60">请回到评估现场的画面，重新扫一次二维码。</p>
+          <p className="mt-2.5 text-[13px] text-brand-charcoal/80">请回到评估现场的画面，重新扫一次二维码。</p>
         </div>
       </Centered>
     );
@@ -96,7 +96,7 @@ export default function ScanReportPage({ token }: { token: string }) {
           historyUnavailable
           noWeeklyPlan={noWeeklyPlan}
         />
-        <p className="text-xs text-brand-charcoal/60 text-center print:hidden">
+        <p className="text-xs text-brand-charcoal/80 text-center print:hidden">
           这一页是您扫码带走的报告，网址可以收藏起来，之后随时打开。
         </p>
       </div>

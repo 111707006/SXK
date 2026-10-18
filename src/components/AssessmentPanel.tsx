@@ -602,12 +602,12 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
         <button
           onClick={onBack}
           disabled={isTransitioning}
-          className={`flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition ${isTransitioning ? 'opacity-40 cursor-not-allowed' : ''}`}
+          className={`flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal hover:text-brand-forest transition ${isTransitioning ? 'opacity-40 cursor-not-allowed' : ''}`}
         >
           <ArrowLeft size={16} />
           返回评估面板
         </button>
-        <span className="text-xs font-bold text-brand-charcoal/60">森心康 · 三级深度评估</span>
+        <span className="text-xs font-bold text-brand-charcoal/80">森心康 · 三级深度评估</span>
       </div>
 
       {successMessage && (
@@ -624,19 +624,19 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
         </div>
         <div>
           <h2 className="text-base font-bold text-brand-forest">正在针对【{dimension.name}】进行深度评测</h2>
-          <p className="text-[11px] text-brand-charcoal/70 mt-0.5">请导入 T3 多媒体实操文件进行判读。</p>
+          <p className="text-xs text-brand-charcoal/80 mt-0.5">请导入 T3 多媒体实操文件进行判读。</p>
         </div>
       </div>
 
       {/* T3 標示（T2 的頁籤與五題佔位已拿掉，票 #58） */}
       <div className="p-4 rounded-2xl border border-brand-moss bg-brand-sage/50 text-brand-forest font-bold ring-2 ring-brand-moss/10 mb-8 flex flex-col items-center gap-1.5 relative">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] w-5.5 h-5.5 rounded-lg flex items-center justify-center font-bold bg-brand-moss text-white">T3</span>
+          <span className="text-xs w-5.5 h-5.5 rounded-lg flex items-center justify-center font-bold bg-brand-moss text-white">T3</span>
           <span className="text-xs font-semibold">T3 专项评估层 (临床多媒体上传)</span>
         </div>
-        <div className="text-[10px] text-brand-charcoal/50">骨骼关键点/声学AI算法介入</div>
+        <div className="text-xs text-brand-charcoal/80">骨骼关键点/声学AI算法介入</div>
         {existingScores.some(s => s.dimensionId === dimension.id && s.tierId === 'T3') && (
-          <span className="absolute top-2 right-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-md font-bold flex items-center gap-0.5">
+          <span className="absolute top-2 right-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs px-1.5 py-0.5 rounded-md font-bold flex items-center gap-0.5">
             <Check size={10} />
             已保存
           </span>
@@ -660,12 +660,12 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
               <Sparkles size={100} />
             </div>
             <div className="relative z-10 space-y-1">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-brand-sage">T3 临床实测与人工智能匹配</span>
+              <span className="text-xs uppercase font-bold tracking-wider text-brand-sage">T3 临床实测与人工智能匹配</span>
               <h3 className="text-sm font-bold text-white">{t3Config.title}</h3>
-              <p className="text-[11px] text-brand-cream/80 leading-relaxed mt-1">
+              <p className="text-xs text-brand-cream/80 leading-relaxed mt-1">
                 {currentScale.scaleName} (所需时间: {currentScale.duration})
               </p>
-              <p className="text-[11px] text-brand-cream/60 leading-relaxed mt-1">
+              <p className="text-xs text-brand-cream/60 leading-relaxed mt-1">
                 {t3Config.desc}
               </p>
             </div>
@@ -678,7 +678,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
                 <Sparkles size={14} className="text-brand-moss animate-pulse" />
                 森心康 AI 算法极速评测通道
               </h4>
-              <p className="text-[11px] text-brand-charcoal/80 leading-relaxed">
+              <p className="text-xs text-brand-charcoal/80 leading-relaxed">
                 点击一键模拟运行 AI 神经网络模型进行多媒体声学频谱分析与关节对齐拟合，自动导入全部 {currentScale.questions.length} 道评测题目的实操评分。
               </p>
             </div>
@@ -709,7 +709,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
                 return (
                   <div key={q.id} className="p-4 bg-white border border-brand-stone rounded-2xl space-y-3 hover:border-brand-moss/40 transition">
                     <div className="flex gap-2.5">
-                      <span className="text-[11px] font-bold text-brand-charcoal/60 bg-brand-cream border border-brand-stone/30 w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 font-mono">
+                      <span className="text-xs font-bold text-brand-charcoal/80 bg-brand-cream border border-brand-stone/30 w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 font-mono">
                         {idx + 1}
                       </span>
                       <div className="flex-1 space-y-1">
@@ -731,7 +731,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
                                   <Square size={14} />
                                 </button>
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-[10px] font-bold text-rose-600 flex items-center gap-1">
+                                  <div className="text-xs font-bold text-rose-600 flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping" />
                                     录音采集中: {recordingTime} 秒
                                   </div>
@@ -773,12 +773,12 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
 
                                 {/* Voice transcription feedback if recorded */}
                                 {recordingState?.recorded && (
-                                  <div className="text-[10px] text-slate-500 leading-snug animate-fade-in pl-0.5">
+                                  <div className="text-xs text-brand-charcoal/80 leading-snug animate-fade-in pl-0.5">
                                     <div className="font-bold text-brand-moss flex items-center gap-1">
                                       <Check size={11} className="text-emerald-500 shrink-0" />
                                       录音就绪，可回放确认
                                     </div>
-                                    <div className="text-[9px] mt-0.5 font-medium">
+                                    <div className="text-xs mt-0.5 font-medium">
                                       AI识别: "{recordingState.transcript}"
                                     </div>
                                   </div>
@@ -807,7 +807,7 @@ export default function AssessmentPanel({ dimension, child, onBack, onSaveResult
                               }));
                               setIsT3Analyzed(true);
                             }}
-                            className={`py-2 px-3 rounded-xl border text-[11px] font-medium text-center transition ${
+                            className={`py-2 px-3 rounded-xl border text-xs font-medium text-center transition ${
                               isOptSelected
                                 ? 'border-brand-moss bg-brand-sage text-brand-forest font-semibold shadow-sm'
                                 : 'border-brand-stone/40 bg-brand-cream/15 hover:bg-brand-cream/50 text-brand-charcoal/80'

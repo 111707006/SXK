@@ -196,7 +196,7 @@ export default function ReportBody({
           </div>
           <h2 className="text-xl font-bold text-brand-forest mt-1">儿童综合发展评估报告</h2>
           {/* 對照表要求固定放在報告最上方的定位句，原句照抄（見 statusWording.ts）。 */}
-          <p className="text-[11px] text-brand-charcoal/70 mt-1.5">{SCREENING_DISCLAIMER}</p>
+          <p className="text-xs text-brand-charcoal/80 mt-1.5">{SCREENING_DISCLAIMER}</p>
         </div>
         {/*
           編號由報告 id 算出，同一份報告永遠同一號（ADR-0007）。先前這裡取的是
@@ -204,7 +204,7 @@ export default function ReportBody({
           而這串字的用途正是讓他在電話上說出「我看的是哪一份」。
         */}
         {reportId && (
-          <span className="text-[10px] text-brand-charcoal/50 text-right">
+          <span className="text-xs text-brand-charcoal/80 text-right">
             报告编号: {reportNumber(reportId)}
           </span>
         )}
@@ -263,7 +263,7 @@ export default function ReportBody({
             <Layers size={15} className="text-brand-moss" />
             9 维度评估结果明细
           </h3>
-          <p className="text-[10px] text-brand-charcoal/50 mt-0.5">条形图代表该维度的「关注分」（0-8分，分数越高，越建议进一步了解）</p>
+          <p className="text-xs text-brand-charcoal/80 mt-0.5">条形图代表该维度的「关注分」（0-8分，分数越高，越建议进一步了解）</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -280,14 +280,14 @@ export default function ReportBody({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-brand-forest">{dim.name}</span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full border ${style.badge}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${style.badge}`}>
                       {(STATUS_WORDING[score.status] ?? STATUS_WORDING.normal).label}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[10px] text-brand-charcoal/70">
+                  <div className="flex items-center justify-between text-xs text-brand-charcoal/80">
                     <span>关注分: <strong className="font-extrabold">{concernScore}</strong> / 8</span>
-                    <span className={`text-[9px] ${style.text}`}>{style.action} →</span>
+                    <span className={`text-xs ${style.text}`}>{style.action} →</span>
                   </div>
 
                   <div className="w-full h-1.5 bg-brand-cream/50 rounded-full overflow-hidden border border-brand-stone/30">
@@ -302,7 +302,7 @@ export default function ReportBody({
           })}
         </div>
 
-        <div className="flex justify-center gap-4 text-[9px] text-brand-charcoal/60 pt-1">
+        <div className="flex justify-center gap-4 text-xs text-brand-charcoal/80 pt-1">
           <span className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> {STATUS_WORDING.normal.label} (继续观察)
           </span>
@@ -370,7 +370,7 @@ export default function ReportBody({
           : <PrognosisTrajectoryChart completedScores={scores} />}
 
         <div className="bg-brand-sand/50 p-4 rounded-2xl border border-brand-stone/60 text-left">
-          <span className="text-[10px] font-bold text-brand-clay uppercase tracking-wider flex items-center gap-1 mb-1.5">
+          <span className="text-xs font-bold text-brand-clay uppercase tracking-wider flex items-center gap-1 mb-1.5">
             <Compass size={11} className="text-brand-clay" />
             {/* 新版這一段是「接下来怎么做」，不是預測（欄位名沿用 prognosisPrediction）。 */}
             {real ? '接下来怎么做' : '后续发展预判与家长指引'}
@@ -491,7 +491,7 @@ function RadarSection({ scores }: { scores: DimensionScore[] }) {
           {/* 客戶指定的字串，一字不動（issue #18 / p.12）：不加空格、破折號用兩個全形。 */}
           9大维度结论——雷达图分析
         </h3>
-        <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
+        <p className="text-xs text-brand-charcoal/80 mt-0.5">
           共评测 9 项发展维度，其中 <span className="font-bold text-rose-600">{attentionCount} 项</span>{' '}
           {STATUS_WORDING.borderline.tag}（<span className="font-bold text-rose-600">{redCount} 项</span>{' '}
           {STATUS_WORDING.delay.tag}）
@@ -590,23 +590,23 @@ function RadarSection({ scores }: { scores: DimensionScore[] }) {
         圖例三級，與九宮格、篩查結論頁同一組字。
         先前這裡是四級（依關注分 ≥6／5／3–4／≤2 切），那是第二套刻度 —— 見 SEVERITY 的說明。
       */}
-      <div className="flex flex-wrap justify-center gap-3 text-[10px]">
+      <div className="flex flex-wrap justify-center gap-3 text-xs">
         {(['delay', 'borderline', 'normal'] as const).map(status => (
           <div key={status} className="flex items-center gap-1">
             <div className={`w-2.5 h-2.5 rounded-full ${look(status).fill}`} />
-            <span className="text-brand-charcoal/70">{STATUS_WORDING[status].label}</span>
+            <span className="text-brand-charcoal/80">{STATUS_WORDING[status].label}</span>
           </div>
         ))}
       </div>
 
       {/* 详细列表 */}
       <div className="border-t border-brand-cream pt-3 space-y-2">
-        <p className="text-[10px] font-bold text-brand-charcoal/60 text-center">各维度关注分详情</p>
+        <p className="text-xs font-bold text-brand-charcoal/80 text-center">各维度关注分详情</p>
         <div className="grid grid-cols-3 gap-2">
           {sortedScores.map((item) => (
             <div
               key={`${item.dimensionId}-${item.tierId}`}
-              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] ${look(item.status).tint}`}
+              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs ${look(item.status).tint}`}
             >
               <span className="font-medium text-brand-charcoal/80 truncate">{item.dimensionName}</span>
               <span className={`font-bold ml-1 ${look(item.status).text}`}>{item.concernScore}</span>
@@ -674,7 +674,7 @@ function PeerComparison({ childName, scores, noWeeklyPlan }: { childName: string
         </div>
 
         {/* Labels matching attachment */}
-        <div className="flex justify-between text-[10px] text-brand-charcoal/80 font-bold px-1 mt-2">
+        <div className="flex justify-between text-xs text-brand-charcoal/80 font-bold px-1 mt-2">
           <span className="w-1/4 text-center">{STATUS_WORDING.delay.label}</span>
           <span className="w-1/4 text-center">{STATUS_WORDING.borderline.label}</span>
           <span className="w-1/4 text-center">平均水平</span>

@@ -915,9 +915,9 @@ export default function App() {
                   {PRODUCT.buildBadge.label}
                 </span>
               </div>
-              <div className="text-[10px] text-brand-charcoal/60 font-medium flex items-center gap-1.5 mt-0.5">
-                {syncing && <span className="text-brand-moss animate-spin text-[11px]" title="正在云端保存中...">⏳</span>}
-                {syncError && <span className="text-red-500 text-[9px] font-bold" title={syncError}>⚠️ 同步失败</span>}
+              <div className="text-xs text-brand-charcoal/80 font-medium flex items-center gap-1.5 mt-0.5">
+                {syncing && <span className="text-brand-moss animate-spin text-xs" title="正在云端保存中...">⏳</span>}
+                {syncError && <span className="text-red-500 text-xs font-bold" title={syncError}>⚠️ 同步失败</span>}
               </div>
             </div>
           </div>
@@ -1056,7 +1056,7 @@ export default function App() {
                             <UserCheck size={14} className="text-brand-moss" />
                             客户服务中心
                           </h3>
-                          <span className="text-[10px] px-2 py-0.5 bg-brand-sage/20 rounded-md text-brand-forest font-bold">
+                          <span className="text-xs px-2 py-0.5 bg-brand-sage/20 rounded-md text-brand-forest font-bold">
                             儿童健康档案
                           </span>
                         </div>
@@ -1065,11 +1065,11 @@ export default function App() {
                           <div className="space-y-1">
                             <div className="font-bold text-brand-forest text-sm flex items-center gap-1.5">
                               <span>{child.name}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black tracking-wider bg-white text-brand-clay border border-brand-stone/30">
+                              <span className="text-xs px-1.5 py-0.5 rounded-full font-black tracking-wider bg-white text-brand-clay border border-brand-stone/30">
                                 {child.gender === 'boy' ? '男童 👦' : '女童 👧'}
                               </span>
                             </div>
-                            <div className="text-[10px] text-brand-charcoal/60 space-x-2">
+                            <div className="text-xs text-brand-charcoal/80 space-x-2">
                               <span>年龄: {formatAge(child.ageMonth)}</span>
                               <span>•</span>
                               <span>月龄: {child.ageMonth} 个月</span>
@@ -1081,7 +1081,7 @@ export default function App() {
                               setIsEditingProfile(true);
                               setIsCustomerDropdownOpen(false);
                             }}
-                            className="px-2.5 py-1 bg-white hover:bg-brand-sage/20 border border-brand-stone/40 text-brand-forest rounded-lg text-[10px] font-bold flex items-center gap-1 transition shadow-sm cursor-pointer"
+                            className="px-2.5 py-1 bg-white hover:bg-brand-sage/20 border border-brand-stone/40 text-brand-forest rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm cursor-pointer"
                             title="修改受评少儿成长档案"
                           >
                             <User size={10} className="text-brand-moss" />
@@ -1091,7 +1091,7 @@ export default function App() {
 
                         {/* Screening progress */}
                         <div className="space-y-1.5">
-                          <div className="flex justify-between text-[10px] text-brand-charcoal/60 font-semibold">
+                          <div className="flex justify-between text-xs text-brand-charcoal/80 font-semibold">
                             <span>脑功能评估进度 ({completedScores.length}/9 维度)</span>
                             <span>{Math.round((completedScores.length / 9) * 100)}%</span>
                           </div>
@@ -1118,7 +1118,7 @@ export default function App() {
                               setSelectedDimensionId(null);
                               setIsCustomerDropdownOpen(false);
                             }}
-                            className="text-[10px] text-brand-moss hover:text-brand-forest font-bold flex items-center gap-0.5 cursor-pointer"
+                            className="text-xs text-brand-moss hover:text-brand-forest font-bold flex items-center gap-0.5 cursor-pointer"
                           >
                             去商城
                             <ArrowRight size={10} />
@@ -1126,7 +1126,7 @@ export default function App() {
                         </div>
 
                         {orders.length === 0 ? (
-                          <div className="text-center py-5 bg-brand-cream/30 rounded-xl border border-dashed border-brand-stone/40 text-[10px] text-brand-charcoal/50">
+                          <div className="text-center py-5 bg-brand-cream/30 rounded-xl border border-dashed border-brand-stone/40 text-xs text-brand-charcoal/80">
                             暂无辅助康复设备订单
                           </div>
                         ) : (
@@ -1137,7 +1137,7 @@ export default function App() {
                                   <div className="font-bold text-brand-forest leading-snug">
                                     {order.product.name}
                                   </div>
-                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-black shrink-0 ${
                                     order.status === 'delivered' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
                                     order.status === 'shipped' || order.status === 'delivering' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
                                     'bg-amber-100 text-amber-800 border border-amber-200'
@@ -1149,13 +1149,13 @@ export default function App() {
                                   </span>
                                 </div>
 
-                                <div className="flex justify-between text-[10px] text-brand-charcoal/60">
+                                <div className="flex justify-between text-xs text-brand-charcoal/80">
                                   <span>单价 ¥{order.product.price} · 数量 x{order.quantity}</span>
                                   <span className="font-bold text-brand-forest">总计: ¥{order.totalPrice}</span>
                                 </div>
 
                                 {order.logisticsTimeline && order.logisticsTimeline.length > 0 && (
-                                  <div className="bg-white/80 p-1.5 rounded border border-brand-stone/20 text-[9px] text-brand-charcoal/70 flex items-start gap-1">
+                                  <div className="bg-white/80 p-1.5 rounded border border-brand-stone/20 text-xs text-brand-charcoal/80 flex items-start gap-1">
                                     <Truck size={10} className="text-indigo-600 mt-0.5 shrink-0" />
                                     <div className="line-clamp-2 leading-relaxed">
                                       <span className="font-bold text-indigo-700">最新物流:</span> {order.logisticsTimeline[0].content} ({order.logisticsTimeline[0].time})
@@ -1177,7 +1177,7 @@ export default function App() {
                         </h4>
                         
                         {completedScores.length === 0 ? (
-                          <div className="text-center py-4 text-[10px] text-brand-charcoal/50">
+                          <div className="text-center py-4 text-xs text-brand-charcoal/80">
                             尚未完成任何康复测评
                           </div>
                         ) : (
@@ -1185,12 +1185,12 @@ export default function App() {
                             {completedScores.map((score) => (
                               <div key={`${score.dimensionId}-${score.tierId}`} className="p-1.5 bg-brand-sage/10 rounded-lg border border-brand-stone/20 flex flex-col justify-between">
                                 <div className="flex items-center justify-between gap-1">
-                                  <span className="font-bold text-brand-forest truncate text-[10px]">{score.dimensionName}</span>
-                                  <span className="px-1 py-0.2 bg-white border border-brand-stone/30 rounded text-[8px] font-bold text-brand-moss shrink-0">{score.tierId}层</span>
+                                  <span className="font-bold text-brand-forest truncate text-xs">{score.dimensionName}</span>
+                                  <span className="px-1 py-0.2 bg-white border border-brand-stone/30 rounded text-xs font-bold text-brand-moss shrink-0">{score.tierId}层</span>
                                 </div>
                                 <div className="flex justify-between items-center mt-1">
-                                  <span className="text-[10px] font-bold text-brand-forest/70">{score.score}分</span>
-                                  <span className={`text-[8px] font-extrabold ${
+                                  <span className="text-xs font-bold text-brand-forest/70">{score.score}分</span>
+                                  <span className={`text-xs font-extrabold ${
                                     score.status === 'delay' ? 'text-rose-600' :
                                     score.status === 'borderline' ? 'text-amber-600' : 'text-emerald-600'
                                   }`}>
@@ -1243,7 +1243,7 @@ export default function App() {
             </div>
           ) : userIdentity ? (
             <div className="flex items-center gap-3">
-              <span className="text-xs text-brand-charcoal/60 font-medium">
+              <span className="text-xs text-brand-charcoal/80 font-medium">
                 当前账户: <span className="font-bold text-brand-forest">{userIdentity}</span>
               </span>
               <button
@@ -1264,15 +1264,15 @@ export default function App() {
           <div id="handoff-landing" role="status" className="py-24 flex flex-col items-center gap-3 text-center">
             <Loader2 size={28} className="animate-spin text-brand-moss" />
             <p className="text-sm font-extrabold text-brand-forest">{HANDOFF_LANDING.loading}</p>
-            <p className="text-[11px] text-brand-charcoal/60">{HANDOFF_LANDING.hint}</p>
+            <p className="text-xs text-brand-charcoal/80">{HANDOFF_LANDING.hint}</p>
           </div>
         ) : handoffStage === 'confirm' ? (
           <div id="handoff-invite" className="w-full max-w-md bg-white rounded-3xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-6 shadow-sm text-left space-y-4">
-            <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+            <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
               <Layers size={10} /> {HANDOFF_INVITE.badge}
             </span>
             <h2 className="text-base font-extrabold text-brand-forest">{HANDOFF_INVITE.title(PRODUCT.brand.welcomeName ?? '')}</h2>
-            <p className="text-xs text-brand-charcoal/75 leading-relaxed">{HANDOFF_INVITE.body}</p>
+            <p className="text-xs text-brand-charcoal/80 leading-relaxed">{HANDOFF_INVITE.body}</p>
             <button
               id="handoff-invite-accept-btn"
               type="button"
@@ -1282,13 +1282,13 @@ export default function App() {
               {HANDOFF_INVITE.accept}
               <ChevronRight size={14} />
             </button>
-            <p className="text-[10px] text-brand-charcoal/55 leading-relaxed">
+            <p className="text-xs text-brand-charcoal/80 leading-relaxed">
               {HANDOFF_INVITE.consent(PRODUCT.brand.welcomeName ?? '')}，
               <button type="button" onClick={() => setShowPrivacyModal(true)} className="underline underline-offset-2 hover:text-brand-forest cursor-pointer">
                 {HANDOFF_INVITE.privacy}
               </button>
             </p>
-            <button type="button" onClick={declineHandoffInvite} className="w-full text-[11px] text-brand-charcoal/50 hover:text-brand-forest cursor-pointer">
+            <button type="button" onClick={declineHandoffInvite} className="w-full text-xs text-brand-charcoal/80 hover:text-brand-forest cursor-pointer">
               {HANDOFF_INVITE.decline}
             </button>
           </div>
@@ -1389,8 +1389,8 @@ export default function App() {
                       {PRODUCT.brand.headerTitle}
                     </h2>
                     <div className="flex flex-col gap-1">
-                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">1</span>点击「启动 T1 综合评估」，完成基础评估</p>
-                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-[10px] font-bold mr-1">2</span>{PRODUCT.dashboard.stepTwoHint}{PRODUCT.dashboard.stepTwoIsPaid && <span className="inline-block ml-0.5 px-1 py-0 rounded bg-amber-400/90 text-[9px] font-bold text-brand-moss align-middle">VIP</span>}</p>
+                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-xs font-bold mr-1">1</span>点击「启动 T1 综合评估」，完成基础评估</p>
+                      <p className="text-xs text-brand-sand/90 font-medium"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-moss/40 text-xs font-bold mr-1">2</span>{PRODUCT.dashboard.stepTwoHint}{PRODUCT.dashboard.stepTwoIsPaid && <span className="inline-block ml-0.5 px-1 py-0 rounded bg-amber-400/90 text-xs font-bold text-brand-moss align-middle">VIP</span>}</p>
                     </div>
                   </div>
                 </div>
@@ -1528,7 +1528,7 @@ export default function App() {
                   <div className="bg-white px-6 py-6 rounded-3xl border border-brand-stone shadow-sm text-left flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-black text-brand-forest tracking-tight">综合发育评估报告库</h2>
-                      <p className="text-xs text-brand-charcoal/60 font-medium mt-1">历次综合评估与专项深度评估数据资料库，符合隐私保护条款管理规范。</p>
+                      <p className="text-xs text-brand-charcoal/80 font-medium mt-1">历次综合评估与专项深度评估数据资料库，符合隐私保护条款管理规范。</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs bg-brand-sage/60 border border-brand-stone/40 px-3 py-1 rounded-full text-brand-forest font-bold">
@@ -1554,19 +1554,19 @@ export default function App() {
                           </div>
                           <div>
                             <h3 className="text-sm font-black text-brand-charcoal">儿童综合发展评估报告</h3>
-                            <p className="text-[10px] text-brand-charcoal/50">9维度多感官神经网络基础评估</p>
+                            <p className="text-xs text-brand-charcoal/80">9维度多感官神经网络基础评估</p>
                           </div>
                         </div>
-                        <span className="text-[10px] font-bold bg-brand-sage px-2 py-0.5 rounded text-brand-forest">评估层</span>
+                        <span className="text-xs font-bold bg-brand-sage px-2 py-0.5 rounded text-brand-forest">评估层</span>
                       </div>
 
                       {/* Live Screening Card */}
                       <div className="bg-brand-sage/20 border border-brand-stone/60 rounded-2xl p-4 space-y-3">
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="text-[10px] bg-brand-forest text-white font-extrabold px-1.5 py-0.5 rounded">实时动态</span>
+                            <span className="text-xs bg-brand-forest text-white font-extrabold px-1.5 py-0.5 rounded">实时动态</span>
                             <h4 className="text-xs font-bold mt-1.5 text-brand-charcoal">当前全维动态脑智评估进度</h4>
-                            <p className="text-[10px] text-brand-charcoal/60 mt-0.5">基于已导入的 T1 测评分数实时核算</p>
+                            <p className="text-xs text-brand-charcoal/80 mt-0.5">基于已导入的 T1 测评分数实时核算</p>
                           </div>
                           <span className="text-xs font-extrabold text-brand-forest">{completedScores.filter(s => s.tierId === 'T1').length}/9 维度</span>
                         </div>
@@ -1581,9 +1581,9 @@ export default function App() {
 
                       {/* Saved T1 Reports History List */}
                       <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-brand-charcoal/70">已存归档报告：</h4>
+                        <h4 className="text-xs font-bold text-brand-charcoal/80">已存归档报告：</h4>
                         {reportHistory.filter(r => r.type === 'T1_SCREENING').length === 0 ? (
-                          <div className="border border-dashed border-brand-stone rounded-2xl py-6 px-4 text-center text-xs text-brand-charcoal/40">
+                          <div className="border border-dashed border-brand-stone rounded-2xl py-6 px-4 text-center text-xs text-brand-charcoal/80">
                             暂无归档的 T1 综合评估
                           </div>
                         ) : (
@@ -1605,19 +1605,19 @@ export default function App() {
                                     className="border border-brand-stone/60 hover:border-brand-forest/60 hover:bg-brand-sage/5 rounded-2xl p-3.5 text-left cursor-pointer transition group"
                                   >
                                     <div className="flex justify-between items-center">
-                                      <span className="text-[10px] text-brand-charcoal/50 font-bold">
+                                      <span className="text-xs text-brand-charcoal/80 font-bold">
                                         {new Date(rec.createdAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                       </span>
-                                      <span className="text-[10px] text-brand-forest font-bold flex items-center gap-0.5 group-hover:underline">
+                                      <span className="text-xs text-brand-forest font-bold flex items-center gap-0.5 group-hover:underline">
                                         查看报告 <ChevronRight size={10} />
                                       </span>
                                     </div>
                                     <h5 className="text-xs font-bold text-brand-charcoal mt-1">儿童综合发展评估报告</h5>
                                     <div className="flex items-center gap-2 mt-2">
-                                      <span className="text-[10px] bg-red-50 text-red-600 border border-red-100 rounded px-1.5 font-medium">
+                                      <span className="text-xs bg-red-50 text-red-600 border border-red-100 rounded px-1.5 font-medium">
                                         {STATUS_WORDING.delay.label}: {delayCount}
                                       </span>
-                                      <span className="text-[10px] bg-brand-sage/40 text-brand-forest border border-brand-stone/40 rounded px-1.5 font-medium">
+                                      <span className="text-xs bg-brand-sage/40 text-brand-forest border border-brand-stone/40 rounded px-1.5 font-medium">
                                         已测: {rec.scores.length}
                                       </span>
                                     </div>
@@ -1771,10 +1771,10 @@ export default function App() {
       </main>
 
       {/* Aesthetic footer */}
-      <footer className="bg-white border-t border-brand-stone/60 py-6 mt-16 text-center text-xs text-brand-charcoal/60 font-medium relative z-10">
+      <footer className="bg-white border-t border-brand-stone/60 py-6 mt-16 text-center text-xs text-brand-charcoal/80 font-medium relative z-10">
         <div className="max-w-7xl mx-auto px-4 space-y-2">
           <p>{PRODUCT.brand.copyright}</p>
-          <div className="flex justify-center gap-4 text-[10px]">
+          <div className="flex justify-center gap-4 text-xs">
             <button onClick={() => setShowServiceModal(true)} className="hover:text-brand-forest transition-colors cursor-pointer">服务及免责条款</button>
             <span>•</span>
             <button onClick={() => setShowPrivacyModal(true)} className="hover:text-brand-forest transition-colors cursor-pointer">隐私保护条款</button>
@@ -1815,7 +1815,7 @@ export default function App() {
                 onClick={() => setShowPrivacyModal(false)}
                 className="w-7 h-7 rounded-full bg-brand-stone/20 hover:bg-brand-stone/40 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <span className="text-brand-charcoal/60 text-sm font-bold">✕</span>
+                <span className="text-brand-charcoal/80 text-sm font-bold">✕</span>
               </button>
             </div>
 
@@ -1848,7 +1848,7 @@ export default function App() {
                 onClick={() => setShowServiceModal(false)}
                 className="w-7 h-7 rounded-full bg-brand-stone/20 hover:bg-brand-stone/40 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <span className="text-brand-charcoal/60 text-sm font-bold">✕</span>
+                <span className="text-brand-charcoal/80 text-sm font-bold">✕</span>
               </button>
             </div>
 

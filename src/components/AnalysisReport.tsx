@@ -154,7 +154,7 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
             className="w-36 h-36"
           />
         ) : (
-          <QrCode size={36} className="text-brand-charcoal/25" />
+          <QrCode size={36} className="text-brand-charcoal/80" />
         )}
       </div>
 
@@ -164,14 +164,14 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
           把这份报告带回家
         </h3>
         {state.kind === 'loading' && (
-          <p className="text-xs text-brand-charcoal/60">正在产生报告连结…</p>
+          <p className="text-xs text-brand-charcoal/80">正在产生报告连结…</p>
         )}
         {state.kind === 'error' && (
           <p className="text-xs text-rose-600">{state.message}</p>
         )}
         {/* 只留這一句（客戶 10/17，規格 client-changes-2026-10-17 §2.2 第 4 點）：網址與提醒句拿掉了。 */}
         {state.kind === 'ready' && (
-          <p className="text-xs text-brand-charcoal/70 leading-relaxed max-w-md">
+          <p className="text-xs text-brand-charcoal/80 leading-relaxed max-w-md">
             用手机相机扫一下，这份报告就会在您自己的手机上打开，之后随时都能再看。
           </p>
         )}
@@ -568,7 +568,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         {emptySpecialistsMessage(specialistsReason).title}
       </h3>
       {emptySpecialistsMessage(specialistsReason).body && (
-        <p className="text-xs text-brand-charcoal/70 leading-relaxed max-w-xl">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed max-w-xl">
           {emptySpecialistsMessage(specialistsReason).body}
         </p>
       )}
@@ -586,7 +586,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           {/*
             入口不只講線上（issue #21）：四種服務都列在下面，這裡的標題不寫死「线上」。
           */}
-          <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
+          <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-xs font-bold text-brand-sage inline-block uppercase tracking-wider">
             专家咨询与干预训练
           </span>
           <h3 className="text-lg font-bold">预约 1 对 1 专家</h3>
@@ -625,7 +625,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             表單，這裡若還寫死「线上」，要約線下訓練的家長根本不會點進去 ——
             而選類型的那一步就在點進去之後的第一格。
           */}
-          <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-[10px] font-bold text-brand-sage inline-block uppercase tracking-wider">
+          <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-sage/30 text-xs font-bold text-brand-sage inline-block uppercase tracking-wider">
             专家咨询与干预训练
           </span>
           <h3 className="text-lg font-bold">预约 1 对 1 专家，线上或到机构都可以</h3>
@@ -652,7 +652,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       <div className="flex items-center justify-between bg-white px-5 py-4 rounded-2xl border border-brand-stone shadow-sm">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition"
+          className="flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal hover:text-brand-forest transition"
         >
           <ArrowLeft size={16} />
           返回评估面板
@@ -672,7 +672,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <div className="text-2xl font-bold font-sans text-brand-forest mt-2.5">
             {completedScores.filter(s => s.status === 'normal').length} 个维度
           </div>
-          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('normal')}%，可在日常互动中继续保持</p>
+          <p className="text-xs text-brand-charcoal mt-1">占比约 {calculateStatusPercentage('normal')}%，可在日常互动中继续保持</p>
         </div>
 
         <div className="bg-brand-sand/55 border border-brand-stone p-5 rounded-2xl text-left shadow-sm">
@@ -683,7 +683,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <div className="text-2xl font-bold font-sans text-brand-clay mt-2.5">
             {completedScores.filter(s => s.status === 'borderline').length} 个维度
           </div>
-          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('borderline')}%，仍在建立中，可在日常中多加练习</p>
+          <p className="text-xs text-brand-charcoal mt-1">占比约 {calculateStatusPercentage('borderline')}%，仍在建立中，可在日常中多加练习</p>
         </div>
 
         <div className="bg-rose-50/30 border border-rose-200/60 p-5 rounded-2xl text-left shadow-sm">
@@ -694,7 +694,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <div className="text-2xl font-bold font-sans text-rose-700 mt-2.5">
             {completedScores.filter(s => s.status === 'delay').length} 个维度
           </div>
-          <p className="text-[11px] text-brand-charcoal/85 mt-1">占比约 {calculateStatusPercentage('delay')}%，建议近期安排专业咨询</p>
+          <p className="text-xs text-brand-charcoal mt-1">占比约 {calculateStatusPercentage('delay')}%，建议近期安排专业咨询</p>
         </div>
       </div>
 
@@ -712,11 +712,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
             <div className="space-y-0.5">
               <h2 className="text-sm font-bold font-sans flex items-center gap-1.5">
                 {PRODUCT.brand.reportTitle}
-                <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-brand-sage/20 border border-brand-sage/30 text-[9px] font-bold text-brand-sage">
+                <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-brand-sage/20 border border-brand-sage/30 text-xs font-bold text-brand-sage">
                   <Sparkles size={8} /> 9 维发育分析
                 </span>
               </h2>
-              <p className="text-[11px] text-brand-cream/80 max-w-xl">
+              <p className="text-xs text-brand-cream/80 max-w-xl">
                 根据 9 个维度的筛查结果，生成发展情况说明、训练建议与居家互动方案。
               </p>
             </div>
@@ -769,7 +769,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h3 className="text-base font-bold text-brand-forest">9 维度评估结果明细</h3>
-              <p className="text-xs text-brand-charcoal/60 mt-1">9 个维度各自的得分，看得出哪几项需要先跟进</p>
+              <p className="text-xs text-brand-charcoal/80 mt-1">9 个维度各自的得分，看得出哪几项需要先跟进</p>
             </div>
           </div>
           
@@ -795,7 +795,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                         </div>
                         <div>
                           <h4 className="text-sm font-extrabold text-brand-forest leading-tight">{dim.name}</h4>
-                          <span className="text-[10px] text-brand-charcoal/50 font-medium">
+                          <span className="text-xs text-brand-charcoal/80 font-medium">
                             {score.tierId === 'T1' ? 'T1 评估层' : score.tierId === 'T2' ? 'T2 问卷层' : 'T3 评估层'}
                           </span>
                         </div>
@@ -804,9 +804,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                       {/* Score display */}
                       <div className="text-right">
                         <p className="text-sm font-extrabold text-brand-forest leading-none">
-                          {score.score} <span className="text-brand-charcoal/40 text-[10px] font-normal">/ {score.maxScore}</span>
+                          {score.score} <span className="text-brand-charcoal/80 text-xs font-normal">/ {score.maxScore}</span>
                         </p>
-                        <p className="text-[9px] text-brand-charcoal/40 mt-0.5">得分</p>
+                        <p className="text-xs text-brand-charcoal/80 mt-0.5">得分</p>
                       </div>
                     </div>
 
@@ -826,7 +826,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                   {/* Status Indicator */}
                   <div className="mt-4 pt-3 border-t border-brand-cream/50 flex flex-col gap-2">
-                    <div className={`flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl text-[10px] font-extrabold border w-full text-center ${
+                    <div className={`flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl text-xs font-extrabold border w-full text-center ${
                       score.status === 'normal' ? 'bg-brand-sage/20 text-brand-forest border-brand-moss/20' :
                       score.status === 'borderline' ? 'bg-brand-sand text-brand-clay border-brand-clay/30 animate-pulse' :
                       'bg-rose-50 text-rose-700 border-rose-200'
@@ -881,7 +881,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <h3 className="text-sm font-bold flex items-center gap-1.5">
                   <Calendar size={16} /> 预约{currentService.label}
                 </h3>
-                <p className="text-[10px] text-brand-cream/80 mt-0.5">{currentService.description}</p>
+                <p className="text-xs text-brand-cream/80 mt-0.5">{currentService.description}</p>
               </div>
               <button 
                 onClick={() => setShowBookingModal(false)}
@@ -902,7 +902,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   給定，不在這裡重排 —— 那個順序是資料，不是版面。
                 */}
                 <div className="space-y-2.5">
-                  <span className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
+                  <span className="text-xs font-bold text-brand-forest block uppercase tracking-wider">
                     第一步: 选择服务类型
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -938,9 +938,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                               }`}
                             />
                             <span className="flex-1">{d.label}</span>
-                            <ServiceNote state={state} className="text-brand-charcoal/60" />
+                            <ServiceNote state={state} className="text-brand-charcoal/80" />
                           </span>
-                          <span className="mt-1 block text-[10px] leading-relaxed text-brand-charcoal/60">
+                          <span className="mt-1 block text-xs leading-relaxed text-brand-charcoal/80">
                             {description}
                           </span>
                         </button>
@@ -953,7 +953,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     地址欄位、或以為選完就知道要去哪裡。
                   */}
                   {currentService.venue === 'offline' && (
-                    <p className="rounded-xl border border-brand-clay/30 bg-brand-sand/40 px-3 py-2 text-[10px] leading-relaxed text-brand-charcoal/80">
+                    <p className="rounded-xl border border-brand-clay/30 bg-brand-sand/40 px-3 py-2 text-xs leading-relaxed text-brand-charcoal/80">
                       线下服务的<strong className="font-bold">具体地点由客服致电与您确认</strong>，
                       下方选的时段是您方便的时间，客服会照它安排。
                     </p>
@@ -962,7 +962,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                 {/* Step 2: Select Specialist */}
                 <div className="space-y-2.5">
-                  <span className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
+                  <span className="text-xs font-bold text-brand-forest block uppercase tracking-wider">
                     第二步: 选择特邀专家成员
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -985,7 +985,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                           <div>
                             <h4 className="text-xs font-bold text-brand-forest">{spec.name}</h4>
                             {spec.title && (
-                              <span className="text-[8px] text-brand-charcoal/60 leading-none block mt-0.5">{spec.title}</span>
+                              <span className="text-xs text-brand-charcoal/80 leading-none block mt-0.5">{spec.title}</span>
                             )}
                           </div>
                         </div>
@@ -999,13 +999,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   <div className="bg-brand-cream/20 border border-brand-stone/60 rounded-2xl p-4 space-y-2 text-xs">
                     {currentSpecialist.specialty && (
                       <div>
-                        <span className="text-[10px] font-bold text-brand-moss block">专家执业专长:</span>
+                        <span className="text-xs font-bold text-brand-moss block">专家执业专长:</span>
                         <p className="text-brand-charcoal leading-relaxed">{currentSpecialist.specialty}</p>
                       </div>
                     )}
                     {currentSpecialist.experience && (
                       <div>
-                        <span className="text-[10px] font-bold text-brand-clay block">学术及评估背景:</span>
+                        <span className="text-xs font-bold text-brand-clay block">学术及评估背景:</span>
                         <p className="text-brand-charcoal/80">{currentSpecialist.experience}</p>
                       </div>
                     )}
@@ -1015,7 +1015,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 {/* Step 2: Select Date & Slot */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
+                    <label className="text-xs font-bold text-brand-forest block uppercase tracking-wider">
                       第三步: 选择希望的日期
                     </label>
                     <input 
@@ -1029,12 +1029,12 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
+                    <label className="text-xs font-bold text-brand-forest block uppercase tracking-wider">
                       第四步: 选择专家的出诊班次
                     </label>
                     <div className="flex gap-1.5 flex-wrap">
                       {currentSpecialist && currentSpecialist.slots.length === 0 && (
-                        <p className="text-[10px] text-brand-charcoal/60 leading-relaxed">
+                        <p className="text-xs text-brand-charcoal/80 leading-relaxed">
                           这位专家尚未开放可预约的时段，请改选其他专家，或直接与机构联系。
                         </p>
                       )}
@@ -1045,7 +1045,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                             key={slot}
                             type="button"
                             onClick={() => setSelectedSlot(slot)}
-                            className={`px-3 py-2 rounded-xl text-[10px] font-bold border transition ${
+                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition ${
                               isSlotSelected
                                 ? 'bg-brand-forest text-white border-brand-forest'
                                 : 'bg-white text-brand-charcoal border-brand-stone/80 hover:bg-brand-cream/35'
@@ -1061,14 +1061,14 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                 {/* Step 3: Contact details */}
                 <div className="space-y-3 pt-3 border-t border-brand-cream">
-                  <span className="text-[11px] font-bold text-brand-forest block uppercase tracking-wider">
+                  <span className="text-xs font-bold text-brand-forest block uppercase tracking-wider">
                     第五步: 完善家长联系资料
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-brand-charcoal/70">家长姓名</span>
+                      <span className="text-xs font-bold text-brand-charcoal/80">家长姓名</span>
                       <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-charcoal/40" size={13} />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-charcoal/80" size={13} />
                         <input 
                           type="text" 
                           placeholder="请输入家长/监护人姓名"
@@ -1080,9 +1080,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-brand-charcoal/70">联系手机</span>
+                      <span className="text-xs font-bold text-brand-charcoal/80">联系手机</span>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-charcoal/40" size={13} />
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-charcoal/80" size={13} />
                         <input 
                           type="tel" 
                           placeholder="请输入 11 位手机号码"
@@ -1097,7 +1097,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                 {/* Booking confirmation action */}
                 {bookingError && (
-                  <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 leading-relaxed">
+                  <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 leading-relaxed">
                     {bookingError}
                   </p>
                 )}
@@ -1131,7 +1131,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                 <div className="space-y-1">
                   <h4 className="text-base font-extrabold text-brand-forest">{currentService.label} 预约成功确认书</h4>
-                  <p className="text-[11px] text-brand-charcoal/50">预约成功编号: RSV-SXK-{Date.now().toString().slice(-6)}</p>
+                  <p className="text-xs text-brand-charcoal/80">预约成功编号: RSV-SXK-{Date.now().toString().slice(-6)}</p>
                 </div>
 
                 {/* Decorative Ticket Details */}
@@ -1142,13 +1142,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                   <div className="grid grid-cols-2 gap-y-2 gap-x-4 border-b border-brand-stone/30 pb-2">
                     <div>
-                      <span className="text-[9px] text-brand-charcoal/50 block">预定专家:</span>
+                      <span className="text-xs text-brand-charcoal/80 block">预定专家:</span>
                       <span className="font-bold text-brand-forest">
                         {currentSpecialist?.name}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-brand-charcoal/50 block">出诊职称:</span>
+                      <span className="text-xs text-brand-charcoal/80 block">出诊职称:</span>
                       <span className="font-bold text-brand-forest">
                         {currentSpecialist?.title?.split(' ')[0] ?? '—'}
                       </span>
@@ -1157,19 +1157,19 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
                   <div className="grid grid-cols-2 gap-y-2 gap-x-4 pt-1">
                     <div>
-                      <span className="text-[9px] text-brand-charcoal/50 block">希望时段:</span>
+                      <span className="text-xs text-brand-charcoal/80 block">希望时段:</span>
                       <span className="font-extrabold text-brand-clay font-mono">{bookingDate} {selectedSlot}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-brand-charcoal/50 block">受测儿档案:</span>
+                      <span className="text-xs text-brand-charcoal/80 block">受测儿档案:</span>
                       <span className="font-bold text-brand-forest">{reportChild.name} ({formatAge(reportChild.ageMonth)})</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-brand-charcoal/50 block">联系家长:</span>
+                      <span className="text-xs text-brand-charcoal/80 block">联系家长:</span>
                       <span className="font-semibold text-brand-charcoal">{parentName}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-brand-charcoal/50 block">预留手机:</span>
+                      <span className="text-xs text-brand-charcoal/80 block">预留手机:</span>
                       <span className="font-mono text-brand-charcoal">{parentPhone}</span>
                     </div>
                   </div>
@@ -1214,13 +1214,13 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                         className="w-36 h-36 mx-auto rounded-xl border border-brand-stone/60"
                       />
                     ) : (
-                      <div className="w-36 h-36 mx-auto rounded-xl border border-dashed border-brand-stone/60 flex items-center justify-center text-[10px] text-brand-charcoal/40 text-center px-3 leading-relaxed">
+                      <div className="w-36 h-36 mx-auto rounded-xl border border-dashed border-brand-stone/60 flex items-center justify-center text-xs text-brand-charcoal/80 text-center px-3 leading-relaxed">
                         客服二维码
                         <br />
                         待上传
                       </div>
                     )}
-                    <p className="text-[11px] text-brand-charcoal/70 text-center leading-relaxed">
+                    <p className="text-xs text-brand-charcoal/80 text-center leading-relaxed">
                       {PRODUCT.expertBooking.wechatId && (
                         <>
                           微信号：

@@ -104,7 +104,7 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
 
   if (status === 'loading') {
     return (
-      <div className="bg-white rounded-2xl border border-brand-stone/60 p-5 shadow-sm text-left flex items-center gap-2 text-xs text-brand-charcoal/60">
+      <div className="bg-white rounded-2xl border border-brand-stone/60 p-5 shadow-sm text-left flex items-center gap-2 text-xs text-brand-charcoal/80">
         <Loader2 size={14} className="animate-spin text-brand-moss" />
         正在读取深度评估的安排...
       </div>
@@ -113,7 +113,7 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
 
   if (status === 'error' || !plan) {
     return (
-      <div className="bg-white rounded-2xl border border-brand-stone/60 p-5 shadow-sm text-left text-xs text-brand-charcoal/60">
+      <div className="bg-white rounded-2xl border border-brand-stone/60 p-5 shadow-sm text-left text-xs text-brand-charcoal/80">
         暂时读不到深度评估的安排，稍后再打开这份报告即可。
       </div>
     );
@@ -127,11 +127,11 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
           type="button"
           disabled={!c.onSelect}
           onClick={c.onSelect ?? undefined}
-          className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-sage/10 disabled:active:scale-100"
+          className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-xs font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-sage/10 disabled:active:scale-100"
         >
           <UserRound size={12} className="shrink-0" />
           <span className="flex-1">{c.descriptor.label}</span>
-          <ServiceNote state={c.state} className="text-brand-charcoal/60" />
+          <ServiceNote state={c.state} className="text-brand-charcoal/80" />
         </button>
       ))}
     </div>
@@ -159,11 +159,11 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
     const copy = expertOnlyCopy(planV2);
     return (
       <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left space-y-3">
-        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
           <Layers size={10} /> 第二层 · 深度评估
         </span>
         <h3 className="text-sm font-extrabold text-brand-forest">{copy.headline}</h3>
-        <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed max-w-2xl">
           筛查中被标记的方面：{planV2.noTool.map(d => SITE_DIMENSION_NAME[d]).join('、')}。
           {copy.notes.map(note => <React.Fragment key={note}>{note}</React.Fragment>)}
           四种服务都可以约，专家会照这份报告逐项说明接下来可以怎么做。
@@ -181,7 +181,7 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
       {planV2.noTool.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           {noToolNotes(planV2).map(note => (
-            <p key={note.sentence} className="text-[11px] text-brand-charcoal/80 leading-relaxed">{note.text}</p>
+            <p key={note.sentence} className="text-xs text-brand-charcoal/80 leading-relaxed">{note.text}</p>
           ))}
           {serviceButtons}
         </div>

@@ -278,7 +278,7 @@ export function PrivacyTerms() {
 /** 兩份條款底下那一行落款。三個呼叫端都要一樣，所以也收在這裡。 */
 export function LegalFooterLine() {
   return (
-    <div className="pt-3 mt-4 border-t border-brand-stone/30 text-[10px] text-brand-charcoal/50 text-center">
+    <div className="pt-3 mt-4 border-t border-brand-stone/30 text-xs text-brand-charcoal/80 text-center">
       最后更新日期：{LEGAL_LAST_UPDATED} · {PRODUCT.brand.legalEntity}
     </div>
   );

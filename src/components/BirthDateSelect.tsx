@@ -103,7 +103,7 @@ export default function BirthDateSelect({
           {/* appearance-none 拿掉了原生箭頭，補一個回去，否則它看起來像個文字欄位 */}
           <ChevronDown
             size={FIELD_SIZE[size].chevron}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-charcoal/40 pointer-events-none"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-charcoal/80 pointer-events-none"
           />
         </div>
       ))}

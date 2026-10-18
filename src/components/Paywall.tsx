@@ -162,7 +162,7 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
     <div className="max-w-2xl mx-auto">
       <button
         onClick={onBack}
-        className="flex items-center gap-1.5 text-xs font-bold text-brand-charcoal/60 hover:text-brand-forest transition mb-4 cursor-pointer"
+        className="flex items-center gap-1.5 text-xs font-bold text-brand-charcoal/80 hover:text-brand-forest transition mb-4 cursor-pointer"
       >
         <ArrowLeft size={14} />
         返回维度总览
@@ -170,12 +170,12 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
 
       <div className="bg-white rounded-3xl border border-brand-stone shadow-sm overflow-hidden">
         <div className="bg-brand-sage/40 px-6 py-5 border-b border-brand-stone/60">
-          <div className="flex items-center gap-2 text-[11px] font-bold text-brand-moss">
+          <div className="flex items-center gap-2 text-xs font-bold text-brand-moss">
             <Lock size={12} />
             深度评估 · 待解锁
           </div>
           <h2 className="text-lg font-extrabold text-brand-forest mt-1">第二层深度评估 · 整份解锁</h2>
-          <p className="text-[11px] text-brand-charcoal/70 mt-1">
+          <p className="text-xs text-brand-charcoal/80 mt-1">
             依孩子的筛查结果安排要答的量表，答完生成深度报告与每周家庭活动。
           </p>
         </div>
@@ -184,9 +184,9 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
           <div className="flex items-baseline gap-1">
             <span className="text-sm font-bold text-brand-forest">¥</span>
             <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(shownFen)}</span>
-            <span className="text-[11px] text-brand-charcoal/60 ml-1">/ {pricing ? `${pricing.items} 项深度评估` : '整份一次'}</span>
+            <span className="text-xs text-brand-charcoal/80 ml-1">/ {pricing ? `${pricing.items} 项深度评估` : '整份一次'}</span>
             {pricing && (
-              <span className="text-[11px] text-brand-charcoal/50 line-through ml-2">{PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}</span>
+              <span className="text-xs text-brand-charcoal/80 line-through ml-2">{PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}</span>
             )}
           </div>
 
@@ -204,7 +204,7 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
             ))}
           </ul>
 
-          <div className="flex items-start gap-2 text-[10px] text-brand-charcoal/60 bg-brand-cream rounded-xl p-3 border border-brand-stone/40">
+          <div className="flex items-start gap-2 text-xs text-brand-charcoal/80 bg-brand-cream rounded-xl p-3 border border-brand-stone/40">
             <ShieldCheck size={12} className="shrink-0 mt-0.5 text-brand-moss" />
             <span>
               一次解锁整份第二层深度评估。权益绑定您的帐号，不绑定某一次筛查批次。付款由微信支付处理，本平台不接触您的支付信息。
@@ -234,7 +234,7 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
                 <Eye size={14} />
                 展示模式
               </div>
-              <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+              <p className="text-xs text-brand-charcoal/80 leading-relaxed">
                 当前为展示环境，不会产生真实订单，付费墙仅供预览。正式环境不会出现下面这个按钮。
               </p>
               <button
@@ -257,16 +257,16 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
                 <AlertCircle size={14} />
                 支付通道尚未开放
               </div>
-              <p className="text-[11px] text-amber-800/90 leading-relaxed">
+              <p className="text-xs text-amber-800/90 leading-relaxed">
                 订单已为您保留，但微信支付尚未开通，暂时无法完成付款。开通后您可凭订单号继续支付，无需重新下单。
               </p>
               {pendingOrder.reason && (
-                <p className="text-[10px] text-amber-800/60">{pendingOrder.reason}</p>
+                <p className="text-xs text-amber-800/60">{pendingOrder.reason}</p>
               )}
-              <div className="text-[10px] text-amber-900/70 font-mono bg-white/60 rounded-lg px-2.5 py-1.5 border border-amber-200 break-all">
+              <div className="text-xs text-amber-900/70 font-mono bg-white/60 rounded-lg px-2.5 py-1.5 border border-amber-200 break-all">
                 订单号：{pendingOrder.outTradeNo}
               </div>
-              <p className="text-[10px] text-amber-800/70">
+              <p className="text-xs text-amber-800/70">
                 金额：¥{formatFen(pendingOrder.amountFen)}
               </p>
             </div>

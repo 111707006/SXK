@@ -16,7 +16,7 @@ export default function T2RaterNoteInput({ v2, rater, value, onChange, disabled,
   if (!v2 || rater !== 'other') return null;
   return (
     <label className="block space-y-1" htmlFor={id}>
-      <span className="text-[11px] text-brand-charcoal/70">是谁填写？（选填，最多 {RATER_NOTE_MAX} 个字）</span>
+      <span className="text-xs text-brand-charcoal/80">是谁填写？（选填，最多 {RATER_NOTE_MAX} 个字）</span>
       <input
         id={id}
         type="text"

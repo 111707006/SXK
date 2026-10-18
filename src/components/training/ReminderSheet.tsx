@@ -90,7 +90,7 @@ export default function ReminderSheet() {
     <Sheet onClose={nav.back}>
       <div data-testid="sheet-reminder">
         <h2 className="text-[24px] font-black text-brand-forest">{REMINDER_SHEET.title}</h2>
-        <p className="mt-1.5 pr-12 text-[14px] text-brand-charcoal/60 leading-relaxed">{REMINDER_SHEET.sub}</p>
+        <p className="mt-1.5 pr-12 text-[14px] text-brand-charcoal/80 leading-relaxed">{REMINDER_SHEET.sub}</p>
 
         <p className="mt-5 text-[14px] font-bold text-brand-forest">{REMINDER_SHEET.days}</p>
         <div className="mt-2 grid grid-cols-7 gap-1.5">
@@ -111,7 +111,7 @@ export default function ReminderSheet() {
         </div>
 
         {!known && draft === null && (
-          <p className="mt-5 text-[12px] text-brand-charcoal/55 flex items-center gap-1.5" data-testid="reminder-stored-unknown">
+          <p className="mt-5 text-[12px] text-brand-charcoal/80 flex items-center gap-1.5" data-testid="reminder-stored-unknown">
             {prefsStatus === 'error' ? <Info size={14} className="shrink-0" /> : <Loader2 size={14} className="animate-spin shrink-0" />}
             {prefsStatus === 'error' ? REMINDER_SHEET.storedUnknown : REMINDER_SHEET.loadingStored}
           </p>
@@ -158,7 +158,7 @@ export default function ReminderSheet() {
                 {REMINDER_SHEET.icsFailed}
               </p>
             )}
-            <p className="mt-2.5 text-[12px] text-brand-charcoal/55 leading-relaxed">{REMINDER_SHEET.icsNote}</p>
+            <p className="mt-2.5 text-[12px] text-brand-charcoal/80 leading-relaxed">{REMINDER_SHEET.icsNote}</p>
           </>
         )}
       </div>

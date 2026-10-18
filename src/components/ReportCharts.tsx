@@ -86,10 +86,10 @@ export function IntegrationGauges({ criticalMetrics }: { criticalMetrics: ChartP
           return (
             <div key={m.id} className="bg-white rounded-2xl border border-brand-stone p-4 flex flex-col justify-between hover:shadow-md hover:border-brand-stone/80 transition-all text-left">
               <div className="flex items-start justify-between gap-2 mb-3">
-                <span className="text-[11px] font-bold text-brand-charcoal/80 leading-tight block">
+                <span className="text-xs font-bold text-brand-charcoal/80 leading-tight block">
                   {m.label}
                 </span>
-                <span className="shrink-0 px-1.5 py-0.5 rounded bg-brand-cream border border-brand-stone/40 text-[9px] font-bold text-brand-charcoal/60">
+                <span className="shrink-0 px-1.5 py-0.5 rounded bg-brand-cream border border-brand-stone/40 text-xs font-bold text-brand-charcoal/80">
                   {m.tag}
                 </span>
               </div>
@@ -118,7 +118,7 @@ export function IntegrationGauges({ criticalMetrics }: { criticalMetrics: ChartP
                     <span className="text-base font-extrabold font-sans text-brand-forest leading-none">
                       {m.value}%
                     </span>
-                    <span className="text-[8px] text-brand-charcoal/50 scale-90 mt-0.5 font-bold">
+                    <span className="text-xs text-brand-charcoal/80 scale-90 mt-0.5 font-bold">
                       突触协同
                     </span>
                   </div>
@@ -127,9 +127,9 @@ export function IntegrationGauges({ criticalMetrics }: { criticalMetrics: ChartP
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
                     {m.icon}
-                    <span className="text-[10px] font-bold text-brand-charcoal/80">测绘参数</span>
+                    <span className="text-xs font-bold text-brand-charcoal/80">测绘参数</span>
                   </div>
-                  <p className="text-[10px] text-brand-charcoal/60 leading-normal">
+                  <p className="text-xs text-brand-charcoal/80 leading-normal">
                     {m.description}
                   </p>
                 </div>
@@ -207,7 +207,7 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
         
         {/* Left column: SVG Brain Map */}
         <div className="md:col-span-7 flex flex-col items-center justify-center bg-white rounded-2xl border border-brand-stone p-4 relative min-h-[250px] overflow-hidden">
-          <span className="absolute top-2.5 right-3 text-[9px] text-brand-charcoal/40 font-bold bg-brand-cream/60 border border-brand-stone/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="absolute top-2.5 right-3 text-xs text-brand-charcoal/80 font-bold bg-brand-cream/60 border border-brand-stone/40 px-2 py-0.5 rounded-full flex items-center gap-1">
             <Info size={9} /> 点击下方各脑区核心探针查看细节
           </span>
 
@@ -283,7 +283,7 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
                     x={n.x}
                     y={n.y - 14}
                     textAnchor="middle"
-                    className="text-[9px] font-bold text-brand-charcoal fill-brand-charcoal opacity-85 pointer-events-none select-none font-sans"
+                    className="text-xs font-bold text-brand-charcoal fill-brand-charcoal opacity-85 pointer-events-none select-none font-sans"
                   >
                     {n.name.slice(0, 3)}
                   </text>
@@ -293,7 +293,7 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
           </svg>
 
           {/* Simple Legend */}
-          <div className="flex items-center gap-4 text-[9px] font-bold text-brand-charcoal/60 mt-2 border-t border-brand-stone/30 pt-2 w-full justify-center">
+          <div className="flex items-center gap-4 text-xs font-bold text-brand-charcoal/80 mt-2 border-t border-brand-stone/30 pt-2 w-full justify-center">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-brand-moss shrink-0" /> {STATUS_WORDING.normal.label}
             </span>
@@ -310,7 +310,7 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
         <div className="md:col-span-5 flex flex-col justify-between bg-white rounded-2xl border border-brand-stone p-5 text-left">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider ${
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold tracking-wider ${
                 activeState.status === 'normal' ? 'bg-brand-sage text-brand-forest border border-brand-moss/30' :
                 activeState.status === 'borderline' ? 'bg-brand-sand text-brand-clay border border-brand-clay/30' :
                 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -321,25 +321,25 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
 
             <div>
               <h3 className="text-xs font-extrabold text-brand-forest">{activeNode.name}</h3>
-              <p className="text-[10px] text-brand-charcoal/50 leading-none mt-0.5 font-sans uppercase font-bold tracking-tight">
+              <p className="text-xs text-brand-charcoal/80 leading-none mt-0.5 font-sans uppercase font-bold tracking-tight">
                 {activeNode.eng}
               </p>
             </div>
 
-            <p className="text-[10px] text-brand-charcoal/80 leading-relaxed bg-brand-cream/30 p-2.5 rounded-xl border border-brand-stone/40">
+            <p className="text-xs text-brand-charcoal/80 leading-relaxed bg-brand-cream/30 p-2.5 rounded-xl border border-brand-stone/40">
               <span className="font-bold text-brand-forest text-xs block mb-1">💡 脑区功能定位:</span>
               {activeNode.desc}
             </p>
 
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-brand-clay block">🎯 发展观察与建议:</span>
-              <p className="text-[10px] text-brand-charcoal leading-relaxed">
+              <span className="text-xs font-bold text-brand-clay block">🎯 发展观察与建议:</span>
+              <p className="text-xs text-brand-charcoal leading-relaxed">
                 {activeNode.clinicalNotes}
               </p>
             </div>
           </div>
 
-          <div className="border-t border-brand-stone/30 pt-3.5 mt-3 flex items-center justify-between text-[10px] text-brand-charcoal/60">
+          <div className="border-t border-brand-stone/30 pt-3.5 mt-3 flex items-center justify-between text-xs text-brand-charcoal/80">
             <span>关联评测因子:</span>
             <div className="flex gap-1">
               {activeNode.relatedDims.map(dim => {
@@ -460,22 +460,22 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance, plain = fal
                 className={`px-3 py-2 rounded-xl text-xs font-bold shrink-0 transition flex flex-col items-center gap-0.5 border ${
                   isSelected 
                     ? 'border-brand-moss bg-brand-sage/40 text-brand-forest' 
-                    : 'border-brand-stone/60 text-brand-charcoal/70 hover:bg-brand-cream/40'
+                    : 'border-brand-stone/60 text-brand-charcoal/80 hover:bg-brand-cream/40'
                 }`}
               >
                 <span>{d.label}</span>
-                <span className="text-[8px] font-normal text-brand-charcoal/50">Day {d.num}</span>
+                <span className="text-xs font-normal text-brand-charcoal/80">Day {d.num}</span>
               </button>
             );
           })}
 
           <div className="ml-auto flex items-center gap-2 px-3 py-1 bg-brand-sage/20 border border-brand-moss/20 rounded-xl shrink-0">
-            <div className="w-8 h-8 rounded-full bg-white border border-brand-stone flex items-center justify-center text-[10px] font-extrabold text-brand-forest">
+            <div className="w-8 h-8 rounded-full bg-white border border-brand-stone flex items-center justify-center text-xs font-extrabold text-brand-forest">
               {plain ? `${currentCheckedCount}/${currentTasks.length}` : `${completionPercentage}%`}
             </div>
             <div className="text-left leading-none">
-              <span className="text-[10px] font-bold text-brand-forest block">{plain ? '今天做了几项' : '今日康复打卡率'}</span>
-              {!plain && <span className="text-[8px] text-brand-charcoal/60">完成以获取动态报告提升</span>}
+              <span className="text-xs font-bold text-brand-forest block">{plain ? '今天做了几项' : '今日康复打卡率'}</span>
+              {!plain && <span className="text-xs text-brand-charcoal/80">完成以获取动态报告提升</span>}
             </div>
           </div>
         </div>
@@ -496,7 +496,7 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance, plain = fal
               >
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2 border-b border-brand-stone/30 pb-2">
-                    <span className="text-[10px] font-bold text-brand-forest block tracking-wide">
+                    <span className="text-xs font-bold text-brand-forest block tracking-wide">
                       {t.type}
                     </span>
                     <button 
@@ -510,13 +510,13 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance, plain = fal
                     </button>
                   </div>
 
-                  <p className="text-[11px] text-brand-charcoal font-medium leading-relaxed">
+                  <p className="text-xs text-brand-charcoal font-medium leading-relaxed">
                     {t.text}
                   </p>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-brand-stone/30 flex items-center justify-between text-[9px] font-bold text-brand-charcoal/60">
-                  <span className="flex items-center gap-0.5 text-[10px]">
+                <div className="mt-4 pt-3 border-t border-brand-stone/30 flex items-center justify-between text-xs font-bold text-brand-charcoal/80">
+                  <span className="flex items-center gap-0.5 text-xs">
                     <Clock size={11} />
                     {t.time}
                   </span>
@@ -537,7 +537,7 @@ export function WeeklyRehabPlanner({ rehabSuggestions, homeGuidance, plain = fal
         </div>
 
         {/* Dynamic Tip Banner */}
-        <div className="mt-4 p-3.5 bg-brand-sage/20 border border-brand-moss/20 rounded-2xl flex items-center gap-3 text-[11px] text-brand-forest">
+        <div className="mt-4 p-3.5 bg-brand-sage/20 border border-brand-moss/20 rounded-2xl flex items-center gap-3 text-xs text-brand-forest">
           <Sparkles size={14} className="text-brand-moss shrink-0 animate-bounce" />
           <p className="leading-normal font-bold">
             {plain
@@ -616,7 +616,7 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
         <div className="flex flex-wrap gap-2 mb-4">
           <button
             onClick={() => setActiveTrack('all')}
-            className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition ${
+            className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition ${
               activeTrack === 'all' 
                 ? 'bg-brand-charcoal text-white border-brand-charcoal' 
                 : 'bg-white text-brand-charcoal border-brand-stone hover:bg-brand-cream/35'
@@ -628,7 +628,7 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
             <button
               key={t.id}
               onClick={() => setActiveTrack(t.id as any)}
-              className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
                 activeTrack === t.id 
                   ? 'bg-brand-cream text-brand-forest border-brand-moss ring-1 ring-brand-moss/20' 
                   : 'bg-white text-brand-charcoal border-brand-stone hover:bg-brand-cream/35'
@@ -734,7 +734,7 @@ export function PrognosisTrajectoryChart({ completedScores }: { completedScores:
                               x={p.x} 
                               y={p.y - 14} 
                               textAnchor="middle" 
-                              className="text-[9px] font-bold fill-white font-sans"
+                              className="text-xs font-bold fill-white font-sans"
                             >
                               {p.score}%
                             </text>

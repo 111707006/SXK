@@ -29,7 +29,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 /** 活動還在讀、或讀不到時抽屜裡的一句話（通常讀過了：詳情先讀的）。 */
 function NotReady({ load }: { load: ActivityLoad }) {
   return (
-    <p className="pr-12 text-[14px] text-brand-charcoal/70 flex items-center gap-2">
+    <p className="pr-12 text-[14px] text-brand-charcoal/80 flex items-center gap-2">
       {load.status === 'loading' && <Loader2 size={16} className="animate-spin shrink-0" />}
       {load.status === 'loading' ? DETAIL.loading : load.status === 'missing' ? DETAIL.notFound : DETAIL.error}
     </p>
@@ -62,23 +62,23 @@ export function ActionsSheet({ id, from }: { id: string; from: DetailSource }) {
       <div data-testid="sheet-actions">
         <h2 className="text-[30px] font-black text-brand-forest">{ACTIONS_SHEET.title}</h2>
         <p className="mt-3 text-[16px] text-brand-forest">
-          <b className="tabular-nums">{a.steps.length}</b> <span className="text-brand-charcoal/60">{ACTIONS_SHEET.steps}</span>
+          <b className="tabular-nums">{a.steps.length}</b> <span className="text-brand-charcoal/80">{ACTIONS_SHEET.steps}</span>
         </p>
         {(length || clock) && (
           <p className="mt-2 text-[16px] text-brand-forest flex flex-wrap gap-x-4 gap-y-1">
             {length && (
               <span>
-                <b className="tabular-nums">{length.big}</b> <span className="text-brand-charcoal/60">{length.unit}</span>
+                <b className="tabular-nums">{length.big}</b> <span className="text-brand-charcoal/80">{length.unit}</span>
               </span>
             )}
             {clock && (
               <span>
-                <b className="tabular-nums">{clock}</b> <span className="text-brand-charcoal/60">{ACTIONS_SHEET.clip}</span>
+                <b className="tabular-nums">{clock}</b> <span className="text-brand-charcoal/80">{ACTIONS_SHEET.clip}</span>
               </span>
             )}
           </p>
         )}
-        <p className="mt-4 text-[14px] leading-relaxed text-brand-charcoal/60">{clip ? ACTIONS_SHEET.noteClip : ACTIONS_SHEET.noteNoClip}</p>
+        <p className="mt-4 text-[14px] leading-relaxed text-brand-charcoal/80">{clip ? ACTIONS_SHEET.noteClip : ACTIONS_SHEET.noteNoClip}</p>
 
         {a.steps.length > 0 && (
           <div className="mt-7">
@@ -91,7 +91,7 @@ export function ActionsSheet({ id, from }: { id: string; from: DetailSource }) {
                   <StepImage src={s.imageUrl} n={i + 1} className="w-[104px] h-[72px] rounded-lg shrink-0" />
                   <div className="pt-0.5 min-w-0">
                     <p className="text-[16px] font-bold text-brand-forest leading-snug">{s.instruction}</p>
-                    <p className="mt-1.5 text-[14px] text-brand-charcoal/55">{stepNo(i + 1)}</p>
+                    <p className="mt-1.5 text-[14px] text-brand-charcoal/80">{stepNo(i + 1)}</p>
                   </div>
                 </li>
               ))}
@@ -102,7 +102,7 @@ export function ActionsSheet({ id, from }: { id: string; from: DetailSource }) {
         {shots.length > 0 && (
           <div className="mt-7" data-testid="sheet-actions-say">
             <SectionTitle>{ACTIONS_SHEET.sayTitle}</SectionTitle>
-            <p className="mt-2 text-[13px] text-brand-charcoal/55">{ACTIONS_SHEET.saySub}</p>
+            <p className="mt-2 text-[13px] text-brand-charcoal/80">{ACTIONS_SHEET.saySub}</p>
             <ol className="mt-3 space-y-2.5">
               {shots.map((shot, i) => (
                 <li key={`${i}-${shot.name}`} className="rounded-xl bg-brand-sage px-3.5 py-3">
@@ -151,7 +151,7 @@ function PrepRow({ icon, label, text }: { icon: ReactNode; label: string; text: 
       {icon}
       <div>
         <p className="text-[15px] font-bold text-brand-forest">{label}</p>
-        <p className="mt-0.5 text-[13px] text-brand-charcoal/75 leading-relaxed">{text}</p>
+        <p className="mt-0.5 text-[13px] text-brand-charcoal/80 leading-relaxed">{text}</p>
       </div>
     </li>
   );
@@ -174,7 +174,7 @@ export function EquipSheet({ id }: { id: string }) {
     <Sheet onClose={nav.back}>
       <div data-testid="sheet-equip">
         <h2 className="text-[24px] font-black text-brand-forest">{EQUIP_SHEET.title}</h2>
-        <p className="mt-1.5 pr-12 text-[14px] text-brand-charcoal/60">{a.title}</p>
+        <p className="mt-1.5 pr-12 text-[14px] text-brand-charcoal/80">{a.title}</p>
         <ul className="mt-4 space-y-2.5">
           {need && <PrepRow icon={PREP_ICONS[1]} label={EQUIP_SHEET.need} text={need} />}
           {prep.map(p => (
@@ -208,7 +208,7 @@ export function ModeSheet({ id }: { id: string }) {
     <Sheet onClose={nav.back}>
       <div data-testid="sheet-mode">
         <h2 className="text-[24px] font-black text-brand-forest">{MODE_SHEET.title}</h2>
-        <p className="mt-1.5 text-[13px] text-brand-charcoal/55">{MODE_SHEET.savedHere}</p>
+        <p className="mt-1.5 text-[13px] text-brand-charcoal/80">{MODE_SHEET.savedHere}</p>
         <div className="mt-4 space-y-2.5">
           {options.map(o => (
             <button
@@ -224,7 +224,7 @@ export function ModeSheet({ id }: { id: string }) {
               <CircleCheck size={20} className={current === o.key ? 'text-brand-forest' : 'text-brand-stone'} />
               <span>
                 <span className="block text-[15px] font-bold text-brand-forest">{o.title}</span>
-                <span className="block mt-0.5 text-[13px] text-brand-charcoal/60">{o.note}</span>
+                <span className="block mt-0.5 text-[13px] text-brand-charcoal/80">{o.note}</span>
               </span>
             </button>
           ))}
@@ -246,7 +246,7 @@ export function CastSheet({ hasVideo }: { hasVideo: boolean }) {
           <Cast size={24} />
           {CAST_SHEET.title}
         </h2>
-        <p className="mt-2 text-[14px] text-brand-charcoal/60 leading-relaxed">{hasVideo ? CAST_SHEET.leadClip : CAST_SHEET.leadNoClip}</p>
+        <p className="mt-2 text-[14px] text-brand-charcoal/80 leading-relaxed">{hasVideo ? CAST_SHEET.leadClip : CAST_SHEET.leadNoClip}</p>
         <ul className="mt-4 space-y-3 text-[14px] text-brand-charcoal leading-relaxed">
           {CAST_SHEET.ways.map(w => (
             <li key={w.who}>

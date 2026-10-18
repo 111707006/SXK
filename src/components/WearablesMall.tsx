@@ -180,7 +180,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
             <Truck size={13} />
             物流与订单进度
             {orders.length > 0 && (
-              <span className="absolute top-[-2px] right-[-2px] w-4.5 h-4.5 bg-rose-600 text-white rounded-full text-[9px] flex items-center justify-center font-bold font-sans">
+              <span className="absolute top-[-2px] right-[-2px] w-4.5 h-4.5 bg-rose-600 text-white rounded-full text-xs flex items-center justify-center font-bold font-sans">
                 {orders.length}
               </span>
             )}
@@ -201,14 +201,14 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500"
                   />
-                  <span className="absolute top-2.5 left-2.5 bg-brand-forest/90 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md backdrop-blur-sm">
+                  <span className="absolute top-2.5 left-2.5 bg-brand-forest/90 text-white text-xs font-extrabold px-2 py-0.5 rounded-md backdrop-blur-sm">
                     森心康原装
                   </span>
                 </div>
                 <div className="flex-1 flex flex-col justify-between py-1">
                   <div>
                     <h3 className="text-base font-extrabold text-brand-forest">{product.name}</h3>
-                    <p className="text-[11px] text-brand-charcoal/80 leading-relaxed mt-1.5">
+                    <p className="text-xs text-brand-charcoal/80 leading-relaxed mt-1.5">
                       {product.desc}
                     </p>
                   </div>
@@ -217,7 +217,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                   <div className="mt-4 flex items-baseline gap-2">
                     <span className="text-xl font-sans font-extrabold text-brand-moss">¥{product.price}</span>
                     {product.originalPrice !== null && (
-                      <span className="text-xs font-sans text-brand-charcoal/50 line-through">¥{product.originalPrice}</span>
+                      <span className="text-xs font-sans text-brand-charcoal/80 line-through">¥{product.originalPrice}</span>
                     )}
                   </div>
                 </div>
@@ -227,7 +227,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
               <div className="mt-5 pt-4.5 border-t border-brand-cream flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex flex-wrap gap-1.5">
                   {product.dimensionsTargeted.map((dimKey) => (
-                    <span key={dimKey} className="text-[9px] font-bold bg-brand-sand/65 text-brand-clay px-2.5 py-0.5 rounded-full border border-brand-stone/50">
+                    <span key={dimKey} className="text-xs font-bold bg-brand-sand/65 text-brand-clay px-2.5 py-0.5 rounded-full border border-brand-stone/50">
                       OT协作: {dimKey === 'attention' ? '注意力与执行' : dimKey === 'emotion_behavior' ? '情绪与行为' : dimKey === 'sensory_processing' ? '感觉处理' : dimKey === 'gross_motor' ? '动作发展' : dimKey === 'self_care' ? '生活自理与适应' : dimKey === 'cognitive' ? '认知' : '其他'}
                     </span>
                   ))}
@@ -257,10 +257,10 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
           {/* Orders sidebar panel (Left list) */}
           <div className="lg:col-span-4 space-y-4">
-            <h3 className="text-xs font-bold text-brand-charcoal/60 tracking-wider font-semibold">我的商城订单 ({orders.length})</h3>
+            <h3 className="text-xs font-bold text-brand-charcoal/80 tracking-wider font-semibold">我的商城订单 ({orders.length})</h3>
             {orders.length === 0 ? (
               <div className="bg-white rounded-2xl border border-brand-stone p-8 text-center text-brand-charcoal space-y-3">
-                <ShoppingBag className="mx-auto text-brand-charcoal/40" size={32} />
+                <ShoppingBag className="mx-auto text-brand-charcoal/80" size={32} />
                 <p className="text-xs">您当前尚未下单购买任何评估或康复辅助设备</p>
                 <button
                   onClick={() => setActiveTab('products')}
@@ -280,10 +280,10 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                       selectedOrder?.id === ord.id ? 'border-brand-moss bg-brand-sage/10 ring-2 ring-brand-moss/8' : 'border-brand-stone'
                     }`}
                   >
-                    <div className="flex justify-between items-center text-[10px] text-brand-charcoal/60">
+                    <div className="flex justify-between items-center text-xs text-brand-charcoal/80">
                       <span>单号: {ord.id}</span>
                       <span className={`font-bold ${
-                        ord.status === 'delivered' ? 'text-brand-charcoal/70' :
+                        ord.status === 'delivered' ? 'text-brand-charcoal/80' :
                         ord.status === 'delivering' ? 'text-brand-clay' : 'text-brand-moss'
                       }`}>
                         {ord.status === 'paid' ? '已支付「待发货」' :
@@ -295,7 +295,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                     <h4 className="text-xs font-bold text-brand-forest mt-2 truncate">{ord.product.name}</h4>
                     <div className="mt-3 flex items-center justify-between">
                       <span className="text-xs font-sans font-extrabold text-brand-forest">¥{ord.totalPrice}</span>
-                      <span className="text-[10px] text-brand-charcoal/60 font-sans">{ord.logisticsTimeline.length} 条物流更新记录</span>
+                      <span className="text-xs text-brand-charcoal/80 font-sans">{ord.logisticsTimeline.length} 条物流更新记录</span>
                     </div>
                   </button>
                 ))}
@@ -311,9 +311,9 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                 {/* Logistics status summary ribbon */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-cream pb-5">
                   <div>
-                    <div className="text-[10px] text-brand-charcoal/50">数字康复物流跟踪</div>
+                    <div className="text-xs text-brand-charcoal/80">数字康复物流跟踪</div>
                     <h3 className="text-base font-bold text-brand-forest mt-0.5">订单号: {selectedOrder.id}</h3>
-                    <p className="text-[11px] text-brand-charcoal/70 mt-1">快递单号: {selectedOrder.trackingNo} (顺丰特快急包)</p>
+                    <p className="text-xs text-brand-charcoal/80 mt-1">快递单号: {selectedOrder.trackingNo} (顺丰特快急包)</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -351,9 +351,9 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                               <span className={`text-xs font-bold ${isLatest ? 'text-brand-moss' : 'text-brand-charcoal/80'}`}>
                                 {log.location}
                               </span>
-                              <span className="text-[10px] text-brand-charcoal/50 font-mono font-medium">{log.time}</span>
+                              <span className="text-xs text-brand-charcoal/80 font-mono font-medium">{log.time}</span>
                             </div>
-                            <p className={`text-xs leading-relaxed ${isLatest ? 'text-brand-forest font-bold' : 'text-brand-charcoal/70'}`}>
+                            <p className={`text-xs leading-relaxed ${isLatest ? 'text-brand-forest font-bold' : 'text-brand-charcoal/80'}`}>
                               {log.content}
                             </p>
                           </div>
@@ -368,14 +368,14 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                   <div className="space-y-1.5">
                     <div className="font-bold text-brand-forest">收货地址专签：</div>
                     <div className="flex items-center gap-1.5 text-brand-charcoal">
-                      <MapPin size={13} className="text-brand-charcoal/45 shrink-0" />
+                      <MapPin size={13} className="text-brand-charcoal/80 shrink-0" />
                       <span>{selectedOrder.address}</span>
                     </div>
                   </div>
                   <div className="space-y-1.5 sm:text-right shrink-0">
                     <div className="font-bold text-brand-forest">收货人：</div>
                     <div className="flex items-center sm:justify-end gap-1.5 text-brand-charcoal">
-                      <User size={13} className="text-brand-charcoal/45 shrink-0" />
+                      <User size={13} className="text-brand-charcoal/80 shrink-0" />
                       <span>{selectedOrder.recipient} ({selectedOrder.phone})</span>
                     </div>
                   </div>
@@ -384,7 +384,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
               </div>
             ) : (
               <div className="bg-white rounded-3xl border border-brand-stone p-12 text-center text-brand-charcoal space-y-4">
-                <HelpCircle className="mx-auto text-brand-charcoal/40" size={40} />
+                <HelpCircle className="mx-auto text-brand-charcoal/80" size={40} />
                 <h3 className="text-sm font-bold text-brand-forest">请选择一个硬件订单以浏览它的详细物流状态</h3>
                 <p className="text-xs max-w-sm mx-auto">
                   每次购买将生成一个专属物流快件。您可以通过右上方控制盘，仿真包裹空运、陆挽派送路线的全链路推进体验。
@@ -414,7 +414,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-brand-forest">确认产品信息并填写寄送详情</h3>
-                  <p className="text-xs text-brand-charcoal/60 mt-1">森心康智能精准评估康复硬件，极低延迟OT训练包</p>
+                  <p className="text-xs text-brand-charcoal/80 mt-1">森心康智能精准评估康复硬件，极低延迟OT训练包</p>
                 </div>
 
                 {/* Selected item card brief */}
@@ -424,11 +424,11 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-brand-forest">{selectedProduct.name}</h4>
-                    <span className="text-xs font-sans text-brand-charcoal/70 block mt-1">{selectedProduct.desc.slice(0, 42)}...</span>
+                    <span className="text-xs font-sans text-brand-charcoal/80 block mt-1">{selectedProduct.desc.slice(0, 42)}...</span>
                     <div className="mt-1 flex items-baseline gap-1.5">
                       <span className="text-sm font-sans font-extrabold text-brand-moss">¥{selectedProduct.price}</span>
                       {selectedProduct.originalPrice !== null && (
-                        <span className="text-[10px] text-brand-charcoal/50 font-sans line-through">¥{selectedProduct.originalPrice}</span>
+                        <span className="text-xs text-brand-charcoal/80 font-sans line-through">¥{selectedProduct.originalPrice}</span>
                       )}
                     </div>
                   </div>
@@ -446,7 +446,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-brand-charcoal flex items-center gap-1">
-                        <User size={12} className="text-brand-charcoal/60" /> 收件人姓名
+                        <User size={12} className="text-brand-charcoal/80" /> 收件人姓名
                       </label>
                       <input
                         id="ship-recipient-input"
@@ -460,7 +460,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-brand-charcoal flex items-center gap-1">
-                        <Phone size={12} className="text-brand-charcoal/60" /> 收件人手机联系电话
+                        <Phone size={12} className="text-brand-charcoal/80" /> 收件人手机联系电话
                       </label>
                       <input
                         id="ship-phone-input"
@@ -476,7 +476,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-brand-charcoal flex items-center gap-1">
-                      <MapPin size={12} className="text-brand-charcoal/60" /> 详细投递物理地址
+                      <MapPin size={12} className="text-brand-charcoal/80" /> 详细投递物理地址
                     </label>
                     <input
                       id="ship-address-input"
@@ -500,7 +500,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                         className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-bold transition ${
                           paymentMethod === 'wechat'
                             ? 'border-brand-moss bg-brand-sage/40 text-brand-forest font-bold'
-                            : 'border-brand-stone bg-brand-cream/20 text-brand-charcoal/60'
+                            : 'border-brand-stone bg-brand-cream/20 text-brand-charcoal/80'
                         }`}
                       >
                         <CreditCard size={14} className="text-brand-moss" />
@@ -513,7 +513,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                         className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-bold transition ${
                           paymentMethod === 'alipay'
                             ? 'border-brand-clay bg-brand-sand/40 text-brand-clay font-bold'
-                            : 'border-brand-stone bg-brand-cream/20 text-brand-charcoal/60'
+                            : 'border-brand-stone bg-brand-cream/20 text-brand-charcoal/80'
                         }`}
                       >
                         <CreditCard size={14} className="text-brand-clay" />
@@ -538,7 +538,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                   <h3 className="text-lg font-bold text-brand-forest">
                     森心康 {paymentMethod === 'wechat' ? '微信' : '支付宝'} 在线扫码闪付模拟
                   </h3>
-                  <p className="text-xs text-brand-charcoal/60 mt-1">使用手机模拟相机对准扫码支付，或直接点击下方模拟确认</p>
+                  <p className="text-xs text-brand-charcoal/80 mt-1">使用手机模拟相机对准扫码支付，或直接点击下方模拟确认</p>
                 </div>
 
                 {/* simulated QR image */}
@@ -548,7 +548,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                     <span className="text-xs font-bold text-brand-forest mt-2">
                       {paymentMethod === 'wechat' ? 'WECHAT PAY' : 'ALIPAY'}
                     </span>
-                    <span className="text-[9px] text-brand-charcoal/60 mt-1 uppercase">Scan QR simulation code</span>
+                    <span className="text-xs text-brand-charcoal/80 mt-1 uppercase">Scan QR simulation code</span>
                     <span className="text-xs font-extrabold text-brand-forest mt-2 font-mono">¥{selectedProduct.price}</span>
                   </div>
                 </div>
@@ -590,7 +590,7 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
                     您的订单 【{selectedProduct.name}】 已经在系统挂急包极速发库！
                   </p>
                 </div>
-                <div className="bg-brand-cream/35 p-4 rounded-xl text-left text-[11px] text-brand-charcoal max-w-md mx-auto space-y-1.5 border border-brand-stone">
+                <div className="bg-brand-cream/35 p-4 rounded-xl text-left text-xs text-brand-charcoal max-w-md mx-auto space-y-1.5 border border-brand-stone">
                   <div><span className="font-bold text-brand-forest">收货地址：</span>{address}</div>
                   <div><span className="font-bold text-brand-forest">预留人：</span>{recipient} (手机: {phone})</div>
                   <div><span className="font-bold text-brand-forest">配仓承运商：</span>顺丰儿童冷藏温控安全护航特快服务</div>

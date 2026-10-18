@@ -140,7 +140,7 @@ function ActionIcon({ icon, label, onClick, active = false }: { icon: ReactNode;
       className={`flex flex-col items-center gap-1.5 cursor-pointer ${active ? 'text-brand-moss' : 'text-brand-forest'}`}
     >
       {icon}
-      <span className="text-[13px] text-brand-charcoal/70">{label}</span>
+      <span className="text-[13px] text-brand-charcoal/80">{label}</span>
     </button>
   );
 }
@@ -173,11 +173,11 @@ function SeriesRow({ series, currentId, subtitle, onPick }: {
           <Icon size={16} />
           {DETAIL.series[series.kind]}
         </span>
-        <span className="text-brand-charcoal/70 truncate">{subtitle}</span>
-        <span className="ml-auto text-brand-charcoal/70 tabular-nums shrink-0">
+        <span className="text-brand-charcoal/80 truncate">{subtitle}</span>
+        <span className="ml-auto text-brand-charcoal/80 tabular-nums shrink-0">
           {series.index + 1}/{series.items.length}
         </span>
-        <ChevronDown size={16} className={`text-brand-charcoal/50 shrink-0 transition ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className={`text-brand-charcoal/80 shrink-0 transition ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <ul className="px-3 pb-2">
@@ -193,9 +193,9 @@ function SeriesRow({ series, currentId, subtitle, onPick }: {
                   x.id === currentId ? 'text-brand-forest font-bold' : 'text-brand-charcoal'
                 }`}
               >
-                <span className="tabular-nums w-5 text-brand-charcoal/45">{i + 1}</span>
+                <span className="tabular-nums w-5 text-brand-charcoal/80">{i + 1}</span>
                 <span className="flex-1 truncate">{x.title}</span>
-                <span className="text-[12px] text-brand-charcoal/50">{x.hasClip ? DETAIL.clipBadge : DETAIL.picturesBadge}</span>
+                <span className="text-[12px] text-brand-charcoal/80">{x.hasClip ? DETAIL.clipBadge : DETAIL.picturesBadge}</span>
               </button>
             </li>
           ))}
@@ -209,7 +209,7 @@ function StatusPage({ children, onBack }: { children: ReactNode; onBack: () => v
   return (
     <div className="h-full flex flex-col bg-white" data-testid="training-detail">
       <LightNav onBack={onBack} />
-      <div className="mx-6 mt-10 text-[14px] text-brand-charcoal/70 leading-relaxed flex items-center gap-2">{children}</div>
+      <div className="mx-6 mt-10 text-[14px] text-brand-charcoal/80 leading-relaxed flex items-center gap-2">{children}</div>
     </div>
   );
 }
@@ -355,7 +355,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
           {length && (
             <div className="shrink-0">
               <p className="text-[26px] font-black text-brand-forest tabular-nums leading-none">{length.big}</p>
-              {length.unit && <p className="mt-1.5 text-[13px] text-brand-charcoal/60">{length.unit}</p>}
+              {length.unit && <p className="mt-1.5 text-[13px] text-brand-charcoal/80">{length.unit}</p>}
             </div>
           )}
           {!guide && a.durationMin > 0 && (
@@ -364,12 +364,12 @@ function DetailBody({ activity: a, place, from, active, series }: {
           {clock && (
             <div className="shrink-0">
               <p className="text-[26px] font-black text-brand-forest tabular-nums leading-none">{clock}</p>
-              <p className="mt-1.5 text-[13px] text-brand-charcoal/60">{DETAIL.clipSeconds}</p>
+              <p className="mt-1.5 text-[13px] text-brand-charcoal/80">{DETAIL.clipSeconds}</p>
             </div>
           )}
           <div className="ml-auto rounded-md bg-brand-sage px-3 py-2 text-center">
             {weekTimes !== null && <p className="text-brand-forest font-bold text-[14px]">{practicedTimes(weekTimes)}</p>}
-            <p className="text-brand-forest/70 text-[11px] mt-0.5">{DETAIL.doneThenCheckin}</p>
+            <p className="text-brand-forest/70 text-xs mt-0.5">{DETAIL.doneThenCheckin}</p>
           </div>
         </div>
 
@@ -377,7 +377,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
           <span className="w-8 h-8 rounded-full bg-brand-forest text-white grid place-items-center text-[13px] font-bold">{DETAIL.sourceMark}</span>
           <span className="text-[16px] text-brand-charcoal/80">{DETAIL.source}</span>
         </div>
-        {guide?.intro && <p className="px-4 mt-3 text-[14px] leading-relaxed text-brand-charcoal/75">{guide.intro}</p>}
+        {guide?.intro && <p className="px-4 mt-3 text-[14px] leading-relaxed text-brand-charcoal/80">{guide.intro}</p>}
 
         <div className="px-4 mt-3 flex gap-2 overflow-x-auto training-no-scrollbar">
           {tags.map((t, i) => (
@@ -419,7 +419,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
               <ChevronDown size={14} className={allPrinciples ? 'rotate-180' : ''} />
             </button>
           )}
-          <div className="mt-3 pt-3 border-t border-black/5 space-y-2.5 text-[13px] leading-relaxed text-brand-charcoal/75">
+          <div className="mt-3 pt-3 border-t border-black/5 space-y-2.5 text-[13px] leading-relaxed text-brand-charcoal/80">
             <p>
               <b className="text-brand-charcoal">{place.pick ? DETAIL.whyPlan : DETAIL.whyOther}</b>
               {why}
@@ -446,7 +446,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
             <button
               type="button"
               onClick={() => nav.openSheet({ kind: 'actions', id: a.id, from })}
-              className="mt-3 text-[13px] text-brand-charcoal/60 flex items-center cursor-pointer"
+              className="mt-3 text-[13px] text-brand-charcoal/80 flex items-center cursor-pointer"
             >
               {guide && guide.shots.length > 0 ? DETAIL.stepsMoreWithSay : DETAIL.stepsMore}
               <ChevronRight size={14} />
@@ -460,7 +460,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
               {guide.reactions.map((r, i) => (
                 <li key={`${i}-${r.if}`} className="rounded-xl bg-brand-cream p-3">
                   <p className="text-[14px] font-bold text-brand-forest">{reactionIf(r.if)}</p>
-                  <p className="mt-1 text-[13px] text-brand-charcoal/75 leading-relaxed">{r.then}</p>
+                  <p className="mt-1 text-[13px] text-brand-charcoal/80 leading-relaxed">{r.then}</p>
                 </li>
               ))}
             </ul>
@@ -472,7 +472,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
             <ol className="space-y-2" data-testid="detail-mistakes">
               {guide.mistakes.map((m, i) => (
                 <li key={`${i}-${m}`} className="flex gap-2 text-[13px] leading-relaxed text-brand-charcoal/80">
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-brand-sand text-brand-clay grid place-items-center text-[11px] font-bold">{i + 1}</span>
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-brand-sand text-brand-clay grid place-items-center text-xs font-bold">{i + 1}</span>
                   {m}
                 </li>
               ))}
@@ -505,7 +505,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
           <Section title={DETAIL.tipTitle} icon={<Lightbulb size={18} className="text-brand-clay" />}>
             {a.tip && <p className="text-[13px] text-brand-charcoal/80 leading-relaxed">{a.tip}</p>}
             {a.deeper && (
-              <p className="mt-3 text-[12px] text-brand-charcoal/55 flex items-start gap-1">
+              <p className="mt-3 text-[12px] text-brand-charcoal/80 flex items-start gap-1">
                 <BookOpen size={13} className="shrink-0 mt-0.5" />
                 <span>
                   {DETAIL.deeperPrefix}

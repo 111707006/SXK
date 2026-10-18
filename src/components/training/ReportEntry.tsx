@@ -78,11 +78,11 @@ function ActivityCard({ activity, dimension, lead, practiced, onClick }: {
         <div className="flex items-center gap-1.5 flex-wrap">
           <Tag tone="custom">{ENTRY.weekTag}</Tag>
           <Tag tone={photo ? 'dark' : 'soft'}>{SITE_DIMENSION_NAME[dimension]}</Tag>
-          <span className={`text-[13px] ml-1 ${photo ? 'text-white/70' : 'text-brand-charcoal/60'}`}>{lead}</span>
+          <span className={`text-[13px] ml-1 ${photo ? 'text-white/70' : 'text-brand-charcoal/80'}`}>{lead}</span>
         </div>
         <p className={`mt-3 text-[23px] font-black tracking-tight leading-tight ${photo ? 'text-white' : 'text-brand-forest'}`}>{activity.title}</p>
         {activity.trains && (
-          <p className={`mt-2 text-[13px] leading-relaxed ${photo ? 'text-white/60' : 'text-brand-charcoal/70'}`}>{activity.trains}</p>
+          <p className={`mt-2 text-[13px] leading-relaxed ${photo ? 'text-white/60' : 'text-brand-charcoal/80'}`}>{activity.trains}</p>
         )}
         {practiced && (
           <p className={`mt-1 text-[12px] font-bold ${photo ? 'text-white/75' : 'text-brand-forest/80'}`} data-testid="entry-practiced">
@@ -97,14 +97,14 @@ function ActivityCard({ activity, dimension, lead, practiced, onClick }: {
 /** 標題列右邊的分頁字。 */
 function TabWord({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="text-[16px] font-bold text-brand-charcoal/50 hover:text-brand-forest leading-none whitespace-nowrap cursor-pointer">
+    <button type="button" onClick={onClick} className="text-[16px] font-bold text-brand-charcoal/80 hover:text-brand-forest leading-none whitespace-nowrap cursor-pointer">
       {label}
     </button>
   );
 }
 
 function Status({ children }: { children: ReactNode }) {
-  return <div className="flex items-center gap-2 text-[11px] text-brand-charcoal/60 py-6">{children}</div>;
+  return <div className="flex items-center gap-2 text-xs text-brand-charcoal/80 py-6">{children}</div>;
 }
 
 export default function ReportEntry() {
@@ -147,8 +147,8 @@ export default function ReportEntry() {
           <TabWord label={ENTRY.tabs.calendar} onClick={() => nav.openPage({ name: 'calendar' })} />
           <TabWord label={ENTRY.tabs.expert} onClick={() => nav.openSheet({ kind: 'expert' })} />
         </div>
-        <p className="mt-1 text-[13px] text-brand-charcoal/60">{ENTRY.subtitle}</p>
-        <p className="mt-1 text-[11px] text-brand-charcoal/55 leading-relaxed">
+        <p className="mt-1 text-[13px] text-brand-charcoal/80">{ENTRY.subtitle}</p>
+        <p className="mt-1 text-xs text-brand-charcoal/80 leading-relaxed">
           {range && `${range} · `}
           {weekAgeLine(plan.ageMonth, ageBandLabel(plan.ageKey), plan.reportAgeMonth)}
         </p>
@@ -170,7 +170,7 @@ export default function ReportEntry() {
       )}
 
       {plan.activities.length === 0 ? (
-        <p className="text-[12px] text-brand-charcoal/70 leading-relaxed">{ENTRY.noActivities}</p>
+        <p className="text-[12px] text-brand-charcoal/80 leading-relaxed">{ENTRY.noActivities}</p>
       ) : (
         <div className="space-y-3">
           {/* 3. 計劃大卡 */}
@@ -221,13 +221,13 @@ export default function ReportEntry() {
                 type="button"
                 disabled={!c.onSelect}
                 onClick={c.onSelect ?? undefined}
-                className={`px-3 py-2 rounded-xl border border-brand-moss/30 bg-white/70 hover:bg-white text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:cursor-default disabled:hover:bg-white/70 disabled:active:scale-100 ${
+                className={`px-3 py-2 rounded-xl border border-brand-moss/30 bg-white/70 hover:bg-white text-brand-forest text-xs font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:cursor-default disabled:hover:bg-white/70 disabled:active:scale-100 ${
                   c.state === 'soon' ? 'disabled:opacity-50' : ''
                 }`}
               >
                 <UserRound size={12} className="shrink-0" />
                 {c.descriptor.label}
-                <ServiceNote state={c.state} className="text-brand-charcoal/60" />
+                <ServiceNote state={c.state} className="text-brand-charcoal/80" />
               </button>
             ))}
           </div>
@@ -242,9 +242,9 @@ export default function ReportEntry() {
               <Shuffle size={16} className="text-brand-moss" />
               {swapHeading(SITE_DIMENSION_NAME[row.dimension])}
             </h4>
-            <span className="text-[12px] text-brand-charcoal/50 shrink-0">{swapCount(row.activities.length)}</span>
+            <span className="text-[12px] text-brand-charcoal/80 shrink-0">{swapCount(row.activities.length)}</span>
           </div>
-          <p className="mt-1 text-[12px] text-brand-charcoal/55">{swapSub(childName)}</p>
+          <p className="mt-1 text-[12px] text-brand-charcoal/80">{swapSub(childName)}</p>
           <div className={`mt-3 flex gap-2.5 overflow-x-auto training-no-scrollbar snap-x ${BLEED}`}>
             {row.activities.map(a => (
               <button
@@ -255,13 +255,13 @@ export default function ReportEntry() {
               >
                 <Cover src={a.posterUrl} className="h-[104px] rounded-md">
                   {!a.posterUrl && <Play size={40} aria-hidden="true" className="absolute right-2 top-2 text-brand-moss/25" />}
-                  <span className="absolute left-1.5 bottom-1.5 rounded bg-black/60 text-white text-[10px] px-1.5 py-px flex items-center gap-0.5">
+                  <span className="absolute left-1.5 bottom-1.5 rounded bg-black/60 text-white text-xs px-1.5 py-px flex items-center gap-0.5">
                     {hasClip(a) && <Play size={9} fill="currentColor" />}
                     {hasClip(a) ? CLIP_STATE.badgeClip : CLIP_STATE.badgePictures}
                   </span>
                 </Cover>
                 <p className="mt-1.5 text-[15px] font-bold text-brand-forest truncate">{a.title}</p>
-                {a.trains && <p className="text-[12px] text-brand-charcoal/55 truncate">{a.trains}</p>}
+                {a.trains && <p className="text-[12px] text-brand-charcoal/80 truncate">{a.trains}</p>}
               </button>
             ))}
           </div>
@@ -278,9 +278,9 @@ export default function ReportEntry() {
           <ListVideo size={22} className="text-brand-moss shrink-0" />
           <span className="flex-1 min-w-0">
             <span className="block text-[15px] font-bold text-brand-forest">{ENTRY.libraryTitle}</span>
-            <span className="block text-[12px] text-brand-charcoal/55">{ENTRY.librarySub}</span>
+            <span className="block text-[12px] text-brand-charcoal/80">{ENTRY.librarySub}</span>
           </span>
-          <ChevronRight size={18} className="shrink-0 text-brand-charcoal/40" />
+          <ChevronRight size={18} className="shrink-0 text-brand-charcoal/80" />
         </button>
       )}
 
@@ -297,7 +297,7 @@ export default function ReportEntry() {
             {ENTRY.bannerAction}
             <ChevronRight size={14} />
           </button>
-          <button type="button" aria-label={COMMON.close} onClick={() => setBannerOpen(false)} className="shrink-0 text-brand-charcoal/50 cursor-pointer">
+          <button type="button" aria-label={COMMON.close} onClick={() => setBannerOpen(false)} className="shrink-0 text-brand-charcoal/80 cursor-pointer">
             <X size={18} />
           </button>
         </div>

@@ -36,7 +36,7 @@ export function extrasOf(child: Child | null | undefined): ChildExtras {
 
 const chip = (on: boolean) =>
   `px-3 py-1.5 rounded-full border text-[12px] transition cursor-pointer ${
-    on ? 'border-brand-clay bg-brand-sand/60 text-brand-forest font-semibold' : 'border-brand-stone/40 bg-white text-brand-charcoal/70'
+    on ? 'border-brand-clay bg-brand-sand/60 text-brand-forest font-semibold' : 'border-brand-stone/40 bg-white text-brand-charcoal/80'
   }`;
 
 function YesNo({ value, onChange, name }: { value: boolean | undefined; onChange: (v: boolean) => void; name: string }) {
@@ -60,7 +60,7 @@ export default function ChildExtraFields({ value, onChange }: { value: ChildExtr
   return (
     <fieldset className="space-y-4 text-left rounded-2xl border border-brand-stone/40 bg-brand-cream/30 p-4" data-testid="child-extra-fields">
       <legend className="px-1 text-xs font-semibold text-brand-charcoal">{EXTRA_TITLE}</legend>
-      <p className="text-[11px] text-brand-charcoal/60 leading-relaxed">{EXTRA_SUB}</p>
+      <p className="text-xs text-brand-charcoal/80 leading-relaxed">{EXTRA_SUB}</p>
 
       {/* 診斷那一題 2026-10-08 拿掉（ADR-0011：診斷不進推薦）；以前存下的 `diagnoses` 留在資料裡、不再讀 */}
       <div className="space-y-2">

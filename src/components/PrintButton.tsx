@@ -43,7 +43,7 @@ export default function PrintButton({
         <Printer size={13} />
         {label}
       </button>
-      {hint && <p className="text-[10px] text-brand-charcoal/60 max-w-[16rem] leading-relaxed">{PRINT_WECHAT_HINT}</p>}
+      {hint && <p className="text-xs text-brand-charcoal/80 max-w-[16rem] leading-relaxed">{PRINT_WECHAT_HINT}</p>}
     </div>
   );
 }

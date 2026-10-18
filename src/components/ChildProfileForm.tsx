@@ -73,7 +73,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
         </div>
         <div className="text-left">
           <h2 className="text-xl font-bold font-sans text-brand-forest">快捷登记受测儿童信息</h2>
-          <p className="text-xs text-brand-charcoal/70 mt-0.5">登记出生日期，系统将自动换算实足月龄，匹配最佳神经发育评估量表</p>
+          <p className="text-xs text-brand-charcoal/80 mt-0.5">登记出生日期，系统将自动换算实足月龄，匹配最佳神经发育评估量表</p>
         </div>
       </div>
 
@@ -102,7 +102,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
                 }}
                 className="w-full pl-10 pr-4 py-3 bg-brand-cream/30 border border-brand-stone/60 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-moss/20 focus:border-brand-moss text-brand-charcoal transition"
               />
-              <User className="absolute left-3.5 top-3.5 text-brand-charcoal/40" size={16} />
+              <User className="absolute left-3.5 top-3.5 text-brand-charcoal/80" size={16} />
             </div>
           </div>
 
@@ -129,20 +129,20 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
             {birthDate && calculatedAgeMonth !== null && (
               <div className="flex items-center gap-1.5 bg-brand-sage/10 rounded-xl p-2.5 border border-brand-stone/40 animate-fade-in">
                 <Sparkles size={12} className="text-brand-moss" />
-                <p className="text-[11px] text-brand-forest font-bold leading-none">
+                <p className="text-xs text-brand-forest font-bold leading-none">
                   年龄：
                   <span className="text-brand-clay text-xs ml-0.5">{formatAge(calculatedAgeMonth)}</span>
-                  <span className="text-brand-charcoal/60 font-medium ml-1">({calculatedAgeMonth} 个月)</span>
+                  <span className="text-brand-charcoal/80 font-medium ml-1">({calculatedAgeMonth} 个月)</span>
                 </p>
               </div>
             )}
             {birthDate && calculatedAgeMonth === null && (
               <div className="flex items-center gap-1.5 bg-rose-50 rounded-xl p-2.5 border border-rose-100 animate-fade-in">
                 <AlertCircle size={12} className="text-rose-500 shrink-0" />
-                <p className="text-[11px] text-rose-700 font-bold leading-none">这个出生日期无法识别，请重新选择</p>
+                <p className="text-xs text-rose-700 font-bold leading-none">这个出生日期无法识别，请重新选择</p>
               </div>
             )}
-            <p className="text-[10px] text-brand-charcoal/50 leading-relaxed">系统适用范围为 {APPLICABLE_RANGE_TEXT}，超出范围的日期不会出现在选项中</p>
+            <p className="text-xs text-brand-charcoal/80 leading-relaxed">系统适用范围为 {APPLICABLE_RANGE_TEXT}，超出范围的日期不会出现在选项中</p>
           </div>
         </div>
 
@@ -156,7 +156,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
               className={`p-3.5 rounded-2xl border text-sm font-medium flex items-center justify-center gap-2 transition ${
                 gender === 'boy'
                   ? 'border-brand-clay bg-brand-sand/50 text-brand-clay font-semibold shadow-sm'
-                  : 'border-brand-stone/30 bg-brand-cream/20 hover:bg-brand-cream/50 text-brand-charcoal/70'
+                  : 'border-brand-stone/30 bg-brand-cream/20 hover:bg-brand-cream/50 text-brand-charcoal/80'
               }`}
             >
               <span>👦 男孩</span>
@@ -168,7 +168,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
               className={`p-3.5 rounded-2xl border text-sm font-medium flex items-center justify-center gap-2 transition ${
                 gender === 'girl'
                   ? 'border-rose-400 bg-rose-50/50 text-rose-700 font-semibold shadow-sm'
-                  : 'border-brand-stone/30 bg-brand-cream/20 hover:bg-brand-cream/50 text-brand-charcoal/70'
+                  : 'border-brand-stone/30 bg-brand-cream/20 hover:bg-brand-cream/50 text-brand-charcoal/80'
               }`}
             >
               <span>👧 女孩</span>

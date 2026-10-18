@@ -8,5 +8,5 @@ export const STATUS_CLASS: Record<'normal' | 'borderline' | 'delay' | 'state', s
   normal: 'bg-emerald-50 border-emerald-200 text-emerald-800',
   borderline: 'bg-amber-50 border-amber-200 text-amber-800',
   delay: 'bg-rose-50 border-rose-200 text-rose-800',
-  state: 'bg-brand-cream/60 border-brand-stone text-brand-charcoal/70',
+  state: 'bg-brand-cream/60 border-brand-stone text-brand-charcoal/80',
 };

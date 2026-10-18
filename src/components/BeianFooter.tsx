@@ -45,7 +45,7 @@ export function BeianFooter() {
   const policeUrl = POLICE ? policeQueryUrl(POLICE) : null;
 
   return (
-    <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1 text-[10px] pt-1">
+    <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1 text-xs pt-1">
       {ICP && (
         <a
           href={MIIT_URL}

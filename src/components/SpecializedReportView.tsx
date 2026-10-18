@@ -152,7 +152,7 @@ export default function SpecializedReportView({
         
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-3.5 max-w-2xl">
-            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-brand-sage/20 border border-brand-cream/10 text-[10px] uppercase tracking-wider font-extrabold backdrop-blur-sm">
+            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-brand-sage/20 border border-brand-cream/10 text-xs uppercase tracking-wider font-extrabold backdrop-blur-sm">
               <Award size={12} className="text-brand-sage" />
               脑发育分期专项深度评估 · 高级数据安全受控状态
             </span>
@@ -165,11 +165,11 @@ export default function SpecializedReportView({
           </div>
 
           <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shrink-0 text-left min-w-[220px] space-y-2 shadow-inner">
-            <p className="text-[10px] text-brand-sand/80 font-bold uppercase tracking-wide">受评儿童基本档案</p>
+            <p className="text-xs text-brand-sand/80 font-bold uppercase tracking-wide">受评儿童基本档案</p>
             <div className="space-y-1">
               <p className="text-sm font-extrabold text-white flex items-center gap-1.5">
                 <span>{child.name}</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-white text-brand-forest">
+                <span className="text-xs px-1.5 py-0.2 rounded-full font-black bg-white text-brand-forest">
                   {child.gender === 'boy' ? '男童' : '女童'}
                 </span>
               </p>
@@ -177,10 +177,10 @@ export default function SpecializedReportView({
                 年龄: {formatAge(child.ageMonth)} ({child.ageMonth} 个月)
               </p>
               <div className="h-px bg-white/25 my-1.5" />
-              <p className="text-[10px] text-brand-sand/80">
+              <p className="text-xs text-brand-sand/80">
                 评测号: SXK-SPEC-{record.id.slice(-6).toUpperCase()}
               </p>
-              <p className="text-[10px] text-brand-sand/80">
+              <p className="text-xs text-brand-sand/80">
                 档案生成: {new Date(record.createdAt).toLocaleString('zh-CN', { hour12: false })}
               </p>
             </div>
@@ -200,7 +200,7 @@ export default function SpecializedReportView({
             </div>
             <div className="space-y-2 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] bg-red-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                <span className="text-xs bg-red-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
                   高维警示 / Delay Detected
                 </span>
                 <span className="text-xs text-red-700 font-extrabold">
@@ -226,7 +226,7 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-forest rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅰ</div>
           <h2 className="text-base font-black text-brand-forest">评估结论与核心神经突触指标</h2>
-          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full">主控层</span>
+          <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full">主控层</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -234,12 +234,12 @@ export default function SpecializedReportView({
           <div className="lg:col-span-7 bg-white border border-brand-stone rounded-3xl p-6 shadow-sm flex flex-col justify-between space-y-4">
             <div className="space-y-3">
               <div className="flex items-center gap-2 justify-between">
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase flex items-center gap-1 ${severity.bg}`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-black border uppercase flex items-center gap-1 ${severity.bg}`}>
                   <span className={`w-2 h-2 rounded-full ${severity.dot}`} />
                   {severity.text}
                 </span>
                 {isDelayed && (
-                  <span className="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded border border-red-200">
+                  <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded border border-red-200">
                     急需介入 (ASAP)
                   </span>
                 )}
@@ -254,7 +254,7 @@ export default function SpecializedReportView({
             </div>
 
             <div className="bg-brand-sage/10 p-4 rounded-2xl border border-brand-stone/40">
-              <h4 className="text-[11px] font-bold text-brand-forest uppercase tracking-wider mb-1 flex items-center gap-1">
+              <h4 className="text-xs font-bold text-brand-forest uppercase tracking-wider mb-1 flex items-center gap-1">
                 <ShieldCheck size={12} className="text-brand-moss" />
                 言语/运动中枢代偿反射状态分析
               </h4>
@@ -268,7 +268,7 @@ export default function SpecializedReportView({
           <div className="lg:col-span-5 bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-4">
             <h4 className="text-xs font-black uppercase text-brand-forest tracking-wider border-b border-brand-stone pb-2 flex items-center justify-between">
               <span>高精核心神经突触指标解算</span>
-              <span className="text-[10px] text-brand-charcoal/50">发育指标 %</span>
+              <span className="text-xs text-brand-charcoal/80">发育指标 %</span>
             </h4>
             
             <div className="space-y-4 py-2">
@@ -278,7 +278,7 @@ export default function SpecializedReportView({
                 const isUnder = val < 75;
                 return (
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] font-bold text-brand-charcoal items-center">
+                    <div className="flex justify-between text-xs font-bold text-brand-charcoal items-center">
                       <span className="flex items-center gap-1">
                         突触可塑活性 (Plasticity)
                         {isUnder && <AlertTriangle size={12} className="text-red-500 animate-bounce" />}
@@ -303,7 +303,7 @@ export default function SpecializedReportView({
                 const isUnder = val < 75;
                 return (
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] font-bold text-brand-charcoal items-center">
+                    <div className="flex justify-between text-xs font-bold text-brand-charcoal items-center">
                       <span className="flex items-center gap-1">
                         感觉通路整合度 (Sensory)
                         {isUnder && <AlertTriangle size={12} className="text-red-500 animate-bounce" />}
@@ -328,7 +328,7 @@ export default function SpecializedReportView({
                 const isUnder = val < 75;
                 return (
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] font-bold text-brand-charcoal items-center">
+                    <div className="flex justify-between text-xs font-bold text-brand-charcoal items-center">
                       <span className="flex items-center gap-1">
                         中枢姿势控制力线 (Motor)
                         {isUnder && <AlertTriangle size={12} className="text-red-500 animate-bounce" />}
@@ -353,7 +353,7 @@ export default function SpecializedReportView({
                 const isUnder = val < 75;
                 return (
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] font-bold text-brand-charcoal items-center">
+                    <div className="flex justify-between text-xs font-bold text-brand-charcoal items-center">
                       <span className="flex items-center gap-1">
                         环境交互抗逆因子 (Env)
                         {isUnder && <AlertTriangle size={12} className="text-red-500 animate-bounce" />}
@@ -375,7 +375,7 @@ export default function SpecializedReportView({
 
             {/* Warning summary for low metrics */}
             {isDelayed && (
-              <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-[10px] text-red-700 font-bold flex items-center gap-1.5 animate-pulse">
+              <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-xs text-red-700 font-bold flex items-center gap-1.5 animate-pulse">
                 <AlertCircle size={14} className="text-red-600 shrink-0" />
                 检测到部分指标低于 75%，已自动转换至极速突触唤醒策略。
               </div>
@@ -390,7 +390,7 @@ export default function SpecializedReportView({
           <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
             <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">+</div>
             <h2 className="text-base font-black text-brand-forest">语言发展同龄对比</h2>
-            <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">发展参照</span>
+            <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">发展参照</span>
           </div>
           <div className="bg-white border border-brand-stone rounded-3xl p-6 shadow-sm">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-center">
@@ -407,15 +407,15 @@ export default function SpecializedReportView({
                     <Icon size={18} className="text-brand-moss mx-auto" />
                     <p className="text-xs font-black text-brand-forest">{item.label}</p>
                     <div className="space-y-1">
-                      <p className="text-[10px] text-brand-charcoal/60">同龄范围: <span className="font-bold text-brand-forest">{item.range}</span></p>
-                      <p className="text-[10px] text-brand-charcoal/60">平均水平: <span className="font-bold text-brand-moss">{item.avg}</span></p>
-                      <p className="text-[9px] text-brand-charcoal/40">适用年龄: {item.age}</p>
+                      <p className="text-xs text-brand-charcoal/80">同龄范围: <span className="font-bold text-brand-forest">{item.range}</span></p>
+                      <p className="text-xs text-brand-charcoal/80">平均水平: <span className="font-bold text-brand-moss">{item.avg}</span></p>
+                      <p className="text-xs text-brand-charcoal/80">适用年龄: {item.age}</p>
                     </div>
                   </div>
                 );
               })}
             </div>
-            <p className="text-[9px] text-brand-charcoal/40 text-center mt-3">* 数据参照 WHO 儿童发育标准及《汉语儿童语言发育迟缓评价量表》</p>
+            <p className="text-xs text-brand-charcoal/80 text-center mt-3">* 数据参照 WHO 儿童发育标准及《汉语儿童语言发育迟缓评价量表》</p>
           </div>
         </div>
       )}
@@ -425,10 +425,10 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-red-500 rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅲ</div>
           <h2 className="text-base font-black text-brand-forest">主客观偏离图谱与精细细胞突触受体因子细分</h2>
-          <span className="text-[10px] bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-full border border-red-100">特征谱</span>
+          <span className="text-xs bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-full border border-red-100">特征谱</span>
         </div>
 
-        <div className="bg-brand-sage/10 border border-brand-stone/30 rounded-xl p-3 text-[10px] text-brand-charcoal/70 leading-relaxed">
+        <div className="bg-brand-sage/10 border border-brand-stone/30 rounded-xl p-3 text-xs text-brand-charcoal/80 leading-relaxed">
           <span className="font-bold text-brand-forest">说明：</span>「主客观偏离图谱」展示看护人日常观察（主观）与专业传感器采集数据（客观）之间的差异对比，帮助发现被忽视的发育信号；「精细细胞突触受体因子细分」从神经生物学层面解析语言相关脑区的突触连接强度与信号传导效率，为干预方案提供科学依据。
         </div>
 
@@ -442,7 +442,7 @@ export default function SpecializedReportView({
                   <Activity size={14} className="text-brand-moss" />
                   主客观感知偏离度雷达图谱
                 </h3>
-                <p className="text-[9px] text-brand-charcoal/50">揭示家长日常评价(T2)与专业传感器客观数据(T3)偏差</p>
+                <p className="text-xs text-brand-charcoal/80">揭示家长日常评价(T2)与专业传感器客观数据(T3)偏差</p>
               </div>
             </div>
 
@@ -521,7 +521,7 @@ export default function SpecializedReportView({
 
               {/* Legend & Summary */}
               <div className="w-full text-xs space-y-2 border-t border-slate-100 pt-3">
-                <div className="flex justify-between text-[10px] font-bold">
+                <div className="flex justify-between text-xs font-bold">
                   <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-500" /> 家主观问卷 (T2): {t2Value}%</span>
                   <span className="flex items-center gap-1">
                     <span className={`w-2.5 h-2.5 rounded ${isDelayed ? 'bg-rose-500' : 'bg-emerald-500'}`} /> 
@@ -530,7 +530,7 @@ export default function SpecializedReportView({
                 </div>
                 
                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
-                  <span className="text-[10px] text-slate-500 font-bold">主客观偏差值 (Gap):</span>
+                  <span className="text-xs text-brand-charcoal/80 font-bold">主客观偏差值 (Gap):</span>
                   <span className={`text-xs font-black ${Math.abs(t2Value - t3Value) > 15 ? 'text-rose-600 animate-pulse' : 'text-emerald-700'}`}>
                     {Math.abs(t2Value - t3Value)}% ({Math.abs(t2Value - t3Value) > 15 ? '⚠️ 存在显著认知错觉' : '主客偏离控制极佳'})
                   </span>
@@ -546,7 +546,7 @@ export default function SpecializedReportView({
                 <Layers size={14} className="text-brand-moss" />
                 【{dimConfig.name}】精细神经元受体细分项实测与同龄中位比对
               </h3>
-              <p className="text-[9px] text-brand-charcoal/50">红色警告脉冲条代表当前显著落后于中位标尺的精细指标</p>
+              <p className="text-xs text-brand-charcoal/80">红色警告脉冲条代表当前显著落后于中位标尺的精细指标</p>
             </div>
 
             <div className="space-y-4 pt-1">
@@ -568,23 +568,23 @@ export default function SpecializedReportView({
                             {skill.name}
                           </span>
                           {isUnderperforming ? (
-                            <span className="text-[8px] bg-red-100 text-red-700 border border-red-200 font-black px-1.5 py-0.2 rounded-full flex items-center gap-0.5 animate-pulse">
+                            <span className="text-xs bg-red-100 text-red-700 border border-red-200 font-black px-1.5 py-0.2 rounded-full flex items-center gap-0.5 animate-pulse">
                               <AlertCircle size={8} />
                               严重偏低 (落后 {skill.target - skill.value}%)
                             </span>
                           ) : (
-                            <span className="text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-100 font-black px-1.5 py-0.2 rounded-full">
+                            <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 font-black px-1.5 py-0.2 rounded-full">
                               达标合格
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-brand-charcoal/60 font-medium leading-tight">{skill.desc}</p>
+                        <p className="text-xs text-brand-charcoal/80 font-medium leading-tight">{skill.desc}</p>
                       </div>
                       <div className="text-right shrink-0">
                         <span className={`text-xs font-black ${isUnderperforming ? 'text-red-600' : 'text-slate-700'}`}>
                           {skill.value} 分
                         </span>
-                        <span className="text-[9px] text-brand-charcoal/40"> / 基准 {skill.target}</span>
+                        <span className="text-xs text-brand-charcoal/80"> / 基准 {skill.target}</span>
                       </div>
                     </div>
                     
@@ -620,7 +620,7 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅱ</div>
           <h2 className="text-base font-black text-brand-forest">儿童脑智发育物理训练(OT/PT)成长方案建议</h2>
-          <span className="text-[10px] bg-brand-moss/10 text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-moss/20">干预层</span>
+          <span className="text-xs bg-brand-moss/10 text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-moss/20">干预层</span>
         </div>
 
         <div className="bg-white border border-brand-stone rounded-3xl p-6 shadow-sm space-y-4">
@@ -642,7 +642,7 @@ export default function SpecializedReportView({
                       <span className="w-6 h-6 rounded-full bg-brand-forest text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-sm">
                         {i + 1}
                       </span>
-                      <span className="text-[9px] bg-white text-brand-charcoal/80 font-black px-2 py-0.5 rounded border border-brand-stone/50 shadow-sm">
+                      <span className="text-xs bg-white text-brand-charcoal/80 font-black px-2 py-0.5 rounded border border-brand-stone/50 shadow-sm">
                         {badgeText[i] || '评估核心'}
                       </span>
                     </div>
@@ -651,14 +651,14 @@ export default function SpecializedReportView({
                     </p>
                   </div>
                   
-                  <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-brand-stone/30 text-[9px] text-brand-charcoal/50 font-bold">
+                  <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-brand-stone/30 text-xs text-brand-charcoal/80 font-bold">
                     <Check size={10} className="text-emerald-600" />
                     <span>森心康推荐辅件接入</span>
                   </div>
                 </div>
               );
             }) || (
-              <div className="col-span-3 text-center py-8 text-xs text-brand-charcoal/50">
+              <div className="col-span-3 text-center py-8 text-xs text-brand-charcoal/80">
                 暂无专项建议处方，推荐维持常规物理阻抗康复游戏。
               </div>
             )}
@@ -675,7 +675,7 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-forest rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅳ</div>
           <h2 className="text-base font-black text-brand-forest">【{dimConfig.name}】专属定制 7日 OT / PT 居家训练行事历</h2>
-          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">实操层</span>
+          <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">实操层</span>
         </div>
 
         <div className="space-y-4">
@@ -709,7 +709,7 @@ export default function SpecializedReportView({
                     ? 'bg-gradient-to-br from-red-600 to-orange-500 text-white shadow-red-500/20' 
                     : 'bg-gradient-to-br from-brand-moss to-brand-forest text-white shadow-brand-forest/10'
                 }`}>
-                  <span className="text-[9px] uppercase font-black tracking-wider opacity-90">Day</span>
+                  <span className="text-xs uppercase font-black tracking-wider opacity-90">Day</span>
                   <span className="text-xl font-black leading-none mt-0.5">0{i*2 + 1}</span>
                 </div>
 
@@ -719,7 +719,7 @@ export default function SpecializedReportView({
                       {days[i] || '自主训练巩固'}
                     </span>
                     {highlightDay && (
-                      <span className="text-[9px] bg-red-600 text-white font-extrabold px-2 py-0.5 rounded animate-pulse">
+                      <span className="text-xs bg-red-600 text-white font-extrabold px-2 py-0.5 rounded animate-pulse">
                         ⚠️ 重点阻抗攻坚区
                       </span>
                     )}
@@ -729,7 +729,7 @@ export default function SpecializedReportView({
                     {guid}
                   </p>
 
-                  <div className="flex flex-wrap items-center gap-3 pt-2 text-[10px] text-brand-charcoal/50 font-bold">
+                  <div className="flex flex-wrap items-center gap-3 pt-2 text-xs text-brand-charcoal/80 font-bold">
                     <span className="flex items-center gap-1">
                       <Clock size={11} className={highlightDay ? 'text-red-600' : 'text-brand-moss'} /> 每日 15 分钟
                     </span>
@@ -748,7 +748,7 @@ export default function SpecializedReportView({
               </div>
             );
           }) || (
-            <div className="text-center py-8 bg-white border border-dashed border-brand-stone rounded-3xl text-xs text-brand-charcoal/50">
+            <div className="text-center py-8 bg-white border border-dashed border-brand-stone rounded-3xl text-xs text-brand-charcoal/80">
               暂无专项家庭行事处方，推荐开展日常绘本共读。
             </div>
           )}
@@ -759,27 +759,27 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅴ</div>
           <h2 className="text-base font-black text-brand-forest">语音识别准确率分析</h2>
-          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T3 传感器层</span>
+          <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T3 传感器层</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-brand-stone p-6">
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-3xl font-black text-brand-forest">78%</div>
-              <div className="text-xs text-brand-charcoal/60 font-semibold">整体识别准确率</div>
+              <div className="text-xs text-brand-charcoal/80 font-semibold">整体识别准确率</div>
             </div>
             <div className="flex gap-4 text-xs">
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 rounded-full bg-brand-moss"></div>
-                <span className="text-brand-charcoal/70">元音 92%</span>
+                <span className="text-brand-charcoal/80">元音 92%</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 rounded-full bg-brand-forest"></div>
-                <span className="text-brand-charcoal/70">辅音 71%</span>
+                <span className="text-brand-charcoal/80">辅音 71%</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 rounded-full bg-brand-clay"></div>
-                <span className="text-brand-charcoal/70">声调 65%</span>
+                <span className="text-brand-charcoal/80">声调 65%</span>
               </div>
             </div>
           </div>
@@ -792,10 +792,10 @@ export default function SpecializedReportView({
               { label: '连续语音', value: 58, color: 'bg-brand-ochre' },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="w-20 text-xs font-bold text-brand-charcoal/70">{item.label}</div>
+                <div className="w-20 text-xs font-bold text-brand-charcoal/80">{item.label}</div>
                 <div className="flex-1 h-6 bg-brand-cream/50 rounded-full overflow-hidden">
                   <div className={`h-full ${item.color} rounded-full flex items-center justify-end pr-2 transition-all duration-500`} style={{ width: `${item.value}%` }}>
-                    <span className="text-[10px] font-black text-white">{item.value}%</span>
+                    <span className="text-xs font-black text-white">{item.value}%</span>
                   </div>
                 </div>
               </div>
@@ -809,16 +809,16 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-forest rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅵ</div>
           <h2 className="text-base font-black text-brand-forest">词汇量发展曲线</h2>
-          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T2 行为观测层</span>
+          <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T2 行为观测层</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-brand-stone p-6">
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-3xl font-black text-brand-forest">320</div>
-              <div className="text-xs text-brand-charcoal/60 font-semibold">当前词汇量（个）</div>
+              <div className="text-xs text-brand-charcoal/80 font-semibold">当前词汇量（个）</div>
             </div>
-            <div className="text-xs text-brand-charcoal/60">
+            <div className="text-xs text-brand-charcoal/80">
               同龄参考：<span className="font-bold text-brand-moss">450-600</span> 个
             </div>
           </div>
@@ -856,15 +856,15 @@ export default function SpecializedReportView({
           <div className="flex justify-between text-xs mt-2">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-brand-moss"></div>
-              <span className="text-brand-charcoal/70">同龄范围</span>
+              <span className="text-brand-charcoal/80">同龄范围</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-brand-forest"></div>
-              <span className="text-brand-charcoal/70">发展曲线</span>
+              <span className="text-brand-charcoal/80">发展曲线</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-red-600"></div>
-              <span className="text-brand-charcoal/70">当前位点</span>
+              <span className="text-brand-charcoal/80">当前位点</span>
             </div>
           </div>
         </div>
@@ -875,7 +875,7 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-clay rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅶ</div>
           <h2 className="text-base font-black text-brand-forest">语法复杂度多维分析</h2>
-          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">AI 语义分析</span>
+          <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">AI 语义分析</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-brand-stone p-6">
@@ -955,15 +955,15 @@ export default function SpecializedReportView({
           <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
             <div className="bg-brand-sage/20 rounded-lg p-2 text-center">
               <div className="font-black text-brand-forest">72%</div>
-              <div className="text-brand-charcoal/60">平均复杂度</div>
+              <div className="text-brand-charcoal/80">平均复杂度</div>
             </div>
             <div className="bg-brand-sage/20 rounded-lg p-2 text-center">
               <div className="font-black text-brand-forest">85%</div>
-              <div className="text-brand-charcoal/60">语序正确率</div>
+              <div className="text-brand-charcoal/80">语序正确率</div>
             </div>
             <div className="bg-brand-sage/20 rounded-lg p-2 text-center">
               <div className="font-black text-brand-forest">60%</div>
-              <div className="text-brand-charcoal/60">代词使用</div>
+              <div className="text-brand-charcoal/80">代词使用</div>
             </div>
           </div>
         </div>
@@ -974,7 +974,7 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-ochre rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅷ</div>
           <h2 className="text-base font-black text-brand-forest">语用能力场景分析</h2>
-          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T2 行为观测层</span>
+          <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T2 行为观测层</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-brand-stone p-6">
@@ -1005,15 +1005,15 @@ export default function SpecializedReportView({
           <div className="mt-4 pt-4 border-t border-brand-stone/30 flex justify-between text-xs">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-brand-clay"></div>
-              <span className="text-brand-charcoal/70">需关注 (&lt;50%)</span>
+              <span className="text-brand-charcoal/80">需关注 (&lt;50%)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-brand-ochre"></div>
-              <span className="text-brand-charcoal/70">临界 (50-60%)</span>
+              <span className="text-brand-charcoal/80">临界 (50-60%)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-brand-forest"></div>
-              <span className="text-brand-charcoal/70">良好 (&gt;60%)</span>
+              <span className="text-brand-charcoal/80">良好 (&gt;60%)</span>
             </div>
           </div>
         </div>
@@ -1024,18 +1024,18 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-moss rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅸ</div>
           <h2 className="text-base font-black text-brand-forest">发音清晰度声谱分析</h2>
-          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T3 声谱传感器</span>
+          <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">T3 声谱传感器</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-brand-stone p-6">
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="text-center p-4 bg-brand-sage/10 rounded-xl">
               <div className="text-3xl font-black text-brand-forest">6.2</div>
-              <div className="text-xs text-brand-charcoal/60 font-semibold">当前清晰度评分</div>
+              <div className="text-xs text-brand-charcoal/80 font-semibold">当前清晰度评分</div>
             </div>
             <div className="text-center p-4 bg-brand-cream/50 rounded-xl">
               <div className="text-3xl font-black text-brand-moss">8.5</div>
-              <div className="text-xs text-brand-charcoal/60 font-semibold">同龄参考评分</div>
+              <div className="text-xs text-brand-charcoal/80 font-semibold">同龄参考评分</div>
             </div>
           </div>
           
@@ -1065,7 +1065,7 @@ export default function SpecializedReportView({
             ].map((item, i) => (
               <div key={i} className={`text-center p-2 rounded-lg ${item.status === 'good' ? 'bg-brand-sage/20' : 'bg-red-50'}`}>
                 <div className={`font-black ${item.status === 'good' ? 'text-brand-forest' : 'text-red-600'}`}>{item.score}</div>
-                <div className="text-brand-charcoal/60 text-[10px]">{item.label}</div>
+                <div className="text-brand-charcoal/80 text-xs">{item.label}</div>
               </div>
             ))}
           </div>
@@ -1077,7 +1077,7 @@ export default function SpecializedReportView({
         <div className="flex items-center gap-2 border-b border-brand-stone/80 pb-2">
           <div className="w-6 h-6 bg-brand-forest rounded-lg flex items-center justify-center text-white text-xs font-black">Ⅹ</div>
           <h2 className="text-base font-black text-brand-forest">语言理解与表达能力对比</h2>
-          <span className="text-[10px] bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">综合评估</span>
+          <span className="text-xs bg-brand-sage text-brand-forest font-bold px-2 py-0.5 rounded-full border border-brand-stone/50">综合评估</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-brand-stone p-6">
@@ -1123,7 +1123,7 @@ export default function SpecializedReportView({
           
           <div className="grid grid-cols-2 gap-3 mt-4">
             <div className="bg-brand-sage/10 rounded-lg p-3">
-              <div className="text-xs font-bold text-brand-charcoal/70 mb-2">理解能力细分</div>
+              <div className="text-xs font-bold text-brand-charcoal/80 mb-2">理解能力细分</div>
               <div className="space-y-2">
                 {[
                   { label: '指令理解', value: 78 },
@@ -1131,7 +1131,7 @@ export default function SpecializedReportView({
                   { label: '抽象概念', value: 58 },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className="w-16 text-brand-charcoal/60">{item.label}</span>
+                    <span className="w-16 text-brand-charcoal/80">{item.label}</span>
                     <div className="flex-1 h-2 bg-brand-cream/50 rounded-full overflow-hidden">
                       <div className="h-full bg-brand-moss rounded-full" style={{ width: `${item.value}%` }} />
                     </div>
@@ -1141,7 +1141,7 @@ export default function SpecializedReportView({
               </div>
             </div>
             <div className="bg-red-50/50 rounded-lg p-3">
-              <div className="text-xs font-bold text-brand-charcoal/70 mb-2">表达能力细分</div>
+              <div className="text-xs font-bold text-brand-charcoal/80 mb-2">表达能力细分</div>
               <div className="space-y-2">
                 {[
                   { label: '单词表达', value: 62 },
@@ -1149,7 +1149,7 @@ export default function SpecializedReportView({
                   { label: '叙事表达', value: 32 },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className="w-16 text-brand-charcoal/60">{item.label}</span>
+                    <span className="w-16 text-brand-charcoal/80">{item.label}</span>
                     <div className="flex-1 h-2 bg-brand-cream/50 rounded-full overflow-hidden">
                       <div className="h-full bg-red-500 rounded-full" style={{ width: `${item.value}%` }} />
                     </div>

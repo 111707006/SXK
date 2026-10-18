@@ -940,12 +940,12 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
           
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-extrabold text-brand-forest tracking-tight">AI智慧深度语言评估及干预管理系统 (家长自评及AI声谱匹配版)</h1>
-            <span className="px-2.5 py-0.5 rounded bg-brand-sand text-[10px] font-black text-brand-forest border border-brand-stone">
+            <span className="px-2.5 py-0.5 rounded bg-brand-sand text-xs font-black text-brand-forest border border-brand-stone">
               家长自评量表
             </span>
           </div>
           
-          <p className="text-xs text-brand-charcoal/70 max-w-3xl leading-relaxed">
+          <p className="text-xs text-brand-charcoal/80 max-w-3xl leading-relaxed">
             受评儿：<strong className="text-brand-forest">{child.name}</strong>（{child.ageMonth}个月，{child.gender === 'boy' ? '男孩' : '女孩'}）。
             <strong>💡 自评升级说明：</strong>本系统已针对C端家庭自评进行全新改版。由于家长在家庭环境下难以进行复杂的专业发音物理观测认定，本系统现全面采用<strong>“上传录音/一键模拟后进行AI智能声学频谱匹配”</strong>技术。您只需引导孩子完成10道简单的拼读，AI大模型即可自动完成构音代偿、发音清晰度与流畅度等多维深度测算评估。
           </p>
@@ -977,7 +977,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
               
               {/* Progress counter */}
               <div className="text-right">
-                <span className="text-[10px] text-brand-charcoal/60 font-bold block">
+                <span className="text-xs text-brand-charcoal/80 font-bold block">
                   拼读完成度: <strong className="text-brand-moss">{completedCount} / 10</strong>
                 </span>
                 <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-0.5">
@@ -992,17 +992,17 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
             {/* Quick simulation fill button */}
             <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-left">
               <div className="space-y-0.5">
-                <h4 className="text-[11px] font-extrabold text-amber-800 flex items-center gap-1">
+                <h4 className="text-xs font-extrabold text-amber-800 flex items-center gap-1">
                   <Sparkles size={12} className="animate-pulse" />
                   智能辅助一键模拟拼读音频 (极速测试)
                 </h4>
-                <p className="text-[10px] text-amber-900/70 leading-relaxed">
+                <p className="text-xs text-amber-900/70 leading-relaxed">
                   不想手动进行10次录音？点击右侧一键模拟，将自动匹配符合受评儿月龄的发音错乱样本（如g/k读成d/t等）。
                 </p>
               </div>
               <button
                 onClick={handleAutoFillAllQuestions}
-                className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black rounded-lg shadow-sm transition active:scale-95 whitespace-nowrap"
+                className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-lg shadow-sm transition active:scale-95 whitespace-nowrap"
               >
                 一键模拟10题
               </button>
@@ -1027,7 +1027,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   >
                     <span>Q{q.id}</span>
                     {isDone && (
-                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-brand-moss border border-white text-white rounded-full flex items-center justify-center text-[8px]">
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-brand-moss border border-white text-white rounded-full flex items-center justify-center text-xs">
                         ✓
                       </span>
                     )}
@@ -1039,10 +1039,10 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
             {/* Active Question detail board */}
             <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4.5 space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-slate-200 border border-slate-300 text-[9px] font-black text-slate-700">
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-200 border border-slate-300 text-xs font-black text-slate-700">
                   第 {currentQ.id} 题 · {currentQ.typeName}
                 </span>
-                <span className="text-[10px] font-bold text-brand-moss">
+                <span className="text-xs font-bold text-brand-moss">
                   测试重点: {currentQ.focus}
                 </span>
               </div>
@@ -1067,7 +1067,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
               </div>
 
               {/* Standard target description */}
-              <div className="text-[10px] text-brand-charcoal/70 leading-relaxed bg-brand-cream/20 p-2.5 rounded-xl border border-brand-stone/40">
+              <div className="text-xs text-brand-charcoal/80 leading-relaxed bg-brand-cream/20 p-2.5 rounded-xl border border-brand-stone/40">
                 <strong className="text-brand-clay block mb-0.5">SLP同龄儿发育对照组标准:</strong>
                 {currentQ.benchmarkDesc}
               </div>
@@ -1109,18 +1109,18 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                 </div>
 
                 <div className="text-center">
-                  <span className="text-[10px] font-bold text-brand-forest block">
+                  <span className="text-xs font-bold text-brand-forest block">
                     {isRecording ? `录制中 (00:0${recordingSeconds}s)... 点击停止` : '点击麦克风开启录音，或上传该题音频文件'}
                   </span>
                   {currentQState.recorded && (
                     <div className="mt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-sage/30 border border-brand-moss/40 text-[9px] font-bold text-brand-forest rounded">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-sage/30 border border-brand-moss/40 text-xs font-bold text-brand-forest rounded">
                         <Check size={10} strokeWidth={3} /> 音频已成功匹配此题
                       </span>
                       <button
                         type="button"
                         onClick={handlePlayRecord}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition active:scale-95 shadow-sm border ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black transition active:scale-95 shadow-sm border ${
                           isPlayingRecord
                             ? 'bg-amber-500 text-white border-amber-500 animate-pulse'
                             : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300'
@@ -1137,9 +1137,9 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
               {/* Recognized result editor for current active question */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-brand-forest block flex items-center gap-1">
+                <label className="text-xs font-bold text-brand-forest block flex items-center gap-1">
                   <span>孩子实际读出的词句 (AI自动识别与家长修正):</span>
-                  <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[9px] font-black">AI智能匹配</span>
+                  <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-black">AI智能匹配</span>
                 </label>
                 <input
                   type="text"
@@ -1157,16 +1157,16 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-moss font-semibold text-brand-charcoal"
                   placeholder="转录发音，如发音不准，可在此修改"
                 />
-                <p className="text-[9px] text-slate-400">
+                <p className="text-xs text-slate-400">
                   💡 家长提示：AI大模型会自动听音转写。如果孩子发音不标准（如把“苹果”读成“病朵”），您也可以在此手动微调，以便AI更好地定位发音代偿模式。
                 </p>
               </div>
 
               {/* Clinical physical behavior tag for current question */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-brand-forest block flex items-center gap-1">
+                <label className="text-xs font-bold text-brand-forest block flex items-center gap-1">
                   <span>该题发音特征认定 (AI录音智能比对结果):</span>
-                  <span className="px-1.5 py-0.5 bg-brand-sage/40 text-brand-forest rounded text-[9px] font-black">自动判定</span>
+                  <span className="px-1.5 py-0.5 bg-brand-sage/40 text-brand-forest rounded text-xs font-black">自动判定</span>
                 </label>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
@@ -1186,7 +1186,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                           }
                         }));
                       }}
-                      className={`px-2 py-1.5 rounded-lg text-[9px] font-bold text-left border transition ${
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold text-left border transition ${
                         currentQState.status === item.id
                           ? 'bg-brand-clay text-white border-brand-clay shadow-sm'
                           : 'bg-white hover:bg-slate-100 text-brand-charcoal border-slate-200'
@@ -1196,7 +1196,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     </button>
                   ))}
                 </div>
-                <p className="text-[9px] text-slate-400">
+                <p className="text-xs text-slate-400">
                   💡 提示：本系统为C端自评。您无需具备物理听觉观测经验，录音或文件上传后，系统会自动运行声学算法并匹配相应特征。
                 </p>
               </div>
@@ -1212,7 +1212,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                 上一题
               </button>
               
-              <span className="text-[10px] text-slate-400 font-bold">
+              <span className="text-xs text-slate-400 font-bold">
                 {currentIdx + 1} / 10
               </span>
 
@@ -1235,7 +1235,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
               <h3 className="text-sm font-extrabold text-brand-forest">家长日常观察辅助标注 (由AI智能校对)</h3>
             </div>
 
-            <p className="text-[10px] text-brand-charcoal/70 leading-relaxed bg-brand-cream/20 p-2.5 rounded-xl border border-brand-stone/40">
+            <p className="text-xs text-brand-charcoal/80 leading-relaxed bg-brand-cream/20 p-2.5 rounded-xl border border-brand-stone/40">
               💡 <strong>自评提示：</strong>由于在家庭自评中难以进行复杂的专业发音物理观测，系统升级为<strong>“上传后AI声谱匹配评估”</strong>。下方选项供您根据平时对孩子说话习惯的观察进行选择（选填），AI大模型会将您的观察与孩子录音的实际声学波形、共鸣度进行双重多维匹配。
             </p>
 
@@ -1315,7 +1315,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   <div className="h-full bg-brand-moss rounded-full animate-infinite-loading" />
                 </div>
               </div>
-              <p className="text-[10px] text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-400 leading-relaxed">
                 正在深度解码儿童的 10 题发音录音。系统结合傅里叶分析、脑额叶言语 Broca 区语法树结构及下唇肌张力传导阻尼，输出权威级 SLP 评估报告。
               </p>
             </div>
@@ -1346,7 +1346,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
               </div>
               <div className="space-y-2 max-w-md">
                 <h4 className="text-sm font-black text-brand-forest">等待采集十题语音样本数据</h4>
-                <p className="text-xs text-brand-charcoal/70 leading-relaxed">
+                <p className="text-xs text-brand-charcoal/80 leading-relaxed">
                   请分别点击左侧 <strong>Q1 至 Q10</strong>，进行拼读音频录音或文件上传。您也可以点击左侧 <strong>“智能一键模拟”</strong> 自动录制 10 题演示数据，并点击 <strong>“启动 AI 智慧语音深度评估”</strong> 发布图文并茂的评估书。
                 </p>
               </div>
@@ -1354,18 +1354,18 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
               {/* Visual highlights cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-md text-left">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[10px] font-black text-brand-moss flex items-center gap-1">
+                  <span className="text-xs font-black text-brand-moss flex items-center gap-1">
                     <Activity size={12} /> 图文并茂声谱分析
                   </span>
-                  <p className="text-[9px] text-brand-charcoal leading-relaxed">
+                  <p className="text-xs text-brand-charcoal leading-relaxed">
                     大模型将对比同龄儿健康声道基频曲线（F0），绘制出直观的声学物理偏差图及下颌活动阻阻尼。
                   </p>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[10px] font-black text-brand-moss flex items-center gap-1">
+                  <span className="text-xs font-black text-brand-moss flex items-center gap-1">
                     <HeartHandshake size={12} /> 后续干预与视频预约
                   </span>
-                  <p className="text-[9px] text-brand-charcoal leading-relaxed">
+                  <p className="text-xs text-brand-charcoal leading-relaxed">
                     提供每日 15 分钟口肌阻力操，并直联全国百佳言语病理科知名康复师，支持在线1v1预约。
                   </p>
                 </div>
@@ -1380,7 +1380,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
               {/* Report Header Badge */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-brand-cream pb-4">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-rose-700 font-extrabold text-[10px] uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 text-rose-700 font-extrabold text-xs uppercase tracking-wider">
                     <Sparkles size={13} className="animate-pulse" />
                     {isAiGenerated ? '阿里达摩院通义千问多维声谱大模型算力生成' : '高阶本地语言测绘比对'}
                   </div>
@@ -1388,12 +1388,12 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     数字言语与精细构音专项深度评估报告
                   </h2>
                 </div>
-                <span className="text-[9px] text-slate-400 font-mono">报告编号: SXK-SLP-{Date.now().toString().slice(-6)}</span>
+                <span className="text-xs text-slate-400 font-mono">报告编号: SXK-SLP-{Date.now().toString().slice(-6)}</span>
               </div>
 
               {/* Diagnosis Condition Box */}
               <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-4.5 space-y-1.5">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-100 border border-rose-200 text-[9px] font-bold text-rose-800 uppercase tracking-wide">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-100 border border-rose-200 text-xs font-bold text-rose-800 uppercase tracking-wide">
                   <ShieldAlert size={10} /> 言语发展水平与类别认定
                 </span>
                 <p className="text-sm font-black text-brand-forest">
@@ -1408,7 +1408,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     <Activity size={14} className="text-brand-moss animate-pulse" />
                     【全部平铺展观】AI 智慧多维语言声谱物理测绘与能力成长发育图表
                   </h4>
-                  <p className="text-[10px] text-slate-400">合并傅里叶声谱变换、舌位传感器映射及脑皮质言语中枢网络模拟，平铺直观呈现</p>
+                  <p className="text-xs text-slate-400">合并傅里叶声谱变换、舌位传感器映射及脑皮质言语中枢网络模拟，平铺直观呈现</p>
                 </div>
 
                 {/* Flat layout: Grid of 4 beautiful, vibrant cards (No buttons for selection!) */}
@@ -1416,11 +1416,11 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   
                   {/* CARD 1: Spectrogram (Canvas) - Extremely Vibrant Teal Border */}
                   <div className="bg-white border-2 border-emerald-400/60 p-4 rounded-xl space-y-3 shadow-sm hover:shadow-md transition">
-                    <h5 className="text-[11px] font-black text-emerald-800 flex items-center gap-1">
+                    <h5 className="text-xs font-black text-emerald-800 flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded bg-emerald-500 animate-pulse" />
                       Ⅰ. 声谱物理带宽
                     </h5>
-                    <div className="flex justify-between items-center text-[9px] text-slate-500">
+                    <div className="flex justify-between items-center text-xs text-slate-500">
                       <span>采样声学特征: 傅里叶基频 F0 拟合包络</span>
                       <span className="font-mono">采样频率: 44.1kHz / 16-bit PCM</span>
                     </div>
@@ -1431,28 +1431,28 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                         height={160}
                         className="w-full h-40 block bg-[#0f172a]"
                       />
-                      <div className="absolute bottom-2 right-2 bg-slate-900/95 border border-slate-700/80 p-1.5 rounded-lg text-[8px] font-mono text-slate-300 flex items-center gap-2">
+                      <div className="absolute bottom-2 right-2 bg-slate-900/95 border border-slate-700/80 p-1.5 rounded-lg text-xs font-mono text-slate-300 flex items-center gap-2">
                         <span className="flex items-center gap-0.5"><span className="w-2 h-1 bg-emerald-500 rounded-full" /> 同龄常态线</span>
                         <span className="flex items-center gap-0.5"><span className="w-2 h-1 bg-orange-500 rounded-full" /> 实际曲线</span>
                         <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" /> 异常代偿点</span>
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-600 leading-relaxed bg-emerald-50/40 p-2.5 rounded-xl border border-emerald-100">
+                    <p className="text-xs text-slate-600 leading-relaxed bg-emerald-50/40 p-2.5 rounded-xl border border-emerald-100">
                       📊 <strong>图层解析:</strong> 绿线代表同龄儿健康的起音基频包络。橙线为受测儿实际拼读，其中 <strong>代偿交点</strong> 代表由于下颌紧张或舌位转换延迟引起的辅音脱失失真带。
                     </p>
                   </div>
 
                   {/* CARD 2: Phonemes Radar (SVG) - Highlighted with Pink Warning border since it contains the core delay bottleneck! */}
                   <div className="bg-white border-2 border-rose-500/80 p-4 rounded-xl space-y-3 shadow-md hover:shadow-lg transition relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-rose-500 text-white font-black text-[8px] px-2.5 py-0.5 rounded-bl uppercase tracking-wider animate-pulse">
+                    <div className="absolute top-0 right-0 bg-rose-500 text-white font-black text-xs px-2.5 py-0.5 rounded-bl uppercase tracking-wider animate-pulse">
                       🚨 重点异常阻滞项
                     </div>
                     
-                    <h5 className="text-[11px] font-black text-rose-700 flex items-center gap-1">
+                    <h5 className="text-xs font-black text-rose-700 flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded bg-rose-600 animate-ping" />
                       Ⅱ. 音位失真雷达 (舌根音阻滞)
                     </h5>
-                    <div className="flex justify-between items-center text-[9px] text-slate-500">
+                    <div className="flex justify-between items-center text-xs text-slate-500">
                       <span>多维音位准确度及构音歪曲率测绘</span>
                       <span>标准对照: ASHA 3-4岁少儿成长模型</span>
                     </div>
@@ -1567,11 +1567,11 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
                       {/* Legend & Details */}
                       <div className="space-y-1 text-left max-w-[170px] w-full">
-                        <div className="text-[10px] text-slate-300 font-bold border-b border-slate-800 pb-1 flex justify-between">
+                        <div className="text-xs text-slate-300 font-bold border-b border-slate-800 pb-1 flex justify-between">
                           <span className="text-emerald-400">● 同龄标准</span>
                           <span className="text-rose-400">● 实际构音区</span>
                         </div>
-                        <div className="space-y-1 font-mono text-[9px] text-slate-400">
+                        <div className="space-y-1 font-mono text-xs text-slate-400">
                           <div className="flex justify-between bg-slate-800/60 p-1 rounded border border-red-500/20">
                             <span className="text-rose-300 font-bold">🎯 舌根辅音 [g/k]:</span>
                             <span className="text-red-400 font-black font-sans">{articulation.includes('置换') ? '38% (极低)' : '80% (常态)'}</span>
@@ -1581,7 +1581,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                             <span className="text-amber-400 font-black font-sans">{articulation.includes('无力') || articulation.includes('构音') ? '50% (偏弱)' : '72% (中度)'}</span>
                           </div>
                         </div>
-                        <p className="text-[8px] text-rose-300 leading-normal font-sans">
+                        <p className="text-xs text-rose-300 leading-normal font-sans">
                           ⚠️ <strong>发育缺陷警示:</strong> 舌根阻碍控制极弱，代偿异常明显，极需针对舌根音强化阻抗。
                         </p>
                       </div>
@@ -1590,11 +1590,11 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
                   {/* CARD 3: Fluency (Vocal Rhythm bars) - Vibrant Sky-blue and Rose Highlight */}
                   <div className="bg-white border-2 border-sky-400/60 p-4 rounded-xl space-y-3 shadow-sm hover:shadow-md transition">
-                    <h5 className="text-[11px] font-black text-sky-800 flex items-center gap-1">
+                    <h5 className="text-xs font-black text-sky-800 flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded bg-sky-500" />
                       Ⅲ. 语速语流脉冲 (发音流畅度)
                     </h5>
-                    <div className="flex justify-between items-center text-[9px] text-slate-500">
+                    <div className="flex justify-between items-center text-xs text-slate-500">
                       <span>言语连续流、语音中断与微停顿多维韵律描绘</span>
                       <span>标准对照: 发育性不流利常态节律线</span>
                     </div>
@@ -1617,7 +1617,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                           { word: '释能', energy: 10, isBlock: false },
                         ].map((bar, idx) => (
                           <div key={idx} className="flex flex-col items-center flex-1 max-w-[48px] space-y-1.5">
-                            <span className="text-[8px] text-slate-500 scale-90 font-mono">{bar.energy}%</span>
+                            <span className="text-xs text-slate-500 scale-90 font-mono">{bar.energy}%</span>
                             <div className="w-4 sm:w-6 rounded-t-sm relative" style={{ height: `${bar.energy * 0.6}px` }}>
                               <div 
                                 className={`w-full h-full rounded-t-md transition-all duration-500 ${
@@ -1627,7 +1627,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                                 }`} 
                               />
                             </div>
-                            <span className={`text-[8px] font-bold ${bar.isBlock ? 'text-rose-400' : 'text-slate-400'}`}>{bar.isBlock ? '卡顿' : bar.word}</span>
+                            <span className={`text-xs font-bold ${bar.isBlock ? 'text-rose-400' : 'text-slate-400'}`}>{bar.isBlock ? '卡顿' : bar.word}</span>
                           </div>
                         ))}
                       </div>
@@ -1635,15 +1635,15 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       {/* Fluency Metrics Table */}
                       <div className="grid grid-cols-3 gap-2 text-left">
                         <div className="bg-slate-800/50 p-2 rounded border border-slate-700/50 space-y-0.5">
-                          <span className="text-[9px] text-slate-400 block font-bold">卡壳频次 (Blocks)</span>
+                          <span className="text-xs text-slate-400 block font-bold">卡壳频次 (Blocks)</span>
                           <span className="text-xs font-black text-rose-400">{fluency.includes('正常') ? '0 次/秒' : '1.8 次/3秒'}</span>
                         </div>
                         <div className="bg-slate-800/50 p-2 rounded border border-slate-700/50 space-y-0.5">
-                          <span className="text-[9px] text-slate-400 block font-bold">连复拖延 (Stutter)</span>
+                          <span className="text-xs text-slate-400 block font-bold">连复拖延 (Stutter)</span>
                           <span className="text-xs font-black text-amber-400">{fluency.includes('正常') ? '正常' : '叠字 (3音节)'}</span>
                         </div>
                         <div className="bg-slate-800/50 p-2 rounded border border-slate-700/50 space-y-0.5">
-                          <span className="text-[9px] text-slate-400 block font-bold">气流失调 (Jitter)</span>
+                          <span className="text-xs text-slate-400 block font-bold">气流失调 (Jitter)</span>
                           <span className="text-xs font-black text-emerald-400">轻度 (7%)</span>
                         </div>
                       </div>
@@ -1652,11 +1652,11 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
                   {/* CARD 4: 12-Week Roadmap - Vibrant Indigo with Pulse indicators */}
                   <div className="bg-white border-2 border-indigo-400/60 p-4 rounded-xl space-y-3 shadow-sm hover:shadow-md transition">
-                    <h5 className="text-[11px] font-black text-indigo-800 flex items-center gap-1">
+                    <h5 className="text-xs font-black text-indigo-800 flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded bg-indigo-500 animate-pulse" />
                       Ⅳ. 12周康复里程碑 (成长路径)
                     </h5>
-                    <div className="flex justify-between items-center text-[9px] text-slate-500">
+                    <div className="flex justify-between items-center text-xs text-slate-500">
                       <span>脑突触可塑性剪裁与多重构音反射重建里程碑预测</span>
                       <span className="text-brand-moss font-bold">12周精细康复路径图</span>
                     </div>
@@ -1703,14 +1703,14 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       ].map((step, idx) => (
                         <div key={idx} className={`p-2.5 rounded-xl border ${step.bgColor} space-y-1 text-left flex flex-col justify-between`}>
                           <div>
-                            <span className={`text-[8px] font-black uppercase tracking-wider ${step.textColor} flex items-center gap-1`}>
+                            <span className={`text-xs font-black uppercase tracking-wider ${step.textColor} flex items-center gap-1`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${step.pointColor} inline-block animate-pulse`} />
                               {step.phase}
                             </span>
-                            <h5 className="text-[9px] font-black text-slate-800 leading-tight">{step.title}</h5>
-                            <p className="text-[8px] text-slate-500 leading-tight font-medium mt-0.5">{step.desc}</p>
+                            <h5 className="text-xs font-black text-slate-800 leading-tight">{step.title}</h5>
+                            <p className="text-xs text-slate-500 leading-tight font-medium mt-0.5">{step.desc}</p>
                           </div>
-                          <div className="mt-1 pt-1 border-t border-slate-200/50 text-[8px] text-slate-500 font-mono">
+                          <div className="mt-1 pt-1 border-t border-slate-200/50 text-xs text-slate-500 font-mono">
                             🎯 目标: <span className="font-extrabold text-slate-700">{step.milestone}</span>
                           </div>
                         </div>
@@ -1723,24 +1723,24 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                 {/* Metric dials */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
                   <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] text-slate-400 font-bold block">辅音清晰度 (AAC)</span>
+                    <span className="text-xs text-slate-400 font-bold block">辅音清晰度 (AAC)</span>
                     <strong className="text-sm font-black text-brand-forest">72%</strong>
-                    <span className="text-[8px] text-rose-500 font-bold block">偏低 (标称: 92%)</span>
+                    <span className="text-xs text-rose-500 font-bold block">偏低 (标称: 92%)</span>
                   </div>
                   <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] text-slate-400 font-bold block">语速节律值 (SR)</span>
+                    <span className="text-xs text-slate-400 font-bold block">语速节律值 (SR)</span>
                     <strong className="text-sm font-black text-brand-forest">82 字/分</strong>
-                    <span className="text-[8px] text-rose-500 font-bold block">缓慢 (标称: 100字)</span>
+                    <span className="text-xs text-rose-500 font-bold block">缓慢 (标称: 100字)</span>
                   </div>
                   <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] text-slate-400 font-bold block">腭咽闭合阻尼 (VPC)</span>
+                    <span className="text-xs text-slate-400 font-bold block">腭咽闭合阻尼 (VPC)</span>
                     <strong className="text-sm font-black text-brand-forest">14% 漏气度</strong>
-                    <span className="text-[8px] text-amber-600 font-bold block">轻度气流外溢</span>
+                    <span className="text-xs text-amber-600 font-bold block">轻度气流外溢</span>
                   </div>
                   <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] text-slate-400 font-bold block">音位准确率 (PMR)</span>
+                    <span className="text-xs text-slate-400 font-bold block">音位准确率 (PMR)</span>
                     <strong className="text-sm font-black text-brand-forest">7 / 10 题达标</strong>
-                    <span className="text-[8px] text-brand-moss font-bold block">精细肌力欠佳</span>
+                    <span className="text-xs text-brand-moss font-bold block">精细肌力欠佳</span>
                   </div>
                 </div>
               </div>
@@ -1763,20 +1763,20 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="p-3.5 bg-brand-cream/30 border border-brand-stone/60 rounded-xl space-y-1">
-                    <span className="text-[10px] font-bold text-brand-clay block">声带基频振动 (Pitch)</span>
-                    <p className="text-[11px] text-brand-charcoal font-medium leading-relaxed">
+                    <span className="text-xs font-bold text-brand-clay block">声带基频振动 (Pitch)</span>
+                    <p className="text-xs text-brand-charcoal font-medium leading-relaxed">
                       {report.acousticProfile.pitchAnalysis}
                     </p>
                   </div>
                   <div className="p-3.5 bg-brand-cream/30 border border-brand-stone/60 rounded-xl space-y-1">
-                    <span className="text-[10px] font-bold text-brand-clay block">语速韵律对比 (Tempo)</span>
-                    <p className="text-[11px] text-brand-charcoal font-medium leading-relaxed">
+                    <span className="text-xs font-bold text-brand-clay block">语速韵律对比 (Tempo)</span>
+                    <p className="text-xs text-brand-charcoal font-medium leading-relaxed">
                       {report.acousticProfile.speechRate}
                     </p>
                   </div>
                   <div className="p-3.5 bg-brand-cream/30 border border-brand-stone/60 rounded-xl space-y-1">
-                    <span className="text-[10px] font-bold text-brand-clay block">软腭闭合共鸣 (Resonance)</span>
-                    <p className="text-[11px] text-brand-charcoal font-medium leading-relaxed">
+                    <span className="text-xs font-bold text-brand-clay block">软腭闭合共鸣 (Resonance)</span>
+                    <p className="text-xs text-brand-charcoal font-medium leading-relaxed">
                       {report.acousticProfile.resonance}
                     </p>
                   </div>
@@ -1791,7 +1791,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                 <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/60">
                   {report.interventionGoals.map((goal, i) => (
                     <div key={i} className="flex items-start gap-2 text-xs font-semibold text-brand-charcoal">
-                      <span className="w-5 h-5 bg-brand-sage/40 border border-brand-stone text-brand-forest rounded-full flex items-center justify-center text-[10px] shrink-0 font-bold mt-0.5">
+                      <span className="w-5 h-5 bg-brand-sage/40 border border-brand-stone text-brand-forest rounded-full flex items-center justify-center text-xs shrink-0 font-bold mt-0.5">
                         {i + 1}
                       </span>
                       <p className="leading-relaxed">{goal}</p>
@@ -1815,7 +1815,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                           <UserCheck size={12} />
                           {ex.day} · {ex.target}
                         </span>
-                        <span className="text-[10px] font-mono font-bold text-brand-forest/70 bg-brand-sage/40 px-2 py-0.5 rounded">
+                        <span className="text-xs font-mono font-bold text-brand-forest/70 bg-brand-sage/40 px-2 py-0.5 rounded">
                           频率: {ex.duration}
                         </span>
                       </div>
@@ -1823,7 +1823,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                         <p className="text-xs text-brand-charcoal leading-relaxed font-medium">
                           {ex.exercise}
                         </p>
-                        <div className="bg-brand-cream/30 p-2.5 rounded-xl border border-brand-stone/40 text-[10px] text-brand-forest leading-relaxed font-semibold">
+                        <div className="bg-brand-cream/30 p-2.5 rounded-xl border border-brand-stone/40 text-xs text-brand-forest leading-relaxed font-semibold">
                           <span className="font-extrabold text-brand-clay mr-1 flex items-center gap-1">
                             <Info size={11} /> SLP首席成长督导纠音贴士:
                           </span>
@@ -1853,7 +1853,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       <UserCheck size={14} className="text-brand-moss" />
                       【双核联合签证】连动微信发送国家注册少儿言语评估督导师
                     </h4>
-                    <p className="text-[10px] text-slate-500 leading-normal">
+                    <p className="text-xs text-slate-500 leading-normal">
                       除了 AI 智能多维自评，森心康支持通过微信一键把方案发送给您的专属督导专家进行专业复核，并获取手写签名及官方核准电子联合签证章！
                     </p>
                   </div>
@@ -1864,13 +1864,13 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                         setIsWechatModalOpen(true);
                         setIsSupervisorPortal(false);
                       }}
-                      className="shrink-0 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black rounded-xl shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5"
+                      className="shrink-0 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5"
                     >
                       <Share2 size={13} />
                       微信联络督导师复核及签证
                     </button>
                   ) : (
-                    <span className="shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-[10px] font-bold text-emerald-800">
+                    <span className="shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-xs font-bold text-emerald-800">
                       <Check size={12} /> 督导师联合签证已生效
                     </span>
                   )}
@@ -1880,7 +1880,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                 {isSignedAndStamped && (
                   <div className="bg-white border-2 border-emerald-500 rounded-2xl p-5 relative overflow-hidden space-y-3.5 shadow-sm">
                     {/* Decorative official corner seal ribbon */}
-                    <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider py-1 px-3 rounded-bl-xl shadow-sm">
+                    <div className="absolute top-0 right-0 bg-emerald-600 text-white text-xs font-black uppercase tracking-wider py-1 px-3 rounded-bl-xl shadow-sm">
                       专业评估联合签证
                     </div>
 
@@ -1890,7 +1890,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       </span>
                       <div>
                         <h5 className="text-xs font-extrabold text-brand-forest">王明华 首席专家 / 注册首席儿童SLP</h5>
-                        <p className="text-[9px] text-slate-400 font-mono">国家级言语联盟注册督导师 · 证书号: SLP-CN-2016-0842</p>
+                        <p className="text-xs text-slate-400 font-mono">国家级言语联盟注册督导师 · 证书号: SLP-CN-2016-0842</p>
                       </div>
                     </div>
 
@@ -1899,7 +1899,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     </div>
 
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 pt-2">
-                      <div className="text-[9px] text-slate-400 font-mono space-y-0.5">
+                      <div className="text-xs text-slate-400 font-mono space-y-0.5">
                         <div>数字核签指纹: SHA256/SXK-VERIFIED-{verifiedAt.replace(/[^0-9]/g, '').slice(-12)}</div>
                         <div>复核生效时间: {verifiedAt}</div>
                       </div>
@@ -1933,7 +1933,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   <h4 className="text-sm font-black text-brand-forest flex items-center gap-1.5">
                     <User size={15} className="text-brand-clay" /> 【专业保障】森心康联盟认证知名儿童言语发展师推荐
                   </h4>
-                  <p className="text-[11px] text-brand-charcoal/70">
+                  <p className="text-xs text-brand-charcoal/80">
                     针对受评儿童检出的发音协调代偿置换及词汇组织滞后，我们特约全国知名儿科SLP专家提供 1v1 线上视频辅导与言语提升指导。
                   </p>
                 </div>
@@ -1949,29 +1949,29 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                           </span>
                           <div className="text-left">
                             <h5 className="text-xs font-black text-brand-forest">{t.name}</h5>
-                            <span className="text-[9px] font-bold text-brand-clay block leading-tight">{t.title}</span>
+                            <span className="text-xs font-bold text-brand-clay block leading-tight">{t.title}</span>
                           </div>
                         </div>
 
                         {/* Hospital info */}
-                        <p className="text-[10px] text-brand-charcoal/80 font-bold leading-relaxed">
+                        <p className="text-xs text-brand-charcoal/80 font-bold leading-relaxed">
                           🏫 {t.hospital}
                         </p>
 
-                        <div className="flex items-center gap-1 text-amber-500 text-[10px] font-bold">
+                        <div className="flex items-center gap-1 text-amber-500 text-xs font-bold">
                           <Star size={12} fill="currentColor" /> {t.rate}
                           <span className="text-slate-400 font-normal">({t.cases}例评估服务好评)</span>
                         </div>
 
-                        <p className="text-[10px] text-brand-charcoal/75 leading-relaxed bg-white p-2.5 rounded-xl border border-slate-200 font-semibold">
-                          <strong className="text-brand-forest block text-[9px] font-black uppercase tracking-wider mb-1">擅长领域:</strong>
+                        <p className="text-xs text-brand-charcoal/80 leading-relaxed bg-white p-2.5 rounded-xl border border-slate-200 font-semibold">
+                          <strong className="text-brand-forest block text-xs font-black uppercase tracking-wider mb-1">擅长领域:</strong>
                           {t.specialization}
                         </p>
 
                         {/* Certificates */}
                         <div className="flex flex-wrap gap-1">
                           {t.certs.map((c, i) => (
-                            <span key={i} className="px-1.5 py-0.5 rounded bg-brand-sage/10 text-[8px] text-brand-forest font-bold border border-brand-moss/20">
+                            <span key={i} className="px-1.5 py-0.5 rounded bg-brand-sage/10 text-xs text-brand-forest font-bold border border-brand-moss/20">
                               ✓ {c.split(' ')[0]}
                             </span>
                           ))}
@@ -1981,13 +1981,13 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       {/* Fee and booking action */}
                       <div className="border-t border-slate-200/80 pt-3 flex items-center justify-between gap-2 mt-auto">
                         <div className="text-left">
-                          <span className="text-[8px] text-slate-400 block font-bold">远程诊疗费用</span>
-                          <span className="text-sm font-black text-rose-700">¥{t.fee}<span className="text-[9px] text-slate-500 font-normal"> /次</span></span>
+                          <span className="text-xs text-slate-400 block font-bold">远程诊疗费用</span>
+                          <span className="text-sm font-black text-rose-700">¥{t.fee}<span className="text-xs text-slate-500 font-normal"> /次</span></span>
                         </div>
 
                         <button
                           onClick={() => handleBookTherapist(t)}
-                          className="px-3 py-2 bg-brand-forest hover:bg-brand-moss text-white text-[10px] font-black rounded-lg shadow-sm transition active:scale-95 flex items-center gap-1"
+                          className="px-3 py-2 bg-brand-forest hover:bg-brand-moss text-white text-xs font-black rounded-lg shadow-sm transition active:scale-95 flex items-center gap-1"
                         >
                           <Video size={11} />
                           立即预约线上干预
@@ -2013,7 +2013,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
             {/* Modal Header */}
             <div className="bg-brand-forest text-white p-5 flex justify-between items-center">
               <div className="space-y-0.5">
-                <span className="text-[9px] font-black text-brand-sand uppercase tracking-wider flex items-center gap-1">
+                <span className="text-xs font-black text-brand-sand uppercase tracking-wider flex items-center gap-1">
                   <Sparkles size={11} /> 线上干预专家直联会诊
                 </span>
                 <h3 className="text-sm font-extrabold">预约视频诊疗 1v1 训练通道</h3>
@@ -2039,20 +2039,20 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     <span className="text-2xl">{selectedTherapistForBooking.avatar}</span>
                     <div>
                       <h4 className="text-xs font-extrabold text-brand-forest">{selectedTherapistForBooking.name}</h4>
-                      <p className="text-[10px] text-brand-charcoal/80 leading-relaxed font-bold">
+                      <p className="text-xs text-brand-charcoal/80 leading-relaxed font-bold">
                         {selectedTherapistForBooking.title} · {selectedTherapistForBooking.hospital}
                       </p>
                     </div>
                   </div>
 
-                  <p className="text-[10px] text-brand-charcoal/70 leading-relaxed">
+                  <p className="text-xs text-brand-charcoal/80 leading-relaxed">
                     为了针对儿童的言语障碍机制进行最快速的精纠，请配合选定线上会诊日期，并在约定时间段通过视频接入，医生将指导开展构音及呼吸操动作矫治。
                   </p>
 
                   <div className="space-y-3 pt-2">
                     {/* Date picker */}
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-brand-forest uppercase tracking-wider block">
+                      <label className="text-xs font-black text-brand-forest uppercase tracking-wider block">
                         🗓 选择会诊预约日期:
                       </label>
                       <input
@@ -2067,7 +2067,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
                     {/* Time Slots */}
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-brand-forest uppercase tracking-wider block">
+                      <label className="text-xs font-black text-brand-forest uppercase tracking-wider block">
                         ⏰ 可选视频时间段:
                       </label>
                       <div className="grid grid-cols-2 gap-2">
@@ -2089,7 +2089,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
                     {/* 家長姓名 —— 後端必填（工作人員回撥時要稱呼） */}
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-brand-forest uppercase tracking-wider block">
+                      <label className="text-xs font-black text-brand-forest uppercase tracking-wider block">
                         👤 家长姓名:
                       </label>
                       <input
@@ -2104,7 +2104,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
                     {/* Phone details */}
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-brand-forest uppercase tracking-wider block">
+                      <label className="text-xs font-black text-brand-forest uppercase tracking-wider block">
                         📱 家长回访手机号:
                       </label>
                       <input
@@ -2114,13 +2114,13 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                         placeholder="请输入11位中国大陆手机号码"
                         className="w-full p-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-moss font-semibold"
                       />
-                      <span className="text-[9px] text-slate-400 block">
+                      <span className="text-xs text-slate-400 block">
                         提交后由言语康复顾问电话与您确认具体时间与连线方式。
                       </span>
                     </div>
 
                     {bookingError && (
-                      <div className="flex items-start gap-1.5 text-[10px] text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5">
+                      <div className="flex items-start gap-1.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5">
                         <AlertCircle size={12} className="shrink-0 mt-0.5" />
                         <span>{bookingError}</span>
                       </div>
@@ -2130,7 +2130,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   {/* Submit actions */}
                   <div className="pt-4 border-t border-slate-200 flex items-center justify-between gap-3">
                     <div className="text-left">
-                      <span className="text-[9px] text-slate-400 block">合计诊疗费:</span>
+                      <span className="text-xs text-slate-400 block">合计诊疗费:</span>
                       <strong className="text-base font-black text-rose-700">¥{selectedTherapistForBooking.fee}</strong>
                     </div>
 
@@ -2161,7 +2161,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       ✓
                     </span>
                     <h4 className="text-base font-black text-brand-forest">儿童言语视频干预预约成功！</h4>
-                    <p className="text-[11px] text-slate-400 font-mono">凭证编号: {bookingVoucher.id}</p>
+                    <p className="text-xs text-slate-400 font-mono">凭证编号: {bookingVoucher.id}</p>
                   </div>
 
                   {/* Elegant medical Ticket */}
@@ -2172,25 +2172,25 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full -mr-2 z-10" />
 
                     <div className="flex justify-between items-start border-b border-white/10 pb-2">
-                      <span className="text-[10px] text-brand-sand font-bold tracking-widest uppercase">AI智慧言语线上会诊凭证</span>
-                      <span className="text-[9px] text-slate-400">时间: {bookingVoucher.createdAt}</span>
+                      <span className="text-xs text-brand-sand font-bold tracking-widest uppercase">AI智慧言语线上会诊凭证</span>
+                      <span className="text-xs text-slate-400">时间: {bookingVoucher.createdAt}</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 pt-1 text-left">
                       <div>
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">首诊专家 SLP:</span>
+                        <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider">首诊专家 SLP:</span>
                         <span className="text-xs font-extrabold text-white">{bookingVoucher.therapist.name}</span>
                       </div>
                       <div>
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">受评儿姓名:</span>
+                        <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider">受评儿姓名:</span>
                         <span className="text-xs font-extrabold text-white">{child.name}</span>
                       </div>
                       <div>
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">预约会诊日期:</span>
+                        <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider">预约会诊日期:</span>
                         <span className="text-xs font-extrabold text-brand-sand">{bookingVoucher.date}</span>
                       </div>
                       <div>
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">预约具体时间段:</span>
+                        <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider">预约具体时间段:</span>
                         <span className="text-xs font-extrabold text-brand-sand">{bookingVoucher.time}</span>
                       </div>
                     </div>
@@ -2203,17 +2203,17 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     <div className="pt-2 border-t border-dashed border-white/10 text-left space-y-1.5">
                       <div className="flex justify-between items-center">
                         <div>
-                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">回访联系人:</span>
+                          <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider">回访联系人:</span>
                           <span className="text-xs font-bold text-white">{bookingVoucher.parentName}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">回访手机:</span>
+                          <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider">回访手机:</span>
                           <span className="text-xs font-bold text-white">{bookingVoucher.phone}</span>
                         </div>
                       </div>
                       <div>
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider">视频房间号:</span>
-                        <span className="text-[10px] text-brand-sand font-bold">
+                        <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider">视频房间号:</span>
+                        <span className="text-xs text-brand-sand font-bold">
                           由客服在电话确认时间后提供
                         </span>
                       </div>
@@ -2223,7 +2223,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   {/* 轉接真人客服。文案與圖片路徑收在 productConfig，與報告頁同一組。 */}
                   {(PRODUCT.expertBooking.wechatId || PRODUCT.expertBooking.wechatQrSrc) && (
                     <div className="bg-brand-cream border border-brand-stone/50 rounded-xl p-3.5 text-left space-y-2">
-                      <strong className="text-[11px] text-brand-forest flex items-center gap-1">
+                      <strong className="text-xs text-brand-forest flex items-center gap-1">
                         <UserCheck size={12} /> 想更快联系上？加微信客服
                       </strong>
                       {PRODUCT.expertBooking.wechatQrSrc && (
@@ -2234,7 +2234,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                         />
                       )}
                       {PRODUCT.expertBooking.wechatId && (
-                        <p className="text-[10px] text-brand-charcoal/70">
+                        <p className="text-xs text-brand-charcoal/80">
                           微信号：<span className="font-mono font-bold text-brand-forest">{PRODUCT.expertBooking.wechatId}</span>
                         </p>
                       )}
@@ -2242,7 +2242,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   )}
 
                   {/* Parental Preparation Instructions */}
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-[10px] text-amber-900 leading-relaxed space-y-1 text-left">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 leading-relaxed space-y-1 text-left">
                     <strong className="text-amber-800 block flex items-center gap-1">
                       <Info size={11} /> 线上干预前家长建议准备:
                     </strong>
@@ -2283,7 +2283,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
             {/* Modal Header */}
             <div className={`p-4.5 flex justify-between items-center text-white ${isSupervisorPortal ? 'bg-slate-800' : 'bg-[#07c160]'}`}>
               <div className="space-y-0.5">
-                <span className="text-[9px] font-black text-white/80 uppercase tracking-wider flex items-center gap-1">
+                <span className="text-xs font-black text-white/80 uppercase tracking-wider flex items-center gap-1">
                   {isSupervisorPortal ? '📋 森心康 · 儿童言语评估专家端' : '📱 微信一键发送专家督导复核'}
                 </span>
                 <h3 className="text-sm font-extrabold">
@@ -2307,20 +2307,20 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
               {!isSupervisorPortal ? (
                 /* SCREEN 1: WECHAT SHARE CARD MOCK */
                 <div className="space-y-4">
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     系统已生成专属于 <strong>{child.name}</strong> 的脑神经构音及句法发育评估链接。您可以通过微信将此深度报告同步分享给您的线下成长督导师（或点击下方的专家模拟按钮体验复核签字流程）。
                   </p>
 
                   {/* WeChat Bubble Card Mockup */}
                   <div className="bg-slate-100 p-4 rounded-2xl border border-slate-200/80 space-y-3 max-w-md mx-auto">
-                    <span className="text-[10px] text-slate-400 font-bold block">💬 微信聊天消息卡片预览</span>
+                    <span className="text-xs text-slate-400 font-bold block">💬 微信聊天消息卡片预览</span>
                     
                     <div className="bg-white border border-slate-200 p-3.5 rounded-xl shadow-sm space-y-2 flex gap-3 text-left">
                       <div className="flex-1 space-y-1">
                         <h4 className="text-xs font-bold text-slate-800 line-clamp-2">
                           【森心康成长评估】针对受评儿 {child.name} ({child.ageMonth}个月) 的儿童脑神经物理声谱匹配及SLP成长方案已出炉，请求督导复核与联合签证！
                         </h4>
-                        <p className="text-[9px] text-slate-400 leading-tight line-clamp-2">
+                        <p className="text-xs text-slate-400 leading-tight line-clamp-2">
                           检出结果: {report?.diagnosedCondition}。内附10题声谱物理包络、构音清晰度雷达、阻尼参数、12周干预。
                         </p>
                       </div>
@@ -2359,14 +2359,14 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                         <rect x="85" y="85" width="10" height="10" fill="currentColor" />
                       </svg>
                       {/* Brand Logo inside QR */}
-                      <span className="absolute w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center text-[10px] shadow-sm font-bold">森</span>
+                      <span className="absolute w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center text-xs shadow-sm font-bold">森</span>
                     </div>
 
                     <div className="text-center sm:text-left space-y-1">
-                      <span className="text-[10px] font-black text-[#07c160] flex items-center justify-center sm:justify-start gap-1">
+                      <span className="text-xs font-black text-[#07c160] flex items-center justify-center sm:justify-start gap-1">
                         <Check size={12} fill="currentColor" /> 微信直联二维码已准备就绪
                       </span>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         手机微信扫一扫该二维码，即可在微信中直接打开该评估。点击页面右上角即可一键转发分享给医生或言语督导专家。
                       </p>
                     </div>
@@ -2374,7 +2374,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
 
                   {/* Enter Simulation portal */}
                   <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <span className="text-[10px] text-slate-400 font-bold leading-normal">演示提示：如果您想立刻体验督导师是如何复核这份方案、手写签字并签发红色盖章的，请点击右侧按钮</span>
+                    <span className="text-xs text-slate-400 font-bold leading-normal">演示提示：如果您想立刻体验督导师是如何复核这份方案、手写签字并签发红色盖章的，请点击右侧按钮</span>
                     <button
                       onClick={() => setIsSupervisorPortal(true)}
                       className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl shadow-md transition active:scale-95 flex items-center gap-1 shrink-0"
@@ -2391,14 +2391,14 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       <span className="text-xl">📋</span>
                       <div>
                         <h4 className="text-xs font-extrabold text-slate-800">森心康评估联盟督导师联合审查</h4>
-                        <p className="text-[9px] text-slate-400">正在复核受评儿 {child.name} ({child.ageMonth}个月) 的 10 题物理声谱评估报告</p>
+                        <p className="text-xs text-slate-400">正在复核受评儿 {child.name} ({child.ageMonth}个月) 的 10 题物理声谱评估报告</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Input Review Comments */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-700 block uppercase tracking-wider">
+                    <label className="text-xs font-black text-slate-700 block uppercase tracking-wider">
                       ✍️ 督导专家专业审查评语意见:
                     </label>
                     <textarea
@@ -2410,13 +2410,13 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                     <div className="flex gap-1.5 flex-wrap">
                       <button
                         onClick={() => setSupervisorOpinion('核对完毕。该10题拼读波频与儿童日常前移代偿（如哥哥念嘚嘚）完全契合。拼读基频（F0）起振略带阻尼。同意AI设计的每日口部肌肉抗阻、漱口水流声阻操及12周里程碑。准予签证。')}
-                        className="px-2 py-1 text-[8px] bg-slate-200 rounded hover:bg-slate-300 font-bold text-slate-600"
+                        className="px-2 py-1 text-xs bg-slate-200 rounded hover:bg-slate-300 font-bold text-slate-600"
                       >
                         模板 1: 构音置换/代偿
                       </button>
                       <button
                         onClick={() => setSupervisorOpinion('已复核。言语流畅度指标（SR）偏低，声母拼读时在唇齿摩擦音上存在明显的词汇寻回延迟或微卡顿，气流压力无明显器质性缺陷，属于发育期节律障碍。同意AI家庭舒压慢读方案。')}
-                        className="px-2 py-1 text-[8px] bg-slate-200 rounded hover:bg-slate-300 font-bold text-slate-600"
+                        className="px-2 py-1 text-xs bg-slate-200 rounded hover:bg-slate-300 font-bold text-slate-600"
                       >
                         模板 2: 语流卡顿/结巴
                       </button>
@@ -2426,7 +2426,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                   {/* DRAWING SIGNATURE CANVAS */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                      <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
                         🎨 督导专家电子手写签名区 (请在白色框内写字):
                       </label>
                       <button
@@ -2437,7 +2437,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                             ctx?.clearRect(0, 0, canvas.width, canvas.height);
                           }
                         }}
-                        className="text-[9px] font-bold text-slate-400 hover:text-rose-500"
+                        className="text-xs font-bold text-slate-400 hover:text-rose-500"
                       >
                         [清除重签]
                       </button>
@@ -2457,7 +2457,7 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                         onTouchEnd={stopDrawing}
                         className="w-full h-28 block cursor-crosshair touch-none"
                       />
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-300 font-medium pointer-events-none select-none">
+                      <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-300 font-medium pointer-events-none select-none">
                         用鼠标或手指在此绘制手写电子签名 (物理签名板)
                       </div>
                     </div>

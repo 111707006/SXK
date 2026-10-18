@@ -157,7 +157,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         </div>
 
         {/* 手机号是唯一入口，没有分页可切（#27） */}
-        <p className="text-center text-[11px] font-bold text-brand-charcoal/60">
+        <p className="text-center text-xs font-bold text-brand-charcoal/80">
           手机号验证码登录
         </p>
 
@@ -180,11 +180,11 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         {/* Auth Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+            <label className="text-xs font-extrabold text-brand-forest/80 tracking-wider uppercase block">
               手机号
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/80">
                 <Smartphone size={14} />
               </span>
               <input
@@ -202,12 +202,12 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+            <label className="text-xs font-extrabold text-brand-forest/80 tracking-wider uppercase block">
               短信验证码
             </label>
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/40">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-brand-charcoal/80">
                   <KeyRound size={14} />
                 </span>
                 <input
@@ -227,7 +227,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                 type="button"
                 onClick={handleRequestCode}
                 disabled={sendingCode || loading || cooldown > 0}
-                className="shrink-0 px-4 py-2.5 rounded-2xl border border-brand-forest/30 bg-brand-sage/20 hover:bg-brand-sage/40 disabled:bg-brand-stone/20 disabled:text-brand-charcoal/40 disabled:border-brand-stone/40 text-brand-forest text-[11px] font-extrabold transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+                className="shrink-0 px-4 py-2.5 rounded-2xl border border-brand-forest/30 bg-brand-sage/20 hover:bg-brand-sage/40 disabled:bg-brand-stone/20 disabled:text-brand-charcoal/40 disabled:border-brand-stone/40 text-brand-forest text-xs font-extrabold transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
               >
                 {cooldown > 0 ? `${cooldown} 秒后重发` : sendingCode ? '发送中…' : codeSent ? '重新获取' : '获取验证码'}
               </button>
@@ -245,7 +245,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
               onChange={(e) => setAgreedToTerms(e.target.checked)}
               className="mt-0.5 w-3.5 h-3.5 rounded border-brand-stone/60 text-brand-forest focus:ring-brand-moss/40 accent-brand-forest shrink-0"
             />
-            <span className="text-[10px] text-brand-charcoal/70 leading-relaxed">
+            <span className="text-xs text-brand-charcoal/80 leading-relaxed">
               本人已审阅并同意
               <button
                 type="button"
@@ -287,7 +287,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
             )}
           </button>
 
-          <p className="text-[10px] text-brand-charcoal/55 leading-relaxed text-center">
+          <p className="text-xs text-brand-charcoal/80 leading-relaxed text-center">
             首次验证成功即为您创建账户，无需单独注册，也不需要设置密码。
           </p>
         </form>
@@ -312,7 +312,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                   onClick={() => setShowTermsModal(false)}
                   className="w-7 h-7 rounded-full bg-brand-stone/20 hover:bg-brand-stone/40 flex items-center justify-center transition-colors cursor-pointer"
                 >
-                  <span className="text-brand-charcoal/60 text-sm font-bold">✕</span>
+                  <span className="text-brand-charcoal/80 text-sm font-bold">✕</span>
                 </button>
               </div>
 

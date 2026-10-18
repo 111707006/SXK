@@ -22,6 +22,7 @@ import type { AnswerValue, ScoreInput, ScoreRefusal } from './scoring';
 import { ruleFor } from './rules';
 import { TOOL_SPECS } from './toolSpecs';
 import { RATERS } from './types';
+import { readRaterV2 } from './raterV2';
 import type { Band, DimensionCode, Rater, ToolResult } from './types';
 
 /** 400 的回應本體：`error` 給人看、`code` 給程式看，其餘欄位依拒絕的種類附上。 */
@@ -32,6 +33,7 @@ export interface SubmissionRejection {
     | 'TOOL_UNKNOWN'
     | 'AGE_INVALID'
     | 'RATER_INVALID'
+    | 'RATER_NOTE_INVALID'
     | 'PRE_INVALID'
     | 'ANSWERS_INVALID'
     | 'ANSWERS_UNEXPECTED'
@@ -81,13 +83,20 @@ function isPreValue(x: unknown): x is string | string[] | boolean {
  * `answers` 的值域也交給計分層（題庫自己的選項）；這裡只擋型別 —— 布林、物件、null 進了計分層會
  * 被當成「不在值域」，錯誤訊息會指到一題，但那一題其實是整個 body 的形狀壞了。
  */
-export function readToolSubmission(body: unknown): SubmissionParse {
+export function readToolSubmission(body: unknown, options: { raterV2?: boolean } = {}): SubmissionParse {
   if (!isPlainObject(body)) return reject('BODY_INVALID', '交卷的内容格式不正确。');
 
-  const { toolId, assessedAgeMonth, rater, pre, answers } = body;
+  const { toolId, assessedAgeMonth, rater, raterNote, pre, answers } = body;
   if (!isToolId(toolId)) return reject('TOOL_UNKNOWN', '没有这一份问卷。');
   if (typeof assessedAgeMonth !== 'number' || !Number.isInteger(assessedAgeMonth) || assessedAgeMonth < 0) {
     return reject('AGE_INVALID', '作答的月龄不正确。', { toolId });
+  }
+  let note: string | undefined;
+  if (options.raterV2) {
+    // 填表人 v2（#70）：不收新的老师、「其他」可帶說明。關著時照舊，`raterNote` 不看
+    const checked = readRaterV2(rater, raterNote);
+    if (!checked.ok) return reject(checked.code, checked.error, { toolId });
+    note = checked.raterNote;
   }
   if (!isRater(rater)) return reject('RATER_INVALID', '请选择填表人身份。', { toolId });
 
@@ -109,7 +118,7 @@ export function readToolSubmission(body: unknown): SubmissionParse {
     answersOut[key] = value;
   }
 
-  return { ok: true, value: { toolId, assessedAgeMonth, rater, pre: preOut, answers: answersOut } };
+  return { ok: true, value: { toolId, assessedAgeMonth, rater, ...(note ? { raterNote: note } : {}), pre: preOut, answers: answersOut } };
 }
 
 /**

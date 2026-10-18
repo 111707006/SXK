@@ -138,6 +138,21 @@ cd /var/www/sxk-b && node deploy/migrate.mjs
 > 导出的是孩子名字与家长手机号，**所有后台帐号**（含公司成员，只拿得到自家）都按得下去。
 > 谁导过什么，查 `admin_exports`。
 
+### T2 填表人说明（#70；只有专案 A 用到）
+
+开关 `T2_RATER_V2=1` 时，T2 作答画面拿掉「老师」，选「其他」可以选填是谁（最多 10 字），存在 `t2_tool_results.rater_note`。
+**迁移先于程式码**：栏位不在时，开关开着、家长又写了说明的那一次交卷会 500（开关关着或没写说明，INSERT 与旧版一字不差，不碰这一栏）。
+B 没有 T2，但两边 schema 保持一致，一起跑。
+
+```bash
+# ① 两个库都跑迁移：t2_tool_results 加 rater_note（2026-10-18-t2-rater-note.sql，可重跑）
+cd /var/www/sxk   && node deploy/migrate.mjs            # 看清单 → 备份 → 加 --confirm
+cd /var/www/sxk-b && node deploy/migrate.mjs
+# ② 部署程式码；验收完才在 A 的 .env 设 T2_RATER_V2=1、重启
+```
+
+> 开关关回 `0` 即退回：画面恢复「老师」，已存的说明留在资料库里不动；报告快照是生成当下存的，照存的样子画。
+
 ### 示范片与封面（只有专案 A；Keep 规格 K05）
 
 片子与封面**不在 `dist/` 里、也不进 git**：`dist/` 每次部署整个换掉。它们放在主机的

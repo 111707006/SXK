@@ -153,6 +153,8 @@ export interface ToolResult {
   assessedAgeMonth: number;
   /** 見 `RATERS`。 */
   rater: Rater;
+  /** 「其他」的選填說明（`T2_RATER_V2`，#70）：去頭尾空白、最多 10 字；沒填就沒有這一欄。 */
+  raterNote?: string;
   askedCount: number;
   answeredCount: number;
   pre: Record<string, string | string[] | boolean>;
@@ -206,6 +208,8 @@ export interface T2Plan {
    * 缺的維度怎麼補是報告那一層的事。
    */
   functionOrder: DimensionCode[] | null;
+  /** `GET /api/t2/plan` 在開關 `T2_RATER_V2` 開著時才帶（#70）：作答畫面拿掉「老师」、「其他」可寫是谁。`planT2` 不產這一欄。 */
+  raterV2?: true;
 }
 
 /**
@@ -262,6 +266,11 @@ export interface T2Findings {
    * §5.8 的欄位表沒有這一格，記在勘誤檔。
    */
   redos?: RedoNote[];
+  /**
+   * 填表人 v2（`T2_RATER_V2`，#70）開著時生成的快照才有，值固定 `true`：作答回顧每支那一行寫「填表人：……」。
+   * 沒有這一欄（開關關著、或之前存的）回顧照舊不寫填表人。
+   */
+  raterV2?: true;
   computedAt: string;
 }
 

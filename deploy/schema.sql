@@ -471,6 +471,8 @@ CREATE TABLE IF NOT EXISTS `t2_tool_results` (
   `assessed_age_month` SMALLINT UNSIGNED NOT NULL,
   -- 填表人身份 ＝ src/t2/types.ts 的 RATERS。没有治疗师（T2 没有治疗师在场）。
   `rater` ENUM('father','mother','caregiver','teacher','other') NOT NULL,
+  -- 填表人选「其他」时的选填说明（T2_RATER_V2，#70）：去头尾空白、最多 10 字；没填是 NULL。
+  `rater_note` VARCHAR(10) DEFAULT NULL,
   -- 前置题答案（ToolResult.pre），原样。
   `pre` JSON NOT NULL,
   -- 逐题答案（ToolResult.answers）：题 key → 值。

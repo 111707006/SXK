@@ -14,6 +14,7 @@
 
 import { RECOMMEND_CONFIG } from '../recommend/config';
 import { RATERS } from '../types';
+import { readRaterV2 } from '../raterV2';
 import type { Rater } from '../types';
 import { KITV3_BANKS, isKitV3Tool } from './index';
 import { askedItems, formFor, scoreKitV3, sectionIsNa, type KitV3Score, type LdScoring, type ScoreContext } from './score';
@@ -23,6 +24,8 @@ export interface V3Submission {
   toolId: string;
   assessedAgeMonth: number;
   rater: Rater;
+  /** 「其他」的選填說明（`T2_RATER_V2`，#70）；沒有就不傳。 */
+  raterNote?: string;
   answers: Record<string, number | null>;
   /** 學障兩支：家長改過的年級（跳級、晚讀）；沒送由月齡推。 */
   grade?: number;
@@ -40,6 +43,8 @@ export interface ToolResultV3 {
   toolId: string;
   assessedAgeMonth: number;
   rater: Rater;
+  /** 見 `V3Submission.raterNote`；沒填就沒有這一欄。 */
+  raterNote?: string;
   /** 計分用的情境（月齡、年級、上學、性別）。 */
   context: ScoreContext;
   answers: Record<string, number | null>;
@@ -54,6 +59,7 @@ export interface V3Rejection {
     | 'TOOL_UNKNOWN'
     | 'AGE_INVALID'
     | 'RATER_INVALID'
+    | 'RATER_NOTE_INVALID'
     | 'GRADE_INVALID'
     | 'ANSWERS_INVALID'
     | 'ANSWERS_UNEXPECTED'
@@ -76,12 +82,19 @@ const refuse = (code: V3Rejection['code'], error: string, extra: Partial<V3Rejec
 const isPlainObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 
 /** 讀 body（`toolkitVersion` 由路由先看過）。順序同舊版：第一個不對的就回。 */
-export function readV3Submission(body: unknown): { ok: true; value: V3Submission } | Refused {
+export function readV3Submission(body: unknown, options: { raterV2?: boolean } = {}): { ok: true; value: V3Submission } | Refused {
   if (!isPlainObject(body)) return refuse('BODY_INVALID', '交卷的内容格式不正确。');
-  const { toolId, assessedAgeMonth, rater, answers, grade } = body;
+  const { toolId, assessedAgeMonth, rater, raterNote, answers, grade } = body;
   if (!isKitV3Tool(toolId)) return refuse('TOOL_UNKNOWN', '没有这一份问卷。');
   if (typeof assessedAgeMonth !== 'number' || !Number.isInteger(assessedAgeMonth) || assessedAgeMonth < 0) {
     return refuse('AGE_INVALID', '作答的月龄不正确。', { toolId });
+  }
+  let note: string | undefined;
+  if (options.raterV2) {
+    // 填表人 v2（#70）：同 9/08 那一條（`src/t2/raterV2.ts`）
+    const checked = readRaterV2(rater, raterNote);
+    if (!checked.ok) return refuse(checked.code, checked.error, { toolId });
+    note = checked.raterNote;
   }
   if (typeof rater !== 'string' || !(RATERS as ReadonlyArray<string>).includes(rater)) return refuse('RATER_INVALID', '请选择填表人身份。', { toolId });
   if (grade !== undefined && grade !== null && (typeof grade !== 'number' || !Number.isInteger(grade))) {
@@ -97,7 +110,7 @@ export function readV3Submission(body: unknown): { ok: true; value: V3Submission
   }
   return {
     ok: true,
-    value: { toolId, assessedAgeMonth, rater: rater as Rater, answers: out, ...(typeof grade === 'number' ? { grade } : {}) },
+    value: { toolId, assessedAgeMonth, rater: rater as Rater, ...(note ? { raterNote: note } : {}), answers: out, ...(typeof grade === 'number' ? { grade } : {}) },
   };
 }
 
@@ -169,6 +182,7 @@ export function scoreToolV3(input: V3Submission, child: V3ChildContext, now: Dat
       toolId: input.toolId,
       assessedAgeMonth: age,
       rater: input.rater,
+      ...(input.raterNote ? { raterNote: input.raterNote } : {}),
       context,
       answers: { ...input.answers },
       score,

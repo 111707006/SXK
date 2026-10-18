@@ -43,6 +43,7 @@ import { SAFETY_SENTENCE, SCHOOL_AGE_NO_TOOL_SENTENCE } from './report/sentences
 import { schoolAgeNoStar } from './routing';
 import type { AdviceRank } from './advice';
 import { DIMENSION_CODES } from './types';
+import { raterLabel } from './raterV2';
 import type { DimensionBand, DimensionFinding, ScoringFamily, T2Findings, ToolResult } from './types';
 
 // ---------------------------------------------------------------------------
@@ -212,7 +213,16 @@ export interface ReviewGroup {
   heading: string;
   /** 這一筆是什麼時候算的（`ToolResult.computedAt`）。 */
   computedAt: string;
+  /** 「填表人：其他（阿姨）」（#70）。快照帶 `raterV2` 才有；沒有就是這一欄不在，畫面照舊。 */
+  raterLine?: string;
   items: ReviewItem[];
+}
+
+/** 回顧那一行的「填表人：……」；快照沒帶 `raterV2`、或填表人讀不懂，回 `{}`（不出這一欄）。 */
+export function raterLineOf(raterV2: boolean | undefined, result: { rater: unknown; raterNote?: unknown }): { raterLine?: string } {
+  if (!raterV2) return {};
+  const label = raterLabel(result.rater, result.raterNote);
+  return label === null ? {} : { raterLine: `填表人：${label}` };
 }
 
 /**
@@ -278,13 +288,14 @@ export function toolHeading(toolId: ToolId, ageMonth?: number): string {
 }
 
 /** 快照裡每支工具的回顧，依完成順序；一題都沒有的那一支不出現。 */
-export function reviewGroups(findings: T2Findings): ReviewGroup[] {
+export function reviewGroups(findings: Pick<T2Findings, 'toolResults' | 'raterV2'>): ReviewGroup[] {
   const groups: ReviewGroup[] = [];
   for (const result of findings.toolResults) {
     const items = unstableItems(result);
     if (items.length === 0) continue;
     groups.push({
-      toolId: result.toolId, heading: toolHeading(result.toolId, result.assessedAgeMonth), computedAt: result.computedAt, items,
+      toolId: result.toolId, heading: toolHeading(result.toolId, result.assessedAgeMonth), computedAt: result.computedAt,
+      ...raterLineOf(findings.raterV2, result), items,
     });
   }
   return groups;

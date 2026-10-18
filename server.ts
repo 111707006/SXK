@@ -194,6 +194,12 @@ const T1_REPORT_REAL = APP_MODE === 'full' && T1_REPORT_REAL_REQUESTED;
 // 照舊回伺服器拼的 HTML，一字不差。A、B 都適用。同一套 fail-closed 解析。
 const REPORT_SCAN_SPA = resolvePaywallSwitch('REPORT_SCAN_SPA', process.env.REPORT_SCAN_SPA);
 
+// T2 填表人 v2（客戶 10/17 第 5 項，#70，規格 docs/specs/client-changes-2026-10-17.md §6）：開著時交卷（兩條路）不收新的「老师」、
+// 「其他」可帶選填說明 `raterNote`（存 `t2_tool_results.rater_note`，規則在 `src/t2/raterV2.ts`）；`GET /api/t2/plan` 帶
+// `raterV2: true` 讓作答畫面換選項；生成的報告快照帶 `raterV2: true`，作答回顧每支那一行寫填表人。關著＝一行不動。
+// 只有專案 A 有 T2。同一套 fail-closed 解析。
+const T2_RATER_V2 = resolvePaywallSwitch('T2_RATER_V2', process.env.T2_RATER_V2);
+
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
 
@@ -1232,7 +1238,7 @@ tier2Only.get('/api/t2/plan', async (req, res) => {
       return;
     }
     // 價錢跟著 plan 走（每 3 項跳一檔，src/t2/pricing.ts）；沒有要做的是 null，畫面不出價錢
-    res.json({ ...outcome.plan, pricing: t2PriceFor(outcome.items) });
+    res.json({ ...outcome.plan, pricing: t2PriceFor(outcome.items), ...(T2_RATER_V2 ? { raterV2: true } : {}) });
   } catch (err: any) {
     console.error('[T2] plan failed:', err.message);
     res.status(500).json({ error: '暂时无法读取深度评估的安排，请稍后重试。' });
@@ -1348,7 +1354,7 @@ function latestPerToolV3(records: ToolResultRecordV3[]): Array<{ id: number; cre
 }
 
 async function submitT2ToolResultV3(userId: UserId, body: unknown, res: express.Response): Promise<void> {
-  const parsed = readV3Submission(body);
+  const parsed = readV3Submission(body, { raterV2: T2_RATER_V2 });
   if (!parsed.ok) {
     res.status(parsed.status).json(parsed.body);
     return;
@@ -1377,7 +1383,7 @@ tier2Only.post('/api/t2/tool-results', async (req, res) => {
       return;
     }
 
-    const parsed = readToolSubmission(req.body);
+    const parsed = readToolSubmission(req.body, { raterV2: T2_RATER_V2 });
     if (!parsed.ok) {
       res.status(parsed.status).json(parsed.body);
       return;
@@ -1520,7 +1526,9 @@ async function loadActivityLibrary(): Promise<Activity[]> {
   return (await readActivityLibrary()) ?? [];
 }
 
-async function storeT2Findings(userId: UserId, input: t2FindingsStore.FindingsInsert): Promise<FindingsRecord> {
+async function storeT2Findings(userId: UserId, stored: t2FindingsStore.FindingsInsert): Promise<FindingsRecord> {
+  // 填表人 v2（#70）：快照記下「這一份要寫填表人」，報告頁看快照、不看開關。存的時候才蓋上，不進模型的輸入。
+  const input = T2_RATER_V2 ? { ...stored, findings: { ...stored.findings, raterV2: true as const } } : stored;
   const dbUserId = toDbUserId(userId);
   if (mysqlDb.isConfigured() && dbUserId !== null) {
     const id = await withTimeout(t2FindingsStore.insertFindings(dbUserId, input), 2000);

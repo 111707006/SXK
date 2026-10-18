@@ -176,6 +176,8 @@ export interface PlanV3Response extends ParentPlanV3 {
   context: { inSchool?: boolean; sex?: 'male' | 'female' };
   /** 近 90 天做完的（引擎已經不再推）。 */
   completed: Array<{ code: string; name: string; createdAt: string }>;
+  /** 見 `T2Plan.raterV2`（#70）。 */
+  raterV2?: true;
 }
 
 export interface RunRecommendationArgs {

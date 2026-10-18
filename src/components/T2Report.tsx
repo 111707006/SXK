@@ -22,6 +22,7 @@ import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import { buildSmartGoals } from '../t2/goals';
 import { hasSafetyConcern } from '../t2/report/prose';
 import type { T2ReportProse, ProseDimension } from '../t2/report/prose';
+import type { T2ReportProseV3 } from '../t2/report/proseV3';
 import { SAFETY_SENTENCE } from '../t2/report/sentences';
 import { dimensionAdvice } from '../t2/advice';
 import {
@@ -42,16 +43,35 @@ import { STATUS_CLASS } from './reportStatusClass';
 import { isFindingsV3, type T2FindingsV3 } from '../t2/findingsV3';
 import T2ReportV3 from './T2ReportV3';
 
-/** `POST /api/t2/findings` 與 `GET /api/t2/findings/latest` 回的一份快照。 */
-interface FindingsEntry {
+/**
+ * 一份 T2 報告快照：`POST /api/t2/findings`、`GET /api/t2/findings/latest` 回的，
+ * 也是後台家長詳情的 `t2Report`（#67）。
+ */
+export interface T2ReportEntry {
   id: number;
   createdAt: string;
   /** 舊題庫的 `T2Findings`，或完整版的 `T2FindingsV3`（`toolkitVersion` 分流，`isFindingsV3`）。 */
   findings: T2Findings | T2FindingsV3;
-  /** 存的時候壞掉會是 `null`；那時只剩狀態總覽與回顧可看。 */
-  prose: T2ReportProse | null;
+  /** 存的時候壞掉會是 `null`；那時只剩狀態總覽與回顧可看。完整版的快照配 `T2ReportProseV3`。 */
+  prose: T2ReportProse | T2ReportProseV3 | null;
   isAiGenerated: boolean;
-  aiEngine: string;
+  aiEngine: string | null;
+}
+type FindingsEntry = T2ReportEntry;
+
+/**
+ * 報告上按得下去的東西（生成、預約、線上干預），家長端的報告頁組好傳進來。
+ * **不給＝只讀**（#67）：後台的家長詳情與列印畫同一份報告，但那些是家長的動作 ——
+ * 後台按「重新生成」等於替家長另存一份、叫一次模型。
+ */
+export interface T2ReportActions {
+  /** 「重新生成」那一顆與它底下那一行。 */
+  regenerate: React.ReactNode;
+  errorLine: React.ReactNode;
+  /** 四種服務的按鈕（`serviceChoices`）。 */
+  serviceButtons: React.ReactNode;
+  /** 第六段的連結 → 導覽列那一頁「线上干预」。沒給就不出連結。 */
+  onOpenTraining?: () => void;
 }
 
 interface T2ReportProps {
@@ -118,7 +138,6 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
   const [entry, setEntry] = useState<FindingsEntry | null>(null);
   const [status, setStatus] = useState<'loading' | 'generating' | 'ready' | 'none' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [reviewOpen, setReviewOpen] = useState(false);
   const openedRef = useRef(false);
 
   const generate = async () => {
@@ -134,7 +153,6 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
         return;
       }
       setEntry(body as FindingsEntry);
-      setReviewOpen(false);
       setStatus('ready');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
@@ -280,25 +298,72 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
     </div>
   );
 
-  // 完整版題庫的快照（T2 v3）：另一個形狀，整頁改畫 T2ReportV3；舊快照照存的樣子走下面。
-  if (isFindingsV3(entry!.findings)) {
-    return shell(
+  const regenerate = (
+    <div className="shrink-0 space-y-1.5">
+      {generateButton('重新生成')}
+      <p className="text-[10px] text-brand-charcoal/50 max-w-[14rem]">照现在已填的问卷再整理一份；上一份仍保留。</p>
+    </div>
+  );
+
+  return shell(
+    <T2ReportSnapshot
+      key={entry!.id}
+      entry={entry!}
+      childName={childName}
+      actions={{ regenerate, errorLine, serviceButtons, onOpenTraining }}
+    />,
+  );
+}
+
+/**
+ * 一份快照排成報告。`actions` 不給就是只讀（後台，#67）：生成、預約、線上干預那幾顆與講「生成」的那一行都不出，
+ * 作答回顧一打開就是展開的（列印頁沒有人去點它）。完整版題庫的快照（T2 v3）是另一個形狀，整頁改畫 `T2ReportV3`；
+ * 舊快照照存的樣子走 `LegacyReport`。
+ */
+export function T2ReportSnapshot({
+  entry,
+  childName,
+  actions,
+  onReady,
+}: {
+  entry: T2ReportEntry;
+  childName?: string;
+  actions?: T2ReportActions;
+  /** 畫完、要非同步載的都載完之後呼叫一次（後台列印頁等它才叫列印）。 */
+  onReady?: () => void;
+}) {
+  if (isFindingsV3(entry.findings)) {
+    return (
       <T2ReportV3
-        entry={entry as FindingsEntry & { findings: T2FindingsV3 }}
-        regenerate={
-          <div className="shrink-0 space-y-1.5">
-            {generateButton('重新生成')}
-            <p className="text-[10px] text-brand-charcoal/50 max-w-[14rem]">照现在已填的问卷再整理一份；上一份仍保留。</p>
-          </div>
-        }
-        errorLine={errorLine}
-        serviceButtons={serviceButtons}
-        onOpenTraining={onOpenTraining}
+        entry={entry as T2ReportEntry & { findings: T2FindingsV3 }}
+        actions={actions}
+        onReady={onReady}
         formatDay={formatDay}
-      />,
+      />
     );
   }
-  const { findings, prose } = entry as FindingsEntry & { findings: T2Findings };
+  return <LegacyReport entry={entry as T2ReportEntry & { findings: T2Findings }} childName={childName} actions={actions} onReady={onReady} />;
+}
+
+function LegacyReport({
+  entry,
+  childName,
+  actions,
+  onReady,
+}: {
+  entry: T2ReportEntry & { findings: T2Findings };
+  childName?: string;
+  actions?: T2ReportActions;
+  onReady?: () => void;
+}) {
+  const [reviewOpen, setReviewOpen] = useState(!actions);
+  // 舊題庫的報告沒有要另外載的東西，畫完就算好
+  useEffect(() => {
+    onReady?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const { findings } = entry;
+  const prose = entry.prose as T2ReportProse | null;
   const ageMonth = findings.child.assessedAgeMonth;
   const goals = buildSmartGoals(findings, { childName });
   const byId = new Map<DimensionCode, DimensionFinding>(findings.dimensions.map(d => [d.dimensionId, d]));
@@ -324,26 +389,23 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
     </h3>
   );
 
-  return shell(
+  return (
     <div className="space-y-7">
       {/* 標頭：來源三態、生成日期、測評月齡 */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
             <Award size={14} />
-            {reportSourceLabel(entry!.isAiGenerated)}
+            {reportSourceLabel(entry.isAiGenerated)}
           </div>
           <h2 className="text-lg font-bold text-brand-forest mt-1">深度评估报告</h2>
           <p className="text-[11px] text-brand-charcoal/70 mt-1">
-            {formatDay(entry!.createdAt) && `${formatDay(entry!.createdAt)}生成 · `}按答题时 {findings.child.assessedAgeMonth} 个月整理
+            {formatDay(entry.createdAt) && `${formatDay(entry.createdAt)}生成 · `}按答题时 {findings.child.assessedAgeMonth} 个月整理
           </p>
         </div>
-        <div className="shrink-0 space-y-1.5">
-          {generateButton('重新生成')}
-          <p className="text-[10px] text-brand-charcoal/50 max-w-[14rem]">照现在已填的问卷再整理一份；上一份仍保留。</p>
-        </div>
+        {actions?.regenerate}
       </div>
-      {errorLine}
+      {actions?.errorLine}
 
       {/* safety_concern 置頂（§5.6）：整份報告最該被讀到的一句，原樣照抄，不交給任何人改寫 */}
       {safety && (
@@ -470,8 +532,12 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
                 </div>
               );
             })}
-            <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊：</p>
-            {serviceButtons}
+            {actions && (
+              <>
+                <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊：</p>
+                {actions.serviceButtons}
+              </>
+            )}
           </div>
         </section>
       )}
@@ -512,13 +578,13 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       */}
       <section className="space-y-3" id="t2-weekly">
         {prose && <p className="text-xs text-brand-charcoal leading-relaxed">{prose.weeklyPlanIntro}</p>}
-        {onOpenTraining && (
+        {actions?.onOpenTraining && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-2xl bg-brand-forest text-white px-5 py-4">
             <p className="text-xs leading-relaxed">{REPORT_TRAINING_LINK.text}</p>
             <button
               type="button"
               id="t2-open-training-btn"
-              onClick={onOpenTraining}
+              onClick={actions.onOpenTraining}
               className="shrink-0 px-4 py-2 rounded-xl bg-white text-brand-forest text-xs font-bold hover:bg-brand-cream active:scale-[0.98] transition cursor-pointer"
             >
               {REPORT_TRAINING_LINK.action}
@@ -581,10 +647,12 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
         )}
       </section>
 
-      <div className="pt-2 flex items-center gap-2">
-        <RefreshCw size={12} className="text-brand-charcoal/40" />
-        <p className="text-[10px] text-brand-charcoal/50">每次生成都会另存一份，之后打开这一页看到的是最新的那一份。</p>
-      </div>
-    </div>,
+      {actions && (
+        <div className="pt-2 flex items-center gap-2">
+          <RefreshCw size={12} className="text-brand-charcoal/40" />
+          <p className="text-[10px] text-brand-charcoal/50">每次生成都会另存一份，之后打开这一页看到的是最新的那一份。</p>
+        </div>
+      )}
+    </div>
   );
 }

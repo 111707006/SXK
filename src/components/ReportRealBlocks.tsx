@@ -137,34 +137,42 @@ function shortDate(iso: string): string {
   return m ? `${Number(m[2])}/${Number(m[3])}` : '本次';
 }
 
-/** 一個維度的小折線：橫軸是歷次報告（由舊到新），縱軸是關注分 0–8（越高越建議多了解）。 */
+/**
+ * 一個維度的小折線：橫軸是歷次報告（由舊到新），縱軸是關注分 0–8（越高越建議多了解）。
+ *
+ * 不用 viewBox 縮放：手機上一格只剩約 100px 寬，原本 150 寬的 viewBox 會把點上的數字縮到 5px。
+ * 改成固定高度、橫向用百分比，字就是真的 12px（家長端最小字級，#74）。折線因此拆成一段一段的 `<line>`
+ * —— `polyline` 的座標不收百分比。
+ */
 function DimensionSpark({ name, points, id }: { name: string; points: ScreeningPoint[]; id: string }) {
-  const W = 150, H = 54, padX = 10, padTop = 12, padBottom = 8;
+  const H = 64, padX = 10, padTop = 18, padBottom = 8;
   const n = points.length;
-  const x = (i: number) => (n === 1 ? W / 2 : padX + (i * (W - 2 * padX)) / (n - 1));
+  const x = (i: number) => `${n === 1 ? 50 : padX + (i * (100 - 2 * padX)) / (n - 1)}%`;
   // 關注分越高畫得越高（與雷達圖同一個方向：越凸出去越建議了解）。
   const y = (c: number) => padTop + (1 - c / 8) * (H - padTop - padBottom);
   const pts = points.map((p, i) => ({ i, v: p.dimensions[id] })).filter(p => p.v);
   const last = pts[pts.length - 1]?.v;
   return (
     <div className="rounded-xl border border-brand-stone/50 p-2.5">
-      <div className="flex items-center justify-between gap-1 text-xs font-bold text-brand-forest">
-        <span className="truncate min-w-0">{name}</span>
-        {last && <span className="shrink-0" style={{ color: STATUS_HEX[last.status] }}>关注分 {last.concern}</span>}
+      {/* 名字一行、分數一行：兩欄的格子在手機上只有約 100px，擠在同一行會把「生活自理与适应」截成「生活自…」。 */}
+      <div className="text-xs font-bold text-brand-forest leading-snug">
+        <div>{name}</div>
+        {last && <div style={{ color: STATUS_HEX[last.status] }}>关注分 {last.concern}</div>}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto mt-1">
-        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="#e5e7eb" strokeWidth="1" />
-        <line x1={padX} y1={y(8)} x2={W - padX} y2={y(8)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3,3" />
-        {pts.length > 1 && (
-          <polyline
-            points={pts.map(p => `${x(p.i)},${y(p.v!.concern)}`).join(' ')}
-            fill="none" stroke="#9ca3af" strokeWidth="1.5"
+      <svg width="100%" height={H} className="block mt-1 overflow-visible">
+        <line x1={`${padX}%`} y1={y(0)} x2={`${100 - padX}%`} y2={y(0)} stroke="#e5e7eb" strokeWidth="1" />
+        <line x1={`${padX}%`} y1={y(8)} x2={`${100 - padX}%`} y2={y(8)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3,3" />
+        {pts.slice(1).map((p, k) => (
+          <line
+            key={`seg-${p.i}`}
+            x1={x(pts[k].i)} y1={y(pts[k].v!.concern)} x2={x(p.i)} y2={y(p.v!.concern)}
+            stroke="#9ca3af" strokeWidth="1.5"
           />
-        )}
+        ))}
         {pts.map(p => (
           <g key={p.i}>
             <circle cx={x(p.i)} cy={y(p.v!.concern)} r="3.5" fill={STATUS_HEX[p.v!.status] ?? STATUS_HEX.normal} stroke="white" strokeWidth="1.5" />
-            <text x={x(p.i)} y={y(p.v!.concern) - 6} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#374151">{p.v!.concern}</text>
+            <text x={x(p.i)} y={y(p.v!.concern) - 7} textAnchor="middle" fontSize="12" fontWeight="bold" fill="#374151">{p.v!.concern}</text>
           </g>
         ))}
       </svg>

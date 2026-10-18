@@ -229,9 +229,9 @@ export function ScreeningHistory({ history, current }: {
         </p>
       ) : null}
 
-      <div className="flex justify-center gap-4 text-xs text-brand-charcoal/80">
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-brand-charcoal/80">
         {(['normal', 'borderline', 'delay'] as const).map(s => (
-          <span key={s} className="flex items-center gap-1">
+          <span key={s} className="flex items-center gap-1 whitespace-nowrap">
             <span className={`w-2.5 h-2.5 rounded-full ${STATUS_DOT[s]}`} /> {STATUS_WORDING[s].label}
           </span>
         ))}

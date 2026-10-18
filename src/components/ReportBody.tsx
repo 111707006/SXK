@@ -302,15 +302,15 @@ export default function ReportBody({
           })}
         </div>
 
-        <div className="flex justify-center gap-4 text-xs text-brand-charcoal/80 pt-1">
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> {STATUS_WORDING.normal.label} (继续观察)
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-brand-charcoal/80 pt-1">
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" /> {STATUS_WORDING.normal.label} (继续观察)
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {STATUS_WORDING.borderline.label} ({PRODUCT.nextStep.legendAttentionHint})
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" /> {STATUS_WORDING.borderline.label} ({PRODUCT.nextStep.legendAttentionHint})
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> {STATUS_WORDING.delay.label} ({PRODUCT.nextStep.legendConcernHint})
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" /> {STATUS_WORDING.delay.label} ({PRODUCT.nextStep.legendConcernHint})
           </span>
         </div>
       </div>
@@ -602,14 +602,14 @@ function RadarSection({ scores }: { scores: DimensionScore[] }) {
       {/* 详细列表 */}
       <div className="border-t border-brand-cream pt-3 space-y-2">
         <p className="text-xs font-bold text-brand-charcoal/80 text-center">各维度关注分详情</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {sortedScores.map((item) => (
             <div
               key={`${item.dimensionId}-${item.tierId}`}
               className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs ${look(item.status).tint}`}
             >
-              <span className="font-medium text-brand-charcoal/80 truncate">{item.dimensionName}</span>
-              <span className={`font-bold ml-1 ${look(item.status).text}`}>{item.concernScore}</span>
+              <span className="font-medium text-brand-charcoal/80 min-w-0">{item.dimensionName}</span>
+              <span className={`font-bold ml-1 shrink-0 ${look(item.status).text}`}>{item.concernScore}</span>
             </div>
           ))}
         </div>
@@ -675,8 +675,9 @@ function PeerComparison({ childName, scores, noWeeklyPlan }: { childName: string
 
         {/* Labels matching attachment */}
         <div className="flex justify-between text-xs text-brand-charcoal/80 font-bold px-1 mt-2">
-          <span className="w-1/4 text-center">{STATUS_WORDING.delay.label}</span>
-          <span className="w-1/4 text-center">{STATUS_WORDING.borderline.label}</span>
+          {/* 手機上四格各約 80px：用短字，完整的判定說法在上面的色條 title 與報告其他段 */}
+          <span className="w-1/4 text-center">较多支持</span>
+          <span className="w-1/4 text-center">少量支持</span>
           <span className="w-1/4 text-center">平均水平</span>
           <span className="w-1/4 text-center">高于平均</span>
         </div>

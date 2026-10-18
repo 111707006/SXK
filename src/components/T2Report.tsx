@@ -609,11 +609,11 @@ function LegacyReport({
           type="button"
           onClick={() => setReviewOpen(o => !o)}
           aria-expanded={reviewOpen}
-          className="inline-flex items-center gap-1 text-sm font-extrabold text-brand-forest hover:text-brand-moss transition cursor-pointer"
+          className="flex flex-wrap items-center gap-x-1 text-left text-sm font-extrabold text-brand-forest hover:text-brand-moss transition cursor-pointer"
         >
           {reviewOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-          你勾选的项目
-          <span className="text-xs font-bold text-brand-charcoal/80 ml-1">（还没稳定的那些，可以当成练习目标）</span>
+          <span className="whitespace-nowrap">你勾选的项目</span>
+          <span className="text-xs font-bold text-brand-charcoal/80">（还没稳定的那些，可以当成练习目标）</span>
         </button>
         {reviewOpen && (
           review.length === 0 ? (

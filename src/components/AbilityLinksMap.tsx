@@ -139,7 +139,7 @@ export function AbilityLinksMap({ scores }: { scores: DimensionScore[] }) {
 
       <div className="flex justify-center flex-wrap gap-x-4 gap-y-1 text-xs text-brand-charcoal/80">
         {(['normal', 'borderline', 'delay'] as const).map(s => (
-          <span key={s} className="flex items-center gap-1">
+          <span key={s} className="flex items-center gap-1 whitespace-nowrap">
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: STATUS_HEX[s] }} /> {STATUS_WORDING[s].label}
           </span>
         ))}

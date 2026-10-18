@@ -293,14 +293,14 @@ export function NeuralNetworkTopology({ completedScores }: { completedScores: Di
           </svg>
 
           {/* Simple Legend */}
-          <div className="flex items-center gap-4 text-xs font-bold text-brand-charcoal/80 mt-2 border-t border-brand-stone/30 pt-2 w-full justify-center">
-            <span className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-brand-charcoal/80 mt-2 border-t border-brand-stone/30 pt-2 w-full justify-center">
+            <span className="flex items-center gap-1 whitespace-nowrap">
               <span className="w-2 h-2 rounded-full bg-brand-moss shrink-0" /> {STATUS_WORDING.normal.label}
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 whitespace-nowrap">
               <span className="w-2 h-2 rounded-full bg-brand-clay shrink-0" /> {STATUS_WORDING.borderline.label}
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 whitespace-nowrap">
               <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> {STATUS_WORDING.delay.label}
             </span>
           </div>

@@ -1778,12 +1778,12 @@ export default function App() {
       <footer className="bg-white border-t border-brand-stone/60 py-6 mt-16 text-center text-xs text-brand-charcoal/80 font-medium relative z-10">
         <div className="max-w-7xl mx-auto px-4 space-y-2">
           <p>{PRODUCT.brand.copyright}</p>
-          <div className="flex justify-center gap-4 text-xs">
-            <button onClick={() => setShowServiceModal(true)} className="hover:text-brand-forest transition-colors cursor-pointer">服务及免责条款</button>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+            <button onClick={() => setShowServiceModal(true)} className="whitespace-nowrap hover:text-brand-forest transition-colors cursor-pointer">服务及免责条款</button>
             <span>•</span>
-            <button onClick={() => setShowPrivacyModal(true)} className="hover:text-brand-forest transition-colors cursor-pointer">隐私保护条款</button>
+            <button onClick={() => setShowPrivacyModal(true)} className="whitespace-nowrap hover:text-brand-forest transition-colors cursor-pointer">隐私保护条款</button>
             <span>•</span>
-            <a href="#specs" className="hover:text-brand-forest transition-colors">发育评估量表归档声明</a>
+            <a href="#specs" className="whitespace-nowrap hover:text-brand-forest transition-colors">发育评估量表归档声明</a>
           </div>
           {/* 備案號。未設定時整段不渲染 —— 見 BeianFooter 的說明。 */}
           <BeianFooter />

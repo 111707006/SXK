@@ -309,7 +309,19 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     const condition = withScope(req, res);
     if (!condition) return;
     try {
-      const table = buildSummaryTable(await store.listSummarySources(condition), shape, readSummaryOptions(req.query), developmentIndex);
+      const options = readSummaryOptions(req.query);
+      const table = buildSummaryTable(await store.listSummarySources(condition), shape, options, developmentIndex);
+      // 畫面上的彙總一樣是整批電話：看過也記一筆（與導出同一張表、kind 不同）。記不下來不擋畫面 —— 導出那一支才是不給檔。
+      await store
+        .recordExport({
+          adminUserId: req.admin!.adminUserId,
+          condition,
+          kind: 'parent_summary_view',
+          rowCount: table.rows.length,
+          filters: JSON.stringify(options),
+          requestIp: req.ip ?? null,
+        })
+        .catch((err: any) => console.error('[Admin] parent summary view log failed:', err.message));
       res.json(table);
     } catch (err: any) {
       console.error('[Admin] parent summary failed:', err.message);

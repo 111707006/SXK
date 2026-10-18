@@ -25,13 +25,25 @@ export function reportLayoutFrom(body: unknown): ReportLayout {
   return { noWeeklyPlan: on, ready: true };
 }
 
+/** 問多久就放棄（照「關」畫）：要依版面捲動的地方在等 `ready`，不能無限等下去。 */
+export const REPORT_LAYOUT_TIMEOUT_MS = 5000;
+
 export function loadReportLayout(fetchImpl: typeof fetch = fetch): Promise<void> {
   if (!started) {
-    started = fetchImpl('/api/report-config')
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => controller?.abort(), REPORT_LAYOUT_TIMEOUT_MS);
+    let failed = false;
+    started = fetchImpl('/api/report-config', controller ? { signal: controller.signal } : undefined)
       .then(resp => (resp.ok ? resp.json() : null))
-      .catch(() => null)
+      .catch(() => {
+        failed = true;
+        return null;
+      })
       .then(body => {
+        clearTimeout(timer);
         current = reportLayoutFrom(body);
+        // 問不到（斷線、逾時）先照「關」畫、`ready` 照樣給；下一個掛上來的畫面再問一次，不把這一次的失敗記一整個分頁。
+        if (failed) started = null;
         listeners.forEach(l => l());
       });
   }

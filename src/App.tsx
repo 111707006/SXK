@@ -85,6 +85,8 @@ export default function App() {
    * 開關關著（或 B）`homeV2` 一直是 false，下面每一處新畫面都包在它後面 —— 畫面一行不動。
    */
   const [homeConfigOn, setHomeConfigOn] = useState<boolean>(() => PRODUCT.features.home && readHomeV2Hint());
+  /** 家長在首頁開關問到之前自己按過「评估面板」：問到之後不把他換回首頁。 */
+  const dashboardChosenRef = useRef(false);
   const homeV2 = PRODUCT.features.home && homeConfigOn;
   /** 未登入時：開關開著先給首頁；點了卡或「登录／注册」才是登入頁。 */
   const [homeLoginOpen, setHomeLoginOpen] = useState(false);
@@ -327,7 +329,8 @@ export default function App() {
       if (cancelled) return;
       writeHomeV2Hint(on);
       setHomeConfigOn(on);
-      setCurrentView(v => (on ? (v === 'dashboard' ? 'home' : v) : v === 'home' || v === 'offline_service' ? 'dashboard' : v));
+      // 停在評估面板只因為還沒問到開關時才換成首頁；家長自己按了「评估面板」就不搶回來。
+      setCurrentView(v => (on ? (v === 'dashboard' && !dashboardChosenRef.current ? 'home' : v) : v === 'home' || v === 'offline_service' ? 'dashboard' : v));
     })();
     return () => { cancelled = true; };
   }, []);
@@ -951,6 +954,7 @@ export default function App() {
                 <button
                   id="nav-dashboard-btn"
                   onClick={() => {
+                    dashboardChosenRef.current = true;
                     setCurrentView('dashboard');
                     setSelectedDimensionId(null);
                   }}

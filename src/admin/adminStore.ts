@@ -489,7 +489,8 @@ export async function listSummarySources(condition: CompanyCondition): Promise<S
 export interface AdminExportEntry {
   adminUserId: number;
   condition: CompanyCondition;
-  kind: 'parent_summary';
+  /** `parent_summary` 是導出 .xlsx；`parent_summary_view` 是看了畫面上的彙總（一樣是整批電話）。 */
+  kind: 'parent_summary' | 'parent_summary_view';
   rowCount: number;
   filters: string;
   requestIp: string | null;

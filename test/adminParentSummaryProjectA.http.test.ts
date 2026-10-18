@@ -98,7 +98,8 @@ describe('專案 A 的彙總', () => {
       if (i > 1) channels.push(String(row.getCell(4).value));
     });
     expect(channels.sort()).toEqual(['森心康直属', '甲机构', '筛查系统（森心康）'].sort());
-    expect(db.exports).toEqual([
+    // 前一個測試看過畫面上的彙總，也記了一筆（parent_summary_view）；這裡只看導出那一筆。
+    expect(db.exports.filter((e: any) => e.kind === 'parent_summary')).toEqual([
       expect.objectContaining({ adminUserId: 30, condition: { kind: 'unassigned' }, kind: 'parent_summary', rowCount: 3 }),
     ]);
   });

@@ -68,8 +68,12 @@
 │   │   ├── WearablesMall.tsx        # 穿戴设备商城
 │   │   ├── ScanReportPage.tsx       # 扫码报告页 `/r/<token>`（`REPORT_SCAN_SPA`，#65）：打 `/api/r/:token`、画 `ReportBody`，只读、不放插槽；`main.tsx` 看路径分流
 │   │   ├── HandoffCard.tsx          # 专案 B 报告页「到森心康做深度评估」那张卡（ADR-0009）：放在 T2 插槽的位置，`/api/handoff/config` 开了才画
+│   │   ├── ScanReportPage.tsx       # 扫码报告页（`REPORT_SCAN_SPA`，#65）：读 `GET /api/r/:token` 的那一笔快照、画同一个 ReportBody，不放插槽
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
 │   ├── admin/             # 管理中心（后台）；activityMedia.ts 上传示范片与封面（伺服器）、videoTagging.ts／videoFrame.ts 与 panels/VideoTaggingPanel.tsx「示范片与标签」分页
+│   │                      # parentSummary.ts＋summaryXlsx.ts＋panels/ParentSummaryView.tsx：家长汇总与导出（#69、#73；所有后台帐号、走 withScope、看与导出都记进 admin_exports）
+│   ├── developmentIndex/  # 发育指数（#68）：passRates.ts 180 题通过率表（丹佛 II-Jimma／CDC／AI）＋ developmentIndex.ts；**只给伺服器**，家长端 import 不到（结构测试）
+│   ├── home/              # 专案 A 新版首页（`HOME_V2`，#72）：HomePage、OfflineServicePage、homeNav（去向与字的纯函式）
 │   ├── home/              # 新版首页（`HOME_V2`，#72，只在专案 A）：homeNav.ts 三张卡的去向、登入后停哪（纯函式）；HomePage.tsx banner＋三张卡；OfflineServicePage.tsx 线下服务点（医院名称、占位照、「即将开放」）
 │   ├── t1report/          # 新版 T1 报告（`T1_REPORT_REAL`，只在专案 A）
 │   │   ├── answers.ts     # 逐题作答对到题目、三种作答各几题、历次报告的关注分（前端与伺服器共用；读不到回 null，不补数字）
@@ -108,6 +112,7 @@
 │   │   ├── trainingPush.ts # v3 推送规则（客户 10/06）：颜色（T2 分级／T1 推定）、PUSH_ORDER、每月名额、交错、月龄窗、依编号挑、一期 36 格、换着玩、停用补位、期末判档（纯函式）
 │   │   ├── trainingPeriodService.ts # v3 一期的生命周期（开期、同期取周、期末开下一期、补位）、格子 → 每周活动那一列、计划页位置；server.ts 只接资料层
 │   │   ├── interimPlan.ts # 暂行题量（使用者 2026-09-29）：每个被标记的维度只列一份（星号工具）、全部必做；选做／加测／补充问卷先不出，只套在 `GET /api/t2/plan`
+│   │   ├── raterV2.ts     # T2 填表人 v2（`T2_RATER_V2`，#70）：拿掉老师、「其他」的选填说明（≤10 字）；前端与伺服器共用
 │   │   ├── trainingGate.ts # 「线上干预」自己的收费站（2026-09-29）：哪几支算线上干预、`TRAINING_PRICE_FEN`（现在只能 0＝免费）
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）、没有工具的维度怎么讲（6 岁以上认知／语言／动作用客户固定句，v2.1 S05）
 │   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
@@ -133,7 +138,8 @@
 │       ├── dateUtils.ts   # 日期工具函数
 │       ├── reportUtils.ts # 报告生成工具
 │       ├── activitySteps.ts # 分解步骤怎么读：指令必填、图选填（ADR-0008）、最多 20 步
-│       └── activityGuide.ts # 影片导引脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
+│       ├── activityGuide.ts # 影片导引脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
+│       └── reportLayout.ts # 报告版面的伺服器开关（`T1_NO_WEEKLY_PLAN`，#71）：`GET /api/report-config`，整个分页问一次；逾时或失败照关画、下次再问
 ├── NEWT2/                 # 客户 2026-09-08 评估工具包 zip 与 09-10 纸本版 zip（题库的来源）；
 │                          # 09-23 活动内容包里的两份 docx（手册总册、模组一脚本，原封不动取出；zip 与 mp4 不进 git）；
 │                          # 10-06 的《影片导引脚本·总册·300 支》（取代模组一单册当抽取来源）

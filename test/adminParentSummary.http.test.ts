@@ -335,6 +335,18 @@ describe('導出 xlsx', () => {
     expect(db.exports[1]).toMatchObject({ adminUserId: 30, condition: { kind: 'company', companyId: 2 }, rowCount: 1 });
   });
 
+  it('看畫面上的彙總也記一筆（parent_summary_view）；記不下來不擋畫面', async () => {
+    const token = await login('a@jia.com', 'pw-jia-123');
+    expect((await client.get('/api/admin/parent-summary?sort=oldest', h(token))).status).toBe(200);
+    expect(db.exports).toEqual([
+      expect.objectContaining({ adminUserId: 10, condition: { kind: 'company', companyId: 1 }, kind: 'parent_summary_view', rowCount: 1 }),
+    ]);
+    expect(db.exports[0].filters).toContain('oldest');
+
+    db.failExportLog = true;
+    expect((await client.get('/api/admin/parent-summary', h(token))).status).toBe(200);
+  });
+
   it('記不下紀錄就不給檔（500）', async () => {
     db.failExportLog = true;
     const token = await login('a@jia.com', 'pw-jia-123');

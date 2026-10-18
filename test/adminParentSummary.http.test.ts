@@ -234,6 +234,35 @@ describe('彙總：一行的內容', () => {
     expect(await get('booked=booked')).toEqual(['早']);
     expect(await get('booked=not_booked')).toEqual(['甲家孩子']);
   });
+
+  it('畫面一次一頁（100 行）：總數是全部、排序跨頁、頁碼超過夾回最後一頁；導出不分頁', async () => {
+    db.sources = Array.from({ length: 205 }, (_, i) =>
+      source({
+        userId: 1000 + i,
+        companyId: 1,
+        companyName: '甲机构',
+        child: { name: `孩子${i}` },
+        scores: allNine().map(s => ({ ...s, completedAt: new Date(Date.UTC(2026, 0, 1) + i * 86400000).toISOString() })),
+      })
+    );
+    const token = await login('a@jia.com', 'pw-jia-123');
+    const get = async (q: string) => (await client.get(`/api/admin/parent-summary?${q}`, h(token))).json();
+
+    const first = await get('sort=newest');
+    expect(first).toMatchObject({ total: 205, page: 1, pageSize: 100 });
+    expect(first.rows).toHaveLength(100);
+    expect(first.rows[0].childName).toBe('孩子204');
+
+    const third = await get('sort=newest&page=3');
+    expect(third.rows.map((r: any) => r.childName)).toEqual(['孩子4', '孩子3', '孩子2', '孩子1', '孩子0']);
+    expect((await get('sort=oldest&page=3')).rows[4].childName).toBe('孩子204');
+
+    expect(await get('page=99')).toMatchObject({ page: 3 });
+    expect(await get('page=abc')).toMatchObject({ page: 1 });
+
+    const sheet = await readXlsx(await client.postJson('/api/admin/parent-summary/export', { page: 2 }, h(token)));
+    expect(sheet.rowCount).toBe(206);
+  });
 });
 
 describe('彙總：發育指數（#73）', () => {
@@ -342,6 +371,7 @@ describe('導出 xlsx', () => {
       expect.objectContaining({ adminUserId: 10, condition: { kind: 'company', companyId: 1 }, kind: 'parent_summary_view', rowCount: 1 }),
     ]);
     expect(db.exports[0].filters).toContain('oldest');
+    expect(JSON.parse(db.exports[0].filters).page).toBe(1);
 
     db.failExportLog = true;
     expect((await client.get('/api/admin/parent-summary', h(token))).status).toBe(200);

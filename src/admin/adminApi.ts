@@ -11,7 +11,7 @@ import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin
 import type { Activity } from '../t2/types';
 import type { ScreeningTotal } from './adminView';
 import type { T2ReportEntry } from '../components/T2Report';
-import type { SummaryOptions, SummaryTable } from './parentSummary';
+import type { SummaryOptions, SummaryPage } from './parentSummary';
 
 const TOKEN_KEY = 'sxk_admin_token';
 
@@ -288,9 +288,9 @@ export const adminApi = {
 
   parent: (id: number) => request<{ parent: AdminParentDetail }>(`/parents/${id}`),
 
-  /** 家長彙總（#69）：一個孩子一行，與列表同一個視野、同一組篩選。 */
-  parentSummary: (options: SummaryOptions) =>
-    request<SummaryTable>(`/parent-summary?sort=${options.sort}&booked=${options.booked}`),
+  /** 家長彙總（#69）：一個孩子一行，與列表同一個視野、同一組篩選；一次一頁（`SUMMARY_PAGE_SIZE`）。 */
+  parentSummary: (options: SummaryOptions, page: number) =>
+    request<SummaryPage>(`/parent-summary?sort=${options.sort}&booked=${options.booked}&page=${page}`),
 
   /** 導出彙總成 `.xlsx`。每按一次伺服器記一筆導出紀錄。 */
   exportParentSummary: (options: SummaryOptions) =>

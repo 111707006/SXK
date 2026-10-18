@@ -440,14 +440,20 @@ export async function latestT2Findings(
  *
  * 轉入紀錄另外一句、同樣帶公司條件（JOIN `users`），整批交出去，最早那一次在 `channelOf` 挑：
  * 篩查渠道「轉入兩次取最早」這條規則因此只有一處、測得到。
+ *
+ * `report_history` 是整份報告快照（AI 文字、圖表資料），一位家長幾十 KB；彙總只拿它補「篩查當時的月齡」，
+ * 而成績本身帶 `assessedAgeMonth` 的家長根本用不到。所以第一句不讀它，只有成績裡找不到月齡的那幾位
+ * （R1 之前的舊資料）再用第二句按 id 補讀。不用 `JSON_TABLE` 在 SQL 裡挑欄位：正式庫的版本沒驗過。
  */
+const SUMMARY_HISTORY_BATCH = 500;
+
 export async function listSummarySources(condition: CompanyCondition): Promise<SummarySource[]> {
   const p = requirePool();
   const scope = companyWhereSql(condition);
 
   const [rows] = await p.execute(
     `SELECT u.id, u.phone, u.company_id, c.name AS company_name,
-            ud.child, ud.completed_scores, ud.report_history,
+            ud.child, ud.completed_scores,
             (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count
        FROM users u
        JOIN user_data ud ON ud.user_id = u.id
@@ -455,6 +461,24 @@ export async function listSummarySources(condition: CompanyCondition): Promise<S
       WHERE ${scope.sql}`,
     scope.params
   );
+  const scoresOf = new Map<number, DimensionScore[]>();
+  for (const row of rows as any[]) scoresOf.set(Number(row.id), parseJson<DimensionScore[]>(row.completed_scores, []));
+
+  const needHistory = [...scoresOf].filter(([, scores]) => latestAssessedAgeMonth(scores, null) === null).map(([id]) => id);
+  const histories = new Map<number, AssessmentRecord[]>();
+  for (let i = 0; i < needHistory.length; i += SUMMARY_HISTORY_BATCH) {
+    const ids = needHistory.slice(i, i + SUMMARY_HISTORY_BATCH);
+    const [historyRows] = await p.execute(
+      `SELECT ud.user_id, ud.report_history
+         FROM user_data ud
+         JOIN users u ON u.id = ud.user_id
+        WHERE ${scope.sql} AND ud.user_id IN (${ids.map(() => '?').join(', ')})`,
+      [...scope.params, ...ids]
+    );
+    for (const h of historyRows as any[]) {
+      histories.set(Number(h.user_id), parseJson<AssessmentRecord[]>(h.report_history, []));
+    }
+  }
   const [importRows] = await p.execute(
     `SELECT h.id, h.user_id, h.created_at, h.source_company_name
        FROM handoff_imports h
@@ -478,8 +502,8 @@ export async function listSummarySources(condition: CompanyCondition): Promise<S
     companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
     companyName: row.company_name ?? null,
     child: parseJson<any>(row.child, null),
-    scores: parseJson<DimensionScore[]>(row.completed_scores, []),
-    reportHistory: parseJson<AssessmentRecord[]>(row.report_history, []),
+    scores: scoresOf.get(Number(row.id)) ?? [],
+    reportHistory: histories.get(Number(row.id)) ?? [],
     bookingCount: Number(row.booking_count) || 0,
     handoffImports: imports.get(Number(row.id)) ?? [],
   }));

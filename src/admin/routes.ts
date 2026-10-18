@@ -30,7 +30,7 @@ import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { mediaUrlOf, readSeconds, saveActivityMedia, type MediaKind } from './activityMedia';
-import { buildSummaryTable, readSummaryOptions } from './parentSummary';
+import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf } from './parentSummary';
 import { developmentIndex } from '../developmentIndex/developmentIndex';
 import { summaryFileName, summaryWorkbook } from './summaryXlsx';
 
@@ -310,15 +310,19 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     if (!condition) return;
     try {
       const options = readSummaryOptions(req.query);
-      const table = buildSummaryTable(await store.listSummarySources(condition), shape, options, developmentIndex);
+      const table = summaryPageOf(
+        buildSummaryTable(await store.listSummarySources(condition), shape, options, developmentIndex),
+        readSummaryPage(req.query)
+      );
       // 畫面上的彙總一樣是整批電話：看過也記一筆（與導出同一張表、kind 不同）。記不下來不擋畫面 —— 導出那一支才是不給檔。
       await store
         .recordExport({
           adminUserId: req.admin!.adminUserId,
           condition,
           kind: 'parent_summary_view',
+          // 記的是這一頁實際送出去的行數（看到幾支電話），頁碼一起進 filters。
           rowCount: table.rows.length,
-          filters: JSON.stringify(options),
+          filters: JSON.stringify({ ...options, page: table.page }),
           requestIp: req.ip ?? null,
         })
         .catch((err: any) => console.error('[Admin] parent summary view log failed:', err.message));

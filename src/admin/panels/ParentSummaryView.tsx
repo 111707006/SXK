@@ -33,8 +33,15 @@ export default function ParentSummaryView({
   options: SummaryOptions;
   onError: (view: AdminErrorView) => void;
 }) {
-  const load = useCallback(() => adminApi.parentSummary(options), [options.sort, options.booked]);
-  const { data, loading, failure, reload } = useAsyncData(load, [options.sort, options.booked], onError);
+  // 換篩選就回第一頁：在 render 時比對上一組篩選（不靠 effect，免得先用舊頁碼多打一次）。
+  const [page, setPage] = useState(1);
+  const [pageFor, setPageFor] = useState(`${options.sort}|${options.booked}`);
+  if (pageFor !== `${options.sort}|${options.booked}`) {
+    setPageFor(`${options.sort}|${options.booked}`);
+    setPage(1);
+  }
+  const load = useCallback(() => adminApi.parentSummary(options, page), [options.sort, options.booked, page]);
+  const { data, loading, failure, reload } = useAsyncData(load, [options.sort, options.booked, page], onError);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
@@ -62,6 +69,7 @@ export default function ParentSummaryView({
 
   const dimensions = data?.dimensions ?? [];
   const rows = data?.rows ?? [];
+  const lastPage = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   return (
     <div>
@@ -129,7 +137,24 @@ export default function ParentSummaryView({
               ))}
             </tbody>
           </table>
-          <p className="mt-3 text-[10px] text-brand-charcoal/40">共 {rows.length} 个孩子。</p>
+        </div>
+      )}
+      {!loading && !failure && data && data.total > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] text-brand-charcoal/40">
+          <span>
+            共 {data.total} 个孩子
+            {lastPage > 1 && `，第 ${data.page}／${lastPage} 页（每页 ${data.pageSize} 个）`}。导出的是全部。
+          </span>
+          {lastPage > 1 && (
+            <>
+              <Button variant="ghost" disabled={data.page <= 1} onClick={() => setPage(data.page - 1)}>
+                上一页
+              </Button>
+              <Button variant="ghost" disabled={data.page >= lastPage} onClick={() => setPage(data.page + 1)}>
+                下一页
+              </Button>
+            </>
+          )}
         </div>
       )}
     </div>

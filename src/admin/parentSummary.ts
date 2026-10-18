@@ -167,6 +167,33 @@ export function buildSummaryTable(
   return { dimensions: SUMMARY_DIMENSIONS, rows };
 }
 
+/**
+ * 畫面上一頁幾行。家長多了以後整張表一次送到瀏覽器、一次畫出來會卡；排序（尤其「总分低的在前」）
+ * 要看全部的人才排得出來，所以伺服器照樣整批整理、排好，只切一頁回去。導出不分頁 —— 那是拿去分析的整批。
+ */
+export const SUMMARY_PAGE_SIZE = 100;
+
+export interface SummaryPage extends SummaryTable {
+  /** 篩選後的總行數（不是這一頁的）。 */
+  total: number;
+  /** 從 1 起；超過最後一頁時夾回最後一頁。 */
+  page: number;
+  pageSize: number;
+}
+
+export function readSummaryPage(input: any): number {
+  const n = Number(input?.page);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+
+export function summaryPageOf(table: SummaryTable, page: number, pageSize = SUMMARY_PAGE_SIZE): SummaryPage {
+  const total = table.rows.length;
+  const last = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(Math.max(1, page), last);
+  const start = (current - 1) * pageSize;
+  return { dimensions: table.dimensions, rows: table.rows.slice(start, start + pageSize), total, page: current, pageSize };
+}
+
 export function readSummaryOptions(input: any): SummaryOptions {
   const sort = input?.sort === 'oldest' || input?.sort === 'score_low' ? input.sort : 'newest';
   const booked = input?.booked === 'booked' || input?.booked === 'not_booked' ? input.booked : 'all';

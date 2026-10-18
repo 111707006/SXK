@@ -145,6 +145,11 @@ export interface ReportBodyProps {
   history?: unknown;
   /** 這一份報告的產生時間：歷次對照只算到它為止（開舊報告時，比它新的不算）。 */
   reportCreatedAt?: string | null;
+  /**
+   * 拿不到這位家長的其他報告（掃碼頁：連結只帶那一筆快照）。新版報告的「历次筛查对照」整塊不畫 ——
+   * 只畫這一份的話，第三次的報告會被說成「这是第一次报告」。
+   */
+  historyUnavailable?: boolean;
 }
 
 export default function ReportBody({
@@ -158,6 +163,7 @@ export default function ReportBody({
   bookingSlot,
   history,
   reportCreatedAt,
+  historyUnavailable,
 }: ReportBodyProps) {
   /**
    * 新版 T1 報告（`T1_REPORT_REAL`）：看**快照**換版，不看開關（`src/t1report/shape.ts`）。
@@ -351,7 +357,7 @@ export default function ReportBody({
       <div className="space-y-4">
         {/* 新版：這位家長自己的歷次報告，取代三條每個孩子都一樣的預測曲線。 */}
         {real
-          ? <ScreeningHistory history={history} current={{ id: reportId, createdAt: reportCreatedAt, scores }} />
+          ? (historyUnavailable ? null : <ScreeningHistory history={history} current={{ id: reportId, createdAt: reportCreatedAt, scores }} />)
           : <PrognosisTrajectoryChart completedScores={scores} />}
 
         <div className="bg-brand-sand/50 p-4 rounded-2xl border border-brand-stone/60 text-left">

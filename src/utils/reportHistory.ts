@@ -176,6 +176,16 @@ function toRenderable(value: unknown): RenderableReport | null {
 }
 
 /**
+ * 一筆報告紀錄收乾淨；不是篩查報告（沒有 `aiReport`、或是深度評估）回 `null`。
+ *
+ * 掃碼頁的公開端點（`server.ts` 的 `GET /api/r/:token`）用它：token 指的是**哪一筆**由呼叫端挑，
+ * 這裡只管形狀 —— 收完只剩 `RenderableReport` 的欄位，家長端 JSON 夾帶的其他東西不會出門。
+ */
+export function renderableReportOf(record: unknown): RenderableReport | null {
+  return toRenderable(record);
+}
+
+/**
  * 這位家長最近一份篩查報告，形狀已經收乾淨。沒有任何一份時回 `null`。
  *
  * 參數型別是 `unknown`：呼叫端拿到的宣告是 `AssessmentRecord[]`，但那只是宣告 ——

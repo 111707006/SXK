@@ -66,6 +66,7 @@
 │   │   ├── ReportRealBlocks.tsx     # 新版 T1 报告（`T1_REPORT_REAL`）的两块：「这次作答的样子」（取代仪表与同龄比较条）、「历次筛查对照」（取代预测曲线）
 │   │   ├── AbilityLinksMap.tsx      # 新版 T1 报告的「九大能力关联图」（取代脑区拓扑图）：内联 SVG，点能力／连线看说明
 │   │   ├── WearablesMall.tsx        # 穿戴设备商城
+│   │   ├── ScanReportPage.tsx       # 扫码报告页 `/r/<token>`（`REPORT_SCAN_SPA`，#65）：打 `/api/r/:token`、画 `ReportBody`，只读、不放插槽；`main.tsx` 看路径分流
 │   │   ├── HandoffCard.tsx          # 专案 B 报告页「到森心康做深度评估」那张卡（ADR-0009）：放在 T2 插槽的位置，`/api/handoff/config` 开了才画
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
 │   ├── admin/             # 管理中心（后台）；activityMedia.ts 上传示范片与封面（伺服器）、videoTagging.ts／videoFrame.ts 与 panels/VideoTaggingPanel.tsx「示范片与标签」分页
@@ -275,7 +276,8 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `/api/db/load` | GET | 加载用户数据 | 已登录：`Authorization: Bearer <token>`；未登录：`deviceId` (query) |
 | `/api/db/save` | POST | 保存用户数据 | `deviceId`, `child`, `completedScores`, `orders`, `reportHistory`（身分取自 token） |
 | `/api/report-link` | POST | 取得该份报告的扫码连结与二维码 | `reportId`；`Authorization: Bearer <token>` |
-| `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**） | 无 |
+| `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**）。开关 `REPORT_SCAN_SPA` 关：伺服器拼的 HTML（`renderParentExportHtml`）；开：交给 SPA（`ScanReportPage`） | 无 |
+| `/api/r/:token` | GET | **只在 `REPORT_SCAN_SPA` 开着时注册**（#65）：扫码页的资料，回 `{child: {name, ageMonth, gender}, record}`（`record` 是那一笔快照，经 `renderableReportOf` 收干净）；**不带手机号、帐号、其他报告**。token 形状错、查无、报告已不在历史 → 404，不退回最新一份。**公开，不需登入** | 无 |
 | `/api/expert-booking` | POST | 送出专家预约（四种服务共用） | `specialistId`, `parentName`, `parentPhone`；`serviceType` 选填 |
 | `/api/t2/plan` | GET | T2 题量预估：依这位家长的孩子与最新筛查算 `planT2()`（套暂行规则），附 `t1Flags`／`entrance`／`pricing`（2026-10-13：照卡上「N 项深度评估」分档，每 3 项一档 ¥19.9／29.9／39.9，原价 ¥400＋100×(N−1)，`src/t2/pricing.ts`；`/api/payment/create` 的 T2 照同一份 plan 收，没有要做的 409 `NOTHING_TO_BUY`）。**开了 `T2_RECOMMEND_V3`** 改回量表推荐：回 `{version: 'v3', status, tools, totalMinutes, sessions, notices, gaps, noT2Text?, ageMonth, answerAgeMonth, context, completed}`（`PlanV3Response`，`src/t2/recommend/parentPlan.ts`），画面看 `version` 分流 | `Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | POST | 交一支工具的答案；**伺服器算分**（`scoreTool`），窗口外／缺答／多题／值域外 400 且不落表；每次交卷一笔不覆盖。回 `{id, createdAt, result, bands}` | `toolId`, `assessedAgeMonth`, `rater`, `pre`, `answers`；`Authorization: Bearer <token>` |
@@ -453,6 +455,7 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `T2_RECOMMEND_V3` | T2 v3 量表推薦與完整版題庫（客戶 2026-10-06，規格 `docs/specs/t2-v3-toolkit-full-edition.md`）：`1` ＝ `POST /api/t2/tool-results` 收 `toolkitVersion: 'kit-20260923'` 的交卷（`src/t2/kitv3/submit.ts`，存同一張 `t2_tool_results`）、`GET ?kit=v3` 讀完整版每支最新一筆；`GET /api/t2/plan` 改回量表推薦（`src/t2/recommend/parentPlan.ts`：家長端的字另寫、近 90 天做過的不再推、T3 不回；**每個被標記的維度只出一份**，社交溝通警訊／情緒那一題／抽動改成最上方提示＋預約、不推問卷，診斷不進推薦 —— ADR-0011，`ONE_TOOL_PER_DIMENSION`）；`POST /api/t2/findings` 存完整版快照 `T2FindingsV3`（`src/t2/findingsV3.ts`）＋報告文字（`src/t2/report/proseV3.ts`：模型走 T1 報告同一串 `generateReportJSON`，驗證不過或全掛就存模板）。**要同時開 `TRAINING_PUSH_V3`**，否則程序起不來；不設或 `0` ＝ 一行不動。只收 `1`/`true`/`0`/`false` | 否 |
 | `T2_SCALE_DETAIL` | 量表详解（使用者 2026-10-15，規格 `docs/specs/t2-v3-scale-detail-report.md`）：`1` ＝ 生成完整版報告時每支量表多存一份详解（`T2FindingsV3.scaleDetails`：照量表自己的分法講各面向、題數、還不穩的題、下一步、客戶的面向說明與練法（`src/t2/kitv3/textAdapt.ts` 照用字表改寫）、上一次的題數），報告頁看快照有沒有這一欄決定畫不畫。算的那一支 `src/t2/scaleDetailEntries.ts` 只有伺服器載。**要同時開 `T2_RECOMMEND_V3`**，否則程序起不來；不設或 `0` ＝ 新報告沒有這一段、舊報告照存的樣子。只收 `1`/`true`/`0`/`false` | 否 |
 | `T1_REPORT_REAL` | 新版 T1 报告（使用者 2026-10-08，**只在专案 A**）：`1` ＝ `POST /api/report` 改走 `src/t1report/`（给模型逐题作答、回来过验证器、不过退照作答组的模板；不再产四个仪表数字），报告快照带 `version: 't1-real-1'`，报告页看快照换版。不设或 `0` ＝ 一行不动。B 设了也不生效（启动印一行）。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
+| `REPORT_SCAN_SPA` | 扫码报告页改走 SPA（客户 10/17 第 1 项，#65，规格 `docs/specs/client-changes-2026-10-17.md` §2，A、B 都适用）：`1` ＝ `/r/:token` 交给 SPA、注册 `GET /api/r/:token`，扫码页画与 App 同一个 `ReportBody`（只读、没有插槽、历次对照不画）。不设或 `0` ＝ 一行不动（伺服器拼的 HTML，`/api/r/*` 是 404）。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

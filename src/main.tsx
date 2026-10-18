@@ -2,6 +2,7 @@ import {StrictMode, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import LazyBoundary from './components/LazyBoundary.tsx';
+import ScanReportPage from './components/ScanReportPage.tsx';
 import {captureCompanySlug} from './utils/attribution.ts';
 import './index.css';
 
@@ -30,12 +31,20 @@ const AdminApp = lazy(() => import('./admin/AdminApp.tsx'));
 const path = window.location.pathname;
 const isAdmin = path === '/admin' || path.startsWith('/admin/');
 
+/**
+ * 掃碼報告頁（`/r/<token>`，issue #65）。伺服器只在開關 `REPORT_SCAN_SPA` 開著時把這條路徑交給 SPA；
+ * 關著時那條路徑由伺服器自己回 HTML，根本走不到這裡。不進 App —— 掃碼的手機沒有登入。
+ */
+const scanToken = path.match(/^\/r\/([^/]+)\/?$/)?.[1] ?? null;
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {isAdmin ? (
       <LazyBoundary>
         <AdminApp />
       </LazyBoundary>
+    ) : scanToken !== null ? (
+      <ScanReportPage token={scanToken} />
     ) : (
       <App />
     )}

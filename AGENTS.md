@@ -274,6 +274,7 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `/api/ali-language-eval` | POST | 语言专项评估 | `audioData`, `context` |
 | `/api/asr` | POST | 语音识别 | `audioData` |
 | `/api/db/status` | GET | 数据库状态 | 无 |
+| `/api/report-config` | GET | 报告版面的伺服器开关（#71）：回 `{noWeeklyPlan}`（`T1_NO_WEEKLY_PLAN`）。家长端、后台、扫码页画同一个 `ReportBody`，都读这一支，所以**公开、不需登入**，只带开关 | 无 |
 | `/api/auth/sms/request` | POST | 索取登录验证码 | `phone`, `companySlug`（选填） |
 | `/api/auth/sms/verify` | POST | 核对验证码并登录 | `phone`, `code`, `companySlug`（选填） |
 | `/api/db/load` | GET | 加载用户数据 | 已登录：`Authorization: Bearer <token>`；未登录：`deviceId` (query) |
@@ -462,6 +463,7 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `T1_REPORT_REAL` | 新版 T1 报告（使用者 2026-10-08，**只在专案 A**）：`1` ＝ `POST /api/report` 改走 `src/t1report/`（给模型逐题作答、回来过验证器、不过退照作答组的模板；不再产四个仪表数字），报告快照带 `version: 't1-real-1'`，报告页看快照换版。不设或 `0` ＝ 一行不动。B 设了也不生效（启动印一行）。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
 | `REPORT_SCAN_SPA` | 扫码报告页改走 SPA（客户 10/17 第 1 项，#65，规格 `docs/specs/client-changes-2026-10-17.md` §2，A、B 都适用）：`1` ＝ `/r/:token` 交给 SPA、注册 `GET /api/r/:token`，扫码页画与 App 同一个 `ReportBody`（只读、没有插槽、历次对照不画）。不设或 `0` ＝ 一行不动（伺服器拼的 HTML，`/api/r/*` 是 404）。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
 | `T2_RATER_V2` | T2 填表人 v2（客户 10/17 第 5 项，#70，规格 `docs/specs/client-changes-2026-10-17.md` §6，只有专案 A 有 T2）：`1` ＝ 作答画面拿掉「老师」、选「其他」出选填输入框（最多 10 字、去头尾空白，`src/t2/raterV2.ts`）；`POST /api/t2/tool-results` 两条路都不收新的 `teacher`、`raterNote` 超过 10 字或不是「其他」却带了 400 `RATER_NOTE_INVALID`，存 `t2_tool_results.rater_note`（有说明才写）与 `result.raterNote`；`GET /api/t2/plan` 带 `raterV2: true`（画面据此换选项）；新生成的报告快照带 `raterV2: true`，作答回顾每支那一行写「填表人：其他（阿姨）」（旧的老师照写「老师」）。不设或 `0` ＝ 一行不动。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**要先跑 `2026-10-18-t2-rater-note.sql`** | 否 |
+| `T1_NO_WEEKLY_PLAN` | T1 报告拿掉周计划图（客户 10/17 第 6 项，#71，规格 `docs/specs/client-changes-2026-10-17.md` §7、D19、D20，A、B 都适用）：`1` ＝ `ReportBody` 不画「多维感官康复与训练周计划图」（新旧快照都不画；AI 的 `rehabSuggestions`／`homeGuidance` 照存、快照形状不变），T2 付费区（B 是交接卡，同一个 `t2Slot`）移到二维码卡下面、专家预约上面，旧版「发育进度对比」最低那一段不再指向「7 日居家活动安排」。前端由 `GET /api/report-config` 读（`src/utils/reportLayout.ts`，一进站就问；问完才捲到 T2 卡、后台列印问完才印）。不设或 `0` ＝ 一行不动。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

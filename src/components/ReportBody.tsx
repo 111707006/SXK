@@ -132,12 +132,20 @@ export interface ReportBodyProps {
   isAiGenerated?: boolean | null;
   /** 報告編號由它算出。`null` 代表還沒存進歷史，此時整行不出現。 */
   reportId?: string | null;
-  /** 家長端專屬：T2 深度評估入口（票 #56）。放在掃碼帶走那張卡的正上方（2026-10-11）。 */
+  /**
+   * 家長端專屬：T2 深度評估入口（票 #56；B 是交接卡）。放在掃碼帶走那張卡的正上方（2026-10-11）；
+   * `noWeeklyPlan` 時改放在二維碼卡下面、專家預約上面（D20）。
+   */
   t2Slot?: React.ReactNode;
   /** 家長端專屬：掃碼把報告帶回家的二維碼卡。放在預後說明與每週課表之間。 */
   takeawaySlot?: React.ReactNode;
   /** 家長端專屬：專家預約入口。放在每週課表底下，與它同屬最後那一區。 */
   bookingSlot?: React.ReactNode;
+  /**
+   * 週計劃圖整個不畫（伺服器開關 `T1_NO_WEEKLY_PLAN`，#71，D19）：新舊快照都不畫，AI 的練習建議照存、不畫。
+   * 呼叫端從 `useReportLayout()` 拿；沒給 = 關 = 照舊。
+   */
+  noWeeklyPlan?: boolean;
   /**
    * 這位家長的報告歷史（原樣，當 unknown 收）。新版報告的「历次筛查对照」用它；舊版不看。
    * 沒給就只畫這一份。
@@ -164,6 +172,7 @@ export default function ReportBody({
   history,
   reportCreatedAt,
   historyUnavailable,
+  noWeeklyPlan,
 }: ReportBodyProps) {
   /**
    * 新版 T1 報告（`T1_REPORT_REAL`）：看**快照**換版，不看開關（`src/t1report/shape.ts`）。
@@ -322,7 +331,7 @@ export default function ReportBody({
       ) : (
         <>
           {/* New Visual Section 1: Overall Peer Development Level Comparison */}
-          <PeerComparison childName={childName} scores={scores} />
+          <PeerComparison childName={childName} scores={scores} noWeeklyPlan={noWeeklyPlan} />
 
           {/*
             1. Circular Dial Gauges for Critical Brain Indices
@@ -375,19 +384,30 @@ export default function ReportBody({
       {/*
         家長端專屬：T2 深度評估入口。後台不放 —— 那是一顆按下去會開始做事的按鈕。
         2026-10-11 使用者：從雷達圖底下移到二維碼卡的正上方（讀完整份報告、「接下来怎么做」之後才請家長往下一步）。
+        開關 `T1_NO_WEEKLY_PLAN` 開著時不在這裡，在下面週計劃圖原本那一區、專家預約上面（2026-10-18，D20）。
+        捲到 T2 卡（`AnalysisReport` 的 `t2SlotRef`）跟著插槽走，兩個位置都捲得到。
       */}
-      {t2Slot}
+      {!noWeeklyPlan && t2Slot}
 
       {/* 家長端專屬：掃碼把報告帶回自己的手機（issue #22）。 */}
       {takeawaySlot}
 
       {/* 3. Gamified Weekly Sensori-Motor Training Calendar */}
+      {/* 週計劃圖拿掉之後，沒有插槽的地方（後台、列印、掃碼頁）這一區是空的：整塊不畫，不留一條空的分隔線。 */}
+      {(!noWeeklyPlan || t2Slot || bookingSlot) && (
       <div className="space-y-4 pt-4 border-t border-brand-cream/80">
-        <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} plain={real} />
+        {/*
+          `T1_NO_WEEKLY_PLAN`（使用者 2026-10-18，D19、D20）：週計劃圖不畫；T2 付費區（B 是交接卡）放進這一區、
+          專家預約上面 —— 二維碼卡之後、預約之前，家長先看到下一步的深度評估。推翻 10-11「二維碼卡正上方」。
+        */}
+        {noWeeklyPlan
+          ? t2Slot
+          : <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} plain={real} />}
 
         {/* 家長端專屬：專家預約入口與表單。 */}
         {bookingSlot}
       </div>
+      )}
 
       {/*
         新版（A、有商城）才有：報告最底下另外一塊「相关产品」，照被標記的方面挑商城的產品（使用者 2026-10-08）。
@@ -604,15 +624,18 @@ function RadarSection({ scores }: { scores: DimensionScore[] }) {
  * ⚠️ **這張圖沒有常模。** 百分位是九個維度得分率的平均，不是任何一份常模樣本的分位數。
  * 它留在報告裡是產品決定（家長看得到它），不是因為它有臨床意義 —— 見本檔開頭的警告。
  */
-function PeerComparison({ childName, scores }: { childName: string; scores: DimensionScore[] }) {
+function PeerComparison({ childName, scores, noWeeklyPlan }: { childName: string; scores: DimensionScore[]; noWeeklyPlan?: boolean }) {
   const avgPct = scores.length > 0
     ? Math.round(scores.reduce((acc, s) => acc + (s.score / s.maxScore) * 100, 0) / scores.length)
     : 50;
 
   // 主語是「发展节奏」，不是孩子 —— 對照表：避免「孩子有……」這種以孩子為主語的判定句。
+  // 週計劃圖拿掉之後（`T1_NO_WEEKLY_PLAN`，#71）不能再叫家長去看「最下方的 7 日居家活动安排」（暫採的句子，規格 §7）。
   const note =
     avgPct < 40
-      ? `${childName} 的整体发展节奏与同龄常见的节奏有一定差距。建议跟进最下方的 7 日居家活动安排，并近期预约专家一对一说明。`
+      ? noWeeklyPlan
+        ? `${childName} 的整体发展节奏与同龄常见的节奏有一定差距。建议近期预约专家一对一说明。`
+        : `${childName} 的整体发展节奏与同龄常见的节奏有一定差距。建议跟进最下方的 7 日居家活动安排，并近期预约专家一对一说明。`
       : avgPct < 70
         ? `${childName} 的整体发展节奏接近同龄常见水平，有几项仍在建立中，多做亲子互动与居家共读会有帮助。`
         : avgPct < 85

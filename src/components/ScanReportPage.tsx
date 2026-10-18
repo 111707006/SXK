@@ -3,6 +3,7 @@ import ReportBody from './ReportBody';
 import { BeianFooter } from './BeianFooter';
 import { formatAge } from '../utils/dateUtils';
 import type { RenderableReport } from '../utils/reportHistory';
+import { useReportLayout } from '../utils/reportLayout';
 
 /**
  * 掃碼報告頁（客戶 10/17 第 1 項，規格 docs/specs/client-changes-2026-10-17.md §2.2）。
@@ -32,6 +33,7 @@ const UNAVAILABLE = '报告暂时读取不了，请稍后再扫一次。';
 
 export default function ScanReportPage({ token }: { token: string }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const { noWeeklyPlan } = useReportLayout();
 
   useEffect(() => {
     let alive = true;
@@ -92,6 +94,7 @@ export default function ScanReportPage({ token }: { token: string }) {
           reportId={record.id || null}
           reportCreatedAt={record.createdAt || null}
           historyUnavailable
+          noWeeklyPlan={noWeeklyPlan}
         />
         <p className="text-xs text-brand-charcoal/60 text-center print:hidden">
           这一页是您扫码带走的报告，网址可以收藏起来，之后随时打开。

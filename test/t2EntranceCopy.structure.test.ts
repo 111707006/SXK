@@ -64,15 +64,16 @@ describe('no_tool 的文案與位置', () => {
     expect(entrance).toContain('disabled={!c.onSelect}');
   });
 
-  it('入口掛在報告本體「接下来怎么做」之後、二維碼卡的正上方（使用者 2026-10-11）', () => {
+  it('入口掛在報告本體「接下来怎么做」之後、二維碼卡的正上方（使用者 2026-10-11；`T1_NO_WEEKLY_PLAN` 開著時的位置見 t1NoWeeklyPlan.test.ts）', () => {
     const body = stripComments(read('src/components/ReportBody.tsx'));
     const prognosis = body.indexOf('aiReport.prognosisPrediction');
-    const t2 = body.indexOf('{t2Slot}');
+    const T2 = '{!noWeeklyPlan && t2Slot}';
+    const t2 = body.indexOf(T2);
     const takeaway = body.indexOf('{takeawaySlot}');
     expect(prognosis).toBeGreaterThan(-1);
     expect(t2).toBeGreaterThan(prognosis);
     expect(takeaway).toBeGreaterThan(t2);
-    expect(body.slice(t2 + '{t2Slot}'.length, takeaway).trim()).toBe('');
+    expect(body.slice(t2 + T2.length, takeaway).trim()).toBe('');
   });
 
   it('T1 報告不再出語言專項評估的入口（使用者 2026-10-11）', () => {

@@ -79,6 +79,9 @@
 │   │   ├── relatedProducts.ts # 新版报告最底下「相关产品」：照被标记的方面从商城清单挑（最多 2 个，全绿不出现；不进提示与模型的字）
 │   │   ├── legacy.ts      # 旧版本地模板（原样从 server.ts 搬来，输出不变；开关关着与专案 B 用、对照脚本用；含旧文案，不进用字扫描）
 │   │   └── prompt.ts      # 给模型的提示：逐题作答＋用字规范（含禁止清单，不进用字扫描）
+│   ├── developmentIndex/  # 发育指数（#68，规格 client-changes-2026-10-17 §3.2）：**只给伺服器**，家长端走不到（test/developmentIndex.structure.test.ts）
+│   │   ├── passRates.ts   # 180 题逐题通过率：denver（Denver II-Jimma Table 3，CC BY 4.0）／cdc（2022 里程碑）／ai；档头写出处与已知限制
+│   │   └── developmentIndex.ts # T1 逐题作答＋篩查月龄 → 100／90／80／75／70（题目独立卷积）；读不到逐题作答回 null
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
 │   │   ├── core.ts        # 产码、杂凑、设定（HANDOFF_*）、两端之间那一包的形状（伺服器专用）
 │   │   ├── routes.ts      # 发出端三支（B）＋接收端一支（A）；server.ts 只注册、注入依赖

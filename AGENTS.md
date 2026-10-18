@@ -70,6 +70,7 @@
 │   │   ├── HandoffCard.tsx          # 专案 B 报告页「到森心康做深度评估」那张卡（ADR-0009）：放在 T2 插槽的位置，`/api/handoff/config` 开了才画
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
 │   ├── admin/             # 管理中心（后台）；activityMedia.ts 上传示范片与封面（伺服器）、videoTagging.ts／videoFrame.ts 与 panels/VideoTaggingPanel.tsx「示范片与标签」分页
+│   ├── home/              # 新版首页（`HOME_V2`，#72，只在专案 A）：homeNav.ts 三张卡的去向、登入后停哪（纯函式）；HomePage.tsx banner＋三张卡；OfflineServicePage.tsx 线下服务点（医院名称、占位照、「即将开放」）
 │   ├── t1report/          # 新版 T1 报告（`T1_REPORT_REAL`，只在专案 A）
 │   │   ├── answers.ts     # 逐题作答对到题目、三种作答各几题、历次报告的关注分（前端与伺服器共用；读不到回 null，不补数字）
 │   │   ├── shape.ts       # 快照形状 `version: 't1-real-1'`、`perDimension`；画面看它换版（`isRealT1Report`）
@@ -296,6 +297,7 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `/api/t2/practice-prefs` | GET／PUT | 提醒的星期几（0＝星期一…6＝星期日，可复选）与时间（只收 08:30／12:30／19:30／20:30）；两样要嘛都有、要嘛清成 `[]` 与 null | PUT：`reminderDays`, `reminderTime`；`Authorization: Bearer <token>` |
 | `/api/t2/practice-prefs.ics` | GET | 依提醒产生每周重复的 `.ics`（`RRULE:FREQ=WEEKLY`、`TZID=Asia/Shanghai`、标题「陪孩子做家庭活动」）；没设提醒 404。**两种身分**：Bearer，或 `?t=` 带下一支发的短时效连结（带了 `t` 就只看连结，坏的／过期的 401，不退回 Bearer） | `Authorization: Bearer <token>` 或 `t` (query) |
 | `/api/t2/practice-prefs/ics-link` | POST | 换一条上面那一支的短时效连结（Keep 票 7）：回 `{url: "/api/t2/practice-prefs.ics?t=…"}`，10 分钟内有效、`Cache-Control: no-store`；没设提醒 404 `REMINDER_NOT_SET`。前端拿到用 `location.href` 开（手机「加入日历」那一次请求带不了 Bearer） | `Authorization: Bearer <token>` |
+| `/api/home/config` | GET | 专案 A：新版首页开了没（开关 `HOME_V2`，issue #72），回 `{enabled}`；**公开，不需登入**。B 是 404 | 无 |
 | `/api/handoff/config` | GET | 专案 B：交接开了没（`{enabled, targetName}`／`{enabled: false}`）；B 报告页据此画不画那张卡 | 无 |
 | `/api/handoff/start` | POST | 专案 B：家长按「到森心康做深度评估」。回 `{url: "<A>/handoff#code=…", expiresInSec: 120}`（`no-store`）。没同意 400 `CONSENT_REQUIRED`、没手机号或没做 T1 409、没开 404 | `consent: true`；`Authorization: Bearer <token>` |
 | `/internal/handoff/redeem` | POST | 专案 B，**只给 A 的伺服器**：兑换交接码（**不过期、可重复**，每次记一次使用），交出手机、来源公司、孩子、T1 成绩、对得上的那份 T1 报告。任何失败都是同一个 404 | `code`；`Authorization: Bearer <HANDOFF_SECRET>` |
@@ -464,6 +466,7 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `REPORT_SCAN_SPA` | 扫码报告页改走 SPA（客户 10/17 第 1 项，#65，规格 `docs/specs/client-changes-2026-10-17.md` §2，A、B 都适用）：`1` ＝ `/r/:token` 交给 SPA、注册 `GET /api/r/:token`，扫码页画与 App 同一个 `ReportBody`（只读、没有插槽、历次对照不画）。不设或 `0` ＝ 一行不动（伺服器拼的 HTML，`/api/r/*` 是 404）。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
 | `T2_RATER_V2` | T2 填表人 v2（客户 10/17 第 5 项，#70，规格 `docs/specs/client-changes-2026-10-17.md` §6，只有专案 A 有 T2）：`1` ＝ 作答画面拿掉「老师」、选「其他」出选填输入框（最多 10 字、去头尾空白，`src/t2/raterV2.ts`）；`POST /api/t2/tool-results` 两条路都不收新的 `teacher`、`raterNote` 超过 10 字或不是「其他」却带了 400 `RATER_NOTE_INVALID`，存 `t2_tool_results.rater_note`（有说明才写）与 `result.raterNote`；`GET /api/t2/plan` 带 `raterV2: true`（画面据此换选项）；新生成的报告快照带 `raterV2: true`，作答回顾每支那一行写「填表人：其他（阿姨）」（旧的老师照写「老师」）。不设或 `0` ＝ 一行不动。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**要先跑 `2026-10-18-t2-rater-note.sql`** | 否 |
 | `T1_NO_WEEKLY_PLAN` | T1 报告拿掉周计划图（客户 10/17 第 6 项，#71，规格 `docs/specs/client-changes-2026-10-17.md` §7、D19、D20，A、B 都适用）：`1` ＝ `ReportBody` 不画「多维感官康复与训练周计划图」（新旧快照都不画；AI 的 `rehabSuggestions`／`homeGuidance` 照存、快照形状不变），T2 付费区（B 是交接卡，同一个 `t2Slot`）移到二维码卡下面、专家预约上面，旧版「发育进度对比」最低那一段不再指向「7 日居家活动安排」。前端由 `GET /api/report-config` 读（`src/utils/reportLayout.ts`，一进站就问；问完才捲到 T2 卡、后台列印问完才印）。不设或 `0` ＝ 一行不动。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
+| `HOME_V2` | 新版首页（客户 10/17 第 4 项，issue #72，规格 `docs/specs/client-changes-2026-10-17.md` §5，**只在专案 A**）：`1` ＝ 家长端登入前后都先停首页（`src/home/`：banner 用示范片 A012、三张卡 → 线上干预／评估面板／线下服务点介绍页，人物与医院照先放占位），导览列最前面多「首页」；未登入点卡先登入、登入后带到那一页。前端读 `GET /api/home/config`（`{enabled}`，不需登入，掛在 `tier2Only`，B 是 404、前端也不问——`PRODUCT.features.home`）。不设或 `0` ＝ 画面一行不动。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

@@ -2,7 +2,7 @@ import type { DimensionScore } from '../../types';
 import { DIMENSIONS_DATA } from '../../data';
 import { PRODUCT } from '../../productConfig';
 import { STATUS_WORDING } from '../../utils/statusWording';
-import { Avatar, Chip, Greeting, ListRow, SectionHead, STATUS_TONE, Tile, greetingFor } from './ui';
+import { Avatar, Chip, Greeting, LEDO_ART, ListRow, SectionHead, STATUS_TONE, Tile, greetingFor } from './ui';
 
 /**
  * Ledo 版評估面板（設計稿第 3 頁）：打招呼、大小不一的色塊（插畫卡＋兩個數字）、
@@ -49,7 +49,7 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
       <div className="grid grid-cols-2 gap-2.5">
         <div className={`flex flex-col gap-2 rounded-3xl bg-ledo-accent-soft p-3.5 text-ledo-accent-soft-ink ${done ? 'row-span-2' : 'col-span-2'}`}>
           <div className={`overflow-hidden rounded-2xl bg-white ${done ? 'aspect-square' : 'aspect-[3/2]'}`}>
-            <img src="/ledo/panel.jpg" alt="" className="h-full w-full object-cover" />
+            <img src={LEDO_ART.panel} alt="" className="h-full w-full object-cover" />
           </div>
           <b className="text-sm font-black text-ledo-ink">T1 综合评估</b>
           <span className="text-xs">{done ? `${date ?? ''}完成 · ${t1.length}/${DIMENSIONS_DATA.length}` : PRODUCT.dashboard.stepTwoHint}</span>

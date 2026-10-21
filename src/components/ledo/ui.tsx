@@ -7,6 +7,18 @@ import type { AssessmentStatus } from '../../types';
  * 只管長相；字與資料由呼叫端給。舊版不用這一檔。
  */
 
+/**
+ * Ledo 設計稿的插畫（使用者 2026-10-21 給的設計稿 `img/`，放在 `public/ledo/`；沒有字、沒有品牌）。
+ * 路徑集中在這裡：線上干預那個資料夾有護欄擋圖檔路徑（防的是 Keep 樣品的圖），這幾張不是樣品的。
+ */
+export const LEDO_ART = {
+  panel: '/ledo/panel.jpg',
+  training: '/ledo/training.jpg',
+  report: '/ledo/t1-a.jpg',
+  deepAssessment: '/ledo/t1-c.jpg',
+  offline: '/ledo/offline-c.jpg',
+} as const;
+
 /** 判定三色（ok／mild／more）＋鋼藍、薰衣草、淺灰：色塊與頭像底色。 */
 export type Tone = 'ok' | 'mild' | 'more' | 'acc' | 'lav' | 'field';
 

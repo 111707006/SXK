@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { ServiceType } from '../../utils/serviceTypes';
 import { authFetch } from '../../utils/api';
+import { PRODUCT } from '../../productConfig';
 import type { T2Findings } from '../../t2/types';
 import { TRAINING_PAGE } from '../../t2/trainingCopy';
 import TrainingSection from './TrainingSection';
@@ -59,7 +60,12 @@ export default function TrainingPage({ childName, onBookService, onGoToT2 }: Tra
   const retry = useCallback(() => setAttempt(n => n + 1), []);
 
   return (
-    <div className="bg-white rounded-3xl border border-brand-stone p-5 md:p-8 max-w-3xl mx-auto shadow-sm text-left" id="training-page">
+    <div
+      className={PRODUCT.features.ledo
+        ? 'bg-white rounded-[32px] p-4 sm:p-6 max-w-xl mx-auto shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left'
+        : 'bg-white rounded-3xl border border-brand-stone p-5 md:p-8 max-w-3xl mx-auto shadow-sm text-left'}
+      id="training-page"
+    >
       {status === 'ready' && findings ? (
         <TrainingSection findings={findings} childName={childName} onBookService={onBookService} onReassess={onGoToT2} />
       ) : status === 'loading' ? (

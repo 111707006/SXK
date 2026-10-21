@@ -71,7 +71,8 @@ describe('資料與狀態重寫，不搬樣品', () => {
   it('圖與片只來自活動庫的欄位（posterUrl、步驟的 imageUrl、示範片 videoUrl → clip）', () => {
     const srcs = all.match(/src=\{[^}]+\}/g) ?? [];
     for (const s of srcs) {
-      expect(s, s).toMatch(/src=\{(src|photo|clip|loaded \? clip : undefined|a\.posterUrl|activity\.posterUrl|step\.imageUrl|s\.imageUrl)\}/);
+      // 例外只有 Ledo 版入口的計劃插畫（`LEDO_ART.training`，使用者 2026-10-21 的設計稿，不是活動內容、也不是 Keep 樣品的圖）。
+      expect(s, s).toMatch(/src=\{(src|photo|clip|loaded \? clip : undefined|a\.posterUrl|activity\.posterUrl|step\.imageUrl|s\.imageUrl|LEDO_ART\.training)\}/);
     }
     // clip 只從活動的 videoUrl 來
     for (const f of files.filter(x => /\bclip\b/.test(x.source) && /<video/.test(x.source))) {

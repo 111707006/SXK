@@ -139,14 +139,31 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
     }
   };
 
-  return (
-    <div className="max-w-md w-full mx-auto bg-white border border-brand-stone rounded-3xl p-8 shadow-xl text-left animate-fade-in relative overflow-hidden">
-      {/* Visual embellishment */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-brand-sage/10 rounded-full blur-2xl -mr-16 -mt-16" />
-      <div className="absolute bottom-0 left-0 w-24 h-24 bg-brand-beige/40 rounded-full blur-xl -ml-12 -mb-12" />
+  // Ledo 版（設計稿第 1 頁）：拿掉品牌大卡，改成打招呼標題；兩個欄位、條款、按鈕照舊，說明縮成一行放上面。
+  const ledo = PRODUCT.features.ledo;
+  const field = ledo
+    ? 'w-full pl-10 pr-4 py-3 bg-ledo-field border border-transparent focus:bg-white focus:border-ledo-accent rounded-[18px] text-sm font-medium transition outline-none'
+    : 'w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none';
+  const label = ledo ? 'sr-only' : 'text-xs font-extrabold text-brand-forest/80 tracking-wider uppercase block';
 
-      <div className="relative z-10 space-y-6">
+  return (
+    <div className={ledo
+      ? 'max-w-md w-full mx-auto bg-white rounded-[32px] p-6 shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left animate-fade-in relative overflow-hidden'
+      : 'max-w-md w-full mx-auto bg-white border border-brand-stone rounded-3xl p-8 shadow-xl text-left animate-fade-in relative overflow-hidden'}>
+      {/* Visual embellishment */}
+      {!ledo && <div className="absolute top-0 right-0 w-32 h-32 bg-brand-sage/10 rounded-full blur-2xl -mr-16 -mt-16" />}
+      {!ledo && <div className="absolute bottom-0 left-0 w-24 h-24 bg-brand-beige/40 rounded-full blur-xl -ml-12 -mb-12" />}
+
+      <div className={`relative z-10 ${ledo ? 'space-y-4' : 'space-y-6'}`}>
+        {ledo && (
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-ledo-ink-2">{PRODUCT.brand.headerTitle}</p>
+            <h2 className="text-[22px] font-black leading-snug text-ledo-ink">欢迎，用手机号登录</h2>
+            <p className="text-[13px] leading-relaxed text-ledo-ink-2">首次验证成功即为您创建账户，无需单独注册，也不需要设置密码。</p>
+          </div>
+        )}
         {/* Header Title */}
+        {!ledo && (<>
         <div className="text-center space-y-2">
           <div className="inline-flex w-12 h-12 bg-brand-forest text-white rounded-2xl items-center justify-center font-extrabold shadow-lg shadow-brand-forest/15 text-lg mb-1">
             <BrandMark />
@@ -160,6 +177,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         <p className="text-center text-xs font-bold text-brand-charcoal/80">
           手机号验证码登录
         </p>
+        </>)}
 
         {/* Error Alert */}
         {error && (
@@ -180,7 +198,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         {/* Auth Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+            <label className={label}>
               手机号
             </label>
             <div className="relative">
@@ -196,13 +214,13 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                 placeholder="请输入 11 位手机号"
                 disabled={loading}
-                className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
+                className={field}
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-extrabold text-brand-forest/80 tracking-wider uppercase block">
+            <label className={label}>
               短信验证码
             </label>
             <div className="flex gap-2">
@@ -219,7 +237,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                   onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, ''))}
                   placeholder="6 位数字"
                   disabled={loading}
-                  className="w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none"
+                  className={field}
                 />
               </div>
               {/* 冷卻中按不下去，且按鈕自己说得出还要等多久 */}
@@ -227,7 +245,9 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
                 type="button"
                 onClick={handleRequestCode}
                 disabled={sendingCode || loading || cooldown > 0}
-                className="shrink-0 px-4 py-2.5 rounded-2xl border border-brand-forest/30 bg-brand-sage/20 hover:bg-brand-sage/40 disabled:bg-brand-stone/20 disabled:text-brand-charcoal/40 disabled:border-brand-stone/40 text-brand-forest text-xs font-extrabold transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+                className={ledo
+                  ? 'shrink-0 px-4 py-3 rounded-full bg-ledo-accent-soft text-ledo-accent-soft-ink disabled:opacity-50 text-[13px] font-black transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap'
+                  : 'shrink-0 px-4 py-2.5 rounded-2xl border border-brand-forest/30 bg-brand-sage/20 hover:bg-brand-sage/40 disabled:bg-brand-stone/20 disabled:text-brand-charcoal/40 disabled:border-brand-stone/40 text-brand-forest text-xs font-extrabold transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap'}
               >
                 {cooldown > 0 ? `${cooldown} 秒后重发` : sendingCode ? '发送中…' : codeSent ? '重新获取' : '获取验证码'}
               </button>
@@ -270,7 +290,9 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-brand-forest hover:bg-brand-forest-dark disabled:bg-brand-charcoal/30 text-white rounded-2xl text-xs font-extrabold transition shadow-lg shadow-brand-forest/15 flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+            className={ledo
+              ? 'w-full py-3.5 bg-ledo-accent disabled:opacity-50 text-white rounded-full text-sm font-black transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]'
+              : 'w-full py-3 bg-brand-forest hover:bg-brand-forest-dark disabled:bg-brand-charcoal/30 text-white rounded-2xl text-xs font-extrabold transition shadow-lg shadow-brand-forest/15 flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]'}
           >
             {loading ? (
               <span className="inline-flex items-center gap-1">
@@ -287,9 +309,11 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
             )}
           </button>
 
-          <p className="text-xs text-brand-charcoal/80 leading-relaxed text-center">
-            首次验证成功即为您创建账户，无需单独注册，也不需要设置密码。
-          </p>
+          {!ledo && (
+            <p className="text-xs text-brand-charcoal/80 leading-relaxed text-center">
+              首次验证成功即为您创建账户，无需单独注册，也不需要设置密码。
+            </p>
+          )}
         </form>
 
         {/* 服务及隐私条款合并弹窗 */}

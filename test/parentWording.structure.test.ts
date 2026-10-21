@@ -145,6 +145,12 @@ const PARENT_FACING_FILES = [
     .readdirSync(path.join(ROOT, 'src/components/training'))
     .filter(f => /\.tsx?$/.test(f))
     .map(f => `src/components/training/${f}`),
+  // 2026-10-21：Ledo 版（使用者給的設計稿）新畫的幾頁與共用畫法。資料夾整個掃，之後加的頁不必回來登記。
+  'src/home/LedoHomePage.tsx',
+  ...fs
+    .readdirSync(path.join(ROOT, 'src/components/ledo'))
+    .filter(f => /\.tsx?$/.test(f))
+    .map(f => `src/components/ledo/${f}`),
 ];
 
 /**

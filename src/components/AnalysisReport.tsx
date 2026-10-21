@@ -25,6 +25,7 @@ import {
 } from '../utils/specialists';
 import { BUILTIN_SPECIALISTS } from '../builtinSpecialists';
 import { STATUS_WORDING } from '../utils/statusWording';
+import LedoReportSummary from './ledo/LedoReportSummary';
 import ReportBody from './ReportBody';
 import { useReportLayout } from '../utils/reportLayout';
 import T2Entrance from './T2Entrance';
@@ -649,7 +650,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Back navigation header */}
-      <div className="flex items-center justify-between bg-white px-5 py-4 rounded-2xl border border-brand-stone shadow-sm">
+      <div className={PRODUCT.features.ledo
+        ? 'flex items-center justify-between gap-2 bg-white px-4 py-3 rounded-full shadow-sm'
+        : 'flex items-center justify-between bg-white px-5 py-4 rounded-2xl border border-brand-stone shadow-sm'}>
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal hover:text-brand-forest transition"
@@ -662,7 +665,17 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         </span>
       </div>
 
-      {/* Primary diagnostic score cards overview */}
+      {/*
+        Ledo 版：三個數字＋「先看这几项」由 LedoReportSummary 畫（報告生成後在報告本體最上面，生成前放這裡），
+        這三張大卡不再畫第二次。
+      */}
+      {PRODUCT.features.ledo ? (
+        !aiReport && (
+          <div className="rounded-[32px] bg-white p-4 shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6">
+            <LedoReportSummary scores={completedScores} />
+          </div>
+        )
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-brand-sage/40 border border-brand-stone p-5 rounded-2xl text-left shadow-sm">
           <div className="flex items-center gap-2.5 text-brand-forest">
@@ -697,12 +710,15 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <p className="text-xs text-brand-charcoal mt-1">占比约 {calculateStatusPercentage('delay')}%，建议近期安排专业咨询</p>
         </div>
       </div>
+      )}
 
       {/* AI neural network generator gate (Brain/Synapse animation) - Moved above detail table & compacted */}
-      <div className="bg-brand-forest text-white rounded-2xl p-4 md:p-5 shadow-lg relative overflow-hidden text-left">
-        {/* Abstract cyber backdrop */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-brand-forest to-brand-moss opacity-95" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-brand-sage/10 rounded-full blur-2xl animate-pulse" />
+      <div className={PRODUCT.features.ledo
+        ? 'bg-ledo-accent-soft text-ledo-ink rounded-[28px] p-4 md:p-5 relative overflow-hidden text-left [&_p]:!text-ledo-accent-soft-ink'
+        : 'bg-brand-forest text-white rounded-2xl p-4 md:p-5 shadow-lg relative overflow-hidden text-left'}>
+        {/* Abstract cyber backdrop（Ledo 版是淺色卡，不畫） */}
+        {!PRODUCT.features.ledo && <div className="absolute inset-0 bg-gradient-to-tr from-brand-forest to-brand-moss opacity-95" />}
+        {!PRODUCT.features.ledo && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-brand-sage/10 rounded-full blur-2xl animate-pulse" />}
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-full">
           <div className="flex items-center gap-3.5">
@@ -737,7 +753,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                 <button
                   id="re-evaluate-btn"
                   onClick={handleGenerateReport}
-                  className="px-3.5 py-2 bg-brand-cream/10 hover:bg-brand-cream/20 border border-brand-cream/20 text-white text-xs font-bold rounded-lg transition flex items-center gap-1"
+                  className={PRODUCT.features.ledo
+                  ? 'px-3.5 py-2 bg-white text-ledo-ink text-xs font-bold rounded-full transition flex items-center gap-1'
+                  : 'px-3.5 py-2 bg-brand-cream/10 hover:bg-brand-cream/20 border border-brand-cream/20 text-white text-xs font-bold rounded-lg transition flex items-center gap-1'}
                 >
                   <RefreshCw size={12} />
                   重新评估
@@ -852,6 +870,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       */}
       {aiReport && (
         <ReportBody
+          ledoSummary={PRODUCT.features.ledo}
           childName={reportChild.name}
           scores={completedScores}
           aiReport={aiReport}

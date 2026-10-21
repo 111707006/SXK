@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { PRODUCT } from '../productConfig';
 import ReportBody from './ReportBody';
 import { BeianFooter } from './BeianFooter';
 import { formatAge } from '../utils/dateUtils';
@@ -87,6 +88,7 @@ export default function ScanReportPage({ token }: { token: string }) {
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 space-y-4">
         <p className="text-xs font-semibold text-brand-forest">受测儿档案：{childLine}</p>
         <ReportBody
+          ledoSummary={PRODUCT.features.ledo}
           childName={record.childName}
           scores={record.scores}
           aiReport={record.aiReport}

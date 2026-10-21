@@ -24,18 +24,22 @@ describe('活動庫的路由在 requireGlobal 之下', () => {
   const handlers = [...routes.matchAll(/router\.(get|post|put|patch|delete)\(\s*'\/activities[^']*'[^\n]*\n([^\n]*)/g)];
 
   it('確實抓到了路由（護欄本身沒有壞掉）', () => {
-    expect(handlers.map(h => h[1])).toEqual(['get', 'patch', 'put', 'post']);
+    // 第二支 put 是步驟圖（2026-10-21）；`handlers` 只抓「同一行就接處理函式」的那幾支，三支 put 只會抓到兩支
+    expect(handlers.map(h => h[1])).toEqual(['get', 'patch', 'put', 'put', 'post']);
   });
 
-  // 上傳示範片與封面（2026-10-08）兩支 PUT 共用一個處理函式，第一句同樣是 requireGlobal。
-  it('PUT /activities/:id/video|poster 只掛 uploadActivityMedia，它的第一句是 requireGlobal', () => {
-    const puts = [...routes.matchAll(/router\.put\(\s*'(\/activities[^']*)',\s*([^)]*\))/g)].map(m => [m[1], m[2]]);
+  // 上傳示範片與封面（2026-10-08）兩支 PUT 共用一個處理函式；步驟圖（2026-10-21）另一個。第一句都是 requireGlobal。
+  it('PUT /activities/:id/video|poster|steps/:n/image 只掛兩個上傳函式，它們的第一句是 requireGlobal', () => {
+    const puts = [...routes.matchAll(/router\.put\(\s*'(\/activities[^']*)',\s*(\w+(?:\('\w+'\))?)\);/g)].map(m => [m[1], m[2]]);
     expect(puts).toEqual([
       ['/activities/:id/video', "uploadActivityMedia('video')"],
       ['/activities/:id/poster', "uploadActivityMedia('poster')"],
+      ['/activities/:id/steps/:n/image', 'uploadStepImage'],
     ]);
-    const body = routes.match(/const uploadActivityMedia = [^\n]*\n([^\n]*)/)!;
-    expect(body[1]).toContain('if (!requireGlobal(req, res)) {');
+    for (const name of ['uploadActivityMedia', 'uploadStepImage']) {
+      const body = routes.match(new RegExp(`const ${name} = [^\\n]*\\n([^\\n]*)`))!;
+      expect(body[1], name).toContain('if (!requireGlobal(req, res)) {');
+    }
   });
 
   it.each(['get', 'patch', 'post'])('%s /activities… 的第一句就是 requireGlobal', method => {

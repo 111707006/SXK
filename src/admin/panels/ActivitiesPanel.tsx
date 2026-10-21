@@ -13,6 +13,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, FileUp, Plus, Save, Trash2, X } from 'lucide-react';
 import { adminApi } from '../adminApi';
+import StepImageTools from './StepImageTools';
 import type { AdminErrorView } from '../adminView';
 import type { Activity, DimensionCode, ModuleNo } from '../../t2/types';
 import { DIMENSION_CODES, GUIDE_PREP_KEYS } from '../../t2/types';
@@ -621,6 +622,11 @@ function Editor({
     return on ? (list.includes(value) ? list : [...list, value]) : list.filter(x => x !== value);
   }
 
+  // 步驟圖一上傳就存進活動庫、照「第幾步」換：表單裡步驟的增刪或順序還沒存的話會對錯步，那時候先不給傳。
+  const stepsUnsaved =
+    draft.steps.length !== original.steps.length ||
+    draft.steps.some((s, i) => s.instruction.trim() !== original.steps[i].instruction);
+
   function patchStep(index: number, change: Partial<StepDraft>) {
     onPatch({ steps: draft.steps.map((s, i) => (i === index ? { ...s, ...change } : s)) });
   }
@@ -781,6 +787,18 @@ function Editor({
               >
                 <TextInput value={step.imageUrl} maxLength={512} onChange={e => patchStep(index, { imageUrl: e.target.value })} />
               </Field>
+            </div>
+            <div className="mt-2 flex flex-wrap items-start gap-3">
+              {step.imageUrl.trim() && (
+                <img src={step.imageUrl.trim()} alt={`第 ${index + 1} 步的图`} className="h-16 w-24 shrink-0 rounded-lg border border-brand-stone object-cover" />
+              )}
+              <StepImageTools
+                activityId={original.id}
+                step={index + 1}
+                videoUrl={original.videoUrl}
+                blockedReason={stepsUnsaved ? '步骤有还没存的改动（增删或搬顺序），先按「存档」再上传图。' : null}
+                onUploaded={url => patchStep(index, { imageUrl: url })}
+              />
             </div>
           </div>
         ))}

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
 import { PRODUCT } from '../productConfig';
+import LedoReportSummary from './ledo/LedoReportSummary';
 import { ALL_CLEAR_SUMMARY, SCREENING_DISCLAIMER, STATUS_WORDING } from '../utils/statusWording';
 import { reportSourceLabel } from '../utils/reportSource';
 import { reportNumber } from '../utils/reportNumber';
@@ -158,6 +159,11 @@ export interface ReportBodyProps {
    * 只畫這一份的話，第三次的報告會被說成「这是第一次报告」。
    */
   historyUnavailable?: boolean;
+  /**
+   * Ledo 版的摘要（三個數字＋先看这几项）放在最上面。家長端與掃碼頁傳 `PRODUCT.features.ledo`；
+   * 後台詳情與列印不傳 —— 後台不換版。
+   */
+  ledoSummary?: boolean;
 }
 
 export default function ReportBody({
@@ -173,6 +179,7 @@ export default function ReportBody({
   reportCreatedAt,
   historyUnavailable,
   noWeeklyPlan,
+  ledoSummary,
 }: ReportBodyProps) {
   /**
    * 新版 T1 報告（`T1_REPORT_REAL`）：看**快照**換版，不看開關（`src/t1report/shape.ts`）。
@@ -185,7 +192,9 @@ export default function ReportBody({
   const sourceLabel = reportSourceLabel(isAiGenerated);
 
   return (
-    <div className="space-y-8 animate-fade-in text-left bg-white rounded-3xl border border-brand-stone shadow-sm overflow-hidden p-6 md:p-8">
+    <div className={ledoSummary
+      ? 'space-y-8 animate-fade-in text-left bg-white rounded-[32px] shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] overflow-hidden p-4 sm:p-6 md:p-8'
+      : 'space-y-8 animate-fade-in text-left bg-white rounded-3xl border border-brand-stone shadow-sm overflow-hidden p-6 md:p-8'}>
 
       {/* Diagnostic top header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-cream pb-5 mb-6">
@@ -209,6 +218,8 @@ export default function ReportBody({
           </span>
         )}
       </div>
+
+      {ledoSummary && <LedoReportSummary scores={scores} notes={aiReport.perDimension} />}
 
       {/* AI One-Sentence Summary */}
       <div className="bg-brand-sage/35 p-4.5 rounded-2xl border border-brand-stone/40">

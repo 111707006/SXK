@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { PRODUCT } from '../productConfig';
+import { RoundArrow } from './ledo/ui';
 import { Product, MallOrder, MallOrderStatus, LogisticsTracking } from '../types';
 import { PRODUCTS_DATA } from '../data';
 import { 
@@ -141,13 +143,16 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
       {/* Mall Navbar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between bg-white px-6 py-4.5 rounded-3xl border border-brand-stone shadow-sm gap-4">
+      <div className={PRODUCT.features.ledo
+        ? 'flex flex-col items-stretch justify-between bg-white px-4 py-4 rounded-[28px] shadow-sm gap-3'
+        : 'flex flex-col sm:flex-row items-center justify-between bg-white px-6 py-4.5 rounded-3xl border border-brand-stone shadow-sm gap-4'}>
         <div className="text-left">
           <h2 className="text-lg font-bold font-sans text-brand-forest flex items-center gap-1.5">
             <ShoppingBag className="text-brand-moss" size={20} />
             森心康发展评估商城
           </h2>
-          <p className="text-xs text-brand-charcoal/80 mt-1">专业级脑机反馈系统、精细抓握阻尼手套、三维步态追踪成长护具，感觉动作发展极速到家</p>
+          {/* Ledo 版：長說明拿掉（設計稿第 16 頁） */}
+          {!PRODUCT.features.ledo && <p className="text-xs text-brand-charcoal/80 mt-1">专业级脑机反馈系统、精细抓握阻尼手套、三维步态追踪成长护具，感觉动作发展极速到家</p>}
         </div>
         <div className="flex bg-brand-cream/40 p-1.5 rounded-2xl border border-brand-stone/50 shrink-0">
           <button
@@ -188,7 +193,31 @@ export default function WearablesMall({ orders, onPlaceOrder, onUpdateOrderStatu
         </div>
       </div>
 
-      {activeTab === 'products' ? (
+      {activeTab === 'products' && PRODUCT.features.ledo ? (
+        /* Ledo 版（設計稿第 16 頁）：兩欄商品卡，每張一個粉彩底，商品圖放中間，價格與圓鈕在卡底 */
+        <div className="grid grid-cols-2 gap-2.5 text-left">
+          {PRODUCTS_DATA.map((product, i) => (
+            <button
+              key={product.id}
+              type="button"
+              id={`instant-buy-btn-${product.id}`}
+              onClick={() => openCheckout(product)}
+              className={`flex min-w-0 flex-col gap-1.5 rounded-[22px] p-2.5 text-left cursor-pointer active:scale-[0.99] transition ${
+                ['bg-ledo-mild', 'bg-ledo-accent-soft', 'bg-ledo-more', 'bg-ledo-ok'][i % 4]
+              }`}
+            >
+              <span className="block aspect-square overflow-hidden rounded-2xl bg-white">
+                <img src={product.image} alt={product.name} referrerPolicy="no-referrer" loading="lazy" className="h-full w-full object-cover" />
+              </span>
+              <b className="line-clamp-2 text-[13px] font-bold text-ledo-ink">{product.name}</b>
+              <span className="mt-auto flex items-center justify-between gap-1">
+                <span className="text-sm font-black text-ledo-ink tabular-nums">¥{product.price}</span>
+                <RoundArrow />
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : activeTab === 'products' ? (
         /* Products list page */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
           {PRODUCTS_DATA.map((product) => (

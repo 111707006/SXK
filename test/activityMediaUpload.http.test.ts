@@ -150,6 +150,41 @@ describe('全域管理員上傳', () => {
   });
 });
 
+describe('步驟圖（使用者 2026-10-21：每個動作一張圖）', () => {
+  const twoSteps = () => {
+    row('A017').steps = [
+      { imageUrl: null, instruction: '孩子趴下' },
+      { imageUrl: null, instruction: '大人抬脚' },
+    ];
+  };
+
+  it('存成 A017-s2.jpg，只改第 2 步的 imageUrl，其他步與封面不動', async () => {
+    twoSteps();
+    const token = await login('god@sxk.com', 'pw-god-123');
+    const resp = await put('/api/admin/activities/A017/steps/2/image', JPG, 'image/jpeg', token);
+    expect(resp.status).toBe(200);
+    const { activity } = await resp.json();
+    expect(activity.steps[1].imageUrl).toMatch(/^\/media\/activities\/A017-s2\.jpg\?v=\d+$/);
+    expect(activity.steps[1].instruction).toBe('大人抬脚');
+    expect(activity.steps[0]).toEqual({ imageUrl: null, instruction: '孩子趴下' });
+    expect(row('A017').posterUrl).toBeNull();
+    expect(fs.readFileSync(fileOf('A017-s2.jpg')).equals(JPG)).toBe(true);
+    expect((await client.get(activity.steps[1].imageUrl)).status).toBe(200);
+  });
+
+  it('步數超出範圍 400、合作公司 403、不是 jpg 415，都不寫檔', async () => {
+    twoSteps();
+    const god = await login('god@sxk.com', 'pw-god-123');
+    expect((await put('/api/admin/activities/A017/steps/3/image', JPG, 'image/jpeg', god)).status).toBe(400);
+    expect((await put('/api/admin/activities/A017/steps/0/image', JPG, 'image/jpeg', god)).status).toBe(400);
+    expect((await put('/api/admin/activities/A017/steps/1/image', MP4, 'image/jpeg', god)).status).toBe(415);
+    const jia = await login('a@jia.com', 'pw-jia-123');
+    expect((await put('/api/admin/activities/A017/steps/1/image', JPG, 'image/jpeg', jia)).status).toBe(403);
+    expect(fs.existsSync(path.join(TMP, 'activities')) ? fs.readdirSync(path.join(TMP, 'activities')) : []).toEqual([]);
+    expect(row('A017').steps.every((s: any) => s.imageUrl === null)).toBe(true);
+  });
+});
+
 describe('純函式', () => {
   it('認檔頭', () => {
     expect(looksLike('video', MP4)).toBe(true);

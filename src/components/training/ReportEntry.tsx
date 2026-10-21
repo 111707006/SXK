@@ -37,6 +37,8 @@ import { useTraining } from './TrainingContext';
 import { alternateRows, filterDimensions, hasClip } from './trainingData';
 import { Cover, Tag } from './ui';
 import { SHOW_LIBRARY } from './visibility';
+import { PRODUCT } from '../../productConfig';
+import LedoEntry from './LedoEntry';
 
 /**
  * 橫向捲動的那兩排（篩選、換著玩）伸到報告卡片的邊緣，與樣品伸到螢幕邊緣同一個意思。
@@ -107,7 +109,12 @@ function Status({ children }: { children: ReactNode }) {
   return <div className="flex items-center gap-2 text-xs text-brand-charcoal/80 py-6">{children}</div>;
 }
 
+/** Ledo 版（`PRODUCT.features.ledo`，建置期）換一套畫法，資料與動作同一套。 */
 export default function ReportEntry() {
+  return PRODUCT.features.ledo ? <LedoEntry /> : <KeepEntry />;
+}
+
+function KeepEntry() {
   const { data, nav, childName, onBookService } = useTraining();
   const [chip, setChip] = useState<'all' | DimensionCode>('all');
   const [bannerOpen, setBannerOpen] = useState(true);

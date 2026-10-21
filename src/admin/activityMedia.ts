@@ -29,15 +29,20 @@ export const MAX_POSTER_BYTES = 2 * 1024 * 1024;
 /** 片長上限（秒），同 `activityAdmin.ts` 的 `MAX_VIDEO_SECONDS` 一樣寬。 */
 export const MAX_UPLOAD_SECONDS = 3600;
 
-export type MediaKind = 'video' | 'poster';
+/**
+ * `step`：分解步驟的配圖（使用者 2026-10-21：「影片前面每個動作要有一張圖」）。同封面的規則（jpg、2 MB），
+ * 檔名是 `<編號>-s<第幾步>.jpg`，由後台從示範片截一格或自己上傳。
+ */
+export type MediaKind = 'video' | 'poster' | 'step';
 
-const EXT: Record<MediaKind, string> = { video: 'mp4', poster: 'jpg' };
-const MAX_BYTES: Record<MediaKind, number> = { video: MAX_VIDEO_BYTES, poster: MAX_POSTER_BYTES };
+const EXT: Record<MediaKind, string> = { video: 'mp4', poster: 'jpg', step: 'jpg' };
+const MAX_BYTES: Record<MediaKind, number> = { video: MAX_VIDEO_BYTES, poster: MAX_POSTER_BYTES, step: MAX_POSTER_BYTES };
 const CONTENT_TYPES: Record<MediaKind, ReadonlyArray<string>> = {
   video: ['video/mp4'],
   poster: ['image/jpeg'],
+  step: ['image/jpeg'],
 };
-const WHAT: Record<MediaKind, string> = { video: '示范片', poster: '封面' };
+const WHAT: Record<MediaKind, string> = { video: '示范片', poster: '封面', step: '步骤图' };
 
 /** 看開頭幾個位元組認檔案種類。 */
 export function looksLike(kind: MediaKind, head: Buffer): boolean {
@@ -45,7 +50,12 @@ export function looksLike(kind: MediaKind, head: Buffer): boolean {
   return head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
 }
 
-/** 存進活動庫的網址（帶版本，理由見檔頭）。 */
+/** 步驟圖的檔名（不含副檔名）：`A012-s1`。`step` 從 1 起。 */
+export function stepImageStem(activityId: string, step: number): string {
+  return `${activityId}-s${step}`;
+}
+
+/** 存進活動庫的網址（帶版本，理由見檔頭）。步驟圖傳 `stepImageStem(...)` 當第一個參數。 */
 export function mediaUrlOf(activityId: string, kind: MediaKind, version: number): string {
   return `/media/activities/${activityId}.${EXT[kind]}?v=${version}`;
 }
@@ -75,7 +85,7 @@ export async function saveActivityMedia(
   const type = (contentType ?? '').split(';')[0].trim().toLowerCase();
   if (!CONTENT_TYPES[kind].includes(type)) {
     body.resume();
-    return { ok: false, status: 415, error: kind === 'video' ? '示范片只收 mp4 档。' : '封面只收 jpg 图。' };
+    return { ok: false, status: 415, error: kind === 'video' ? '示范片只收 mp4 档。' : `${WHAT[kind]}只收 jpg 图。` };
   }
   const folder = path.join(dir, 'activities');
   await fs.promises.mkdir(folder, { recursive: true });

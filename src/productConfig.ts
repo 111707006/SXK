@@ -256,6 +256,12 @@ export interface ProductProfile {
      * 開不開由伺服器的 `HOME_V2` 決定（`GET /api/home/config`），B 連問都不問。
      */
     home: boolean;
+    /**
+     * Ledo 版家長端（使用者 2026-10-21：A 換、B 先不動，以後可能也換）。**建置期**決定，不問伺服器 ——
+     * 進站第一格就是對的樣子，不會先閃一下舊版。A 預設開、B 預設關；`VITE_UI_LEDO=1`／`0` 可以蓋過
+     * （B 要換＝帶 `1` 重建 B）。只換畫法：資料、文字、判定與舊版同一份。後台不吃這個開關。
+     */
+    ledo: boolean;
   };
 }
 
@@ -321,6 +327,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       mall: true,
       handoff: 'receive',
       home: true,
+      ledo: import.meta.env.VITE_UI_LEDO !== '0',
     },
   },
 
@@ -396,6 +403,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       mall: false,
       handoff: 'send',
       home: false,
+      ledo: import.meta.env.VITE_UI_LEDO === '1',
     },
   },
 };

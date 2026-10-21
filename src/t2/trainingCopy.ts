@@ -101,6 +101,19 @@ export const ENTRY = {
   noActivities: '这一周还没有排得上的活动。下面可以先约专家聊聊这一周在家可以做什么。',
 } as const;
 
+/** Ledo 版入口（2026-10-21）的幾個字：週次、已練、本週幾個活動。 */
+export const LEDO_ENTRY = {
+  week: (index: number, total: number) => `第 ${index} / ${total} 周`,
+  practiced: (sessions: number) => ` · 已练 ${sessions} 次`,
+  thisWeek: (count: number) => `本周 ${count} 个活动`,
+} as const;
+
+/** Ledo 版計劃頁（2026-10-21）三個色塊的字。數字與說明沿用 `PLAN_PAGE`，這裡只補單位與標籤。 */
+export const LEDO_PLAN = {
+  perDay: '分钟 / 天',
+  focus: '个方面优先',
+} as const;
+
 /** 「{孩子名}的家庭活动计划」。 */
 export function planTitle(childName: string | undefined): string {
   return `${childLabel(childName)}的家庭活动计划`;

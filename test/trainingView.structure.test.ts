@@ -71,7 +71,8 @@ describe('資料與狀態重寫，不搬樣品', () => {
   it('圖與片只來自活動庫的欄位（posterUrl、步驟的 imageUrl、示範片 videoUrl → clip）', () => {
     const srcs = all.match(/src=\{[^}]+\}/g) ?? [];
     for (const s of srcs) {
-      expect(s, s).toMatch(/src=\{(src|photo|clip|loaded \? clip : undefined|a\.posterUrl|activity\.posterUrl|step\.imageUrl|s\.imageUrl)\}/);
+      // 例外只有 Ledo 版入口的計劃插畫（`LEDO_ART.training`，使用者 2026-10-21 的設計稿，不是活動內容、也不是 Keep 樣品的圖）。
+      expect(s, s).toMatch(/src=\{(src|photo|clip|loaded \? clip : undefined|a\.posterUrl|activity\.posterUrl|step\.imageUrl|s\.imageUrl|LEDO_ART\.training)\}/);
     }
     // clip 只從活動的 videoUrl 來
     for (const f of files.filter(x => /\bclip\b/.test(x.source) && /<video/.test(x.source))) {
@@ -99,7 +100,7 @@ describe('導覽只經過 layerStack', () => {
 
     const app = stripComments(read('src/App.tsx'));
     expect(app).toContain("lazy(() => import('./components/training/TrainingPage'))");
-    expect(app).toContain('id="nav-training-btn"');
+    expect(app).toContain("id: 'nav-training-btn'");
     expect(app).toMatch(/currentView === 'training' && PRODUCT\.features\.tier2And3/);
     // 報告第六段的連結帶到同一頁
     expect(app).toContain("onOpenTraining={() => setCurrentView('training')}");
@@ -147,7 +148,9 @@ describe('規格點名的幾件事在畫面上', () => {
   it('打卡讀不出來時不寫 0 次：次數與 x/4 都要先確定 practice 存在', () => {
     expect(entry).toMatch(/practice \? practicedTimes\(/);
     expect(entry).toMatch(/practice \? practice\.sessions : null/);
-    expect(plan).toMatch(/\{practice && \(/);
+    expect(plan).toMatch(/\{practice && (!ledo && )?\(/);
+    // Ledo 版的圓環：讀不出來時傳 null，圓環不寫數字。
+    expect(plan).toMatch(/practicedOf=\{practice \? \{ done: practice\.planPracticed, total: practice\.planTotal \} : null\}/);
   });
 
   it('入口的活動卡：「练什么」與「本周已练 N 次」分兩行，不接成「。 · 」（票 7 順手修）', () => {

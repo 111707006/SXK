@@ -39,6 +39,7 @@ import {
 } from '../t2/reportCopy';
 import type { DimensionCode, DimensionFinding, T2Findings } from '../t2/types';
 import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
+import { isLedoPage } from './ledo/ui';
 import { STATUS_CLASS } from './reportStatusClass';
 import { isFindingsV3, type T2FindingsV3 } from '../t2/findingsV3';
 import T2ReportV3 from './T2ReportV3';
@@ -226,7 +227,9 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
   );
 
   const shell = (children: React.ReactNode) => (
-    <div className="bg-white rounded-3xl border border-brand-stone p-5 md:p-8 max-w-3xl mx-auto shadow-sm text-left">
+    <div className={isLedoPage()
+      ? 'bg-white rounded-[32px] p-4 sm:p-6 max-w-xl mx-auto shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left'
+      : 'bg-white rounded-3xl border border-brand-stone p-5 md:p-8 max-w-3xl mx-auto shadow-sm text-left'}>
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
         {backButton}
         <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">

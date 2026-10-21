@@ -29,7 +29,7 @@ import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
-import { mediaUrlOf, readSeconds, saveActivityMedia, type MediaKind } from './activityMedia';
+import { mediaUrlOf, readSeconds, saveActivityMedia, stepImageStem, type MediaKind } from './activityMedia';
 import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf } from './parentSummary';
 import { developmentIndex } from '../developmentIndex/developmentIndex';
 import type { DevelopmentIndexOf } from './parentSummary';
@@ -936,9 +936,50 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       res.status(500).json({ error: kind === 'video' ? '上传示范片失败，请再试一次。' : '上传封面失败，请再试一次。' });
     }
   };
+  // 分解步驟的配圖（使用者 2026-10-21）：`PUT /activities/:id/steps/:n/image`，n 從 1 起、要在這支活動的步驟數之內。
+  // 存成 `<編號>-s<n>.jpg`，網址寫回那一步的 `imageUrl`，其他步驟一個字都不動。
+  const uploadStepImage = async (req: AuthedRequest, res: express.Response) => {
+    if (!requireGlobal(req, res)) {
+      req.resume();
+      return;
+    }
+    const id = String(req.params.id);
+    const n = /^\d{1,2}$/.test(String(req.params.n)) ? Number(req.params.n) : NaN;
+    try {
+      const activity = ACTIVITY_ID_PATTERN.test(id) ? (await store.listActivities()).find(a => a.id === id) : undefined;
+      if (!activity) {
+        req.resume();
+        res.status(404).json({ error: '找不到该活动。' });
+        return;
+      }
+      if (!(n >= 1 && n <= activity.steps.length)) {
+        req.resume();
+        res.status(400).json({ error: `这支活动只有 ${activity.steps.length} 步。` });
+        return;
+      }
+      const stem = stepImageStem(id, n);
+      const saved = await saveActivityMedia(req, req.headers['content-type'], mediaDir!, stem, 'step');
+      if (!saved.ok) {
+        res.status(saved.status).json({ error: saved.error });
+        return;
+      }
+      const url = mediaUrlOf(stem, 'step', Date.now());
+      const steps = activity.steps.map((s, i) => (i === n - 1 ? { ...s, imageUrl: url } : s));
+      const updated = await store.updateActivity(id, { steps });
+      if (!updated) {
+        res.status(404).json({ error: '找不到该活动。' });
+        return;
+      }
+      res.json({ activity: updated });
+    } catch (err: any) {
+      console.error(`[Admin] upload step image ${id}#${n} failed:`, err.message);
+      res.status(500).json({ error: '上传步骤图失败，请再试一次。' });
+    }
+  };
   if (mediaDir) {
     router.put('/activities/:id/video', uploadActivityMedia('video'));
     router.put('/activities/:id/poster', uploadActivityMedia('poster'));
+    router.put('/activities/:id/steps/:n/image', uploadStepImage);
   }
 
   // ── 批量匯入（v2.1 S25，客戶 9/21 工作單 #14）──

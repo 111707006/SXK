@@ -9,6 +9,7 @@
  */
 import type { ReactNode } from 'react';
 import { ChevronLeft, X } from 'lucide-react';
+import { PRODUCT } from '../../productConfig';
 import { COMMON } from '../../t2/trainingCopy';
 
 /**
@@ -49,6 +50,24 @@ export function LightNav({ title, onBack, right }: { title?: string; onBack: () 
 
 /** 計劃頁的深色導覽列：左邊返回、中間標題、右邊一個字按鈕（沒有就不出）。 */
 export function DarkNav({ title, onBack, right, onRight }: { title: string; onBack: () => void; right?: string; onRight?: () => void }) {
+  // Ledo 版（設計稿的標題列）：白底、兩側圓鈕、標題居中。點下去做的事一樣。
+  if (PRODUCT.features.ledo) {
+    return (
+      <div className="relative z-10 grid h-14 shrink-0 grid-cols-[40px_1fr_auto] items-center gap-2 bg-white px-3">
+        <button type="button" aria-label={COMMON.back} onClick={onBack} className="grid h-9 w-9 place-items-center rounded-full border border-ledo-line text-ledo-ink cursor-pointer">
+          <ChevronLeft size={18} />
+        </button>
+        <p className="truncate text-center text-base font-black text-ledo-ink">{title}</p>
+        {right && onRight ? (
+          <button type="button" onClick={onRight} className="whitespace-nowrap rounded-full border border-ledo-line px-3 py-1.5 text-xs font-bold text-ledo-ink cursor-pointer">
+            {right}
+          </button>
+        ) : (
+          <span className="w-9" />
+        )}
+      </div>
+    );
+  }
   return (
     <div className="h-12 shrink-0 px-2 flex items-center bg-brand-forest text-white relative z-10">
       <button type="button" aria-label={COMMON.back} onClick={onBack} className="w-10 h-10 grid place-items-center cursor-pointer">

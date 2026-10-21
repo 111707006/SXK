@@ -84,9 +84,20 @@ export default function ScanReportPage({ token }: { token: string }) {
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className="min-h-screen bg-brand-cream/20">
+    <div className={PRODUCT.features.ledo ? 'min-h-screen bg-ledo-stage' : 'min-h-screen bg-brand-cream/20'}>
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 space-y-4">
-        <p className="text-xs font-semibold text-brand-forest">受测儿档案：{childLine}</p>
+        {PRODUCT.features.ledo ? (
+          // Ledo 版（設計稿第 17 頁）：孩子資料一張色塊，下面就是報告（最上面是摘要）
+          <div className="flex items-center gap-3 rounded-3xl bg-ledo-ok p-3.5 text-ledo-ok-ink">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-sm font-black">{(child.name ?? record.childName).slice(0, 1)}</span>
+            <span className="min-w-0">
+              <b className="block text-sm font-bold text-ledo-ink">{childLine}</b>
+              <small className="text-xs">综合发展评估报告</small>
+            </span>
+          </div>
+        ) : (
+          <p className="text-xs font-semibold text-brand-forest">受测儿档案：{childLine}</p>
+        )}
         <ReportBody
           ledoSummary={PRODUCT.features.ledo}
           childName={record.childName}

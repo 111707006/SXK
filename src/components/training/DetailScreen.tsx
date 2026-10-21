@@ -68,6 +68,7 @@ import { useTraining } from './TrainingContext';
 import { ageFit, clipClock, detailSeries, hasClip, type DetailSeries, type PlanPlace } from './trainingData';
 import { useActivity, useLibraryList } from './useActivity';
 import { LightNav, StepImage } from './ui';
+import { PRODUCT } from '../../productConfig';
 
 /** 在畫面裡沒有（捲到外面、或瀏覽器沒有 IntersectionObserver 時一律當作在畫面裡）。 */
 function useInView(ref: RefObject<HTMLElement | null>): boolean {
@@ -300,7 +301,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
         {/* 大圖：有示範片就靜音循環播；沒有就封面＋「示范片制作中」 */}
         <div className="px-4">
           <div
-            className={`relative rounded-md overflow-hidden ${
+            className={`relative ${PRODUCT.features.ledo ? 'rounded-[28px]' : 'rounded-md'} overflow-hidden ${
               clip || a.posterUrl ? 'aspect-[4/3.2] bg-brand-forest' : 'aspect-[16/9] bg-gradient-to-br from-brand-sage to-brand-cream'
             }`}
           >
@@ -523,7 +524,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
         <button
           type="button"
           onClick={() => nav.openSheet({ kind: 'mode', id: a.id, from })}
-          className="mb-5 h-[52px] px-4 rounded-full bg-brand-cream text-brand-forest font-bold text-[15px] flex items-center gap-1.5 cursor-pointer"
+          className={PRODUCT.features.ledo ? 'mb-5 h-11 px-4 rounded-full bg-ledo-accent-soft text-ledo-accent-soft-ink font-bold text-[14px] flex items-center gap-1.5 cursor-pointer' : 'mb-5 h-[52px] px-4 rounded-full bg-brand-cream text-brand-forest font-bold text-[15px] flex items-center gap-1.5 cursor-pointer'}
         >
           <SlidersHorizontal size={19} />
           {DETAIL.mode}
@@ -531,14 +532,18 @@ function DetailBody({ activity: a, place, from, active, series }: {
         <button
           type="button"
           onClick={startGo}
-          className="w-[104px] h-[104px] rounded-full bg-brand-moss text-white text-[40px] font-black italic tracking-tight shadow-[0_10px_28px_rgba(61,75,59,0.35)] active:scale-95 transition cursor-pointer"
+          aria-label={DETAIL.go}
+          className={PRODUCT.features.ledo
+            // Ledo 版：設計稿控制列中間那顆鋼藍圓角大播放鈕
+            ? 'mb-2 grid h-[72px] w-[72px] place-items-center rounded-[24px] bg-ledo-accent text-white shadow-[0_12px_24px_-10px_#47779E] active:scale-95 transition cursor-pointer'
+            : 'w-[104px] h-[104px] rounded-full bg-brand-moss text-white text-[40px] font-black italic tracking-tight shadow-[0_10px_28px_rgba(61,75,59,0.35)] active:scale-95 transition cursor-pointer'}
         >
-          {DETAIL.go}
+          {PRODUCT.features.ledo ? <Play size={26} fill="currentColor" strokeWidth={0} /> : DETAIL.go}
         </button>
         <button
           type="button"
           onClick={() => nav.openSheet({ kind: 'equip', id: a.id, from })}
-          className="mb-5 h-[52px] px-4 rounded-full bg-brand-cream text-brand-forest font-bold text-[15px] flex items-center gap-1.5 cursor-pointer"
+          className={PRODUCT.features.ledo ? 'mb-5 h-11 px-4 rounded-full bg-ledo-accent-soft text-ledo-accent-soft-ink font-bold text-[14px] flex items-center gap-1.5 cursor-pointer' : 'mb-5 h-[52px] px-4 rounded-full bg-brand-cream text-brand-forest font-bold text-[15px] flex items-center gap-1.5 cursor-pointer'}
         >
           <ToyBrick size={19} />
           {DETAIL.equip}

@@ -46,6 +46,7 @@ import {
 import { planPositionOf } from './trainingData';
 import { useCalendarData } from './useCalendarData';
 import { Cover, LightNav } from './ui';
+import { PRODUCT } from '../../productConfig';
 
 /** 還在讀「…」、讀不出來「–」：不寫 0。 */
 function statValue(value: string | number | null, loading: boolean): string {
@@ -53,7 +54,26 @@ function statValue(value: string | number | null, loading: boolean): string {
   return loading ? '…' : '–';
 }
 
+/**
+ * Ledo 版（設計稿第 14 頁）：練過的日子淡綠、今天鋼藍實心、提醒虛線、方圓角。圖例跟著換（`LEGEND_DOT`）。
+ */
+function ledoDayClass(d: CalendarDay): string {
+  if (d.today) return `!rounded-xl bg-ledo-accent text-white font-black ${d.done ? 'ring-2 ring-offset-2 ring-ledo-ok' : ''}`;
+  if (d.done) return '!rounded-xl bg-ledo-ok text-ledo-ok-ink font-black';
+  if (d.reassess) return '!rounded-xl bg-ledo-mild text-ledo-mild-ink font-bold';
+  if (d.reminder) return '!rounded-xl border border-dashed border-ledo-accent text-ledo-ink';
+  return 'text-ledo-ink-2';
+}
+
+const LEGEND_DOT = PRODUCT.features.ledo
+  ? { done: 'w-3 h-3 rounded bg-ledo-ok', reminder: 'w-3 h-3 rounded border border-dashed border-ledo-accent', today: 'w-3 h-3 rounded bg-ledo-accent' }
+  : { done: 'w-3 h-3 rounded-full bg-brand-forest', reminder: 'w-3 h-3 rounded-full border border-dashed border-brand-moss', today: 'w-3 h-3 rounded-full ring-2 ring-brand-moss' };
+
+/** Ledo 版三個數字的底色（設計稿：綠、黃、藍）。 */
+const STAT_TONE = ['bg-ledo-ok text-ledo-ok-ink', 'bg-ledo-mild text-ledo-mild-ink', 'bg-ledo-accent-soft text-ledo-accent-soft-ink'];
+
 function dayClass(d: CalendarDay): string {
+  if (PRODUCT.features.ledo) return ledoDayClass(d);
   // 今天練過了：實心，外面仍留一圈（圖例說外框是今天，練過了也要找得到今天在哪）
   if (d.done) return `bg-brand-forest text-white font-bold ${d.today ? 'ring-2 ring-offset-2 ring-brand-moss' : ''}`;
   if (d.today) return 'ring-2 ring-brand-moss text-brand-forest font-bold';
@@ -105,9 +125,9 @@ export default function CalendarScreen() {
           {/* 三個數字 */}
           <div className="grid grid-cols-3 gap-2" data-testid="calendar-stats">
             {CALENDAR.stats.map((label, i) => (
-              <div key={label} className="rounded-xl bg-brand-sage py-3 text-center">
-                <p className="text-[24px] font-black text-brand-forest tabular-nums leading-none">{stats[i]}</p>
-                <p className="mt-1.5 text-xs text-brand-charcoal/80">{label}</p>
+              <div key={label} className={PRODUCT.features.ledo ? `rounded-3xl py-3.5 text-center ${STAT_TONE[i]}` : 'rounded-xl bg-brand-sage py-3 text-center'}>
+                <p className={`text-[24px] font-black tabular-nums leading-none ${PRODUCT.features.ledo ? '' : 'text-brand-forest'}`}>{stats[i]}</p>
+                <p className={`mt-1.5 text-xs ${PRODUCT.features.ledo ? 'font-bold' : 'text-brand-charcoal/80'}`}>{label}</p>
               </div>
             ))}
           </div>
@@ -160,15 +180,15 @@ export default function CalendarScreen() {
           {shown === 'error' && <p className="mt-3 text-[12px] text-brand-charcoal/80">{CALENDAR.checkinsError}</p>}
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-brand-charcoal/80">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-brand-forest" />
+              <span className={LEGEND_DOT.done} />
               {CALENDAR.legend.done}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full border border-dashed border-brand-moss" />
+              <span className={LEGEND_DOT.reminder} />
               {CALENDAR.legend.reminder}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full ring-2 ring-brand-moss" />
+              <span className={LEGEND_DOT.today} />
               {CALENDAR.legend.today}
             </span>
             {showReassess && (

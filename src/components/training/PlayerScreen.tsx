@@ -27,6 +27,10 @@ import { TrainingApiError, postCheckin } from './trainingApi';
 import { clipClock, hasClip } from './trainingData';
 import { useActivity } from './useActivity';
 import { StepImage } from './ui';
+import { PRODUCT } from '../../productConfig';
+
+/** Ledo 版的跟練頁是淺色（設計稿第 13 頁）；舊版是黑底。下面的 `dark` 都從這裡來。 */
+const DARK_PLAYER = !PRODUCT.features.ledo;
 
 function PlayerTop({ title, onClose, onCast, dark = true }: { title: string; onClose: () => void; onCast?: () => void; dark?: boolean }) {
   return (
@@ -50,7 +54,7 @@ function StepDots({ n, at, dark }: { n: number; at: number; dark: boolean }) {
   return (
     <div className="px-4 flex gap-1" aria-hidden="true">
       {Array.from({ length: n }, (_, i) => (
-        <span key={i} className={`flex-1 h-1.5 rounded-full ${i <= at ? 'bg-brand-moss' : dark ? 'bg-white/20' : 'bg-brand-stone'}`} />
+        <span key={i} className={`flex-1 h-1.5 rounded-full ${i <= at ? (PRODUCT.features.ledo ? 'bg-ledo-coral' : 'bg-brand-moss') : dark ? 'bg-white/20' : 'bg-brand-stone'}`} />
       ))}
     </div>
   );
@@ -60,11 +64,11 @@ function SayList({ activity }: { activity: Activity }) {
   const shots = activity.guide?.shots.filter(s => s.say) ?? [];
   if (shots.length === 0) return null;
   return (
-    <div className="mt-5 rounded-xl p-3 bg-white/[0.07]" data-testid="player-say">
-      <p className="text-[12px] text-white/50">{PLAYER.sayTitle}</p>
+    <div className={`mt-5 rounded-xl p-3 ${DARK_PLAYER ? 'bg-white/[0.07]' : 'rounded-[20px] bg-ledo-field'}`} data-testid="player-say">
+      <p className={`text-[12px] ${DARK_PLAYER ? 'text-white/50' : 'text-ledo-ink-2'}`}>{PLAYER.sayTitle}</p>
       <ul className="mt-1.5 space-y-1">
         {shots.map((s, i) => (
-          <li key={`${i}-${s.name}`} className="text-[14px] leading-snug text-white/85">
+          <li key={`${i}-${s.name}`} className={`text-[14px] leading-snug ${DARK_PLAYER ? 'text-white/85' : 'text-ledo-ink'}`}>
             「{s.say}」
           </li>
         ))}
@@ -215,9 +219,9 @@ function PlayerLoop({ activity: a, clip }: { activity: Activity; clip: string })
   };
 
   return (
-    <div className="h-full bg-neutral-950 text-white flex flex-col training-fade" data-testid="training-player">
-      <PlayerTop title={a.title} onClose={nav.back} onCast={cast} />
-      <div className="relative w-full aspect-video bg-black shrink-0">
+    <div className={`h-full flex flex-col training-fade ${DARK_PLAYER ? 'bg-neutral-950 text-white' : 'bg-white text-ledo-ink'}`} data-testid="training-player">
+      <PlayerTop title={a.title} onClose={nav.back} onCast={cast} dark={DARK_PLAYER} />
+      <div className={`relative aspect-video bg-black shrink-0 ${DARK_PLAYER ? 'w-full' : 'mx-4 overflow-hidden rounded-[28px] text-white'}`}>
         <video
           ref={ref}
           src={clip}
@@ -249,16 +253,16 @@ function PlayerLoop({ activity: a, clip }: { activity: Activity; clip: string })
         )}
       </div>
       <div className="mt-4">
-        <StepDots n={Math.max(1, n)} at={i} dark />
+        <StepDots n={Math.max(1, n)} at={i} dark={DARK_PLAYER} />
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto training-no-scrollbar px-5 pt-5">
         {n > 0 ? (
           <>
-            <p className="text-[13px] text-brand-moss font-bold">{stepOf(i + 1, n)}</p>
+            <p className={`text-[13px] font-bold ${DARK_PLAYER ? 'text-brand-moss' : 'text-ledo-ink-2'}`}>{stepOf(i + 1, n)}</p>
             <p className="mt-2 text-[23px] font-black leading-snug">{a.steps[i].instruction}</p>
           </>
         ) : (
-          <p className="text-[16px] text-white/80 leading-relaxed">{PLAYER.noSteps}</p>
+          <p className={`text-[16px] leading-relaxed ${DARK_PLAYER ? 'text-white/80' : 'text-ledo-ink'}`}>{PLAYER.noSteps}</p>
         )}
         <SayList activity={a} />
       </div>
@@ -270,7 +274,7 @@ function PlayerLoop({ activity: a, clip }: { activity: Activity; clip: string })
         finish={finish}
         posting={posting}
         failed={failed}
-        dark
+        dark={DARK_PLAYER}
       />
     </div>
   );

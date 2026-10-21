@@ -10,6 +10,28 @@
   --color-brand-sand: #FFF8EE;
   --color-brand-sage: #F0F4F0;
   --color-brand-charcoal: #4A4A40;
+
+  /* Ledo 版自己的色票（只有 Ledo 版的元件用；舊版不碰）。對應見下方 :root[data-ui="ledo"] 的說明。 */
+  --color-ledo-stage: #E4EEF4;
+  --color-ledo-surface: #FFFFFF;
+  --color-ledo-field: #F3F6F5;
+  --color-ledo-ink: #24332C;
+  --color-ledo-ink-2: #5B6862;
+  --color-ledo-line: #E1E8E5;
+  --color-ledo-accent: #47779E;
+  --color-ledo-accent-soft: #D6E7F3;
+  --color-ledo-accent-soft-ink: #3A6A8D;
+  --color-ledo-coral: #D9826F;
+  --color-ledo-coral-ink: #A9553F;
+  --color-ledo-ok: #E1EDDC;
+  --color-ledo-ok-ink: #456940;
+  --color-ledo-mild: #FFF0CF;
+  --color-ledo-mild-ink: #86661B;
+  --color-ledo-more: #F8DDD8;
+  --color-ledo-more-ink: #9A4535;
+  --color-ledo-lav: #E8E4F4;
+  --color-ledo-lav-ink: #55498C;
+  --color-ledo-bar: #121714;
   
   /*
    * 全站只用思源黑体（字型堆疊與理由見 src/brandFont.ts；@font-face 由 vite.config.ts 的 brandFont()
@@ -19,6 +41,28 @@
   --font-sans: "Noto Sans SC Variable", "Source Han Sans SC", "Noto Sans SC", sans-serif;
   --font-serif: "Noto Sans SC Variable", "Source Han Sans SC", "Noto Sans SC", sans-serif;
   --font-mono: "Noto Sans SC Variable", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+}
+
+/*
+ * Ledo 版（`PRODUCT.features.ledo`，建置期；main.tsx 在家長端的 <html> 掛 data-ui="ledo"）。
+ * 設計稿：使用者 2026-10-21 給的「森心康 Ledo 版设计稿」—— 霧藍底、鋼藍主色、珊瑚記號、
+ * 判定三色（鼠尾草綠／奶油黃／粉橘）、深色膠囊底欄。
+ *
+ * 元件裡寫的是 `bg-brand-moss` 這類 class，Tailwind 4 把它們編成 `var(--color-brand-moss)`；
+ * 這裡在 data-ui 底下改那幾個變數，整個家長端一起換色，舊版（B、後台）一個字都不動。
+ * 對應：moss（主色）→ 鋼藍、forest（標題與深色按鈕）→ 墨綠黑、clay（強調字）→ 珊瑚深色、
+ * cream（頁底）→ 霧藍、sage／sand（淺底）→ 綠／黃粉彩、stone（框線）→ 淡灰綠、charcoal（內文）→ 墨色。
+ */
+:root[data-ui="ledo"] {
+  --color-brand-moss: #47779E;
+  --color-brand-forest: #24332C;
+  --color-brand-clay: #A9553F;
+  --color-brand-cream: #EEF4F8;
+  --color-brand-stone: #E1E8E5;
+  --color-brand-beige: #F3F6F5;
+  --color-brand-sand: #FFF0CF;
+  --color-brand-sage: #E1EDDC;
+  --color-brand-charcoal: #24332C;
 }
 
 body {

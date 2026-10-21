@@ -14,6 +14,8 @@ interface ImportMetaEnv {
    * 在執行期驗證並在無法辨識時直接拋錯。
    */
   readonly VITE_APP_MODE?: string;
+  /** Ledo 版家長端（`1`／`0`；不設＝A 開、B 關）。見 `src/productConfig.ts` 的 `features.ledo`。 */
+  readonly VITE_UI_LEDO?: string;
 
   /**
    * ICP 備案號，顯示在頁面底部並連回工信部查詢頁（`src/components/BeianFooter.tsx`）。

@@ -24,6 +24,16 @@ function assertValidAppMode() {
 }
 
 /**
+ * Ledo 版的建置期開關（`VITE_UI_LEDO`，見 `src/productConfig.ts` 的 `features.ledo`）。
+ * 不設＝照產品的預設（A 開、B 關）；只收 `1`／`0`，打錯字的建置起不來 —— 不然會靜靜建出另一個版面。
+ */
+function assertValidUiLedo() {
+  const raw = process.env.VITE_UI_LEDO;
+  if (raw === undefined || raw === '' || raw === '1' || raw === '0') return;
+  throw new Error(`VITE_UI_LEDO 的值無法辨識: ${JSON.stringify(raw)}。只接受 '1'（Ledo 版）或 '0'（舊版）；不設＝A 開、B 關。`);
+}
+
+/**
  * 思源黑体放到固定路徑 `/fonts/noto-sans-sc-<版本>/`（理由見 `src/brandFont.ts`）。
  *
  * - 建置：把套件的 `index.css` 與 `files/*.woff2` 原封不動複製進 `dist/`（CSS 裡是 `./files/…`
@@ -81,6 +91,7 @@ function brandFont(): Plugin {
 
 export default defineConfig(() => {
   assertValidAppMode();
+  assertValidUiLedo();
 
   return {
     plugins: [react(), tailwindcss(), brandFont()],

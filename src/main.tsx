@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import LazyBoundary from './components/LazyBoundary.tsx';
 import ScanReportPage from './components/ScanReportPage.tsx';
+import {PRODUCT} from './productConfig.ts';
 import {captureCompanySlug} from './utils/attribution.ts';
 import {loadReportLayout} from './utils/reportLayout.ts';
 import './index.css';
@@ -43,6 +44,12 @@ const isAdmin = path === '/admin' || path.startsWith('/admin/');
  * 關著時那條路徑由伺服器自己回 HTML，根本走不到這裡。不進 App —— 掃碼的手機沒有登入。
  */
 const scanToken = path.match(/^\/r\/([^/]+)\/?$/)?.[1] ?? null;
+
+/**
+ * Ledo 版（`PRODUCT.features.ledo`，建置期）：家長端與掃碼頁在 `<html>` 掛 `data-ui="ledo"`，
+ * `index.css` 依它換一套色票；後台不掛，照舊。render 之前就掛，第一格就是對的顏色。
+ */
+if (PRODUCT.features.ledo && !isAdmin) document.documentElement.dataset.ui = 'ledo';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

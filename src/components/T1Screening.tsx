@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Child, DimensionScore, AssessmentStatus } from '../types';
 import { getT1QuestionsForAge, getT1AgeBandName, T1Question } from '../t1Data';
 import { PRODUCT } from '../productConfig';
+import LedoT1Questions from './ledo/LedoT1Questions';
 import { ALL_CLEAR_SUMMARY, SCREENING_DISCLAIMER, STATUS_WORDING, flaggedSummary } from '../utils/statusWording';
 import { 
   Activity, Sparkles, Brain, MessageSquare, Smile, BookOpen, Target, Home, Heart,
@@ -325,6 +326,20 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
   }
 
   const activeTheme = dimensionColors[activeDimId] || { bg: 'bg-emerald-50 text-emerald-700', text: 'text-emerald-800', border: 'border-emerald-200' };
+
+  // Ledo 版：一屏一題（題目、作答、計分、交卷同一份，只換畫法）
+  if (PRODUCT.features.ledo) {
+    return (
+      <LedoT1Questions
+        questions={dimensionsList.flatMap(d => questions.filter(q => q.dimensionId === d))}
+        answers={answers}
+        ageBandName={ageBandName}
+        onSelect={handleSelectOption}
+        onSubmit={handleSubmitT1}
+        onExit={onBack}
+      />
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

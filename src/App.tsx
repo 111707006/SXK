@@ -1363,7 +1363,8 @@ export default function App() {
             該滿版，不是同一件事。
           */
           // 首頁要滿版（banner 撐滿寬度）；其他頁照舊依內容寬置中（上面那段說的桌機 723px）。
-          <div className={homeV2 && (currentView === 'home' || currentView === 'offline_service') ? 'min-w-0 w-full space-y-6' : 'min-w-0 space-y-6'}>
+          // Ledo 版每一頁自己是一張置中的卡（max-w-xl 等），外層一律滿版，卡才不會縮成內容寬。
+          <div className={(homeV2 && (currentView === 'home' || currentView === 'offline_service')) || PRODUCT.features.ledo ? 'min-w-0 w-full space-y-6' : 'min-w-0 space-y-6'}>
             
             {currentView === 'home' && homeV2 ? (
               <LazyBoundary>

@@ -108,6 +108,12 @@ export const LEDO_ENTRY = {
   thisWeek: (count: number) => `本周 ${count} 个活动`,
 } as const;
 
+/** Ledo 版計劃頁（2026-10-21）三個色塊的字。數字與說明沿用 `PLAN_PAGE`，這裡只補單位與標籤。 */
+export const LEDO_PLAN = {
+  perDay: '分钟 / 天',
+  focus: '个方面优先',
+} as const;
+
 /** 「{孩子名}的家庭活动计划」。 */
 export function planTitle(childName: string | undefined): string {
   return `${childLabel(childName)}的家庭活动计划`;

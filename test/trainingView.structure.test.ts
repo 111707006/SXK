@@ -148,7 +148,9 @@ describe('規格點名的幾件事在畫面上', () => {
   it('打卡讀不出來時不寫 0 次：次數與 x/4 都要先確定 practice 存在', () => {
     expect(entry).toMatch(/practice \? practicedTimes\(/);
     expect(entry).toMatch(/practice \? practice\.sessions : null/);
-    expect(plan).toMatch(/\{practice && \(/);
+    expect(plan).toMatch(/\{practice && (!ledo && )?\(/);
+    // Ledo 版的圓環：讀不出來時傳 null，圓環不寫數字。
+    expect(plan).toMatch(/practicedOf=\{practice \? \{ done: practice\.planPracticed, total: practice\.planTotal \} : null\}/);
   });
 
   it('入口的活動卡：「练什么」與「本周已练 N 次」分兩行，不接成「。 · 」（票 7 順手修）', () => {

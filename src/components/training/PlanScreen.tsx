@@ -22,6 +22,7 @@ import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { dimensionStatus } from '../../t2/reportCopy';
 import { weekRangeLabel } from '../../t2/weeklyCopy';
 import {
+  LEDO_PLAN,
   CLIP_STATE,
   ENTRY,
   MOOD_LABEL,
@@ -58,6 +59,9 @@ import PrintButton from '../PrintButton';
 import PlanPrintSheet from './PlanPrintSheet';
 import { fetchPeriodSheet } from './trainingApi';
 import { Cover, DarkNav, StepImage } from './ui';
+import { PRODUCT } from '../../productConfig';
+import { addCalendarDays } from '../../t2/weeks';
+import { Avatar, ListRow, PlayButton, SectionHead, Tile } from '../ledo/ui';
 
 /**
  * 三級的字色與儀表的色，與報告九宮格同一組（綠／黃／紅，ADR-0007）。沒有判定的照 `dimensionStatus` 的
@@ -404,6 +408,66 @@ function PlanWeekGrid({ firstWeekStart, today, practiced }: { firstWeekStart: st
   );
 }
 
+/**
+ * Ledo 版計劃頁的上半（設計稿第 11 頁）：本週日期條（練過的日子淡綠、今天鋼藍）、三個色塊
+ * （每天幾分鐘、本週練過 x/N 的圓環、要優先的方面）。取代舊版的深綠頭、橫捲小卡與半圓儀表。
+ */
+function LedoPlanTop({ weekStart, today, practiced, perDayNote, practicedOf, weekLabel, focusCount, focusName }: {
+  weekStart: string;
+  today: string;
+  practiced: ReadonlySet<string> | null;
+  perDayNote: string;
+  practicedOf: { done: number; total: number } | null;
+  weekLabel: string;
+  focusCount: number;
+  focusName: string;
+}) {
+  const days = WEEKDAYS.map((w, i) => {
+    const date = addCalendarDays(weekStart, i);
+    return { w, date, n: Number(date.slice(8)) };
+  });
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  const ratio = practicedOf && practicedOf.total > 0 ? Math.min(1, practicedOf.done / practicedOf.total) : 0;
+  return (
+    <div className="space-y-3 bg-white px-4 pb-4 pt-1">
+      <div className="grid grid-cols-7 gap-1.5" data-testid="plan-week-strip">
+        {days.map(d => {
+          const now = d.date === today;
+          const done = practiced?.has(d.date) ?? false;
+          return (
+            <div
+              key={d.date}
+              className={`flex flex-col rounded-2xl border py-1.5 text-center text-[13px] font-bold tabular-nums ${
+                now ? 'border-transparent bg-ledo-accent text-white' : done ? 'border-transparent bg-ledo-ok text-ledo-ink' : 'border-ledo-line text-ledo-ink'
+              }`}
+            >
+              {d.n}
+              <small className={`text-xs font-medium ${now ? 'text-white' : 'text-ledo-ink-2'}`}>{d.w}</small>
+            </div>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Tile tone="mild" value={PLAN_PAGE.arrange[0].big} label={LEDO_PLAN.perDay} note={perDayNote} />
+        <div className="row-span-2 flex flex-col items-center gap-1 rounded-3xl bg-ledo-accent-soft p-3.5 text-ledo-accent-soft-ink" data-testid="plan-practiced">
+          <span className="self-start text-xs font-bold">{PLAN_PAGE.barLabel}</span>
+          <svg viewBox="0 0 80 80" width="88" height="88" className="my-auto" aria-hidden={practicedOf === null}>
+            <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(255,255,255,.75)" strokeWidth="8" />
+            <circle cx="40" cy="40" r={r} fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={c} strokeDashoffset={c * (1 - ratio)} transform="rotate(-90 40 40)" />
+            {practicedOf && (
+              <text x="40" y="46" textAnchor="middle" fontSize="16" fontWeight="900" fill="currentColor">{practicedOf.done}/{practicedOf.total}</text>
+            )}
+          </svg>
+          <span className="text-center text-xs">{weekLabel}</span>
+        </div>
+        <Tile tone={focusCount > 0 ? 'more' : 'ok'} value={focusCount} label={LEDO_PLAN.focus} note={focusName || undefined} />
+      </div>
+    </div>
+  );
+}
+
 export default function PlanScreen() {
   const { data, nav, findings, childName, onBookService, onReassess } = useTraining();
   const steps = useRef<Array<HTMLElement | null>>([]);
@@ -431,6 +495,7 @@ export default function PlanScreen() {
   const focusTitles = focus ? titlesOf(picks, focus.dimensionId) : [];
   const practicedDays = data.checkins ? new Set(data.checkins.map(c => c.checkinDate)) : null;
   const range = weekRangeLabel(plan.weekStart, plan.weekEnd);
+  const ledo = PRODUCT.features.ledo;
 
   const noteFor = (dimension: DimensionCode) => {
     const titles = titlesOf(picks, dimension);
@@ -447,6 +512,19 @@ export default function PlanScreen() {
         onRight={onReassess}
       />
       <div className="flex-1 overflow-y-auto training-no-scrollbar pb-28">
+        {ledo ? (
+          <LedoPlanTop
+            weekStart={plan.weekStart}
+            today={data.today}
+            practiced={practicedDays}
+            perDayNote={PLAN_PAGE.arrange[0].note.split('\n')[0]}
+            practicedOf={practice ? { done: practice.planPracticed, total: practice.planTotal } : null}
+            weekLabel={`${planWeekLabel(position)}${push ? PUSH_PAGE.periodSuffix(push.periodNo) : ''}`}
+            focusCount={summary.flagged.length}
+            focusName={focus ? SITE_DIMENSION_NAME[focus.dimensionId] : ''}
+          />
+        ) : (
+          <>
         {/* 頭（樣品的頭圖不上：沒有圖就是深綠底） */}
         <div className="relative bg-brand-forest text-white overflow-hidden">
           <CircleCheck size={180} aria-hidden="true" className="absolute -right-10 -top-6 text-white/5" />
@@ -488,18 +566,22 @@ export default function PlanScreen() {
           </div>
         </section>
 
+          </>
+        )}
+
         {/* v3：这一期练哪几块（能力表、约专家那一句、怎么带最有效） */}
         {push && <AbilityTable push={push} />}
 
         {/* 这周练哪几块 */}
-        {picks.length > 0 && (
+        {!ledo && picks.length > 0 && (
           <section className="bg-white px-4 pt-3 pb-5">
             <h3 className="text-[19px] font-bold text-brand-forest">{PLAN_PAGE.sharesTitle}</h3>
             <ShareBar picks={picks} />
           </section>
         )}
 
-        {/* 我的评估结果（報告快照） */}
+        {/* 我的评估结果（報告快照）；Ledo 版改成上面的色塊，這一段不出 */}
+        {!ledo && (
         <section className="bg-white px-4 pt-3 pb-5">
           <h3 className="text-[19px] font-bold text-brand-forest">{PLAN_PAGE.resultsTitle}</h3>
           <div className="mt-3 rounded-2xl bg-gradient-to-br from-brand-sage via-white to-brand-sand px-4 pt-4 pb-3">
@@ -542,6 +624,7 @@ export default function PlanScreen() {
             <ChevronRight size={14} />
           </button>
         </section>
+        )}
 
         {/* 本周活动 */}
         <section className="bg-white mt-2 px-4 pt-5 pb-5">
@@ -549,6 +632,23 @@ export default function PlanScreen() {
             <h3 className="text-[19px] font-bold text-brand-forest">{PLAN_PAGE.weekTitle}</h3>
             {range && <span className="text-[12px] text-brand-charcoal/80">{range}</span>}
           </div>
+          {ledo ? (
+            <div className="mt-3 space-y-2.5">
+              {picks.map(({ activity: a, dimension, push: mark }) => {
+                const n = practice?.timesByActivity[a.id] ?? 0;
+                return (
+                  <ListRow
+                    key={a.id}
+                    avatar={a.posterUrl ? <Avatar img={a.posterUrl} /> : <Avatar tone="acc" text={a.title.slice(0, 1)} />}
+                    title={a.title}
+                    sub={[SITE_DIMENSION_NAME[dimension], mark ? VARIANT_LABEL[mark.variant] : '', n > 0 ? practicedBadge(n) : ''].filter(Boolean).join(' · ')}
+                    right={<PlayButton size="sm" />}
+                    onClick={() => nav.openPage({ name: 'detail', id: a.id, from: 'plan' })}
+                  />
+                );
+              })}
+            </div>
+          ) : (
           <ul className="mt-4 space-y-3.5">
             {picks.map(({ activity: a, dimension, push: mark }) => {
               const n = practice?.timesByActivity[a.id] ?? 0;
@@ -584,6 +684,7 @@ export default function PlanScreen() {
               );
             })}
           </ul>
+          )}
         </section>
 
         {/* 家长最常问的四件事：四個問題當目錄（常見問題的人像不上） */}
@@ -673,7 +774,7 @@ export default function PlanScreen() {
       {/* 底部固定列：本周练过的活动 x/N（舊週次 4、v3 每週 3 或 2）＋ 开始今天的活动 */}
       {next && (
         <div className="absolute bottom-0 inset-x-0 bg-white border-t border-black/5 px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] flex items-center gap-4">
-          {practice && (
+          {practice && !ledo && (
             <div className="leading-tight" data-testid="plan-practiced">
               <p className="text-[22px] font-black text-brand-forest tabular-nums">
                 {practice.planPracticed}/{practice.planTotal}
@@ -684,7 +785,9 @@ export default function PlanScreen() {
           <button
             type="button"
             onClick={() => nav.openPage({ name: 'detail', id: next.activity.id, from: 'plan' })}
-            className="flex-1 h-12 rounded-full bg-gradient-to-r from-brand-sand to-brand-clay text-brand-forest font-bold text-[16px] cursor-pointer active:scale-[0.99] transition"
+            className={ledo
+              ? 'flex-1 h-12 rounded-full bg-ledo-bar text-white font-black text-[15px] cursor-pointer active:scale-[0.99] transition'
+              : 'flex-1 h-12 rounded-full bg-gradient-to-r from-brand-sand to-brand-clay text-brand-forest font-bold text-[16px] cursor-pointer active:scale-[0.99] transition'}
           >
             {PLAN_PAGE.start}
           </button>

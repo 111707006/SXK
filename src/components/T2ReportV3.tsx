@@ -19,6 +19,7 @@ import {
 } from '../t2/reportCopyV3';
 import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
 import { STATUS_CLASS } from './reportStatusClass';
+import { STATUS_TONE, TONE, isLedoPage } from './ledo/ui';
 import PrintButton from './PrintButton';
 import ScaleDetailCard from './ScaleDetailCard';
 import type { T2ReportActions } from './T2Report';
@@ -163,6 +164,30 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
             ? `这份报告整理自近 3 个月填写的 ${doneNames.length} 份问卷：${doneNames.join('、')}。`
             : '近 3 个月还没有填写完的问卷，下面先按筛查结果列出各方面。'}
         </p>
+        {isLedoPage() ? (
+          // Ledo 版（設計稿第 9 頁）：九宮格當摘要，一格只放方面與狀態；沒判定的那幾格的說明列在下面，字不丟。
+          <>
+            <ul className="grid grid-cols-3 gap-1.5" id="t2v3-dimension-grid">
+              {grid.map(d => {
+                const s = dimensionStatus(d, ageMonth);
+                const tone = s.kind === 'band' ? STATUS_TONE[s.status] : 'field';
+                return (
+                  <li key={d.dimensionId} data-band={d.band} className={`flex min-w-0 flex-col gap-0.5 rounded-[18px] p-2.5 ${TONE[tone].bg} ${TONE[tone].ink}`}>
+                    <span className="text-xs font-bold text-ledo-ink">{SITE_DIMENSION_NAME[d.dimensionId]}</span>
+                    <span className="text-xs">{s.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {grid.some(d => dimensionStatus(d, ageMonth).kind !== 'band') && (
+              <ul className="space-y-1 text-xs leading-relaxed text-ledo-ink-2">
+                {grid.filter(d => dimensionStatus(d, ageMonth).kind !== 'band').map(d => (
+                  <li key={d.dimensionId}>{SITE_DIMENSION_NAME[d.dimensionId]}：{dimensionStatus(d, ageMonth).tag}</li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2" id="t2v3-dimension-grid">
           {grid.map(d => {
             const s = dimensionStatus(d, ageMonth);
@@ -178,6 +203,7 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
             );
           })}
         </ul>
+        )}
       </section>
 
       {/* 2. 逐維度：留意／關注的維度各一段（prose 有才出） */}

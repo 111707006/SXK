@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, FileText, Layers, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
+import { PRODUCT } from '../productConfig';
+import { Avatar, Chip, LEDO_ART, ListRow, PlayButton } from './ledo/ui';
 import { authFetch } from '../utils/api';
 import { formatAge } from '../utils/dateUtils';
 import { raterOptions, raterPayload } from '../t2/raterV2';
@@ -198,8 +200,12 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     </button>
   );
 
+  // Ledo 版（設計稿第 7、8 頁）：外框、選項、清單換畫法；清單、作答、交卷的邏輯與舊版同一份。
+  const ledo = PRODUCT.features.ledo;
   const shell = (children: React.ReactNode, back: React.ReactNode) => (
-    <div className="bg-white rounded-3xl border border-brand-stone p-6 md:p-8 max-w-3xl mx-auto shadow-sm text-left">
+    <div className={ledo
+      ? 'bg-white rounded-[32px] p-4 sm:p-6 max-w-xl mx-auto shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left'
+      : 'bg-white rounded-3xl border border-brand-stone p-6 md:p-8 max-w-3xl mx-auto shadow-sm text-left'}>
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
         {back}
         <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
@@ -211,7 +217,11 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
   );
 
   const choice = (on: boolean) =>
-    on
+    ledo
+      ? on
+        ? '!rounded-[18px] border-[1.5px] border-ledo-accent bg-ledo-accent text-white font-bold [&>span:nth-child(2)]:!text-white/85'
+        : '!rounded-[18px] border-[1.5px] border-ledo-line bg-white text-ledo-ink font-bold'
+      : on
       ? 'border-brand-moss bg-brand-sage text-brand-forest font-semibold shadow-sm'
       : 'border-brand-stone/40 bg-brand-cream/15 hover:bg-brand-cream/50 text-brand-charcoal/80 font-medium';
 
@@ -309,7 +319,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
                   const chosen = answers[item.key];
                   const wide = !!item.anchors || section.options.some(o => o.hint) || section.options.length > 4;
                   return (
-                    <div key={item.key} className="p-4 bg-white border border-brand-stone rounded-2xl space-y-3 hover:border-brand-moss/40 transition">
+                    <div key={item.key} className={ledo ? 'p-4 bg-ledo-accent-soft rounded-3xl space-y-3' : 'p-4 bg-white border border-brand-stone rounded-2xl space-y-3 hover:border-brand-moss/40 transition'}>
                       <div className="flex gap-2.5">
                         <span className="text-xs font-bold text-brand-charcoal/80 bg-brand-cream border border-brand-stone/30 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                           {no}
@@ -381,6 +391,14 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
 
   return shell(
     <div className="space-y-5">
+      {ledo && (
+        <div className="relative aspect-video w-full overflow-hidden rounded-[28px] bg-ledo-mild">
+          <img src={LEDO_ART.deepAssessment} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <span className="absolute inset-x-3 bottom-3 flex">
+            <Chip tone="white">已完成 {doneCount} / {tools.length} 份{plan.totalMinutes > 0 ? ` · 约 ${plan.totalMinutes} 分钟` : ''}</Chip>
+          </span>
+        </div>
+      )}
       <div className="space-y-1">
         <h2 className="text-sm font-extrabold text-brand-forest">逐份作答</h2>
         <p className="text-xs text-brand-charcoal/80 leading-relaxed">
@@ -401,6 +419,24 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
       {bySession.map(g => (
         <section key={g.title} className="space-y-2">
           <div className="text-xs font-bold text-brand-charcoal/80 uppercase tracking-wider">{g.title}</div>
+          {ledo ? (
+            <div className="space-y-2.5">
+              {g.items.map(t => {
+                const when = completed[t.code];
+                return (
+                  <ListRow
+                    key={t.code}
+                    id={`t2v3-open-${t.code}`}
+                    avatar={<Avatar tone={when ? 'ok' : 'mild'} text={when ? <Check size={18} /> : t.name.slice(0, 1)} />}
+                    title={t.name}
+                    sub={when ? `已完成 · ${formatDay(when)}` : [t.rater, t.minutes ? `约 ${t.minutes} 分钟` : null].filter(Boolean).join(' · ')}
+                    right={when ? <Chip tone="ok">再做一次</Chip> : <PlayButton size="sm" />}
+                    onClick={() => openTool(t)}
+                  />
+                );
+              })}
+            </div>
+          ) : (
           <ul className="space-y-2">
             {g.items.map(t => {
               const when = completed[t.code];
@@ -437,6 +473,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
               );
             })}
           </ul>
+          )}
         </section>
       ))}
 
@@ -462,7 +499,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
             onClick={() => onOpenReport(true)}
             // 一份都沒做不能生成（伺服器也回 409，審查 #8）
             disabled={doneCount === 0}
-            className="px-5 py-2.5 rounded-xl bg-brand-forest hover:bg-brand-forest/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-forest/20 active:scale-[0.98] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+            className={ledo
+              ? 'px-6 py-3 rounded-full bg-ledo-bar text-white text-sm font-black flex items-center gap-1.5 active:scale-[0.98] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100'
+              : 'px-5 py-2.5 rounded-xl bg-brand-forest hover:bg-brand-forest/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-forest/20 active:scale-[0.98] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100'}
           >
             <Sparkles size={13} />
             生成报告

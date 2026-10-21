@@ -19,6 +19,14 @@ export const LEDO_ART = {
   offline: '/ledo/offline-c.jpg',
 } as const;
 
+/**
+ * 這一頁是不是 Ledo 版（`main.tsx` 只在家長端與掃碼頁掛 `data-ui="ledo"`）。後台與家長端共用的元件
+ * （T2 報告的快照、報告本體）用它分流 —— 只看建置開關的話，A 的後台也會跟著換。
+ */
+export function isLedoPage(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.ui === 'ledo';
+}
+
 /** 判定三色（ok／mild／more）＋鋼藍、薰衣草、淺灰：色塊與頭像底色。 */
 export type Tone = 'ok' | 'mild' | 'more' | 'acc' | 'lav' | 'field';
 

@@ -36,6 +36,7 @@ const HomePage = lazy(() => import('./home/HomePage'));
 const OfflineServicePage = lazy(() => import('./home/OfflineServicePage'));
 // Ledo 版首頁（`PRODUCT.features.ledo`）：B 沒有首頁，A 的建置才會載入它。
 const LedoHomePage = lazy(() => import('./home/LedoHomePage'));
+import LedoDashboard from './components/ledo/LedoDashboard';
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
@@ -881,6 +882,34 @@ export default function App() {
    */
   const isRouteBlocked = t2Access === 'locked';
 
+  /** 評估面板（舊版 `DimensionGrid` 與 Ledo 版 `LedoDashboard` 共用）：點一個方面。 */
+  const selectDashboardDimension = (dimId: string) => {
+    // 去向由 productConfig 決定，不在這裡判斷模式：
+    // A → 即時 T1 報告（T2 入口在那裡，票 #56）；B → 報告頁的專家預約區塊。
+    //
+    // 2026-09-13 起 A 不再進舊的逐維度 T3 面板（`AssessmentPanel`）：T2 v2 是整份作答、
+    // 入口只掛在即時報告上，卡片再導去 T3 會讓家長在兩條互不相通的深測路之間迷路。
+    // T3 面板與 `enterDimension` 都留著，語言專項仍走它；T3 何時回來、怎麼接 T2，另議。
+    setViewingLiveT1(true);
+    setT1ReportGenerate(false);
+    setActiveT1Record(null);
+    setActiveSpecializedRecordId(null);
+    setFocusBooking(PRODUCT.nextStep.action === 'contact_expert');
+    setCurrentView('report');
+  };
+
+  /** 評估面板：生成 AI 報告。 */
+  const viewDashboardReport = () => {
+    // Jump straight to the live T1 AI report page, skipping the archive/library page.
+    // 按鈕寫的是「生成」：到了就生成，不再要家長按第二次（已有同分數的報告則直接顯示）。
+    setViewingLiveT1(true);
+    setActiveT1Record(null);
+    setActiveSpecializedRecordId(null);
+    setFocusBooking(false); setFocusT2(false);
+    setT1ReportGenerate(true);
+    setCurrentView('report');
+  };
+
   /**
    * 導覽列的幾個去處。頁首那一排（桌機；舊版連手機也是）與 Ledo 版手機的底欄（`LedoTabBar`）畫的是同一份，
    * 點下去做的事只寫在這裡一次。`short` 是底欄的字（底欄放不下「评估面板 (9维)」）。
@@ -1353,6 +1382,17 @@ export default function App() {
               <LazyBoundary>
                 <OfflineServicePage onBack={() => setCurrentView('home')} />
               </LazyBoundary>
+            ) : currentView === 'dashboard' && PRODUCT.features.ledo ? (
+              <div className="space-y-4">
+                <AgeBandDriftNotice drift={bandDrift} onStartT1Screening={() => setCurrentView('t1_screening')} />
+                <LedoDashboard
+                  childName={child.name}
+                  completedScores={completedScores}
+                  onSelectDimension={selectDashboardDimension}
+                  onViewReport={viewDashboardReport}
+                  onStartT1Screening={() => setCurrentView('t1_screening')}
+                />
+              </div>
             ) : currentView === 'dashboard' ? (
               <div className="space-y-8 animate-fade-in">
                 {/* Visual Hero Banner */}
@@ -1390,31 +1430,9 @@ export default function App() {
 
                 <DimensionGrid
                   completedScores={completedScores}
-                  onSelectDimension={(dimId) => {
-                    // 去向由 productConfig 決定，不在這裡判斷模式：
-                    // A → 即時 T1 報告（T2 入口在那裡，票 #56）；B → 報告頁的專家預約區塊。
-                    //
-                    // 2026-09-13 起 A 不再進舊的逐維度 T3 面板（`AssessmentPanel`）：T2 v2 是整份作答、
-                    // 入口只掛在即時報告上，卡片再導去 T3 會讓家長在兩條互不相通的深測路之間迷路。
-                    // T3 面板與 `enterDimension` 都留著，語言專項仍走它；T3 何時回來、怎麼接 T2，另議。
-                    setViewingLiveT1(true);
-                    setT1ReportGenerate(false);
-                    setActiveT1Record(null);
-                    setActiveSpecializedRecordId(null);
-                    setFocusBooking(PRODUCT.nextStep.action === 'contact_expert');
-                    setCurrentView('report');
-                  }}
+                  onSelectDimension={selectDashboardDimension}
                   deepAssessmentLocked={deepAssessmentLocked}
-                  onViewReport={() => {
-                    // Jump straight to the live T1 AI report page, skipping the archive/library page.
-                    // 按鈕寫的是「生成」：到了就生成，不再要家長按第二次（已有同分數的報告則直接顯示）。
-                    setViewingLiveT1(true);
-                    setActiveT1Record(null);
-                    setActiveSpecializedRecordId(null);
-                    setFocusBooking(false); setFocusT2(false);
-                    setT1ReportGenerate(true);
-                    setCurrentView('report');
-                  }}
+                  onViewReport={viewDashboardReport}
                   onStartT1Screening={() => setCurrentView('t1_screening')}
                 />
               </div>

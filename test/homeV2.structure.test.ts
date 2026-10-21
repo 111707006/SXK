@@ -39,8 +39,9 @@ describe('只在專案 A', () => {
 
 describe('開關關著：畫面一行不動', () => {
   it('首頁、線下服務點頁只在 homeV2 時畫', () => {
-    for (const m of app.matchAll(/<HomePage\b/g)) {
-      const before = app.slice(Math.max(0, m.index! - 200), m.index!);
+    // Ledo 版（`PRODUCT.features.ledo`）在同一個分支裡挑新舊首頁，所以往前看遠一點。
+    for (const m of app.matchAll(/<(?:Ledo)?HomePage\b/g)) {
+      const before = app.slice(Math.max(0, m.index! - 600), m.index!);
       expect(before).toMatch(/homeV2/);
     }
     expect(app).toMatch(/currentView === 'offline_service' && homeV2/);
@@ -48,16 +49,18 @@ describe('開關關著：畫面一行不動', () => {
   });
 
   it('導覽列的「首页」與頁首的登录／注册都包在 homeV2 後面', () => {
-    const nav = app.indexOf('id="nav-home-btn"');
+    // 導覽的幾個去處是一份清單（`navItems`，頁首與 Ledo 底欄共用），「首页」那一項包在 homeV2 後面。
+    const nav = app.indexOf("id: 'nav-home-btn'");
     expect(nav).toBeGreaterThan(0);
-    expect(app.slice(nav - 300, nav)).toMatch(/\{homeV2 && \(/);
+    expect(app.slice(nav - 300, nav)).toMatch(/\.\.\.\(homeV2\s*\?/);
     const login = app.indexOf('id="header-login-btn"');
     expect(login).toBeGreaterThan(0);
     expect(app.slice(login - 400, login)).toMatch(/homeV2 && !userIdentity/);
   });
 
   it('「首页」在導覽列最前面，「评估面板 (9维)」保留', () => {
-    expect(app.indexOf('id="nav-home-btn"')).toBeLessThan(app.indexOf('id="nav-dashboard-btn"'));
+    expect(app.indexOf("id: 'nav-home-btn'")).toBeGreaterThan(0);
+    expect(app.indexOf("id: 'nav-home-btn'")).toBeLessThan(app.indexOf("id: 'nav-dashboard-btn'"));
     expect(app).toContain('评估面板 (9维)');
   });
 

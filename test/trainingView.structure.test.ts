@@ -99,7 +99,7 @@ describe('導覽只經過 layerStack', () => {
 
     const app = stripComments(read('src/App.tsx'));
     expect(app).toContain("lazy(() => import('./components/training/TrainingPage'))");
-    expect(app).toContain('id="nav-training-btn"');
+    expect(app).toContain("id: 'nav-training-btn'");
     expect(app).toMatch(/currentView === 'training' && PRODUCT\.features\.tier2And3/);
     // 報告第六段的連結帶到同一頁
     expect(app).toContain("onOpenTraining={() => setCurrentView('training')}");

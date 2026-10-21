@@ -34,6 +34,8 @@ const TrainingPage = lazy(() => import('./components/training/TrainingPage'));
 // 新版首頁（`HOME_V2`，issue #72）也只在 A：B 的 `PRODUCT.features.home` 是 false，永遠走不到。
 const HomePage = lazy(() => import('./home/HomePage'));
 const OfflineServicePage = lazy(() => import('./home/OfflineServicePage'));
+// Ledo 版首頁（`PRODUCT.features.ledo`）：B 沒有首頁，A 的建置才會載入它。
+const LedoHomePage = lazy(() => import('./home/LedoHomePage'));
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
@@ -46,6 +48,7 @@ import type { ServiceType } from './utils/serviceTypes';
 import { DEFAULT_UNLOCK_PRICE_FEN } from './utils/price';
 import { BeianFooter } from './components/BeianFooter';
 import { BrandMark } from './components/BrandMark';
+import LedoTabBar, { type NavItem } from './components/ledo/LedoTabBar';
 import { HOME_COPY, openHomeCard, viewAfterLogin, readHomeV2Hint, writeHomeV2Hint, type HomeTarget } from './home/homeNav';
 // 條款內文的唯一來源。登入頁（AuthScreen）渲染的是同一份 —— 見該檔說明。
 import { ServiceTerms, PrivacyTerms, LegalFooterLine } from './components/LegalTerms';
@@ -878,6 +881,56 @@ export default function App() {
    */
   const isRouteBlocked = t2Access === 'locked';
 
+  /**
+   * 導覽列的幾個去處。頁首那一排（桌機；舊版連手機也是）與 Ledo 版手機的底欄（`LedoTabBar`）畫的是同一份，
+   * 點下去做的事只寫在這裡一次。`short` 是底欄的字（底欄放不下「评估面板 (9维)」）。
+   */
+  const navItems: NavItem[] = [
+    ...(homeV2
+      ? [{
+          key: 'home', id: 'nav-home-btn', label: HOME_COPY.navLabel, short: HOME_COPY.navLabel, icon: Home,
+          active: currentView === 'home' || currentView === 'offline_service',
+          onClick: () => { setCurrentView('home'); setSelectedDimensionId(null); },
+        }]
+      : []),
+    {
+      key: 'dashboard', id: 'nav-dashboard-btn', label: '评估面板 (9维)', short: '评估', icon: BarChart3,
+      active: currentView === 'dashboard' || currentView === 'assessment',
+      onClick: () => { dashboardChosenRef.current = true; setCurrentView('dashboard'); setSelectedDimensionId(null); },
+    },
+    {
+      key: 'report', id: 'nav-report-btn', label: '评估报告', short: '报告', icon: FileText,
+      active: currentView === 'report', disabled: completedScores.length === 0,
+      onClick: () => {
+        setCurrentView('report');
+        setSelectedDimensionId(null);
+        setViewingLiveT1(false);
+        setActiveT1Record(null);
+        setActiveSpecializedRecordId(null);
+        // 從導覽列進來是「我要看報告」，不是「帶我去預約」。這一行少了
+        // 的話，按過一次干預包的「联系专家」之後，此後每一份報告都會
+        // 自己捲到最底下的預約區塊 —— 而家長沒有要求過那件事。
+        setFocusBooking(false); setFocusT2(false);
+      },
+    },
+    // 线上干预（2026-09-28 使用者：不放在報告裡，從這裡另外開）。只有專案 A 有深度評估，
+    // 也就只有 A 有這一頁；沒解鎖、沒報告時頁面自己說要先做什麼。
+    ...(PRODUCT.features.tier2And3
+      ? [{
+          key: 'training', id: 'nav-training-btn', label: TRAINING_PAGE.navLabel, short: TRAINING_PAGE.navLabel, icon: CalendarCheck,
+          active: currentView === 'training', disabled: completedScores.length === 0,
+          onClick: () => { setCurrentView('training'); setSelectedDimensionId(null); },
+        }]
+      : []),
+    ...(PRODUCT.features.mall
+      ? [{
+          key: 'mall', id: 'nav-mall-btn', label: '商城', short: '商城', icon: ShoppingBag,
+          active: currentView === 'mall',
+          onClick: () => { setCurrentView('mall'); setSelectedDimensionId(null); },
+        }]
+      : []),
+  ];
+
   return (
     <div className="min-h-screen bg-brand-cream text-brand-charcoal font-sans flex flex-col justify-between">
       
@@ -887,8 +940,8 @@ export default function App() {
           平板（640–1023px）也上下兩列：標題一列、導覽＋孩子一列。原本 sm 就並排，820px 寬時標題擠成兩行、
           孩子的選單掉到導覽底下（2026-09-29 三種寬度截圖時看到的）。
         */}
-        {/* 新版首頁、未登入：標題與「登录、注册」手機上也同一列（客戶示意圖）；其他情況照舊。 */}
-        <div className={homeV2 && !userIdentity ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-row items-center justify-between gap-3' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4'}>
+        {/* 新版首頁、未登入：標題與「登录、注册」手機上也同一列（客戶示意圖）；Ledo 版手機的導覽在底欄，頁首只剩標題與孩子，也一列。其他情況照舊。 */}
+        <div className={(homeV2 && !userIdentity) || PRODUCT.features.ledo ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-row items-center justify-between gap-3' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4'}>
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 bg-brand-moss rounded-xl flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-moss/10 scale-105">
               <BrandMark />
@@ -896,7 +949,7 @@ export default function App() {
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
                 {/* 新版首頁開著時頁首寫客戶示意圖上那一行（規格 §5.1）；關著照舊是系統名。 */}
-                <h1 className="text-base font-extrabold font-sans text-brand-forest tracking-tight">{homeV2 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}</h1>
+                <h1 className={`text-base font-extrabold font-sans text-brand-forest tracking-tight${PRODUCT.features.ledo && child ? ' max-sm:sr-only' : ''}`}>{homeV2 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}</h1>
                 {/*
                   建置模式標記 —— 2026-09-10 起**不顯示在畫面上**。
 
@@ -933,106 +986,24 @@ export default function App() {
                 新版首頁開著時多一顆「首页」（五顆）：375px 一行放不下就橫捲（`overflow-x-auto`），不換行、不縮字。
                 關著照舊（class 一字不差）。
               */}
-              <nav className={homeV2 ? 'flex max-w-full overflow-x-auto bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40' : 'flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40'}>
-                {homeV2 && (
+              <nav className={`${homeV2 ? 'flex max-w-full overflow-x-auto bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40' : 'flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40'}${PRODUCT.features.ledo ? ' max-lg:hidden' : ''}`}>
+                {navItems.map(item => (
                   <button
-                    id="nav-home-btn"
-                    onClick={() => {
-                      setCurrentView('home');
-                      setSelectedDimensionId(null);
-                    }}
-                    className={`shrink-0 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
-                      currentView === 'home' || currentView === 'offline_service'
-                        ? 'bg-white text-brand-forest shadow-sm font-extrabold'
-                        : 'text-brand-charcoal/80 hover:text-brand-forest'
-                    }`}
+                    key={item.key}
+                    id={item.id}
+                    disabled={item.disabled}
+                    onClick={item.onClick}
+                    className={[
+                      item.key === 'home' && 'shrink-0',
+                      'px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1',
+                      item.disabled && 'opacity-40 cursor-not-allowed',
+                      item.active ? 'bg-white text-brand-forest shadow-sm font-extrabold' : 'text-brand-charcoal/80 hover:text-brand-forest',
+                    ].filter(Boolean).join(' ')}
                   >
-                    <Home size={12} className="hidden sm:block" />
-                    {HOME_COPY.navLabel}
+                    <item.icon size={12} className="hidden sm:block" />
+                    {item.label}
                   </button>
-                )}
-                <button
-                  id="nav-dashboard-btn"
-                  onClick={() => {
-                    dashboardChosenRef.current = true;
-                    setCurrentView('dashboard');
-                    setSelectedDimensionId(null);
-                  }}
-                  className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
-                    currentView === 'dashboard' || currentView === 'assessment'
-                      ? 'bg-white text-brand-forest shadow-sm font-extrabold'
-                      : 'text-brand-charcoal/80 hover:text-brand-forest'
-                  }`}
-                >
-                  <BarChart3 size={12} className="hidden sm:block" />
-                  评估面板 (9维)
-                </button>
-                <button
-                  id="nav-report-btn"
-                  disabled={completedScores.length === 0}
-                  onClick={() => {
-                    setCurrentView('report');
-                    setSelectedDimensionId(null);
-                    setViewingLiveT1(false);
-                    setActiveT1Record(null);
-                    setActiveSpecializedRecordId(null);
-                    // 從導覽列進來是「我要看報告」，不是「帶我去預約」。這一行少了
-                    // 的話，按過一次干預包的「联系专家」之後，此後每一份報告都會
-                    // 自己捲到最底下的預約區塊 —— 而家長沒有要求過那件事。
-                    setFocusBooking(false); setFocusT2(false);
-                  }}
-                  className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
-                    completedScores.length === 0 ? 'opacity-40 cursor-not-allowed' : ''
-                  } ${
-                    currentView === 'report'
-                      ? 'bg-white text-brand-forest shadow-sm font-extrabold'
-                      : 'text-brand-charcoal/80 hover:text-brand-forest'
-                  }`}
-                >
-                  <FileText size={12} className="hidden sm:block" />
-                  评估报告
-                </button>
-                {/*
-                  线上干预（2026-09-28 使用者：不放在報告裡，從這裡另外開）。只有專案 A 有深度評估，
-                  也就只有 A 有這一頁；沒解鎖、沒報告時頁面自己說要先做什麼。
-                */}
-                {PRODUCT.features.tier2And3 && (
-                  <button
-                    id="nav-training-btn"
-                    disabled={completedScores.length === 0}
-                    onClick={() => {
-                      setCurrentView('training');
-                      setSelectedDimensionId(null);
-                    }}
-                    className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
-                      completedScores.length === 0 ? 'opacity-40 cursor-not-allowed' : ''
-                    } ${
-                      currentView === 'training'
-                        ? 'bg-white text-brand-forest shadow-sm font-extrabold'
-                        : 'text-brand-charcoal/80 hover:text-brand-forest'
-                    }`}
-                  >
-                    <CalendarCheck size={12} className="hidden sm:block" />
-                    {TRAINING_PAGE.navLabel}
-                  </button>
-                )}
-                {PRODUCT.features.mall && (
-                  <button
-                    id="nav-mall-btn"
-                    onClick={() => {
-                      setCurrentView('mall');
-                      setSelectedDimensionId(null);
-                    }}
-                    className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 ${
-                      currentView === 'mall'
-                        ? 'bg-white text-brand-forest shadow-sm font-extrabold'
-                        : 'text-brand-charcoal/80 hover:text-brand-forest'
-                    }`}
-                  >
-                    <ShoppingBag size={12} className="hidden sm:block" />
-                    商城
-                  </button>
-                )}
+                ))}
               </nav>
 
               {/* Interactive Customer Dropdown Service Center */}
@@ -1310,7 +1281,7 @@ export default function App() {
             )}
             {homeV2 && !homeLoginOpen ? (
               <LazyBoundary>
-                <HomePage onOpen={openHomeTarget} />
+                {PRODUCT.features.ledo ? <LedoHomePage onOpen={openHomeTarget} /> : <HomePage onOpen={openHomeTarget} />}
               </LazyBoundary>
             ) : (
               <>
@@ -1367,7 +1338,16 @@ export default function App() {
             
             {currentView === 'home' && homeV2 ? (
               <LazyBoundary>
-                <HomePage onOpen={openHomeTarget} />
+                {PRODUCT.features.ledo ? (
+                  <LedoHomePage
+                    onOpen={openHomeTarget}
+                    childName={child?.name}
+                    scores={completedScores}
+                    onOpenReport={completedScores.length > 0 ? navItems.find(i => i.key === 'report')?.onClick : undefined}
+                  />
+                ) : (
+                  <HomePage onOpen={openHomeTarget} />
+                )}
               </LazyBoundary>
             ) : currentView === 'offline_service' && homeV2 ? (
               <LazyBoundary>
@@ -1775,7 +1755,9 @@ export default function App() {
       </main>
 
       {/* Aesthetic footer */}
-      <footer className="bg-white border-t border-brand-stone/60 py-6 mt-16 text-center text-xs text-brand-charcoal/80 font-medium relative z-10">
+      {PRODUCT.features.ledo && child && <LedoTabBar items={navItems} />}
+
+      <footer className={`bg-white border-t border-brand-stone/60 py-6 mt-16${PRODUCT.features.ledo && child ? ' max-lg:pb-28' : ''} text-center text-xs text-brand-charcoal/80 font-medium relative z-10`}>
         <div className="max-w-7xl mx-auto px-4 space-y-2">
           <p>{PRODUCT.brand.copyright}</p>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">

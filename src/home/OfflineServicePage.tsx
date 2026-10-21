@@ -1,6 +1,6 @@
 import { ArrowLeft, ChevronLeft } from 'lucide-react';
 import { PRODUCT } from '../productConfig';
-import { serviceTypeDescriptors } from '../utils/serviceTypes';
+import { describeServiceType } from '../utils/serviceTypes';
 import { Chip, Greeting, Tile } from '../components/ledo/ui';
 import { HOME_COPY } from './homeNav';
 import { HOSPITAL_PHOTO, Photo } from './HomePage';
@@ -42,7 +42,8 @@ export default function OfflineServicePage({ onBack }: { onBack: () => void }) {
  * 不另寫還沒定的細節）。設計稿的「开放时通知我」是新功能、要客戶點頭，先不做。
  */
 function LedoOffline({ onBack }: { onBack: () => void }) {
-  const offline = serviceTypeDescriptors().filter(d => d.venue === 'offline');
+  // 不自己走訪四種服務（護欄 serviceChoices.test）：線下就是這兩種，點名取它們的名稱
+  const offline = (['offline_training', 'offline_consult'] as const).map(describeServiceType);
   return (
     <div id="offline-service-page" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
       <div className="grid grid-cols-[36px_1fr_36px] items-center gap-2">

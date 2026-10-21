@@ -398,6 +398,24 @@ export const adminApi = {
       xhr.send(body);
     }),
 
+  // 分解步驟的配圖（2026-10-21）：一張 jpeg，`step` 從 1 起。回整支活動（那一步的 imageUrl 已換好）。
+  uploadStepImage: async (id: string, step: number, body: Blob) => {
+    const token = getAdminToken();
+    const resp = await fetch(`/api/admin/activities/${encodeURIComponent(id)}/steps/${step}/image`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body,
+    });
+    let parsed: any = {};
+    try {
+      parsed = await resp.json();
+    } catch {
+      // 反向代理回的 HTML
+    }
+    if (!resp.ok) throw new AdminApiError(parsed.error || `上传失败（HTTP ${resp.status}）`, (parsed.code as AdminErrorCode) || 'UNKNOWN', resp.status);
+    return parsed as { activity: Activity };
+  },
+
   // 批量匯入（v2.1 S25）：先 dryRun 試跑、給人看過，再同一份 rows 正式匯入。
   importActivities: (rows: unknown[], dryRun: boolean) =>
     request<ActivityImportReport>('/activities/import', {

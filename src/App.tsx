@@ -37,6 +37,7 @@ const OfflineServicePage = lazy(() => import('./home/OfflineServicePage'));
 // Ledo 版首頁（`PRODUCT.features.ledo`）：B 沒有首頁，A 的建置才會載入它。
 const LedoHomePage = lazy(() => import('./home/LedoHomePage'));
 import LedoDashboard from './components/ledo/LedoDashboard';
+import LedoReportLibrary from './components/ledo/LedoReportLibrary';
 
 import LazyBoundary from './components/LazyBoundary';
 import { generateSpecializedReportRecord } from './utils/reportUtils';
@@ -1525,6 +1526,18 @@ export default function App() {
                     onOpenTraining={PRODUCT.features.tier2And3 ? () => setCurrentView('training') : undefined}
                   />
                 </div>
+              ) : PRODUCT.features.ledo ? (
+                <LedoReportLibrary
+                  childName={child?.name ?? ''}
+                  t1Count={completedScores.filter(s => s.tierId === 'T1').length}
+                  history={reportHistory.filter(r => r.type === 'T1_SCREENING')}
+                  onOpenLive={() => { setT1ReportGenerate(false); setViewingLiveT1(true); }}
+                  onOpenRecord={rec => {
+                    setActiveT1Record(rec);
+                    // 同舊版：從歸檔清單點進來的報告要從頭看起，清掉上一次「联系专家」留下的捲動旗標。
+                    setFocusBooking(false); setFocusT2(false);
+                  }}
+                />
               ) : (
                 <div className="animate-fade-in max-w-5xl mx-auto space-y-8 pb-12">
                   {/* Page header */}

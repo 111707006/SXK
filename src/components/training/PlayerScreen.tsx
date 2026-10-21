@@ -260,9 +260,9 @@ function PlayerLoop({ activity: a, clip }: { activity: Activity; clip: string })
           <>
             <p className={`text-[13px] font-bold ${DARK_PLAYER ? 'text-brand-moss' : 'text-ledo-ink-2'}`}>{stepOf(i + 1, n)}</p>
             {/* 這一步的分解圖（後台上傳或從示範片截的，2026-10-21）：有才出，放在指令文字前面 */}
-            {a.steps[i].imageUrl && (
-              <StepImage src={a.steps[i].imageUrl} n={i + 1} className="mt-3 aspect-[4/3] w-full rounded-[20px]" />
-            )}
+            {(step => step.imageUrl && (
+              <StepImage src={step.imageUrl} n={i + 1} className="mt-3 aspect-[4/3] w-full rounded-[20px]" />
+            ))(a.steps[i])}
             <p className="mt-2 text-[23px] font-black leading-snug">{a.steps[i].instruction}</p>
           </>
         ) : (

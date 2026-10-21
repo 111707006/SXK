@@ -25,8 +25,9 @@ function toJpeg(source: CanvasImageSource, w: number, h: number): Promise<Blob |
   return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
 }
 
+/** 一律縮成 960 寬的 jpeg 再傳：手機拍的原圖動輒好幾 MB，會撞到主機的上傳上限（端點 2 MB）。 */
 async function fileToJpeg(file: File): Promise<Blob | null> {
-  if (file.type === 'image/jpeg') return file;
+  if (file.type === 'image/jpeg' && file.size <= 300 * 1024) return file;
   const url = URL.createObjectURL(file);
   try {
     const img = new Image();

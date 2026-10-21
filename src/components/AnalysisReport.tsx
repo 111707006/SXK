@@ -888,10 +888,15 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
 
       {/* Specialist Booking Modal Dialog */}
       {showBookingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-2xl w-full border border-brand-stone shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-slide-up text-left">
+        <div className={PRODUCT.features.ledo
+          // Ledo 版（設計稿第 15 頁）：手機上是從底下拉起來的抽屜
+          ? 'fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-[rgba(36,51,44,0.35)] animate-fade-in'
+          : 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in'}>
+          <div className={PRODUCT.features.ledo
+            ? 'bg-white rounded-t-[28px] sm:rounded-[28px] max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-slide-up text-left'
+            : 'bg-white rounded-3xl max-w-2xl w-full border border-brand-stone shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-slide-up text-left'}>
             {/* Header */}
-            <div className="bg-brand-forest text-white p-5 flex justify-between items-center">
+            <div className={PRODUCT.features.ledo ? 'bg-white text-ledo-ink px-5 pt-5 pb-2 flex justify-between items-start gap-3 [&_p]:!text-ledo-ink-2' : 'bg-brand-forest text-white p-5 flex justify-between items-center'}>
               <div>
                 {/*
                   抬頭跟著家長選的服務走（issue #21）。寫死「线上…」的話，
@@ -904,7 +909,10 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
               </div>
               <button 
                 onClick={() => setShowBookingModal(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-sm font-bold transition cursor-pointer"
+                aria-label="关闭"
+                className={PRODUCT.features.ledo
+                  ? 'w-9 h-9 shrink-0 rounded-full border border-ledo-line flex items-center justify-center text-ledo-ink text-sm font-bold cursor-pointer'
+                  : 'w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-sm font-bold transition cursor-pointer'}
               >
                 ✕
               </button>
@@ -924,7 +932,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   <span className="text-xs font-bold text-brand-forest block uppercase tracking-wider">
                     第一步: 选择服务类型
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className={PRODUCT.features.ledo ? 'grid grid-cols-2 gap-2.5' : 'grid grid-cols-1 sm:grid-cols-2 gap-2.5'}>
                     {serviceChoices({
                       book: setServiceType,
                       // 去「线上干预」那一頁之前先把表關掉：換頁之後它不該還開著等人回來。
@@ -944,20 +952,24 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                           aria-pressed={isSelected}
                           disabled={!onSelect}
                           onClick={onSelect ?? undefined}
-                          className={`rounded-2xl border p-3 text-left transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                          className={PRODUCT.features.ledo
+                            ? `rounded-3xl p-3.5 text-left transition disabled:cursor-not-allowed ${
+                                !onSelect ? 'bg-ledo-field [&_*]:!text-ledo-ink-2' : isSelected ? 'bg-ledo-accent-soft ring-2 ring-ledo-accent' : 'bg-ledo-ok'
+                              }`
+                            : `rounded-2xl border p-3 text-left transition disabled:opacity-50 disabled:cursor-not-allowed ${
                             isSelected
                               ? 'border-brand-moss bg-brand-sage/15 ring-1 ring-brand-moss/30 shadow-sm'
                               : 'border-brand-stone hover:bg-brand-cream/25 disabled:hover:bg-transparent'
                           }`}
                         >
-                          <span className="flex items-center gap-1.5 text-xs font-bold text-brand-forest">
+                          <span className={`flex items-center gap-1.5 text-xs font-bold text-brand-forest ${PRODUCT.features.ledo ? 'flex-wrap text-[13px]' : ''}`}>
                             <span
                               className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
                                 d.venue === 'online' ? 'bg-brand-moss' : 'bg-brand-clay'
                               }`}
                             />
                             <span className="flex-1">{d.label}</span>
-                            <ServiceNote state={state} className="text-brand-charcoal/80" />
+                            <ServiceNote state={state} className={PRODUCT.features.ledo ? 'basis-full pl-3 text-ledo-ink-2 font-medium' : 'text-brand-charcoal/80'} />
                           </span>
                           <span className="mt-1 block text-xs leading-relaxed text-brand-charcoal/80">
                             {description}
@@ -984,7 +996,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                   <span className="text-xs font-bold text-brand-forest block uppercase tracking-wider">
                     第二步: 选择特邀专家成员
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className={PRODUCT.features.ledo ? 'space-y-2' : 'grid grid-cols-1 sm:grid-cols-3 gap-3'}>
                     {specialists.map((spec) => {
                       const isSelected = selectedSpecialist === spec.id;
                       return (
@@ -994,7 +1006,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                             setSelectedSpecialist(spec.id);
                             setSelectedSlot('');
                           }}
-                          className={`p-3 rounded-2xl border transition duration-200 cursor-pointer flex flex-col items-center text-center space-y-2 ${
+                          className={PRODUCT.features.ledo
+                            ? `p-2.5 rounded-3xl transition cursor-pointer flex items-center gap-3 text-left ${isSelected ? 'bg-ledo-accent-soft ring-2 ring-ledo-accent' : 'bg-ledo-field'}`
+                            : `p-3 rounded-2xl border transition duration-200 cursor-pointer flex flex-col items-center text-center space-y-2 ${
                             isSelected
                               ? 'border-brand-moss bg-brand-sage/10 ring-1 ring-brand-moss/30 shadow-sm'
                               : 'border-brand-stone hover:bg-brand-cream/20'

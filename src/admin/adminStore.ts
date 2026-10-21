@@ -21,8 +21,10 @@ import { calculateAgeMonth } from '../utils/dateUtils';
 import { screeningTotal, type ScreeningTotal } from './adminView';
 import { ageBandOf, latestAssessedAgeMonth } from '../utils/ageBandDrift';
 import { activityFromRow } from '../db/activities';
+import { findingsFromRow, type FindingsRecord } from '../db/t2Findings';
 import type { ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
+import type { SummarySource } from './parentSummary';
 
 // ── 對外型別 ──
 
@@ -97,6 +99,11 @@ export interface ParentDetail extends ParentListItem {
    */
   assessedAgeMonth: number | null;
   assessedBandName: string | null;
+  /**
+   * 這位家長最新的一份 T2 報告快照（#67），照存的樣子（舊版 `T2Findings` 或完整版 `T2FindingsV3`），
+   * 不重算、不叫模型；沒有是 `null`。**只在專案 A**：B 沒有 T2，路由不問、回應裡沒有這一欄。
+   */
+  t2Report?: FindingsRecord | null;
 }
 
 export interface SpecialistRecord {
@@ -399,6 +406,140 @@ export async function getParentDetail(
   };
 }
 
+
+/**
+ * 這位家長最新的一份 T2 報告快照（#67）；沒有、或最新那一列讀不成快照時回 `null`。
+ *
+ * 與家長端的 `latestFindings`（`src/db/t2Findings.ts`）同一個「最新」（看 `id`）與同一支
+ * `findingsFromRow`，所以後台看到的就是家長打開報告頁看到的那一份。公司條件掛在 JOIN 的
+ * `users` 上 —— 詳情那一句已經帶過條件，這裡仍自己帶一次：一支函式只靠呼叫端先查過，
+ * 換個呼叫端就是一條不帶條件的路。
+ */
+export async function latestT2Findings(
+  condition: CompanyCondition,
+  parentId: number
+): Promise<FindingsRecord | null> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const [rows] = await p.execute(
+    `SELECT f.id, f.findings, f.prose, f.is_ai_generated, f.ai_engine, f.created_at
+       FROM t2_findings f
+       JOIN users u ON u.id = f.user_id
+      WHERE ${scope.sql} AND f.user_id = ?
+      ORDER BY f.id DESC
+      LIMIT 1`,
+    [...scope.params, parentId]
+  );
+  const row = (rows as any[])[0];
+  return row ? findingsFromRow(row) : null;
+}
+
+/**
+ * 家長彙總（#69）的原始資料：視野裡**有 `user_data`** 的每一位家長，不設筆數上限（導出是拿去分析的整批，
+ * 截在 500 會安靜地少人）。沒做過 T1 的由 `parentSummary.ts` 濾掉 —— 那要讀成績 JSON 才知道。
+ *
+ * 轉入紀錄另外一句、同樣帶公司條件（JOIN `users`），整批交出去，最早那一次在 `channelOf` 挑：
+ * 篩查渠道「轉入兩次取最早」這條規則因此只有一處、測得到。
+ *
+ * `report_history` 是整份報告快照（AI 文字、圖表資料），一位家長幾十 KB；彙總只拿它補「篩查當時的月齡」，
+ * 而成績本身帶 `assessedAgeMonth` 的家長根本用不到。所以第一句不讀它，只有成績裡找不到月齡的那幾位
+ * （R1 之前的舊資料）再用第二句按 id 補讀。不用 `JSON_TABLE` 在 SQL 裡挑欄位：正式庫的版本沒驗過。
+ */
+const SUMMARY_HISTORY_BATCH = 500;
+
+export async function listSummarySources(condition: CompanyCondition): Promise<SummarySource[]> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+
+  const [rows] = await p.execute(
+    `SELECT u.id, u.phone, u.company_id, c.name AS company_name,
+            ud.child, ud.completed_scores,
+            (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count
+       FROM users u
+       JOIN user_data ud ON ud.user_id = u.id
+       LEFT JOIN companies c ON c.id = u.company_id
+      WHERE ${scope.sql}`,
+    scope.params
+  );
+  const scoresOf = new Map<number, DimensionScore[]>();
+  for (const row of rows as any[]) scoresOf.set(Number(row.id), parseJson<DimensionScore[]>(row.completed_scores, []));
+
+  const needHistory = [...scoresOf].filter(([, scores]) => latestAssessedAgeMonth(scores, null) === null).map(([id]) => id);
+  const histories = new Map<number, AssessmentRecord[]>();
+  for (let i = 0; i < needHistory.length; i += SUMMARY_HISTORY_BATCH) {
+    const ids = needHistory.slice(i, i + SUMMARY_HISTORY_BATCH);
+    const [historyRows] = await p.execute(
+      `SELECT ud.user_id, ud.report_history
+         FROM user_data ud
+         JOIN users u ON u.id = ud.user_id
+        WHERE ${scope.sql} AND ud.user_id IN (${ids.map(() => '?').join(', ')})`,
+      [...scope.params, ...ids]
+    );
+    for (const h of historyRows as any[]) {
+      histories.set(Number(h.user_id), parseJson<AssessmentRecord[]>(h.report_history, []));
+    }
+  }
+  const [importRows] = await p.execute(
+    `SELECT h.id, h.user_id, h.created_at, h.source_company_name
+       FROM handoff_imports h
+       JOIN users u ON u.id = h.user_id
+      WHERE ${scope.sql}`,
+    scope.params
+  );
+
+  const imports = new Map<number, SummarySource['handoffImports']>();
+  for (const h of importRows as any[]) {
+    const at = toIso(h.created_at);
+    if (at === null) continue;
+    const list = imports.get(Number(h.user_id)) ?? [];
+    list.push({ id: Number(h.id), at, companyName: h.source_company_name ?? null });
+    imports.set(Number(h.user_id), list);
+  }
+
+  return (rows as any[]).map(row => ({
+    userId: Number(row.id),
+    phone: row.phone ?? null,
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
+    child: parseJson<any>(row.child, null),
+    scores: scoresOf.get(Number(row.id)) ?? [],
+    reportHistory: histories.get(Number(row.id)) ?? [],
+    bookingCount: Number(row.booking_count) || 0,
+    handoffImports: imports.get(Number(row.id)) ?? [],
+  }));
+}
+
+/** 一次導出（#69）：誰、哪個視野、哪一種、幾筆、用了哪組篩選。 */
+export interface AdminExportEntry {
+  adminUserId: number;
+  condition: CompanyCondition;
+  /** `parent_summary` 是導出 .xlsx；`parent_summary_view` 是看了畫面上的彙總（一樣是整批電話）。 */
+  kind: 'parent_summary' | 'parent_summary_view';
+  rowCount: number;
+  filters: string;
+  requestIp: string | null;
+}
+
+/**
+ * 每一次導出都留下紀錄（`admin_exports`）。寫的是檢視者自己的行為，與 `recordCompanySwitch` 同一類；
+ * 範圍取自條件本身，不取自請求。
+ */
+export async function recordExport(entry: AdminExportEntry): Promise<void> {
+  const p = requirePool();
+  await p.execute(
+    `INSERT INTO admin_exports (admin_user_id, scope_kind, company_id, kind, row_count, filters, request_ip)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      entry.adminUserId,
+      entry.condition.kind,
+      entry.condition.kind === 'company' ? entry.condition.companyId : null,
+      entry.kind,
+      entry.rowCount,
+      entry.filters,
+      entry.requestIp,
+    ]
+  );
+}
 
 /**
  * 刪除一位家長的結果。

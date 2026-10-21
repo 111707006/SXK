@@ -10,6 +10,8 @@ import type { AssessmentRecord } from '../types';
 import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
 import type { ScreeningTotal } from './adminView';
+import type { T2ReportEntry } from '../components/T2Report';
+import type { SummaryOptions, SummaryPage } from './parentSummary';
 
 const TOKEN_KEY = 'sxk_admin_token';
 
@@ -89,6 +91,11 @@ export interface AdminParentDetail extends AdminParentListItem {
    * 後台要畫的是家長看到的那一份報告，而那需要快照裡的孩子與成績，不只文字。
    */
   reportHistory: AssessmentRecord[];
+  /**
+   * 這位家長最新的一份 T2 報告快照（#67），照存的樣子；沒做過是 `null`。
+   * **只有專案 A 有這一欄**（B 沒有 T2，後端不回）—— 畫面看 `t2Report &&`，兩種「沒有」都不畫。
+   */
+  t2Report?: T2ReportEntry | null;
   bookings: Array<{
     id: number; specialistId: string; specialistName: string | null;
     parentName: string; parentPhone: string; preferredSlot: string | null;
@@ -203,6 +210,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
+ * 下載一個檔案（後台的導出）。錯誤與 `request` 同一套；成功時回檔案本體與伺服器給的檔名
+ * （`Content-Disposition` 的 `filename*`），讀不到檔名才用 `fallbackName`。
+ */
+async function download(path: string, init: RequestInit, fallbackName: string): Promise<{ blob: Blob; fileName: string }> {
+  const token = getAdminToken();
+  const resp = await fetch(`/api/admin${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers || {}),
+    },
+  });
+  if (!resp.ok) {
+    let body: any = {};
+    try {
+      body = await resp.json();
+    } catch {
+      // 同 `request`。
+    }
+    throw new AdminApiError(
+      body.error || `请求失败（HTTP ${resp.status}）`,
+      (body.code as AdminErrorCode) || 'UNKNOWN',
+      resp.status
+    );
+  }
+  const match = /filename\*=UTF-8''([^;]+)/i.exec(resp.headers.get('Content-Disposition') || '');
+  let fileName = fallbackName;
+  if (match) {
+    try {
+      fileName = decodeURIComponent(match[1]);
+    } catch {
+      // 留著預設檔名。
+    }
+  }
+  return { blob: await resp.blob(), fileName };
+}
+
+/**
  * 換到新 token 的兩支端點共用這一段。
  *
  * **輪替不交給呼叫端做。** 公司的選定寫在 token 裡，切換公司後若還帶著舊的那一顆，
@@ -241,6 +287,14 @@ export const adminApi = {
     request<{ parents: AdminParentListItem[] }>(`/parents?sort=${sort}&booked=${booked}`),
 
   parent: (id: number) => request<{ parent: AdminParentDetail }>(`/parents/${id}`),
+
+  /** 家長彙總（#69）：一個孩子一行，與列表同一個視野、同一組篩選；一次一頁（`SUMMARY_PAGE_SIZE`）。 */
+  parentSummary: (options: SummaryOptions, page: number) =>
+    request<SummaryPage>(`/parent-summary?sort=${options.sort}&booked=${options.booked}&page=${page}`),
+
+  /** 導出彙總成 `.xlsx`。每按一次伺服器記一筆導出紀錄。 */
+  exportParentSummary: (options: SummaryOptions) =>
+    download('/parent-summary/export', { method: 'POST', body: JSON.stringify(options) }, '家长汇总.xlsx'),
 
   /**
    * 刪除一位家長（ADR-0006）。**硬刪，刪掉就沒了。**

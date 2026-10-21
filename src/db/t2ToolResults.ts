@@ -39,12 +39,28 @@ export interface ToolResultRecord {
 }
 
 export async function insertToolResult(userId: number, childSnapshot: ChildSnapshot, result: ToolResult): Promise<number> {
+  return insertRow(userId, childSnapshot, result, JSON.stringify(result.pre));
+}
+
+/**
+ * 兩套題庫共用的 INSERT（`t2ToolResultsV3.ts` 也走這裡；完整版的 `pre` 存作答情境）。
+ *
+ * 填表人說明（`raterNote`，#70）**有才寫** `rater_note` 那一欄：沒有說明的交卷 SQL 與加欄位以前一字不差 ——
+ * 開關 `T2_RATER_V2` 關著時根本碰不到新欄位（迁移 2026-10-18-t2-rater-note.sql 仍要先跑）。
+ */
+export async function insertRow(
+  userId: number,
+  childSnapshot: ChildSnapshot,
+  result: { toolId: string; toolkitVersion: string; assessedAgeMonth: number; rater: string; raterNote?: string; answers: unknown },
+  pre: string,
+): Promise<number> {
   const p = getPool();
   if (!p) throw new Error('MySQL pool is not available');
+  const note = result.raterNote ? [result.raterNote] : [];
   const [res] = await p.execute(
     `INSERT INTO t2_tool_results
-       (user_id, child_snapshot, tool_id, toolkit_version, assessed_age_month, rater, pre, answers, result)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (user_id, child_snapshot, tool_id, toolkit_version, assessed_age_month, rater, ${note.length ? 'rater_note, ' : ''}pre, answers, result)
+     VALUES (?, ?, ?, ?, ?, ?, ${note.length ? '?, ' : ''}?, ?, ?)`,
     [
       userId,
       JSON.stringify(childSnapshot),
@@ -52,7 +68,8 @@ export async function insertToolResult(userId: number, childSnapshot: ChildSnaps
       result.toolkitVersion,
       result.assessedAgeMonth,
       result.rater,
-      JSON.stringify(result.pre),
+      ...note,
+      pre,
       JSON.stringify(result.answers),
       JSON.stringify(result),
     ],

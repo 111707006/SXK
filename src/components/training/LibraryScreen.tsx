@@ -33,7 +33,7 @@ import { useLibraryLoad } from './useActivity';
 import { Cover, LightNav, Tag } from './ui';
 
 function Note({ children }: { children: string }) {
-  return <p className="mx-4 mt-8 text-[14px] text-brand-charcoal/70 leading-relaxed">{children}</p>;
+  return <p className="mx-4 mt-8 text-[14px] text-brand-charcoal/80 leading-relaxed">{children}</p>;
 }
 
 export default function LibraryScreen() {
@@ -46,7 +46,7 @@ export default function LibraryScreen() {
   let body;
   if (library.status === 'loading') {
     body = (
-      <p className="mx-4 mt-8 flex items-center gap-2 text-[13px] text-brand-charcoal/60">
+      <p className="mx-4 mt-8 flex items-center gap-2 text-[13px] text-brand-charcoal/80">
         <Loader2 size={14} className="animate-spin" />
         {LIBRARY.loading}
       </p>
@@ -57,7 +57,7 @@ export default function LibraryScreen() {
     body = (
       <div className="mx-6 mt-12 flex flex-col items-center text-center" data-testid="library-empty">
         <ListVideo size={40} className="text-brand-moss" />
-        <p className="mt-4 text-[14px] text-brand-charcoal/70 leading-relaxed">{LIBRARY.empty}</p>
+        <p className="mt-4 text-[14px] text-brand-charcoal/80 leading-relaxed">{LIBRARY.empty}</p>
       </div>
     );
   } else {
@@ -74,7 +74,7 @@ export default function LibraryScreen() {
           });
     body = (
       <>
-        <p className="px-4 pt-1 text-[13px] text-brand-charcoal/55">{librarySummary(all.length)}</p>
+        <p className="px-4 pt-1 text-[13px] text-brand-charcoal/80">{librarySummary(all.length)}</p>
         {chips.length > 0 && (
           <div className="mt-3 flex gap-2.5 overflow-x-auto training-no-scrollbar px-4" data-testid="library-filters">
             {chips.map(c => (
@@ -110,7 +110,7 @@ export default function LibraryScreen() {
                   >
                     <Cover src={a.posterUrl} className="aspect-[4/3] rounded-md">
                       {!a.posterUrl && <Play size={34} aria-hidden="true" className="absolute inset-0 m-auto text-brand-moss/30" />}
-                      <span className="absolute left-1.5 bottom-1.5 rounded bg-black/60 text-white text-[10px] px-1.5 py-px flex items-center gap-0.5 tabular-nums">
+                      <span className="absolute left-1.5 bottom-1.5 rounded bg-black/60 text-white text-xs px-1.5 py-px flex items-center gap-0.5 tabular-nums">
                         <Play size={9} fill="currentColor" />
                         {length || CLIP_STATE.badgeClip}
                       </span>
@@ -121,10 +121,10 @@ export default function LibraryScreen() {
                       )}
                     </Cover>
                     <p className="mt-1.5 text-[15px] font-bold text-brand-forest leading-snug">
-                      <span className="tabular-nums text-brand-charcoal/35 mr-1 font-normal">{activityNo(a.id)}</span>
+                      <span className="tabular-nums text-brand-charcoal/80 mr-1 font-normal">{activityNo(a.id)}</span>
                       {a.title}
                     </p>
-                    <p className={`text-[12px] ${fits ? 'text-brand-forest' : 'text-brand-charcoal/50'}`}>
+                    <p className={`text-[12px] ${fits ? 'text-brand-forest' : 'text-brand-charcoal/80'}`}>
                       {a.ageLabel}
                       {fits ? LIBRARY.fitsNow : ''}
                     </p>
@@ -134,7 +134,7 @@ export default function LibraryScreen() {
             </div>
           </section>
         ))}
-        <p className="mt-7 px-4 text-[12px] text-brand-charcoal/50 leading-relaxed">{libraryFootnote(childName)}</p>
+        <p className="mt-7 px-4 text-[12px] text-brand-charcoal/80 leading-relaxed">{libraryFootnote(childName)}</p>
       </>
     );
   }

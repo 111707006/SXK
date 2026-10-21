@@ -66,6 +66,8 @@ const PARENT_FACING_FILES = [
   'src/components/T1Screening.tsx',
   'src/components/AnalysisReport.tsx',
   'src/components/ReportBody.tsx',
+  // #65：掃碼報告頁（開關 REPORT_SCAN_SPA）自己的幾句字。
+  'src/components/ScanReportPage.tsx',
   'src/components/ReportCharts.tsx',
   'src/App.tsx',
   // 2026-09-11 補上：家長在 T1 路徑上還會走到的其餘畫面。先前這份清單只涵蓋

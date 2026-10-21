@@ -30,6 +30,10 @@ import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { mediaUrlOf, readSeconds, saveActivityMedia, type MediaKind } from './activityMedia';
+import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf } from './parentSummary';
+import { developmentIndex } from '../developmentIndex/developmentIndex';
+import type { DevelopmentIndexOf } from './parentSummary';
+import { summaryFileName, summaryWorkbook } from './summaryXlsx';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -97,6 +101,16 @@ export interface AdminRouterHooks {
    * 沒有就是關閉 —— 上傳那兩支不註冊（B 沒有活動與片子）。
    */
   activityMediaDir?: string;
+  /**
+   * 家長詳情帶不帶最新的 T2 報告快照（#67）。只有專案 A 傳 `true`；B 沒有 T2，
+   * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
+   */
+  t2Reports?: boolean;
+  /**
+   * 匯總表的發育指數用哪一支算（開關 `DEV_INDEX_BASIS`，`src/developmentIndex/basis.ts`）。
+   * 沒傳就是同齡估算（#68 的預設）。
+   */
+  developmentIndexOf?: DevelopmentIndexOf;
 }
 
 export interface HandoffInviteReport {
@@ -110,6 +124,7 @@ export interface HandoffInviteReport {
  *   錯誤，而不是安靜地退回多公司行為 —— 那在專案 A 上的樣子是一個空列表。
  */
 export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHooks = {}): express.Router {
+  const indexOf: DevelopmentIndexOf = hooks.developmentIndexOf ?? developmentIndex;
   const router = express.Router();
 
   /**
@@ -294,6 +309,70 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     }
   });
 
+  // ── 家長彙總（#69）──
+  // 所有後台帳號都看得到（使用者 2026-10-18）：**不加 `requireGlobal`**，範圍一律走 `withScope`，
+  // 公司成員只拿得到自家。與家長列表同一組篩選（`sort`、`booked`）。
+  router.get('/parent-summary', async (req: AuthedRequest, res) => {
+    const condition = withScope(req, res);
+    if (!condition) return;
+    try {
+      const options = readSummaryOptions(req.query);
+      const table = summaryPageOf(
+        buildSummaryTable(await store.listSummarySources(condition), shape, options, indexOf),
+        readSummaryPage(req.query)
+      );
+      // 畫面上的彙總一樣是整批電話：看過也記一筆（與導出同一張表、kind 不同）。記不下來不擋畫面 —— 導出那一支才是不給檔。
+      await store
+        .recordExport({
+          adminUserId: req.admin!.adminUserId,
+          condition,
+          kind: 'parent_summary_view',
+          // 記的是這一頁實際送出去的行數（看到幾支電話），頁碼一起進 filters。
+          rowCount: table.rows.length,
+          filters: JSON.stringify({ ...options, page: table.page }),
+          requestIp: req.ip ?? null,
+        })
+        .catch((err: any) => console.error('[Admin] parent summary view log failed:', err.message));
+      res.json(table);
+    } catch (err: any) {
+      console.error('[Admin] parent summary failed:', err.message);
+      res.status(500).json({ error: '读取家长汇总失败。' });
+    }
+  });
+
+  /**
+   * 導出彙總成 `.xlsx`。POST 而不是 GET：每一次導出都要在 `admin_exports` 留一筆（誰、何時、範圍、笔数），
+   * 是一個有副作用的動作。**記不下來就不給檔** —— 少一筆紀錄的導出等於沒有人知道資料出去過。
+   */
+  router.post('/parent-summary/export', async (req: AuthedRequest, res) => {
+    const condition = withScope(req, res);
+    if (!condition) return;
+    try {
+      const options = readSummaryOptions(req.body);
+      const table = buildSummaryTable(await store.listSummarySources(condition), shape, options, indexOf);
+      const file = await summaryWorkbook(table);
+      await store.recordExport({
+        adminUserId: req.admin!.adminUserId,
+        condition,
+        kind: 'parent_summary',
+        rowCount: table.rows.length,
+        filters: JSON.stringify(options),
+        requestIp: req.ip ?? null,
+      });
+      const name = summaryFileName(new Date());
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="parent-summary-${name.replace(/\D/g, '')}.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}`
+      );
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(file);
+    } catch (err: any) {
+      console.error('[Admin] parent summary export failed:', err.message);
+      res.status(500).json({ error: '导出失败，请稍后再试。' });
+    }
+  });
+
   // ── 單筆家長詳情 ──
   router.get('/parents/:id', async (req: AuthedRequest, res) => {
     const condition = withScope(req, res);
@@ -311,6 +390,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         res.status(404).json({ error: '找不到该家长。' });
         return;
       }
+      // 列印頁呼叫的是同一支端點，所以詳情與列印拿到的是同一份快照。
+      if (hooks.t2Reports) detail.t2Report = await store.latestT2Findings(condition, id);
       res.json({ parent: detail });
     } catch (err: any) {
       console.error('[Admin] getParentDetail failed:', err.message);

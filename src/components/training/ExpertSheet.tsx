@@ -14,7 +14,7 @@ export default function ExpertSheet() {
   return (
     <Sheet onClose={nav.back}>
       <h2 className="text-[22px] font-black text-brand-forest">{EXPERT_SHEET.title}</h2>
-      <p className="mt-1.5 text-[14px] text-brand-charcoal/60">{EXPERT_SHEET.sub}</p>
+      <p className="mt-1.5 text-[14px] text-brand-charcoal/80">{EXPERT_SHEET.sub}</p>
       <ul className="mt-4 space-y-2.5">
         {serviceChoices({ book: onBookService, inTraining: true }).map(c => (
           <li key={c.descriptor.type}>
@@ -32,7 +32,7 @@ export default function ExpertSheet() {
                   <span className="text-[15px] font-bold text-brand-forest">{c.descriptor.label}</span>
                   <ServiceNote state={c.state} className="text-brand-moss" />
                 </span>
-                <span className="block mt-0.5 text-[13px] text-brand-charcoal/60 leading-snug">{c.description}</span>
+                <span className="block mt-0.5 text-[13px] text-brand-charcoal/80 leading-snug">{c.description}</span>
               </span>
             </button>
           </li>

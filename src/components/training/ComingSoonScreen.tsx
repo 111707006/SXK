@@ -15,7 +15,7 @@ export default function ComingSoonScreen() {
       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
         <Hourglass size={40} className="text-brand-moss" />
         <p className="mt-4 text-[20px] font-black text-brand-forest">{COMING_SOON.title}</p>
-        <p className="mt-2 text-[14px] text-brand-charcoal/70 leading-relaxed">{COMING_SOON.body}</p>
+        <p className="mt-2 text-[14px] text-brand-charcoal/80 leading-relaxed">{COMING_SOON.body}</p>
         <button
           type="button"
           onClick={nav.back}

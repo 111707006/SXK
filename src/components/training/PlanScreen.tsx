@@ -67,7 +67,7 @@ const STATUS_TEXT: Record<AssessmentStatus | 'state', string> = {
   normal: 'text-emerald-700',
   borderline: 'text-amber-700',
   delay: 'text-rose-700',
-  state: 'text-brand-charcoal/60',
+  state: 'text-brand-charcoal/80',
 };
 
 /** 佔比條的色：品牌色依序取（維度沒有固定色，四支最多四塊）。 */
@@ -98,7 +98,7 @@ function ShareBar({ picks }: { picks: ReadonlyArray<WeeklyPick> }) {
               <span className={`inline-block w-2 h-2 rounded-full mr-1 align-middle ${SHARE_BAR[i % SHARE_BAR.length]}`} />
               <span className="tabular-nums">{x.percent}%</span> {SITE_DIMENSION_NAME[x.dimension]}
             </p>
-            <p className="text-[11px] text-brand-charcoal/55 mt-0.5">{x.titles.join('、')}</p>
+            <p className="text-xs text-brand-charcoal/80 mt-0.5">{x.titles.join('、')}</p>
           </div>
         ))}
       </div>
@@ -152,7 +152,7 @@ function Gauge({ counts, focus, focusNote, ageMonth }: {
         ) : (
           <p className="text-[14px] text-brand-charcoal">{othersValue(counts.normal, STATUS_WORDING.normal.label)}</p>
         )}
-        {focusNote && <p className="mt-0.5 text-[12px] text-brand-charcoal/55 truncate">{focusNote}</p>}
+        {focusNote && <p className="mt-0.5 text-[12px] text-brand-charcoal/80 truncate">{focusNote}</p>}
       </div>
     </div>
   );
@@ -164,7 +164,7 @@ function ResultCard({ label, value, valueClass, note }: { label: string; value: 
       <p className="text-[13px] text-brand-charcoal leading-snug">
         {label} <b className={`text-[15px] ${valueClass}`}>{value}</b>
       </p>
-      {note && <p className="mt-1.5 text-[12px] text-brand-charcoal/55 leading-snug">{note}</p>}
+      {note && <p className="mt-1.5 text-[12px] text-brand-charcoal/80 leading-snug">{note}</p>}
     </div>
   );
 }
@@ -172,7 +172,7 @@ function ResultCard({ label, value, valueClass, note }: { label: string; value: 
 function StepBlock({ n, title, children, anchor }: { n: number; title: string; children: ReactNode; anchor: (el: HTMLElement | null) => void }) {
   return (
     <section ref={anchor} className="bg-white mt-2 pt-7 pb-6 scroll-mt-2">
-      <p className="text-center text-[15px] tracking-[0.06em] text-brand-charcoal/60">STEP {n}</p>
+      <p className="text-center text-[15px] tracking-[0.06em] text-brand-charcoal/80">STEP {n}</p>
       <h3 className="text-center text-[21px] font-bold text-brand-forest mt-1 px-4">{title}</h3>
       <div className="mt-5">{children}</div>
     </section>
@@ -197,7 +197,7 @@ function Staircase({ weekIndex, push }: { weekIndex: number; push: boolean }) {
         return (
           <div key={w.t1} className="flex-1 flex flex-col items-center justify-end">
             {last && <Crown size={18} className="text-brand-clay mb-1" />}
-            {now && <span className="mb-1 text-[11px] font-bold text-brand-forest">{PLAN_PAGE.youAreHere}</span>}
+            {now && <span className="mb-1 text-xs font-bold text-brand-forest">{PLAN_PAGE.youAreHere}</span>}
             <span
               className={`w-12 h-12 rounded-full grid place-items-center text-white leading-none ${
                 now ? 'bg-brand-moss ring-4 ring-brand-moss/25' : 'bg-brand-forest'
@@ -205,7 +205,7 @@ function Staircase({ weekIndex, push }: { weekIndex: number; push: boolean }) {
             >
               <span className="text-center">
                 <span className="block tabular-nums text-[16px] font-bold">{w.n}</span>
-                <span className="block text-[9px] mt-0.5">{w.unit}</span>
+                <span className="block text-xs mt-0.5">{w.unit}</span>
               </span>
             </span>
             <div
@@ -213,7 +213,7 @@ function Staircase({ weekIndex, push }: { weekIndex: number; push: boolean }) {
               style={{ height: heights[i] }}
             >
               <p className="text-[13px] text-brand-forest font-bold">{w.t1}</p>
-              <p className="text-[11px] text-brand-charcoal/60 mt-0.5 px-1">{w.t2}</p>
+              <p className="text-xs text-brand-charcoal/80 mt-0.5 px-1">{w.t2}</p>
             </div>
           </div>
         );
@@ -258,7 +258,7 @@ function PrintPeriod() {
   return (
     <div className="mt-4" data-testid="plan-print">
       <PrintButton id="plan-print-btn" label={PRINT_SHEET.button} onPrint={onPrint} />
-      {message && <p className="mt-1 text-[12px] text-brand-charcoal/60">{message}</p>}
+      {message && <p className="mt-1 text-[12px] text-brand-charcoal/80">{message}</p>}
       {sheet && <PlanPrintSheet sheet={sheet} />}
     </div>
   );
@@ -269,7 +269,7 @@ function AbilityTable({ push }: { push: PushPosition }) {
   return (
     <section className="bg-white px-4 pt-3 pb-5" data-testid="plan-abilities">
       <h3 className="text-[19px] font-bold text-brand-forest">{PUSH_PAGE.abilityTitle}</h3>
-      <p className="mt-1 text-[12px] text-brand-charcoal/55">{PUSH_PAGE.abilitySub}</p>
+      <p className="mt-1 text-[12px] text-brand-charcoal/80">{PUSH_PAGE.abilitySub}</p>
       {push.adjustment !== 'none' && (
         <p className="mt-2 rounded-lg bg-brand-sage px-3 py-2 text-[13px] text-brand-forest" data-testid="plan-adjusted">
           {PUSH_PAGE.adjusted[push.adjustment]}
@@ -282,20 +282,20 @@ function AbilityTable({ push }: { push: PushPosition }) {
             <li key={d.dimension} className="rounded-xl bg-brand-cream px-3 py-2.5">
               <p className="text-[14px] font-bold text-brand-forest">
                 {row.title}
-                <span className="ml-1.5 text-[11px] font-normal text-brand-charcoal/55">{row.source}</span>
+                <span className="ml-1.5 text-xs font-normal text-brand-charcoal/80">{row.source}</span>
               </p>
-              <p className="mt-0.5 text-[12px] text-brand-charcoal/65">{row.detail}</p>
+              <p className="mt-0.5 text-[12px] text-brand-charcoal/80">{row.detail}</p>
             </li>
           );
         })}
       </ul>
       {heavy.length > 0 && (
-        <p className="mt-3 text-[13px] text-brand-charcoal/75 leading-relaxed" data-testid="plan-referral">
+        <p className="mt-3 text-[13px] text-brand-charcoal/80 leading-relaxed" data-testid="plan-referral">
           {referralLine(heavy)}
         </p>
       )}
       {push.dimensions.some(d => d.source === 't1') && (
-        <p className="mt-2 text-[12px] text-brand-charcoal/60 leading-relaxed" data-testid="plan-t1-evidence">{PUSH_PAGE.t1Evidence}</p>
+        <p className="mt-2 text-[12px] text-brand-charcoal/80 leading-relaxed" data-testid="plan-t1-evidence">{PUSH_PAGE.t1Evidence}</p>
       )}
       <h4 className="mt-4 text-[15px] font-bold text-brand-forest">{PUSH_PAGE.guidanceTitle}</h4>
       <ul className="mt-2 space-y-1.5">
@@ -314,8 +314,8 @@ function AbilityTable({ push }: { push: PushPosition }) {
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[12px] text-brand-charcoal/60 leading-relaxed">{PUSH_PAGE.periodEndNote}</p>
-      <p className="mt-3 text-[11px] text-brand-charcoal/50 leading-relaxed" data-testid="plan-boundary">{PUSH_PAGE.boundary}</p>
+      <p className="mt-2 text-[12px] text-brand-charcoal/80 leading-relaxed">{PUSH_PAGE.periodEndNote}</p>
+      <p className="mt-3 text-xs text-brand-charcoal/80 leading-relaxed" data-testid="plan-boundary">{PUSH_PAGE.boundary}</p>
       <PrintPeriod />
     </section>
   );
@@ -349,7 +349,7 @@ function MiniPhones({ pick }: { pick: WeeklyPick }) {
         </Cover>
         <div className="p-2.5">
           <p className="text-[11px] font-black leading-tight text-brand-forest">{[a.title, a.people].filter(Boolean).join(' · ')}</p>
-          {a.ageLabel && <p className="mt-1.5 text-[9px] text-brand-charcoal/60">{a.ageLabel}</p>}
+          {a.ageLabel && <p className="mt-1.5 text-[9px] text-brand-charcoal/80">{a.ageLabel}</p>}
           {a.trains && (
             <div className="mt-2 rounded-md bg-brand-cream p-1.5 text-[7px] text-brand-charcoal/80 leading-snug line-clamp-3">
               {PLAN_PAGE.phoneTrainsPrefix}
@@ -368,7 +368,7 @@ function PlanWeekGrid({ firstWeekStart, today, practiced }: { firstWeekStart: st
   const grid = planGrid(firstWeekStart);
   return (
     <div className="mx-4">
-      <div className="grid grid-cols-7 gap-1.5 text-center text-[11px] text-brand-charcoal/50">
+      <div className="grid grid-cols-7 gap-1.5 text-center text-xs text-brand-charcoal/80">
         {WEEKDAYS.map(d => (
           <span key={d}>{d}</span>
         ))}
@@ -383,14 +383,14 @@ function PlanWeekGrid({ firstWeekStart, today, practiced }: { firstWeekStart: st
                 key={iso}
                 data-day={iso}
                 data-done={done || undefined}
-                className={`aspect-square max-h-11 rounded-full grid place-items-center text-[11px] tabular-nums mx-auto w-full max-w-11 ${
+                className={`aspect-square max-h-11 rounded-full grid place-items-center text-xs tabular-nums mx-auto w-full max-w-11 ${
                   done
                     ? 'bg-brand-forest text-white'
                     : last
                       ? 'bg-brand-sand text-brand-clay'
                       : iso === today
                         ? 'ring-2 ring-brand-moss text-brand-forest'
-                        : 'border border-dashed border-brand-stone text-brand-charcoal/35'
+                        : 'border border-dashed border-brand-stone text-brand-charcoal/80'
                 }`}
               >
                 {last && !done ? <Crown size={13} /> : Number(iso.slice(8))}
@@ -399,7 +399,7 @@ function PlanWeekGrid({ firstWeekStart, today, practiced }: { firstWeekStart: st
           })}
         </div>
       ))}
-      {practiced && <p className="mt-3 text-center text-[12px] text-brand-charcoal/55">{PLAN_PAGE.step4Caption}</p>}
+      {practiced && <p className="mt-3 text-center text-[12px] text-brand-charcoal/80">{PLAN_PAGE.step4Caption}</p>}
     </div>
   );
 }
@@ -413,7 +413,7 @@ export default function PlanScreen() {
     return (
       <div className="h-full flex flex-col bg-brand-cream" data-testid="training-plan">
         <DarkNav title={planTitle(childName)} onBack={nav.back} />
-        <p className="mx-6 mt-10 text-[14px] text-brand-charcoal/70 leading-relaxed">
+        <p className="mx-6 mt-10 text-[14px] text-brand-charcoal/80 leading-relaxed">
           {data.status === 'loading' ? ENTRY.loading : ENTRY.error}
         </p>
       </div>
@@ -453,7 +453,7 @@ export default function PlanScreen() {
           <div className="relative px-4 pt-3 pb-6">
             <p className="text-[15px] font-bold">{planGreeting(childName)}</p>
             <p className="mt-1.5 text-[31px] font-black tracking-tight leading-none">{PLAN_PAGE.heading}</p>
-            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-white/85">
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-white/85">
               {PLAN_PAGE.checks.map(t => (
                 <span key={t} className="flex items-center gap-1">
                   <CircleCheck size={12} />
@@ -482,7 +482,7 @@ export default function PlanScreen() {
                   <span className="text-[30px] font-black tabular-nums leading-none">{c.big}</span>
                   {c.unit && <span className="text-[13px] font-bold ml-1">{c.unit}</span>}
                 </p>
-                <p className="mt-2 text-[12px] text-brand-charcoal/60 whitespace-pre-line leading-snug">{c.note}</p>
+                <p className="mt-2 text-[12px] text-brand-charcoal/80 whitespace-pre-line leading-snug">{c.note}</p>
               </div>
             ))}
           </div>
@@ -509,7 +509,7 @@ export default function PlanScreen() {
               focusNote={focusTitles.length > 0 ? thisWeekPractice(focusTitles) : ''}
               ageMonth={ageMonth}
             />
-            <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-brand-charcoal/70">
+            <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-brand-charcoal/80">
               {(['normal', 'borderline', 'delay'] as const).map(s => (
                 <span key={s} className="flex items-center gap-1">
                   <span className={`w-2 h-2 rounded-full ${s === 'normal' ? 'bg-emerald-300' : s === 'borderline' ? 'bg-amber-300' : 'bg-rose-400'}`} />
@@ -537,7 +537,7 @@ export default function PlanScreen() {
               />
             )}
           </div>
-          <button type="button" onClick={() => nav.popTo(0)} className="mt-4 mx-auto text-[13px] text-brand-charcoal/60 flex items-center cursor-pointer">
+          <button type="button" onClick={() => nav.popTo(0)} className="mt-4 mx-auto text-[13px] text-brand-charcoal/80 flex items-center cursor-pointer">
             {PLAN_PAGE.fullReport}
             <ChevronRight size={14} />
           </button>
@@ -547,7 +547,7 @@ export default function PlanScreen() {
         <section className="bg-white mt-2 px-4 pt-5 pb-5">
           <div className="flex items-end justify-between gap-2">
             <h3 className="text-[19px] font-bold text-brand-forest">{PLAN_PAGE.weekTitle}</h3>
-            {range && <span className="text-[12px] text-brand-charcoal/50">{range}</span>}
+            {range && <span className="text-[12px] text-brand-charcoal/80">{range}</span>}
           </div>
           <ul className="mt-4 space-y-3.5">
             {picks.map(({ activity: a, dimension, push: mark }) => {
@@ -562,7 +562,7 @@ export default function PlanScreen() {
                     <Cover src={a.posterUrl} className="w-[96px] h-[66px] rounded-lg shrink-0">
                       {!a.posterUrl && <Play size={26} aria-hidden="true" className="absolute inset-0 m-auto text-brand-moss/30" />}
                       {hasClip(a) && (
-                        <span className="absolute left-1 bottom-1 rounded bg-black/60 text-white text-[10px] px-1 py-px flex items-center gap-0.5">
+                        <span className="absolute left-1 bottom-1 rounded bg-black/60 text-white text-xs px-1 py-px flex items-center gap-0.5">
                           <Play size={9} fill="currentColor" />
                           {CLIP_STATE.badgeClip}
                         </span>
@@ -570,14 +570,14 @@ export default function PlanScreen() {
                     </Cover>
                     <div className="flex-1 min-w-0">
                       <p className="text-[16px] font-bold text-brand-forest truncate">{a.title}</p>
-                      <p className="mt-1 text-[12px] text-brand-charcoal/55 truncate">
+                      <p className="mt-1 text-[12px] text-brand-charcoal/80 truncate">
                         {[SITE_DIMENSION_NAME[dimension], mark ? VARIANT_LABEL[mark.variant] : '', a.trains].filter(Boolean).join(' · ')}
                       </p>
                     </div>
                     {n > 0 ? (
                       <span className="shrink-0 text-[12px] font-bold text-brand-forest bg-brand-sage rounded-full px-2.5 py-1">{practicedBadge(n)}</span>
                     ) : (
-                      <span className="shrink-0 text-[12px] text-brand-charcoal/70 border border-brand-stone rounded-full px-2.5 py-1">{PLAN_PAGE.go}</span>
+                      <span className="shrink-0 text-[12px] text-brand-charcoal/80 border border-brand-stone rounded-full px-2.5 py-1">{PLAN_PAGE.go}</span>
                     )}
                   </button>
                 </li>
@@ -588,7 +588,7 @@ export default function PlanScreen() {
 
         {/* 家长最常问的四件事：四個問題當目錄（常見問題的人像不上） */}
         <section className="bg-white mt-2 pt-8 pb-4">
-          <p className="text-center text-[14px] font-semibold tracking-[0.08em] text-brand-charcoal/70">{PLAN_PAGE.faqKicker}</p>
+          <p className="text-center text-[14px] font-semibold tracking-[0.08em] text-brand-charcoal/80">{PLAN_PAGE.faqKicker}</p>
           <h3 className="text-center text-[25px] font-black text-brand-forest mt-1">{PLAN_PAGE.faqTitle}</h3>
           <div className="relative mt-4 h-[260px] mx-4">
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] rounded-full bg-brand-sage grid place-items-center">
@@ -604,7 +604,7 @@ export default function PlanScreen() {
                   onClick={() => steps.current[q.step]?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                   className={`absolute ${pos} ${right ? 'text-right' : 'text-left'} cursor-pointer`}
                 >
-                  <span className="block text-[12px] text-brand-charcoal/70">{q.sub}</span>
+                  <span className="block text-[12px] text-brand-charcoal/80">{q.sub}</span>
                   <span className="block text-[16px] font-bold text-brand-forest bg-white/80 rounded px-0.5">{q.main}</span>
                   <span className={`block mt-1 h-px w-[96px] bg-brand-charcoal/60 ${right ? 'ml-auto' : ''}`} />
                 </button>
@@ -646,7 +646,7 @@ export default function PlanScreen() {
         {/* 有疑问 随时约专家：四種服務 → 既有的預約表 */}
         <section className="bg-white mt-2 px-4 pt-6 pb-8">
           <h3 className="text-[19px] font-bold text-brand-forest">{PLAN_PAGE.expertTitle}</h3>
-          <p className="mt-1 text-[13px] text-brand-charcoal/55">{PLAN_PAGE.expertSub}</p>
+          <p className="mt-1 text-[13px] text-brand-charcoal/80">{PLAN_PAGE.expertSub}</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {serviceChoices({ book: onBookService, inTraining: true }).map(c => (
               <button
@@ -662,7 +662,7 @@ export default function PlanScreen() {
                   <UserRound size={13} className="shrink-0 text-brand-moss" />
                   {c.descriptor.label}
                 </p>
-                <p className="mt-1 text-[11px] text-brand-charcoal/55 leading-snug line-clamp-2">{c.description}</p>
+                <p className="mt-1 text-xs text-brand-charcoal/80 leading-snug line-clamp-2">{c.description}</p>
                 <ServiceNote state={c.state} className="mt-1.5 text-brand-moss" />
               </button>
             ))}
@@ -678,7 +678,7 @@ export default function PlanScreen() {
               <p className="text-[22px] font-black text-brand-forest tabular-nums">
                 {practice.planPracticed}/{practice.planTotal}
               </p>
-              <p className="text-[11px] text-brand-charcoal/55">{PLAN_PAGE.barLabel}</p>
+              <p className="text-xs text-brand-charcoal/80">{PLAN_PAGE.barLabel}</p>
             </div>
           )}
           <button

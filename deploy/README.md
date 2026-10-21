@@ -123,6 +123,36 @@ VITE_ICP_BEIAN="沪ICP备2026009790号-3" VITE_APP_MODE=t1only pnpm run build \
 > 因为本专案是在本机构建再 scp 上去的，产物离开本机之后就改不动了。
 > 漏掉 `ICP_BEIAN` 的症状：家长端页脚有备案号，扫码打开的报告页没有。
 
+### 后台家长汇总与导出（#69；A、B 都有）
+
+后台「家长」分页的「汇总」检视与「导出 xlsx」：每导出一次在 `admin_exports` 记一列（谁、何时、范围、笔数）。
+**迁移先于程式码**：表不在，导出会失败（500、不给档），汇总检视本身照常。
+
+```bash
+# ① 两个库都跑迁移：建 admin_exports（2026-10-18-admin-exports.sql）
+cd /var/www/sxk   && node deploy/migrate.mjs            # 看清单 → 备份 → 加 --confirm
+cd /var/www/sxk-b && node deploy/migrate.mjs
+# ② 再部署两边的程式码（deploy-app.sh a、deploy-app.sh b）
+```
+
+> 导出的是孩子名字与家长手机号，**所有后台帐号**（含公司成员，只拿得到自家）都按得下去。
+> 谁导过什么，查 `admin_exports`。
+
+### T2 填表人说明（#70；只有专案 A 用到）
+
+开关 `T2_RATER_V2=1` 时，T2 作答画面拿掉「老师」，选「其他」可以选填是谁（最多 10 字），存在 `t2_tool_results.rater_note`。
+**迁移先于程式码**：栏位不在时，开关开着、家长又写了说明的那一次交卷会 500（开关关着或没写说明，INSERT 与旧版一字不差，不碰这一栏）。
+B 没有 T2，但两边 schema 保持一致，一起跑。
+
+```bash
+# ① 两个库都跑迁移：t2_tool_results 加 rater_note（2026-10-18-t2-rater-note.sql，可重跑）
+cd /var/www/sxk   && node deploy/migrate.mjs            # 看清单 → 备份 → 加 --confirm
+cd /var/www/sxk-b && node deploy/migrate.mjs
+# ② 部署程式码；验收完才在 A 的 .env 设 T2_RATER_V2=1、重启
+```
+
+> 开关关回 `0` 即退回：画面恢复「老师」，已存的说明留在资料库里不动；报告快照是生成当下存的，照存的样子画。
+
 ### 示范片与封面（只有专案 A；Keep 规格 K05）
 
 片子与封面**不在 `dist/` 里、也不进 git**：`dist/` 每次部署整个换掉。它们放在主机的

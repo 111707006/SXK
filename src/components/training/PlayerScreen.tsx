@@ -230,7 +230,7 @@ function PlayerLoop({ activity: a, clip }: { activity: Activity; clip: string })
           muted={muted}
           className="absolute inset-0 w-full h-full object-cover"
         />
-        <span className="absolute left-2 top-2 rounded bg-black/55 text-[11px] px-2 py-0.5">{clipLoopLabel(clipClock(a.videoSeconds))}</span>
+        <span className="absolute left-2 top-2 rounded bg-black/55 text-xs px-2 py-0.5">{clipLoopLabel(clipClock(a.videoSeconds))}</span>
         <button
           type="button"
           aria-label={muted ? PLAYER.soundOn : PLAYER.soundOff}
@@ -308,7 +308,7 @@ function PlayerPictures({ activity: a, clip }: { activity: Activity; clip: strin
             <span>{a.tip}</span>
           </p>
         )}
-        {!clip && <p className="mt-5 text-[12px] text-brand-charcoal/55">{PLAYER.noClipNote}</p>}
+        {!clip && <p className="mt-5 text-[12px] text-brand-charcoal/80">{PLAYER.noClipNote}</p>}
       </div>
       <StepButtons
         i={i}
@@ -329,7 +329,7 @@ function Waiting({ children }: { children: ReactNode }) {
   return (
     <div className="h-full bg-white flex flex-col">
       <PlayerTop title="" onClose={nav.back} dark={false} />
-      <div className="mx-6 mt-10 text-[14px] text-brand-charcoal/70 leading-relaxed flex items-center gap-2">{children}</div>
+      <div className="mx-6 mt-10 text-[14px] text-brand-charcoal/80 leading-relaxed flex items-center gap-2">{children}</div>
     </div>
   );
 }

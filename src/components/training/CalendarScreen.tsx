@@ -107,7 +107,7 @@ export default function CalendarScreen() {
             {CALENDAR.stats.map((label, i) => (
               <div key={label} className="rounded-xl bg-brand-sage py-3 text-center">
                 <p className="text-[24px] font-black text-brand-forest tabular-nums leading-none">{stats[i]}</p>
-                <p className="mt-1.5 text-[11px] text-brand-charcoal/60">{label}</p>
+                <p className="mt-1.5 text-xs text-brand-charcoal/80">{label}</p>
               </div>
             ))}
           </div>
@@ -134,7 +134,7 @@ export default function CalendarScreen() {
               <ChevronRight size={20} />
             </button>
           </div>
-          <div className="mt-2 grid grid-cols-7 text-center text-[12px] text-brand-charcoal/50">
+          <div className="mt-2 grid grid-cols-7 text-center text-[12px] text-brand-charcoal/80">
             {WEEKDAYS.map(d => (
               <span key={d}>{d}</span>
             ))}
@@ -157,8 +157,8 @@ export default function CalendarScreen() {
               </span>
             ))}
           </div>
-          {shown === 'error' && <p className="mt-3 text-[12px] text-brand-charcoal/60">{CALENDAR.checkinsError}</p>}
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-brand-charcoal/60">
+          {shown === 'error' && <p className="mt-3 text-[12px] text-brand-charcoal/80">{CALENDAR.checkinsError}</p>}
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-brand-charcoal/80">
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-full bg-brand-forest" />
               {CALENDAR.legend.done}
@@ -189,7 +189,7 @@ export default function CalendarScreen() {
         >
           <CalendarPlus size={22} className="text-brand-moss shrink-0" />
           <span className="flex-1 min-w-0 text-[15px] text-brand-forest">{reminderText}</span>
-          <ChevronRight size={18} className="text-brand-charcoal/30 shrink-0" />
+          <ChevronRight size={18} className="text-brand-charcoal/80 shrink-0" />
         </button>
 
         {/* 最近的打卡 */}
@@ -198,9 +198,9 @@ export default function CalendarScreen() {
           {summary.recent === null ? (
             // 這個月讀不出來：月曆底下已經說過一次（正在看這個月時），這裡不再重複
             months[monthOf(today)] === 'error' &&
-            cursor !== monthOf(today) && <p className="mt-3 text-[13px] text-brand-charcoal/60">{CALENDAR.checkinsError}</p>
+            cursor !== monthOf(today) && <p className="mt-3 text-[13px] text-brand-charcoal/80">{CALENDAR.checkinsError}</p>
           ) : summary.recent.length === 0 ? (
-            <p className="mt-3 text-[13px] text-brand-charcoal/60">{CALENDAR.recentEmpty}</p>
+            <p className="mt-3 text-[13px] text-brand-charcoal/80">{CALENDAR.recentEmpty}</p>
           ) : (
             <ul className="mt-2 divide-y divide-brand-stone/60">
               {summary.recent.map(c => {
@@ -215,7 +215,7 @@ export default function CalendarScreen() {
                     <Cover src={a.posterUrl} className="w-12 h-12 rounded-lg shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-[15px] font-bold text-brand-forest truncate">{a.title}</p>
-                      <p className="mt-0.5 text-[12px] text-brand-charcoal/55 truncate">{meta.join(' · ')}</p>
+                      <p className="mt-0.5 text-[12px] text-brand-charcoal/80 truncate">{meta.join(' · ')}</p>
                     </div>
                     {c.mood && (
                       <span className="shrink-0 text-[12px] text-brand-forest bg-brand-sage rounded-full px-2.5 py-1">{MOOD_LABEL[c.mood]}</span>

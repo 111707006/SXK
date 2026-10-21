@@ -22,6 +22,7 @@ import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import { buildSmartGoals } from '../t2/goals';
 import { hasSafetyConcern } from '../t2/report/prose';
 import type { T2ReportProse, ProseDimension } from '../t2/report/prose';
+import type { T2ReportProseV3 } from '../t2/report/proseV3';
 import { SAFETY_SENTENCE } from '../t2/report/sentences';
 import { dimensionAdvice } from '../t2/advice';
 import {
@@ -42,16 +43,35 @@ import { STATUS_CLASS } from './reportStatusClass';
 import { isFindingsV3, type T2FindingsV3 } from '../t2/findingsV3';
 import T2ReportV3 from './T2ReportV3';
 
-/** `POST /api/t2/findings` 與 `GET /api/t2/findings/latest` 回的一份快照。 */
-interface FindingsEntry {
+/**
+ * 一份 T2 報告快照：`POST /api/t2/findings`、`GET /api/t2/findings/latest` 回的，
+ * 也是後台家長詳情的 `t2Report`（#67）。
+ */
+export interface T2ReportEntry {
   id: number;
   createdAt: string;
   /** 舊題庫的 `T2Findings`，或完整版的 `T2FindingsV3`（`toolkitVersion` 分流，`isFindingsV3`）。 */
   findings: T2Findings | T2FindingsV3;
-  /** 存的時候壞掉會是 `null`；那時只剩狀態總覽與回顧可看。 */
-  prose: T2ReportProse | null;
+  /** 存的時候壞掉會是 `null`；那時只剩狀態總覽與回顧可看。完整版的快照配 `T2ReportProseV3`。 */
+  prose: T2ReportProse | T2ReportProseV3 | null;
   isAiGenerated: boolean;
-  aiEngine: string;
+  aiEngine: string | null;
+}
+type FindingsEntry = T2ReportEntry;
+
+/**
+ * 報告上按得下去的東西（生成、預約、線上干預），家長端的報告頁組好傳進來。
+ * **不給＝只讀**（#67）：後台的家長詳情與列印畫同一份報告，但那些是家長的動作 ——
+ * 後台按「重新生成」等於替家長另存一份、叫一次模型。
+ */
+export interface T2ReportActions {
+  /** 「重新生成」那一顆與它底下那一行。 */
+  regenerate: React.ReactNode;
+  errorLine: React.ReactNode;
+  /** 四種服務的按鈕（`serviceChoices`）。 */
+  serviceButtons: React.ReactNode;
+  /** 第六段的連結 → 導覽列那一頁「线上干预」。沒給就不出連結。 */
+  onOpenTraining?: () => void;
 }
 
 interface T2ReportProps {
@@ -118,7 +138,6 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
   const [entry, setEntry] = useState<FindingsEntry | null>(null);
   const [status, setStatus] = useState<'loading' | 'generating' | 'ready' | 'none' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [reviewOpen, setReviewOpen] = useState(false);
   const openedRef = useRef(false);
 
   const generate = async () => {
@@ -134,7 +153,6 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
         return;
       }
       setEntry(body as FindingsEntry);
-      setReviewOpen(false);
       setStatus('ready');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
@@ -183,7 +201,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       type="button"
       onClick={onBack}
       disabled={busy}
-      className={`print:hidden flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`print:hidden flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal hover:text-brand-forest transition ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <ArrowLeft size={16} />
       返回问卷清单
@@ -198,7 +216,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       onClick={generate}
       className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-md ${
         busy
-          ? 'bg-brand-cream border border-brand-stone text-brand-charcoal/40 cursor-not-allowed shadow-none'
+          ? 'bg-brand-cream border border-brand-stone text-brand-charcoal/80 cursor-not-allowed shadow-none'
           : 'bg-brand-forest hover:bg-brand-forest/90 text-white shadow-brand-forest/20 active:scale-[0.98] cursor-pointer'
       }`}
     >
@@ -211,7 +229,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
     <div className="bg-white rounded-3xl border border-brand-stone p-5 md:p-8 max-w-3xl mx-auto shadow-sm text-left">
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
         {backButton}
-        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
           <Layers size={10} /> 第二层 · 深度评估
         </span>
       </div>
@@ -220,12 +238,12 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
   );
 
   const errorLine = error && (
-    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{error}</p>
+    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{error}</p>
   );
 
   if (status === 'loading') {
     return shell(
-      <div className="flex items-center gap-2 text-xs text-brand-charcoal/60">
+      <div className="flex items-center gap-2 text-xs text-brand-charcoal/80">
         <Loader2 size={14} className="animate-spin text-brand-moss" />
         正在读取报告...
       </div>,
@@ -237,7 +255,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       <div className="space-y-3 py-6 text-center">
         <Loader2 size={22} className="animate-spin text-brand-moss mx-auto" />
         <p className="text-xs font-bold text-brand-forest">正在整理这次填写的问卷，写成一份报告…</p>
-        <p className="text-[11px] text-brand-charcoal/60">通常需要半分钟左右，请不要关闭这一页。</p>
+        <p className="text-xs text-brand-charcoal/80">通常需要半分钟左右，请不要关闭这一页。</p>
       </div>,
     );
   }
@@ -249,7 +267,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
           <h2 className="text-sm font-extrabold text-brand-forest">
             {status === 'none' ? '还没有生成过深度评估报告' : '暂时读不到报告'}
           </h2>
-          <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+          <p className="text-xs text-brand-charcoal/80 leading-relaxed">
             {status === 'none'
               ? '答完问卷后按下面的按钮，系统会把这次填写的结果整理成一份报告，并安排这一周的家庭活动。'
               : '请稍后再打开这一页，或直接重新生成一份。'}
@@ -270,35 +288,82 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
           type="button"
           disabled={!c.onSelect}
           onClick={c.onSelect ?? undefined}
-          className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-[11px] font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-sage/10 disabled:active:scale-100"
+          className="px-3 py-2 rounded-xl border border-brand-moss/30 bg-brand-sage/10 hover:bg-brand-sage/30 text-brand-forest text-xs font-bold transition active:scale-[0.99] cursor-pointer text-left flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-sage/10 disabled:active:scale-100"
         >
           <UserRound size={12} className="shrink-0" />
           {c.descriptor.label}
-          <ServiceNote state={c.state} className="text-brand-charcoal/60" />
+          <ServiceNote state={c.state} className="text-brand-charcoal/80" />
         </button>
       ))}
     </div>
   );
 
-  // 完整版題庫的快照（T2 v3）：另一個形狀，整頁改畫 T2ReportV3；舊快照照存的樣子走下面。
-  if (isFindingsV3(entry!.findings)) {
-    return shell(
+  const regenerate = (
+    <div className="shrink-0 space-y-1.5">
+      {generateButton('重新生成')}
+      <p className="text-xs text-brand-charcoal/80 max-w-[14rem]">照现在已填的问卷再整理一份；上一份仍保留。</p>
+    </div>
+  );
+
+  return shell(
+    <T2ReportSnapshot
+      key={entry!.id}
+      entry={entry!}
+      childName={childName}
+      actions={{ regenerate, errorLine, serviceButtons, onOpenTraining }}
+    />,
+  );
+}
+
+/**
+ * 一份快照排成報告。`actions` 不給就是只讀（後台，#67）：生成、預約、線上干預那幾顆與講「生成」的那一行都不出，
+ * 作答回顧一打開就是展開的（列印頁沒有人去點它）。完整版題庫的快照（T2 v3）是另一個形狀，整頁改畫 `T2ReportV3`；
+ * 舊快照照存的樣子走 `LegacyReport`。
+ */
+export function T2ReportSnapshot({
+  entry,
+  childName,
+  actions,
+  onReady,
+}: {
+  entry: T2ReportEntry;
+  childName?: string;
+  actions?: T2ReportActions;
+  /** 畫完、要非同步載的都載完之後呼叫一次（後台列印頁等它才叫列印）。 */
+  onReady?: () => void;
+}) {
+  if (isFindingsV3(entry.findings)) {
+    return (
       <T2ReportV3
-        entry={entry as FindingsEntry & { findings: T2FindingsV3 }}
-        regenerate={
-          <div className="shrink-0 space-y-1.5">
-            {generateButton('重新生成')}
-            <p className="text-[10px] text-brand-charcoal/50 max-w-[14rem]">照现在已填的问卷再整理一份；上一份仍保留。</p>
-          </div>
-        }
-        errorLine={errorLine}
-        serviceButtons={serviceButtons}
-        onOpenTraining={onOpenTraining}
+        entry={entry as T2ReportEntry & { findings: T2FindingsV3 }}
+        actions={actions}
+        onReady={onReady}
         formatDay={formatDay}
-      />,
+      />
     );
   }
-  const { findings, prose } = entry as FindingsEntry & { findings: T2Findings };
+  return <LegacyReport entry={entry as T2ReportEntry & { findings: T2Findings }} childName={childName} actions={actions} onReady={onReady} />;
+}
+
+function LegacyReport({
+  entry,
+  childName,
+  actions,
+  onReady,
+}: {
+  entry: T2ReportEntry & { findings: T2Findings };
+  childName?: string;
+  actions?: T2ReportActions;
+  onReady?: () => void;
+}) {
+  const [reviewOpen, setReviewOpen] = useState(!actions);
+  // 舊題庫的報告沒有要另外載的東西，畫完就算好
+  useEffect(() => {
+    onReady?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const { findings } = entry;
+  const prose = entry.prose as T2ReportProse | null;
   const ageMonth = findings.child.assessedAgeMonth;
   const goals = buildSmartGoals(findings, { childName });
   const byId = new Map<DimensionCode, DimensionFinding>(findings.dimensions.map(d => [d.dimensionId, d]));
@@ -324,26 +389,23 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
     </h3>
   );
 
-  return shell(
+  return (
     <div className="space-y-7">
       {/* 標頭：來源三態、生成日期、測評月齡 */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
             <Award size={14} />
-            {reportSourceLabel(entry!.isAiGenerated)}
+            {reportSourceLabel(entry.isAiGenerated)}
           </div>
           <h2 className="text-lg font-bold text-brand-forest mt-1">深度评估报告</h2>
-          <p className="text-[11px] text-brand-charcoal/70 mt-1">
-            {formatDay(entry!.createdAt) && `${formatDay(entry!.createdAt)}生成 · `}按答题时 {findings.child.assessedAgeMonth} 个月整理
+          <p className="text-xs text-brand-charcoal/80 mt-1">
+            {formatDay(entry.createdAt) && `${formatDay(entry.createdAt)}生成 · `}按答题时 {findings.child.assessedAgeMonth} 个月整理
           </p>
         </div>
-        <div className="shrink-0 space-y-1.5">
-          {generateButton('重新生成')}
-          <p className="text-[10px] text-brand-charcoal/50 max-w-[14rem]">照现在已填的问卷再整理一份；上一份仍保留。</p>
-        </div>
+        {actions?.regenerate}
       </div>
-      {errorLine}
+      {actions?.errorLine}
 
       {/* safety_concern 置頂（§5.6）：整份報告最該被讀到的一句，原樣照抄，不交給任何人改寫 */}
       {safety && (
@@ -359,7 +421,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
         {prose ? (
           <p className="text-xs text-brand-charcoal leading-relaxed">{stripSafetyPrefix(prose.overview)}</p>
         ) : (
-          <p className="text-[11px] text-brand-charcoal/60">这份报告的文字读不出来，下面先看各方面的结果。</p>
+          <p className="text-xs text-brand-charcoal/80">这份报告的文字读不出来，下面先看各方面的结果。</p>
         )}
         <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2" id="t2-dimension-grid">
           {gridDimensions(findings).map(d => {
@@ -369,9 +431,9 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
               <li key={d.dimensionId} data-band={d.band} className={`rounded-xl border px-3 py-2 ${cls}`}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold">{SITE_DIMENSION_NAME[d.dimensionId]}</span>
-                  <span className="text-[10px] font-bold shrink-0">{s.label}</span>
+                  <span className="text-xs font-bold shrink-0">{s.label}</span>
                 </div>
-                <p className="text-[10px] leading-relaxed mt-0.5 opacity-90">{s.tag}</p>
+                <p className="text-xs leading-relaxed mt-0.5 opacity-90">{s.tag}</p>
               </li>
             );
           })}
@@ -392,19 +454,19 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
               <article key={p.dimensionId} className="rounded-2xl border border-brand-moss/20 bg-white/70 p-4 space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <h4 className="text-xs font-extrabold text-brand-forest">{SITE_DIMENSION_NAME[p.dimensionId]}</h4>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold ${STATUS_CLASS[s.kind === 'band' ? s.status : s.tone]}`}>
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full border text-xs font-bold ${STATUS_CLASS[s.kind === 'band' ? s.status : s.tone]}`}>
                     {s.tag}
                   </span>
                 </div>
                 <p className="text-xs text-brand-charcoal leading-relaxed">{p.whatWeSaw}</p>
-                <p className="text-[11px] text-brand-charcoal/80 leading-relaxed">{p.whyItMatters}</p>
+                <p className="text-xs text-brand-charcoal/80 leading-relaxed">{p.whyItMatters}</p>
                 {advice && advice.consequences.length > 0 && (
                   <div data-advice="consequences" className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-2.5 space-y-1.5">
-                    <p className="text-[11px] font-extrabold text-brand-forest">{ADVICE_HEADING.consequences}</p>
-                    <p className="text-[10px] text-brand-charcoal/65 leading-relaxed">{ADVICE_LEAD_SENTENCE}</p>
+                    <p className="text-xs font-extrabold text-brand-forest">{ADVICE_HEADING.consequences}</p>
+                    <p className="text-xs text-brand-charcoal/80 leading-relaxed">{ADVICE_LEAD_SENTENCE}</p>
                     <ul className="space-y-1">
                       {advice.consequences.map(c => (
-                        <li key={c.sectionKey} className="text-[11px] text-brand-charcoal leading-relaxed">
+                        <li key={c.sectionKey} className="text-xs text-brand-charcoal leading-relaxed">
                           <span className="font-bold text-brand-forest mr-1.5">{c.sectionName}</span>
                           {c.text}
                         </li>
@@ -414,16 +476,16 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
                 )}
                 {advice && advice.plans.length > 0 && (
                   <div data-advice="plans" className="rounded-xl border border-brand-moss/20 bg-brand-sage/10 px-3 py-2.5 space-y-2">
-                    <p className="text-[11px] font-extrabold text-brand-forest">{ADVICE_HEADING.plans}</p>
+                    <p className="text-xs font-extrabold text-brand-forest">{ADVICE_HEADING.plans}</p>
                     {advice.plans.map(plan => (
                       <div key={plan.sectionKey} className="space-y-1">
-                        <p className="text-[11px] font-bold text-brand-charcoal leading-relaxed">
+                        <p className="text-xs font-bold text-brand-charcoal leading-relaxed">
                           {ADVICE_RANK_LABEL[plan.rank]} · {plan.title}
-                          <span className="ml-1.5 text-[10px] font-semibold text-brand-charcoal/55">{plan.sectionName}</span>
+                          <span className="ml-1.5 text-xs font-semibold text-brand-charcoal/80">{plan.sectionName}</span>
                         </p>
                         <ul className="space-y-0.5">
                           {plan.focus.map((f, i) => (
-                            <li key={i} className="text-[11px] text-brand-charcoal/85 leading-relaxed flex gap-1.5">
+                            <li key={i} className="text-xs text-brand-charcoal leading-relaxed flex gap-1.5">
                               <span className="shrink-0">·</span>
                               <span>{f}</span>
                             </li>
@@ -436,7 +498,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
                 {p.caveats.length > 0 && (
                   <ul className="space-y-1 pt-1 border-t border-brand-stone/40">
                     {p.caveats.map((c, i) => (
-                      <li key={i} className="text-[10px] text-brand-charcoal/65 leading-relaxed flex gap-1.5">
+                      <li key={i} className="text-xs text-brand-charcoal/80 leading-relaxed flex gap-1.5">
                         <span className="shrink-0">·</span>
                         <span>{c}</span>
                       </li>
@@ -444,7 +506,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
                   </ul>
                 )}
                 {redos.length > 0 && (
-                  <p className="text-[10px] text-brand-clay font-semibold">{redos.join('；')}</p>
+                  <p className="text-xs text-brand-clay font-semibold">{redos.join('；')}</p>
                 )}
               </article>
             );
@@ -463,15 +525,19 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
                 <div key={d.dimensionId} className="space-y-1">
                   <h4 className="text-xs font-extrabold text-brand-forest">
                     {SITE_DIMENSION_NAME[d.dimensionId]}
-                    <span className="ml-2 font-bold text-[10px] text-brand-charcoal/60">{dimensionStatus(d, ageMonth).tag}</span>
+                    <span className="ml-2 font-bold text-xs text-brand-charcoal/80">{dimensionStatus(d, ageMonth).tag}</span>
                   </h4>
                   {p && <p className="text-xs text-brand-charcoal leading-relaxed">{p.whatWeSaw}</p>}
-                  {p && <p className="text-[11px] text-brand-charcoal/80 leading-relaxed">{p.whyItMatters}</p>}
+                  {p && <p className="text-xs text-brand-charcoal/80 leading-relaxed">{p.whyItMatters}</p>}
                 </div>
               );
             })}
-            <p className="text-[11px] text-brand-charcoal/75">这几个方面可以直接和专家聊一聊：</p>
-            {serviceButtons}
+            {actions && (
+              <>
+                <p className="text-xs text-brand-charcoal/80">这几个方面可以直接和专家聊一聊：</p>
+                {actions.serviceButtons}
+              </>
+            )}
           </div>
         </section>
       )}
@@ -493,13 +559,13 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
               <li key={g.dimensionId} className="rounded-2xl border border-brand-stone/60 bg-brand-cream/30 p-3.5 space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-extrabold text-brand-forest">{g.area}</span>
-                  <span className="text-[10px] font-bold text-brand-charcoal/60 shrink-0">
+                  <span className="text-xs font-bold text-brand-charcoal/80 shrink-0">
                     {STATUS_WORDING[g.band === 'refer' ? 'delay' : 'borderline'].label}
                   </span>
                 </div>
-                <p className="text-[11px] text-brand-charcoal leading-relaxed"><span className="font-bold">十二周：</span>{g.longTerm}</p>
-                <p className="text-[11px] text-brand-charcoal leading-relaxed"><span className="font-bold">四周：</span>{g.shortTerm}</p>
-                <p className="text-[10px] text-brand-charcoal/65 leading-relaxed">{g.measure}</p>
+                <p className="text-xs text-brand-charcoal leading-relaxed"><span className="font-bold">十二周：</span>{g.longTerm}</p>
+                <p className="text-xs text-brand-charcoal leading-relaxed"><span className="font-bold">四周：</span>{g.shortTerm}</p>
+                <p className="text-xs text-brand-charcoal/80 leading-relaxed">{g.measure}</p>
               </li>
             ))}
           </ol>
@@ -512,13 +578,13 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       */}
       <section className="space-y-3" id="t2-weekly">
         {prose && <p className="text-xs text-brand-charcoal leading-relaxed">{prose.weeklyPlanIntro}</p>}
-        {onOpenTraining && (
+        {actions?.onOpenTraining && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-2xl bg-brand-forest text-white px-5 py-4">
             <p className="text-xs leading-relaxed">{REPORT_TRAINING_LINK.text}</p>
             <button
               type="button"
               id="t2-open-training-btn"
-              onClick={onOpenTraining}
+              onClick={actions.onOpenTraining}
               className="shrink-0 px-4 py-2 rounded-xl bg-white text-brand-forest text-xs font-bold hover:bg-brand-cream active:scale-[0.98] transition cursor-pointer"
             >
               {REPORT_TRAINING_LINK.action}
@@ -528,11 +594,11 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       </section>
 
       {/* 6 之後：三个月后重评（v2.1 S14）。規則輸出、不經 AI；沒有打卡紀錄的判斷，一律出現 */}
-      <p className="text-[11px] text-brand-charcoal/80 leading-relaxed" id="t2-retest">{RETEST_SENTENCE}</p>
+      <p className="text-xs text-brand-charcoal/80 leading-relaxed" id="t2-retest">{RETEST_SENTENCE}</p>
 
       {/* 7. closing */}
       {prose && (
-        <p className="text-xs text-brand-charcoal/85 leading-relaxed border-t border-brand-cream pt-5" id="t2-closing">
+        <p className="text-xs text-brand-charcoal leading-relaxed border-t border-brand-cream pt-5" id="t2-closing">
           {prose.closing}
         </p>
       )}
@@ -543,33 +609,34 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
           type="button"
           onClick={() => setReviewOpen(o => !o)}
           aria-expanded={reviewOpen}
-          className="inline-flex items-center gap-1 text-sm font-extrabold text-brand-forest hover:text-brand-moss transition cursor-pointer"
+          className="flex flex-wrap items-center gap-x-1 text-left text-sm font-extrabold text-brand-forest hover:text-brand-moss transition cursor-pointer"
         >
           {reviewOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-          你勾选的项目
-          <span className="text-[10px] font-bold text-brand-charcoal/50 ml-1">（还没稳定的那些，可以当成练习目标）</span>
+          <span className="whitespace-nowrap">你勾选的项目</span>
+          <span className="text-xs font-bold text-brand-charcoal/80">（还没稳定的那些，可以当成练习目标）</span>
         </button>
         {reviewOpen && (
           review.length === 0 ? (
-            <p className="text-[11px] text-brand-charcoal/70">{REVIEW_EMPTY_SENTENCE}。</p>
+            <p className="text-xs text-brand-charcoal/80">{REVIEW_EMPTY_SENTENCE}。</p>
           ) : (
             <div className="space-y-3">
               {review.map(g => (
                 <div key={g.toolId} className="rounded-2xl border border-brand-stone/60 p-3.5 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-brand-forest">{g.heading}</span>
-                    <span className="text-[10px] text-brand-charcoal/50 shrink-0">
+                    <span className="text-xs text-brand-charcoal/80 shrink-0">
                       {formatDay(g.computedAt)}
                       {redoByTool.has(g.toolId) && ` · ${redoSentence(redoByTool.get(g.toolId)!)}`}
                     </span>
                   </div>
+                  {g.raterLine && <p className="text-xs text-brand-charcoal/80">{g.raterLine}</p>}
                   <ul className="space-y-1.5">
                     {g.items.map(item => (
-                      <li key={item.key} className="text-[11px] text-brand-charcoal leading-relaxed flex gap-2">
-                        <span className="text-brand-charcoal/40 shrink-0">{item.sectionName ? `${item.sectionName} ${item.no}` : item.no}</span>
+                      <li key={item.key} className="text-xs text-brand-charcoal leading-relaxed flex gap-2">
+                        <span className="text-brand-charcoal/80 shrink-0">{item.sectionName ? `${item.sectionName} ${item.no}` : item.no}</span>
                         <span className="flex-1">
                           {item.text}
-                          <span className="ml-1.5 text-[10px] font-bold text-brand-clay">{item.answer}</span>
+                          <span className="ml-1.5 text-xs font-bold text-brand-clay">{item.answer}</span>
                         </span>
                       </li>
                     ))}
@@ -581,10 +648,12 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
         )}
       </section>
 
-      <div className="pt-2 flex items-center gap-2">
-        <RefreshCw size={12} className="text-brand-charcoal/40" />
-        <p className="text-[10px] text-brand-charcoal/50">每次生成都会另存一份，之后打开这一页看到的是最新的那一份。</p>
-      </div>
-    </div>,
+      {actions && (
+        <div className="pt-2 flex items-center gap-2">
+          <RefreshCw size={12} className="text-brand-charcoal/80" />
+          <p className="text-xs text-brand-charcoal/80">每次生成都会另存一份，之后打开这一页看到的是最新的那一份。</p>
+        </div>
+      )}
+    </div>
   );
 }

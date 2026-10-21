@@ -13,7 +13,7 @@
  * 「兩者已不同段」這個事實，讓畫面把它講清楚並建議重測。
  */
 import type { AssessmentRecord, DimensionScore } from '../types';
-import { getT1AgeBand } from '../t1Data';
+import { getT1AgeBand, T1_AGE_BANDS } from '../t1Data';
 
 /** 一段年齡段在畫面上要說出來的部分。刻意不回整個 `T1AgeBand` —— 題目不該外流到 UI。 */
 export interface AgeBandRef {
@@ -49,6 +49,15 @@ function isAgeMonth(value: unknown): value is number {
 export function ageBandOf(ageMonth: number): AgeBandRef {
   const band = getT1AgeBand(ageMonth);
   return { id: band.id, name: band.name };
+}
+
+/**
+ * 某一段的頭尾月齡（含）。發育指數（`src/developmentIndex/`）要在段頭、段尾之間內插通過率，
+ * 從這裡拿，年齡段的上下界才只在一處被讀。認不得的段回 `null`。
+ */
+export function ageBandRange(bandId: string): readonly [number, number] | null {
+  const band = T1_AGE_BANDS.find(b => b.id === bandId);
+  return band ? [band.minAge, band.maxAge] : null;
 }
 
 /**

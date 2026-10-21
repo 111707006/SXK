@@ -16,7 +16,7 @@
  * 兩者分岔，此時詳情頂端會說出來，底下的「九维筛查结果」表就是現況那一份。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar, FileText, MessageSquare, Phone, Printer, Trash2, User, X } from 'lucide-react';
+import { AlertTriangle, Calendar, FileText, Layers, MessageSquare, Phone, Printer, Trash2, User, X } from 'lucide-react';
 import {
   adminApi,
   type AdminInviteConfig,
@@ -47,6 +47,9 @@ import { ageBandDrift } from '../../utils/ageBandDrift';
 import { latestReportOf, screeningReportCount } from '../../utils/reportHistory';
 import { isOfflineService, serviceTypeLabel } from '../../utils/serviceTypes';
 import ReportBody from '../../components/ReportBody';
+import { T2ReportSnapshot } from '../../components/T2Report';
+import { useReportLayout } from '../../utils/reportLayout';
+import ParentSummaryView from './ParentSummaryView';
 import {
   Button,
   EmptyState,
@@ -86,6 +89,8 @@ export default function ParentsPanel({
   const [sort, setSort] = useState<Sort>('newest');
   const [booked, setBooked] = useState<Booked>('all');
   const [openId, setOpenId] = useState<number | null>(null);
+  // 「汇总」檢視（#69）：同一個視野、同一組篩選，一個孩子一行，導出鍵在上面。
+  const [view, setView] = useState<'list' | 'summary'>('list');
 
   const serverSort = sort === 'oldest' ? 'oldest' : 'newest';
   const load = useCallback(() => adminApi.parents(serverSort, booked), [serverSort, booked]);
@@ -139,10 +144,18 @@ export default function ParentsPanel({
   return (
     <>
       <Panel
-        title="家长列表"
+        title={view === 'summary' ? '家长汇总' : '家长列表'}
         description="只包含当前视野内的家长。月龄、筛查总分与被标记的维度（附该维度得分）直接列出，让电话打得出去之前就知道该先联系谁。"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <div className="flex gap-1" role="group" aria-label="检视">
+              <Button variant={view === 'list' ? 'primary' : 'ghost'} onClick={() => setView('list')} aria-pressed={view === 'list'}>
+                列表
+              </Button>
+              <Button variant={view === 'summary' ? 'primary' : 'ghost'} onClick={() => setView('summary')} aria-pressed={view === 'summary'}>
+                汇总
+              </Button>
+            </div>
             <Select value={sort} onChange={e => setSort(e.target.value as Sort)} className="w-auto">
               <option value="newest">最近筛查在前</option>
               <option value="oldest">最早筛查在前</option>
@@ -156,6 +169,10 @@ export default function ParentsPanel({
           </div>
         }
       >
+        {view === 'summary' ? (
+          <ParentSummaryView options={{ sort, booked }} onError={onError} />
+        ) : (
+        <>
         {/* 不跟著列表的載入狀態開關：送完會重讀列表，這一條要是跟著卸掉，送出的結果就跟著不見了。 */}
         {inviting && (
           <InviteBar
@@ -225,6 +242,8 @@ export default function ParentsPanel({
               共 {parents.length} 位家长。后端一次最多回 500 笔。
             </p>
           </div>
+        )}
+        </>
         )}
       </Panel>
 
@@ -679,6 +698,7 @@ function DeleteParentModal({
 }
 
 function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
+  const { noWeeklyPlan } = useReportLayout();
   const latestReport = latestReportOf(parent.reportHistory);
   // 只算篩查報告：整串 `reportHistory` 還包含深度評估與沒生成過報告的篩查紀錄，
   // 拿它的長度去說「共 N 份」會報一個與畫面上那一份對不起來的數字。
@@ -848,11 +868,28 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
                 reportId={latestReport.id}
                 history={parent.reportHistory}
                 reportCreatedAt={latestReport.createdAt}
+                noWeeklyPlan={noWeeklyPlan}
               />
             </div>
           </div>
         )}
       </Section>
+
+      {/*
+        T2 報告（#67）：家長打開深度評估報告頁看到的那一份快照，照存的樣子畫，不重算、不叫模型。
+        只讀 —— 生成、預約、線上干預是家長的動作，不給 `actions` 就不出。沒做過（`null`）或專案 B
+        （沒有這一欄）整段不出，不留空區塊。
+      */}
+      {parent.t2Report && (
+        <Section icon={<Layers size={12} />} title="家长看到的深度评估报告">
+          <div className="space-y-2">
+            <p className="text-[10px] text-brand-charcoal/40">产生时间：{formatDateTime(parent.t2Report.createdAt)}</p>
+            <div className="-mx-2">
+              <T2ReportSnapshot entry={parent.t2Report} childName={parent.childName ?? undefined} />
+            </div>
+          </div>
+        </Section>
+      )}
     </>
   );
 }

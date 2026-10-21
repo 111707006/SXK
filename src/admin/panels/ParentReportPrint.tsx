@@ -12,11 +12,13 @@
  * 不讓匯出自己去查資料庫的理由（那會成為繞過公司範圍的第二條路）原封不動成立 ——
  * 新分頁只是再呼叫一次同一支端點，範圍條件仍在後端的 token 裡。
  */
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminApi } from '../adminApi';
 import { useAsyncData } from '../ui';
 import { latestReportOf } from '../../utils/reportHistory';
 import ReportBody from '../../components/ReportBody';
+import { T2ReportSnapshot } from '../../components/T2Report';
+import { useReportLayout } from '../../utils/reportLayout';
 
 export default function ParentReportPrint({ id }: { id: number }) {
   const load = useCallback(() => adminApi.parent(id), [id]);
@@ -25,6 +27,13 @@ export default function ParentReportPrint({ id }: { id: number }) {
   const printed = useRef(false);
 
   const report = data ? latestReportOf(data.parent.reportHistory) : null;
+  const t2Report = data?.parent.t2Report ?? null;
+  // T2 報告（完整版）的作答回顧與氣質要先載題庫；載完才叫列印，不然紙上少那兩段。
+  const [t2Ready, setT2Ready] = useState(false);
+  const onT2Ready = useCallback(() => setT2Ready(true), []);
+  // 報告版面的開關（#71）問完才印：不然紙上可能是換版前那一份（還有週計劃圖）。
+  const layout = useReportLayout();
+  const readyToPrint = !!report && (!t2Report || t2Ready) && layout.ready;
 
   useEffect(() => {
     document.title = data?.parent.childName
@@ -33,7 +42,7 @@ export default function ParentReportPrint({ id }: { id: number }) {
   }, [data]);
 
   useEffect(() => {
-    if (!report || printed.current) return;
+    if (!readyToPrint || printed.current) return;
     // 等這一輪畫完（圖表是 SVG，同步渲染）再叫列印，否則紙上是一張空白頁。
     const timer = window.setTimeout(() => {
       // **旗標在計時器真的響了才立起來。** 寫在排程的當下會被 StrictMode 反殺：
@@ -44,7 +53,7 @@ export default function ParentReportPrint({ id }: { id: number }) {
       window.print();
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [report]);
+  }, [readyToPrint]);
 
   if (loading) {
     return <Message text="正在载入报告…" />;
@@ -69,7 +78,20 @@ export default function ParentReportPrint({ id }: { id: number }) {
         reportId={report.id}
         history={data.parent.reportHistory}
         reportCreatedAt={report.createdAt}
+        noWeeklyPlan={layout.noWeeklyPlan}
       />
+      {/*
+        T2 報告（#67）接在 T1 後面、另起一頁。只讀（不給 `actions`）；沒做過或專案 B（沒有這一欄）就不出。
+      */}
+      {data.parent.t2Report && (
+        <div className="mt-6 rounded-3xl border border-brand-stone bg-white p-5 md:p-8 print:mt-0 print:break-before-page print:border-0 print:p-0">
+          <T2ReportSnapshot
+            entry={data.parent.t2Report}
+            childName={data.parent.childName ?? undefined}
+            onReady={onT2Ready}
+          />
+        </div>
+      )}
     </div>
   );
 }

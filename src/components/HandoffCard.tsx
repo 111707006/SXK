@@ -61,11 +61,11 @@ export default function HandoffCard({ onShowPrivacy }: { onShowPrivacy: () => vo
   return (
     <div id="handoff-card" className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left space-y-4">
       <div className="space-y-1.5">
-        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
           <Layers size={10} /> {HANDOFF_CARD.badge}
         </span>
         <h3 className="text-sm font-extrabold text-brand-forest">{HANDOFF_CARD.title(targetName)}</h3>
-        <p className="text-[11px] text-brand-charcoal/70 leading-relaxed max-w-2xl">{HANDOFF_CARD.body(targetName)}</p>
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed max-w-2xl">{HANDOFF_CARD.body(targetName)}</p>
       </div>
 
       <div className="space-y-2">
@@ -80,14 +80,14 @@ export default function HandoffCard({ onShowPrivacy }: { onShowPrivacy: () => vo
           {going ? HANDOFF_CARD.going : HANDOFF_CARD.button(targetName)}
           {!going && <ChevronRight size={13} />}
         </button>
-        <p className="text-[10px] text-brand-charcoal/55 leading-relaxed">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           {HANDOFF_CARD.consent(targetName)}，
           <button type="button" onClick={onShowPrivacy} className="underline underline-offset-2 hover:text-brand-forest cursor-pointer">
             {HANDOFF_CARD.privacy}
           </button>
         </p>
         {error && (
-          <p role="alert" className="text-[11px] font-bold text-amber-800">
+          <p role="alert" className="text-xs font-bold text-amber-800">
             {error}
           </p>
         )}

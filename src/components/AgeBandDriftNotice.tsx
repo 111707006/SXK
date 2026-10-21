@@ -39,7 +39,7 @@ export default function AgeBandDriftNotice({ drift, onStartT1Screening }: AgeBan
           <span className="font-bold">「{drift.assessedBand.name}」</span>时测的。
           两段的题目与判准不同，建议重新做一次筛查。
         </p>
-        <p className="text-[10px] text-amber-900/55">
+        <p className="text-xs text-amber-900/55">
           旧的报告不会消失，也没有失效 —— 在「评估报告」里随时读得到。
         </p>
       </div>

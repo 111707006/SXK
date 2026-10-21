@@ -49,9 +49,10 @@ export function AnswersOverview({ scores, notes }: { scores: DimensionScore[]; n
           <ClipboardList size={15} className="text-brand-moss" />
           这次作答的样子
         </h3>
-        <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
-          {answers.bandName ? `题目按孩子当时的年龄出题（${answers.bandName}）。` : ''}这里只看这一次的作答，不和其他孩子比较。
-        </p>
+        {/* 原本後面還有半句「只看這一次的作答」的防禦性說明，拿掉了（客戶 10/17、使用者 10-18：報告要行銷出去）。 */}
+        {answers.bandName && (
+          <p className="text-xs text-brand-charcoal/80 mt-0.5">题目按孩子当时的年龄出题（{answers.bandName}）。</p>
+        )}
       </div>
 
       {counts ? (
@@ -59,7 +60,7 @@ export function AnswersOverview({ scores, notes }: { scores: DimensionScore[]; n
           <p className="text-sm font-extrabold text-brand-forest">
             这个年龄题组里，做到了 <span className="text-brand-moss text-base">{counts.can}</span> / {counts.total} 项
             {counts.partly > 0 && (
-              <span className="text-[11px] font-semibold text-brand-charcoal/60">（另有 {counts.partly} 项有时・部分做得到）</span>
+              <span className="text-xs font-semibold text-brand-charcoal/80">（另有 {counts.partly} 项有时・部分做得到）</span>
             )}
           </p>
           <div className="w-full h-4 rounded-full overflow-hidden flex border border-brand-stone/50" role="img"
@@ -68,7 +69,7 @@ export function AnswersOverview({ scores, notes }: { scores: DimensionScore[]; n
             <div className="h-full bg-amber-300" style={{ width: `${(counts.partly / counts.total) * 100}%` }} />
             <div className="h-full bg-rose-300" style={{ width: `${(counts.notYet / counts.total) * 100}%` }} />
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-brand-charcoal/75 font-semibold">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-brand-charcoal/80 font-semibold">
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />{ANSWER_LABEL[2]} {counts.can} 题</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-300" />{ANSWER_LABEL[1]} {counts.partly} 题</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-300" />{ANSWER_LABEL[0]} {counts.notYet} 题</span>
@@ -79,7 +80,7 @@ export function AnswersOverview({ scores, notes }: { scores: DimensionScore[]; n
           <p className="text-sm font-extrabold text-brand-forest">
             {answers.dimensions.length} 个方面合计 <span className="text-brand-moss text-base">{sum}</span> / {max} 分
           </p>
-          <p className="text-[10px] text-brand-charcoal/55">这份报告没有存下每一题的作答，所以这里只有合计分数。</p>
+          <p className="text-xs text-brand-charcoal/80">这份报告没有存下每一题的作答，所以这里只有合计分数。</p>
         </div>
       )}
 
@@ -89,7 +90,7 @@ export function AnswersOverview({ scores, notes }: { scores: DimensionScore[]; n
           接下来可以多练的
         </p>
         {flagged.length === 0 ? (
-          <p className="text-xs text-brand-charcoal/75 leading-relaxed">
+          <p className="text-xs text-brand-charcoal/80 leading-relaxed">
             这次没有被标记的方面，每一题都做得到。下面的居家建议照常进行，三个月后再做一次筛查作为对照。
           </p>
         ) : (
@@ -101,22 +102,22 @@ export function AnswersOverview({ scores, notes }: { scores: DimensionScore[]; n
               <div key={d.dimensionId} className="rounded-xl border border-brand-stone/60 p-3.5 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-brand-forest">{d.dimensionName}</span>
-                  <span className={`text-[9px] px-2 py-0.5 rounded-full border font-bold ${STATUS_CLASS[d.status]}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border font-bold ${STATUS_CLASS[d.status]}`}>
                     {STATUS_WORDING[d.status].label}
                   </span>
                 </div>
-                {note && <p className="text-[11px] text-brand-charcoal leading-relaxed">{note}</p>}
+                {note && <p className="text-xs text-brand-charcoal leading-relaxed">{note}</p>}
                 {(notYet.length > 0 || partly.length > 0) && (
                   <ul className="space-y-1">
                     {notYet.map(i => (
-                      <li key={i.questionId} className="flex items-start gap-1.5 text-[11px] text-brand-charcoal/85">
-                        <span className="shrink-0 mt-0.5 px-1.5 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[9px] font-bold">{ANSWER_LABEL[0]}</span>
+                      <li key={i.questionId} className="flex items-start gap-1.5 text-xs text-brand-charcoal">
+                        <span className="shrink-0 mt-0.5 px-1.5 rounded bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">{ANSWER_LABEL[0]}</span>
                         <span>{i.text}</span>
                       </li>
                     ))}
                     {partly.map(i => (
-                      <li key={i.questionId} className="flex items-start gap-1.5 text-[11px] text-brand-charcoal/75">
-                        <span className="shrink-0 mt-0.5 px-1.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-bold">{ANSWER_LABEL[1]}</span>
+                      <li key={i.questionId} className="flex items-start gap-1.5 text-xs text-brand-charcoal/80">
+                        <span className="shrink-0 mt-0.5 px-1.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">{ANSWER_LABEL[1]}</span>
                         <span>{i.text}</span>
                       </li>
                     ))}
@@ -136,34 +137,45 @@ function shortDate(iso: string): string {
   return m ? `${Number(m[2])}/${Number(m[3])}` : '本次';
 }
 
-/** 一個維度的小折線：橫軸是歷次報告（由舊到新），縱軸是關注分 0–8（越高越建議多了解）。 */
+/**
+ * 一個維度的小折線：橫軸是歷次報告（由舊到新），縱軸是關注分 0–8（越高越建議多了解）。
+ *
+ * 不用 viewBox 縮放：手機上一格只剩約 100px 寬，原本 150 寬的 viewBox 會把點上的數字縮到 5px。
+ * 改成固定高度、橫向用百分比，字就是真的 12px（家長端最小字級，#74）。折線因此拆成一段一段的 `<line>`
+ * —— `polyline` 的座標不收百分比。
+ */
+/** 小折線的橫向座標（SVG 長度單位，不是給家長看的字）。 */
+const pct = (v: number) => `${v}%`;
+
 function DimensionSpark({ name, points, id }: { name: string; points: ScreeningPoint[]; id: string }) {
-  const W = 150, H = 54, padX = 10, padTop = 12, padBottom = 8;
+  const H = 64, padX = 10, padTop = 18, padBottom = 8;
   const n = points.length;
-  const x = (i: number) => (n === 1 ? W / 2 : padX + (i * (W - 2 * padX)) / (n - 1));
+  const x = (i: number) => pct(n === 1 ? 50 : padX + (i * (100 - 2 * padX)) / (n - 1));
   // 關注分越高畫得越高（與雷達圖同一個方向：越凸出去越建議了解）。
   const y = (c: number) => padTop + (1 - c / 8) * (H - padTop - padBottom);
   const pts = points.map((p, i) => ({ i, v: p.dimensions[id] })).filter(p => p.v);
   const last = pts[pts.length - 1]?.v;
   return (
     <div className="rounded-xl border border-brand-stone/50 p-2.5">
-      <div className="flex items-center justify-between gap-1 text-[10px] font-bold text-brand-forest">
-        <span className="truncate min-w-0">{name}</span>
-        {last && <span className="shrink-0" style={{ color: STATUS_HEX[last.status] }}>关注分 {last.concern}</span>}
+      {/* 名字一行、分數一行：兩欄的格子在手機上只有約 100px，擠在同一行會把「生活自理与适应」截成「生活自…」。 */}
+      <div className="text-xs font-bold text-brand-forest leading-snug">
+        <div>{name}</div>
+        {last && <div style={{ color: STATUS_HEX[last.status] }}>关注分 {last.concern}</div>}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto mt-1">
-        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="#e5e7eb" strokeWidth="1" />
-        <line x1={padX} y1={y(8)} x2={W - padX} y2={y(8)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3,3" />
-        {pts.length > 1 && (
-          <polyline
-            points={pts.map(p => `${x(p.i)},${y(p.v!.concern)}`).join(' ')}
-            fill="none" stroke="#9ca3af" strokeWidth="1.5"
+      <svg width={pct(100)} height={H} className="block mt-1 overflow-visible">
+        <line x1={pct(padX)} y1={y(0)} x2={pct(100 - padX)} y2={y(0)} stroke="#e5e7eb" strokeWidth="1" />
+        <line x1={pct(padX)} y1={y(8)} x2={pct(100 - padX)} y2={y(8)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3,3" />
+        {pts.slice(1).map((p, k) => (
+          <line
+            key={`seg-${p.i}`}
+            x1={x(pts[k].i)} y1={y(pts[k].v!.concern)} x2={x(p.i)} y2={y(p.v!.concern)}
+            stroke="#9ca3af" strokeWidth="1.5"
           />
-        )}
+        ))}
         {pts.map(p => (
           <g key={p.i}>
             <circle cx={x(p.i)} cy={y(p.v!.concern)} r="3.5" fill={STATUS_HEX[p.v!.status] ?? STATUS_HEX.normal} stroke="white" strokeWidth="1.5" />
-            <text x={x(p.i)} y={y(p.v!.concern) - 6} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#374151">{p.v!.concern}</text>
+            <text x={x(p.i)} y={y(p.v!.concern) - 7} textAnchor="middle" fontSize="12" fontWeight="bold" fill="#374151">{p.v!.concern}</text>
           </g>
         ))}
       </svg>
@@ -188,13 +200,13 @@ export function ScreeningHistory({ history, current }: {
           <History size={15} className="text-brand-moss" />
           历次筛查对照
         </h3>
-        <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
+        <p className="text-xs text-brand-charcoal/80 mt-0.5">
           每一点是一次报告里该方面的「关注分」（0–8，越高越建议进一步了解），只画您自己做过的筛查。
         </p>
       </div>
 
       {series.length > 1 && (
-        <div className="flex flex-wrap gap-1.5 text-[10px] text-brand-charcoal/70 font-semibold">
+        <div className="flex flex-wrap gap-1.5 text-xs text-brand-charcoal/80 font-semibold">
           {series.map((p, i) => (
             <span key={p.id + i} className="px-2 py-0.5 rounded-full bg-brand-cream/60 border border-brand-stone/40">
               第 {i + 1} 次 · {p === now ? '本次' : shortDate(p.createdAt)}
@@ -212,14 +224,14 @@ export function ScreeningHistory({ history, current }: {
           这是第一次报告，图上只有这一次的点。三个月后再做一次，就能看到变化。
         </p>
       ) : bands.size > 1 ? (
-        <p className="text-[10px] text-brand-charcoal/60 leading-relaxed">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           这几次之间孩子跨了年龄段，前后的题目不同，对照时请以同一段的几次为主。
         </p>
       ) : null}
 
-      <div className="flex justify-center gap-4 text-[9px] text-brand-charcoal/60">
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-brand-charcoal/80">
         {(['normal', 'borderline', 'delay'] as const).map(s => (
-          <span key={s} className="flex items-center gap-1">
+          <span key={s} className="flex items-center gap-1 whitespace-nowrap">
             <span className={`w-2.5 h-2.5 rounded-full ${STATUS_DOT[s]}`} /> {STATUS_WORDING[s].label}
           </span>
         ))}
@@ -243,7 +255,7 @@ export function RelatedProducts({ scores }: { scores: DimensionScore[] }) {
           <ShoppingBag size={14} className="text-brand-clay" />
           {RELATED_PRODUCTS_COPY.title}
         </h3>
-        <p className="text-[10px] text-brand-charcoal/60 mt-1 leading-relaxed">{RELATED_PRODUCTS_COPY.intro}</p>
+        <p className="text-xs text-brand-charcoal/80 mt-1 leading-relaxed">{RELATED_PRODUCTS_COPY.intro}</p>
       </div>
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {picks.map(({ product, matched }) => (
@@ -252,13 +264,13 @@ export function RelatedProducts({ scores }: { scores: DimensionScore[] }) {
               className="w-16 h-16 rounded-lg object-cover border border-brand-stone/40 shrink-0" />
             <div className="min-w-0 space-y-1">
               <p className="text-xs font-bold text-brand-forest">{product.name}</p>
-              <p className="text-[10px] text-brand-charcoal/70 leading-relaxed">{product.desc}</p>
-              <p className="text-[10px] text-brand-charcoal/55">{RELATED_PRODUCTS_COPY.matched(matched)} · ¥{product.price}</p>
+              <p className="text-xs text-brand-charcoal/80 leading-relaxed">{product.desc}</p>
+              <p className="text-xs text-brand-charcoal/80">{RELATED_PRODUCTS_COPY.matched(matched)} · ¥{product.price}</p>
             </div>
           </li>
         ))}
       </ul>
-      <p className="text-[10px] text-brand-charcoal/50">{RELATED_PRODUCTS_COPY.where}</p>
+      <p className="text-xs text-brand-charcoal/80">{RELATED_PRODUCTS_COPY.where}</p>
     </section>
   );
 }

@@ -93,10 +93,10 @@ export default function DimensionGrid({
           
           <div className="space-y-2.5 relative z-10">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-rose-600 text-white text-[10px] font-extrabold px-3 py-0.5 rounded-full tracking-widest uppercase shadow-sm animate-pulse">
+              <span className="bg-rose-600 text-white text-xs font-extrabold px-3 py-0.5 rounded-full tracking-widest uppercase shadow-sm animate-pulse">
                 STEP 01
               </span>
-              <span className="text-[10px] text-rose-700 font-extrabold tracking-wider uppercase bg-rose-100/80 px-2 py-0.5 rounded-md">
+              <span className="text-xs text-rose-700 font-extrabold tracking-wider uppercase bg-rose-100/80 px-2 py-0.5 rounded-md">
                 基础准入评估
               </span>
             </div>
@@ -104,7 +104,7 @@ export default function DimensionGrid({
               <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping shrink-0" />
               启动 T1 综合评估入口
             </h2>
-            <p className="text-xs text-brand-charcoal/90 max-w-lg leading-relaxed font-medium">
+            <p className="text-xs text-brand-charcoal max-w-lg leading-relaxed font-medium">
               {PRODUCT.dashboard.screeningIntro}
             </p>
           </div>
@@ -114,7 +114,7 @@ export default function DimensionGrid({
             onClick={onStartT1Screening}
             className={`px-7 py-4.5 rounded-2xl text-xs font-black flex items-center justify-center gap-2.5 shadow-xl transition-all duration-300 shrink-0 active:scale-95 relative z-10 overflow-hidden group ${
               isT1Completed
-                ? 'bg-slate-100 border border-slate-200 text-slate-500 hover:bg-slate-200 shadow-sm'
+                ? 'bg-slate-100 border border-slate-200 text-brand-charcoal/80 hover:bg-slate-200 shadow-sm'
                 : 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white hover:scale-[1.05] hover:shadow-rose-600/40 ring-4 ring-rose-500/20'
             }`}
           >
@@ -136,7 +136,7 @@ export default function DimensionGrid({
               看起來像兩個不同時期做的頁面拼在一起。
             */}
             <h2 className="text-xl font-black text-brand-forest tracking-tight">神经网络 9 维精细图层</h2>
-            <p className="text-[11px] text-brand-charcoal/70 mt-1">
+            <p className="text-xs text-brand-charcoal/80 mt-1">
               {isT1Completed
                 ? PRODUCT.dashboard.gridHintCompleted
                 : '待完成上方 T1 综合评估。评估通过后，本模块将自适应更新并解锁。'
@@ -163,7 +163,7 @@ export default function DimensionGrid({
             )}
             <div className="flex items-center gap-2">
               <div className="text-left sm:text-right">
-                <div className="text-[10px] text-brand-charcoal/60 font-semibold">整体评估进度</div>
+                <div className="text-xs text-brand-charcoal/80 font-semibold">整体评估进度</div>
                 <div className="text-xs font-bold text-brand-forest">已测 {completedDimensionsCount} / 9 维度</div>
               </div>
               <div className="w-11 h-11 rounded-2xl bg-brand-sage text-brand-forest flex items-center justify-center font-extrabold text-xs border border-brand-stone/60 select-none">
@@ -188,7 +188,7 @@ export default function DimensionGrid({
         {isT1Completed && deepAssessmentLocked && (
           <div className="mb-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <Lock size={13} className="shrink-0 mt-0.5 text-amber-600" />
-            <div className="text-[11px] leading-relaxed text-amber-800">
+            <div className="text-xs leading-relaxed text-amber-800">
               <span className="font-extrabold">深度评估待解锁</span>
               <span className="text-amber-800/80"> · 一次解锁全部能力方面，点选任一卡片即可查看</span>
             </div>
@@ -230,12 +230,12 @@ export default function DimensionGrid({
                   </div>
                   
                   {!isT1Completed ? (
-                    <span className="flex items-center gap-0.5 py-1 px-2.5 bg-slate-100 border border-slate-200 rounded-full text-[10px] text-slate-400 font-medium">
+                    <span className="flex items-center gap-0.5 py-1 px-2.5 bg-slate-100 border border-slate-200 rounded-full text-xs text-brand-charcoal/80 font-medium">
                       <Lock size={10} />
                       待解锁
                     </span>
                   ) : t1Rec ? (
-                    <span className={`flex items-center gap-0.5 py-1 px-2.5 rounded-full text-[10px] font-bold border ${
+                    <span className={`flex items-center gap-0.5 py-1 px-2.5 rounded-full text-xs font-bold border ${
                       t1Rec.status === 'delay' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                       t1Rec.status === 'borderline' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
                       'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -243,7 +243,7 @@ export default function DimensionGrid({
                       T1 {STATUS_WORDING[t1Rec.status].label}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-brand-charcoal/40 py-1 px-2.5 bg-brand-cream border border-brand-stone/30 rounded-full">未完成</span>
+                    <span className="text-xs text-brand-charcoal/80 py-1 px-2.5 bg-brand-cream border border-brand-stone/30 rounded-full">未完成</span>
                   )}
                 </div>
 
@@ -252,31 +252,31 @@ export default function DimensionGrid({
                   {/* 與區段標題同一套字重、小一階（issue #18 / p.6）。 */}
                   <h3 className="text-base font-extrabold text-brand-forest">{dim.name}</h3>
                   {PRODUCT.dashboard.dimensionCardSubLabel && (
-                    <p className="text-[10px] text-brand-charcoal/60 mt-0.5">{PRODUCT.dashboard.dimensionCardSubLabel}</p>
+                    <p className="text-xs text-brand-charcoal/80 mt-0.5">{PRODUCT.dashboard.dimensionCardSubLabel}</p>
                   )}
                 </div>
 
                 {/* Score or click helper */}
-                <div className="flex items-center justify-between w-full pt-2 border-t border-brand-cream mt-2 text-[10px]">
+                <div className="flex items-center justify-between w-full pt-2 border-t border-brand-cream mt-2 text-xs">
                   {!isT1Completed ? (
-                    <span className="text-slate-400 flex items-center gap-0.5">
+                    <span className="text-brand-charcoal/80 flex items-center gap-0.5">
                       待 T1 评估入口
                     </span>
                   ) : t1Rec ? (
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center gap-1">
-                        <span className="text-brand-charcoal/50">T1 得分:</span>
+                        <span className="text-brand-charcoal/80">T1 得分:</span>
                         <span className="font-bold text-brand-forest">{t1Rec.score}/{t1Rec.maxScore}</span>
                       </div>
                       {deepRec && (
-                        <div className="text-[9px] text-brand-moss font-bold flex items-center gap-0.5">
+                        <div className="text-xs text-brand-moss font-bold flex items-center gap-0.5">
                           <CheckCircle size={8} />
                           {deepRec.tierId}已测: {deepRec.score}/{deepRec.maxScore}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <span className="text-brand-charcoal/60">{PRODUCT.dashboard.dimensionCardHint}</span>
+                    <span className="text-brand-charcoal/80">{PRODUCT.dashboard.dimensionCardHint}</span>
                   )}
 
                   {isT1Completed && (t1Rec?.status === 'delay' || t1Rec?.status === 'borderline') && !deepRec ? (
@@ -285,7 +285,7 @@ export default function DimensionGrid({
                       <ChevronRight size={10} className="text-rose-500 animate-bounce" />
                     </span>
                   ) : (
-                    <ChevronRight size={12} className="text-brand-charcoal/40" />
+                    <ChevronRight size={12} className="text-brand-charcoal/80" />
                   )}
                 </div>
               </button>

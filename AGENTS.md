@@ -38,7 +38,7 @@
 │   │   ├── T2EntranceV3.tsx         # T2 v3 入口（`T2_RECOMMEND_V3`）：plan 是 `version: 'v3'` 时 T2Entrance 改画它；只画 parentPlanV3 组好的字
 │   │   ├── T2AssessmentV3.tsx       # T2 v3 逐支作答：推荐清单（第一次／第二次＋近 90 天做过的）、题库打开才载、formV3、交卷带 toolkitVersion
 │   │   ├── T2ReportV3.tsx           # T2 v3 报告页：快照是 kit-20260923 时 T2Report 改画它；提示、九宫格、各方面段落（伺服器存的 prose）、生活品质、气质偏向、作答回顾；页面本身不叫模型
-│   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段只留一行连到「线上干预」页（2026-09-28 起线上干预不在报告里）、可摺叠作答回顾（#61）
+│   │   ├── T2Report.tsx             # T2 报告页：按「生成」打 POST /api/t2/findings；§6.3 段落顺序、no_tool 专属段、第六段只留一行连到「线上干预」页（2026-09-28 起线上干预不在报告里）、可摺叠作答回顾（#61）；`T2ReportSnapshot` 不给 actions＝只读（后台家长详情与列印画最新一份快照，#67）
 │   │   ├── training/                # 线上干预（Keep 式，Keep 规格 K11 起）：导览列「线上干预」那一页（2026-09-28 使用者：不放在报告里）＋盖在上面的计划页、详情、抽屉
 │   │   │   ├── TrainingPage.tsx     # 导览列「线上干预」那一页：自己读最新报告快照（没报告／没解锁时说要先做什么、带到 T2 入口），挂 TrainingSection
 │   │   │   ├── TrainingSection.tsx  # TrainingPage 只挂它：资料（useTrainingData）＋页面堆叠（useLayerStack）＋context
@@ -66,9 +66,15 @@
 │   │   ├── ReportRealBlocks.tsx     # 新版 T1 报告（`T1_REPORT_REAL`）的两块：「这次作答的样子」（取代仪表与同龄比较条）、「历次筛查对照」（取代预测曲线）
 │   │   ├── AbilityLinksMap.tsx      # 新版 T1 报告的「九大能力关联图」（取代脑区拓扑图）：内联 SVG，点能力／连线看说明
 │   │   ├── WearablesMall.tsx        # 穿戴设备商城
+│   │   ├── ScanReportPage.tsx       # 扫码报告页 `/r/<token>`（`REPORT_SCAN_SPA`，#65）：打 `/api/r/:token`、画 `ReportBody`，只读、不放插槽；`main.tsx` 看路径分流
 │   │   ├── HandoffCard.tsx          # 专案 B 报告页「到森心康做深度评估」那张卡（ADR-0009）：放在 T2 插槽的位置，`/api/handoff/config` 开了才画
+│   │   ├── ScanReportPage.tsx       # 扫码报告页（`REPORT_SCAN_SPA`，#65）：读 `GET /api/r/:token` 的那一笔快照、画同一个 ReportBody，不放插槽
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
 │   ├── admin/             # 管理中心（后台）；activityMedia.ts 上传示范片与封面（伺服器）、videoTagging.ts／videoFrame.ts 与 panels/VideoTaggingPanel.tsx「示范片与标签」分页
+│   │                      # parentSummary.ts＋summaryXlsx.ts＋panels/ParentSummaryView.tsx：家长汇总与导出（#69、#73；所有后台帐号、走 withScope、看与导出都记进 admin_exports）
+│   ├── developmentIndex/  # 发育指数（#68）：passRates.ts 180 题通过率表（丹佛 II-Jimma／CDC／AI）＋ developmentIndex.ts（同龄估算）＋ attainment.ts（达成率）＋ basis.ts（开关 `DEV_INDEX_BASIS`）；**只给伺服器**，家长端 import 不到（结构测试）
+│   ├── home/              # 专案 A 新版首页（`HOME_V2`，#72）：HomePage、OfflineServicePage、homeNav（去向与字的纯函式）
+│   ├── home/              # 新版首页（`HOME_V2`，#72，只在专案 A）：homeNav.ts 三张卡的去向、登入后停哪（纯函式）；HomePage.tsx banner＋三张卡；OfflineServicePage.tsx 线下服务点（医院名称、占位照、「即将开放」）
 │   ├── t1report/          # 新版 T1 报告（`T1_REPORT_REAL`，只在专案 A）
 │   │   ├── answers.ts     # 逐题作答对到题目、三种作答各几题、历次报告的关注分（前端与伺服器共用；读不到回 null，不补数字）
 │   │   ├── shape.ts       # 快照形状 `version: 't1-real-1'`、`perDimension`；画面看它换版（`isRealT1Report`）
@@ -78,6 +84,9 @@
 │   │   ├── relatedProducts.ts # 新版报告最底下「相关产品」：照被标记的方面从商城清单挑（最多 2 个，全绿不出现；不进提示与模型的字）
 │   │   ├── legacy.ts      # 旧版本地模板（原样从 server.ts 搬来，输出不变；开关关着与专案 B 用、对照脚本用；含旧文案，不进用字扫描）
 │   │   └── prompt.ts      # 给模型的提示：逐题作答＋用字规范（含禁止清单，不进用字扫描）
+│   ├── developmentIndex/  # 发育指数（#68，规格 client-changes-2026-10-17 §3.2）：**只给伺服器**，家长端走不到（test/developmentIndex.structure.test.ts）
+│   │   ├── passRates.ts   # 180 题逐题通过率：denver（Denver II-Jimma Table 3，CC BY 4.0）／cdc（2022 里程碑）／ai；档头写出处与已知限制
+│   │   └── developmentIndex.ts # T1 逐题作答＋篩查月龄 → 100／90／80／75／70（题目独立卷积）；读不到逐题作答回 null
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
 │   │   ├── core.ts        # 产码、杂凑、设定（HANDOFF_*）、两端之间那一包的形状（伺服器专用）
 │   │   ├── routes.ts      # 发出端三支（B）＋接收端一支（A）；server.ts 只注册、注入依赖
@@ -103,6 +112,7 @@
 │   │   ├── trainingPush.ts # v3 推送规则（客户 10/06）：颜色（T2 分级／T1 推定）、PUSH_ORDER、每月名额、交错、月龄窗、依编号挑、一期 36 格、换着玩、停用补位、期末判档（纯函式）
 │   │   ├── trainingPeriodService.ts # v3 一期的生命周期（开期、同期取周、期末开下一期、补位）、格子 → 每周活动那一列、计划页位置；server.ts 只接资料层
 │   │   ├── interimPlan.ts # 暂行题量（使用者 2026-09-29）：每个被标记的维度只列一份（星号工具）、全部必做；选做／加测／补充问卷先不出，只套在 `GET /api/t2/plan`
+│   │   ├── raterV2.ts     # T2 填表人 v2（`T2_RATER_V2`，#70）：拿掉老师、「其他」的选填说明（≤10 字）；前端与伺服器共用
 │   │   ├── trainingGate.ts # 「线上干预」自己的收费站（2026-09-29）：哪几支算线上干预、`TRAINING_PRICE_FEN`（现在只能 0＝免费）
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）、没有工具的维度怎么讲（6 岁以上认知／语言／动作用客户固定句，v2.1 S05）
 │   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
@@ -128,7 +138,8 @@
 │       ├── dateUtils.ts   # 日期工具函数
 │       ├── reportUtils.ts # 报告生成工具
 │       ├── activitySteps.ts # 分解步骤怎么读：指令必填、图选填（ADR-0008）、最多 20 步
-│       └── activityGuide.ts # 影片导引脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
+│       ├── activityGuide.ts # 影片导引脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
+│       └── reportLayout.ts # 报告版面的伺服器开关（`T1_NO_WEEKLY_PLAN`，#71）：`GET /api/report-config`，整个分页问一次；逾时或失败照关画、下次再问
 ├── NEWT2/                 # 客户 2026-09-08 评估工具包 zip 与 09-10 纸本版 zip（题库的来源）；
 │                          # 09-23 活动内容包里的两份 docx（手册总册、模组一脚本，原封不动取出；zip 与 mp4 不进 git）；
 │                          # 10-06 的《影片导引脚本·总册·300 支》（取代模组一单册当抽取来源）
@@ -270,12 +281,14 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `/api/ali-language-eval` | POST | 语言专项评估 | `audioData`, `context` |
 | `/api/asr` | POST | 语音识别 | `audioData` |
 | `/api/db/status` | GET | 数据库状态 | 无 |
+| `/api/report-config` | GET | 报告版面的伺服器开关（#71）：回 `{noWeeklyPlan}`（`T1_NO_WEEKLY_PLAN`）。家长端、后台、扫码页画同一个 `ReportBody`，都读这一支，所以**公开、不需登入**，只带开关 | 无 |
 | `/api/auth/sms/request` | POST | 索取登录验证码 | `phone`, `companySlug`（选填） |
 | `/api/auth/sms/verify` | POST | 核对验证码并登录 | `phone`, `code`, `companySlug`（选填） |
 | `/api/db/load` | GET | 加载用户数据 | 已登录：`Authorization: Bearer <token>`；未登录：`deviceId` (query) |
 | `/api/db/save` | POST | 保存用户数据 | `deviceId`, `child`, `completedScores`, `orders`, `reportHistory`（身分取自 token） |
 | `/api/report-link` | POST | 取得该份报告的扫码连结与二维码 | `reportId`；`Authorization: Bearer <token>` |
-| `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**） | 无 |
+| `/r/:token` | GET | 扫码后打开的报告页（**公开，不需登入**）。开关 `REPORT_SCAN_SPA` 关：伺服器拼的 HTML（`renderParentExportHtml`）；开：交给 SPA（`ScanReportPage`） | 无 |
+| `/api/r/:token` | GET | **只在 `REPORT_SCAN_SPA` 开着时注册**（#65）：扫码页的资料，回 `{child: {name, ageMonth, gender}, record}`（`record` 是那一笔快照，经 `renderableReportOf` 收干净）；**不带手机号、帐号、其他报告**。token 形状错、查无、报告已不在历史 → 404，不退回最新一份。**公开，不需登入** | 无 |
 | `/api/expert-booking` | POST | 送出专家预约（四种服务共用） | `specialistId`, `parentName`, `parentPhone`；`serviceType` 选填 |
 | `/api/t2/plan` | GET | T2 题量预估：依这位家长的孩子与最新筛查算 `planT2()`（套暂行规则），附 `t1Flags`／`entrance`／`pricing`（2026-10-13：照卡上「N 项深度评估」分档，每 3 项一档 ¥19.9／29.9／39.9，原价 ¥400＋100×(N−1)，`src/t2/pricing.ts`；`/api/payment/create` 的 T2 照同一份 plan 收，没有要做的 409 `NOTHING_TO_BUY`）。**开了 `T2_RECOMMEND_V3`** 改回量表推荐：回 `{version: 'v3', status, tools, totalMinutes, sessions, notices, gaps, noT2Text?, ageMonth, answerAgeMonth, context, completed}`（`PlanV3Response`，`src/t2/recommend/parentPlan.ts`），画面看 `version` 分流 | `Authorization: Bearer <token>` |
 | `/api/t2/tool-results` | POST | 交一支工具的答案；**伺服器算分**（`scoreTool`），窗口外／缺答／多题／值域外 400 且不落表；每次交卷一笔不覆盖。回 `{id, createdAt, result, bands}` | `toolId`, `assessedAgeMonth`, `rater`, `pre`, `answers`；`Authorization: Bearer <token>` |
@@ -290,12 +303,15 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `/api/t2/practice-prefs` | GET／PUT | 提醒的星期几（0＝星期一…6＝星期日，可复选）与时间（只收 08:30／12:30／19:30／20:30）；两样要嘛都有、要嘛清成 `[]` 与 null | PUT：`reminderDays`, `reminderTime`；`Authorization: Bearer <token>` |
 | `/api/t2/practice-prefs.ics` | GET | 依提醒产生每周重复的 `.ics`（`RRULE:FREQ=WEEKLY`、`TZID=Asia/Shanghai`、标题「陪孩子做家庭活动」）；没设提醒 404。**两种身分**：Bearer，或 `?t=` 带下一支发的短时效连结（带了 `t` 就只看连结，坏的／过期的 401，不退回 Bearer） | `Authorization: Bearer <token>` 或 `t` (query) |
 | `/api/t2/practice-prefs/ics-link` | POST | 换一条上面那一支的短时效连结（Keep 票 7）：回 `{url: "/api/t2/practice-prefs.ics?t=…"}`，10 分钟内有效、`Cache-Control: no-store`；没设提醒 404 `REMINDER_NOT_SET`。前端拿到用 `location.href` 开（手机「加入日历」那一次请求带不了 Bearer） | `Authorization: Bearer <token>` |
+| `/api/home/config` | GET | 专案 A：新版首页开了没（开关 `HOME_V2`，issue #72），回 `{enabled}`；**公开，不需登入**。B 是 404 | 无 |
 | `/api/handoff/config` | GET | 专案 B：交接开了没（`{enabled, targetName}`／`{enabled: false}`）；B 报告页据此画不画那张卡 | 无 |
 | `/api/handoff/start` | POST | 专案 B：家长按「到森心康做深度评估」。回 `{url: "<A>/handoff#code=…", expiresInSec: 120}`（`no-store`）。没同意 400 `CONSENT_REQUIRED`、没手机号或没做 T1 409、没开 404 | `consent: true`；`Authorization: Bearer <token>` |
 | `/internal/handoff/redeem` | POST | 专案 B，**只给 A 的伺服器**：兑换交接码（**不过期、可重复**，每次记一次使用），交出手机、来源公司、孩子、T1 成绩、对得上的那份 T1 报告。任何失败都是同一个 404 | `code`；`Authorization: Bearer <HANDOFF_SECRET>` |
 | `/api/admin/handoff-invites/config` | GET | 专案 B 后台：邀请简讯开了没（`{enabled:false}` 或 `{enabled:true, ready, missing}`）；只有全域管理员 | `Authorization: Bearer <后台 token>` |
 | `/api/admin/handoff-invites` | POST | 专案 B 后台：一次发 T2 邀请简讯给勾选的家长（一批 ≤50，只发当下视野）。伺服器再判一次谁能收（有手机、做过 T1、没到过 A、7 天内没收过），每位一组新交接码（`kind=sms`）；回 `{sent, skipped:[{userId, reason}], failed:[{userId, detail}]}`。交接没开 404、范本没设 503 `INVITE_CHANNEL_NOT_READY` | `userIds`；`Authorization: Bearer <后台 token>`（全域管理员） |
 | `/api/handoff/redeem` | POST | 专案 A：家长的浏览器带交接码来 → 向 B 兑换 → 以（未归属，手机号）找或建帐号 → A 还没有 T1 才带入 → 回与 `/api/auth/sms/verify` 同形状的登入结果＋`handoff: {imported, sourceName}`。B 说无效 410、B 连不上 502、没开 503 | `code` |
+| `/api/admin/parent-summary` | GET | 后台家长汇总（#69，规格 `docs/specs/client-changes-2026-10-17.md` §3.1，A、B 都有）：一个孩子一行（最近一次 T1，没做过的不列），回 `{dimensions, rows: [{childName, phone, ageLabel（筛查当时）, channel（筛查渠道，CONTEXT.md）, screenedAt, cells（九维 `{score, maxScore, status}`）, flaggedCount}]}`；整理在 `src/admin/parentSummary.ts`（只给伺服器）。**一次一页**（`SUMMARY_PAGE_SIZE` 100 行，另回 `total`／`page`／`pageSize`；伺服器照样整批排好再切，页码超过夹回最后一页）；资料层第一句不读 `report_history`，只有成绩里找不到月龄的家长才按 id 补读。**所有后台帐号**，范围走 `withScope`、不加 `requireGlobal` | `sort`, `booked`, `page`（query，前两个同家长列表）；`Authorization: Bearer <后台 token>` |
+| `/api/admin/parent-summary/export` | POST | 同上导出成 `.xlsx`（`src/admin/summaryXlsx.ts`，exceljs，九维格保留底色，档名 `家长汇总-YYYYMMDD.xlsx`）。每次导出在 `admin_exports` 记一笔（谁、范围、笔数、筛选）；**记不下来就 500、不给档**。⚠️ `deploy/migrations/2026-10-18-admin-exports.sql`（A、B 两个库）**先于程式码部署** | `sort`, `booked`（body）；`Authorization: Bearer <后台 token>` |
 | `/api/admin/activities/:id/video` | PUT | 后台上传示范片（2026-10-08）：本体就是 mp4（`Content-Type: video/mp4`，≤300 MB），存成 `MEDIA_DIR/activities/<编号>.mp4`，`videoUrl` 写 `/media/activities/<编号>.mp4?v=<时间>`、`videoSeconds` 取 `?seconds=`（1–3600，后台浏览器读的）。回 `{activity}`。认不得的编号 404、不是 mp4 415、太大 413，都不写档；**只在专案 A**、只有全域管理员 | `seconds`（query，选填）；`Authorization: Bearer <后台 token>` |
 | `/api/admin/activities/:id/poster` | PUT | 同上，封面 jpg（≤2 MB）→ `<编号>.jpg`、`posterUrl` | `Authorization: Bearer <后台 token>` |
 | `/api/admin/activities/import` | POST | 活动批量汇入（v2.1 S25，格式见 v2.1 附录 C）：**逐列独立**，坏列整列不入库、其他列照写；只更新已有的活动（不新增）；`dryRun: true` 只验不写。回 `{imported, failed: [{row, id?, error}], warnings: [{row, field}]}`（列号从 1 起）。形状不对（非阵列、空的、超过 500 列、`dryRun` 非布林）整份 400；只有全域管理员（`requireGlobal`，不经 `withScope`） | `rows`, `dryRun`（选填）；`Authorization: Bearer <后台 token>` |
@@ -453,6 +469,11 @@ npx tsx scripts/t1-report-compare.ts --input <json>               # {child, scor
 | `T2_RECOMMEND_V3` | T2 v3 量表推薦與完整版題庫（客戶 2026-10-06，規格 `docs/specs/t2-v3-toolkit-full-edition.md`）：`1` ＝ `POST /api/t2/tool-results` 收 `toolkitVersion: 'kit-20260923'` 的交卷（`src/t2/kitv3/submit.ts`，存同一張 `t2_tool_results`）、`GET ?kit=v3` 讀完整版每支最新一筆；`GET /api/t2/plan` 改回量表推薦（`src/t2/recommend/parentPlan.ts`：家長端的字另寫、近 90 天做過的不再推、T3 不回；**每個被標記的維度只出一份**，社交溝通警訊／情緒那一題／抽動改成最上方提示＋預約、不推問卷，診斷不進推薦 —— ADR-0011，`ONE_TOOL_PER_DIMENSION`）；`POST /api/t2/findings` 存完整版快照 `T2FindingsV3`（`src/t2/findingsV3.ts`）＋報告文字（`src/t2/report/proseV3.ts`：模型走 T1 報告同一串 `generateReportJSON`，驗證不過或全掛就存模板）。**要同時開 `TRAINING_PUSH_V3`**，否則程序起不來；不設或 `0` ＝ 一行不動。只收 `1`/`true`/`0`/`false` | 否 |
 | `T2_SCALE_DETAIL` | 量表详解（使用者 2026-10-15，規格 `docs/specs/t2-v3-scale-detail-report.md`）：`1` ＝ 生成完整版報告時每支量表多存一份详解（`T2FindingsV3.scaleDetails`：照量表自己的分法講各面向、題數、還不穩的題、下一步、客戶的面向說明與練法（`src/t2/kitv3/textAdapt.ts` 照用字表改寫）、上一次的題數），報告頁看快照有沒有這一欄決定畫不畫。算的那一支 `src/t2/scaleDetailEntries.ts` 只有伺服器載。**要同時開 `T2_RECOMMEND_V3`**，否則程序起不來；不設或 `0` ＝ 新報告沒有這一段、舊報告照存的樣子。只收 `1`/`true`/`0`/`false` | 否 |
 | `T1_REPORT_REAL` | 新版 T1 报告（使用者 2026-10-08，**只在专案 A**）：`1` ＝ `POST /api/report` 改走 `src/t1report/`（给模型逐题作答、回来过验证器、不过退照作答组的模板；不再产四个仪表数字），报告快照带 `version: 't1-real-1'`，报告页看快照换版。不设或 `0` ＝ 一行不动。B 设了也不生效（启动印一行）。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
+| `REPORT_SCAN_SPA` | 扫码报告页改走 SPA（客户 10/17 第 1 项，#65，规格 `docs/specs/client-changes-2026-10-17.md` §2，A、B 都适用）：`1` ＝ `/r/:token` 交给 SPA、注册 `GET /api/r/:token`，扫码页画与 App 同一个 `ReportBody`（只读、没有插槽、历次对照不画）。不设或 `0` ＝ 一行不动（伺服器拼的 HTML，`/api/r/*` 是 404）。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
+| `T2_RATER_V2` | T2 填表人 v2（客户 10/17 第 5 项，#70，规格 `docs/specs/client-changes-2026-10-17.md` §6，只有专案 A 有 T2）：`1` ＝ 作答画面拿掉「老师」、选「其他」出选填输入框（最多 10 字、去头尾空白，`src/t2/raterV2.ts`）；`POST /api/t2/tool-results` 两条路都不收新的 `teacher`、`raterNote` 超过 10 字或不是「其他」却带了 400 `RATER_NOTE_INVALID`，存 `t2_tool_results.rater_note`（有说明才写）与 `result.raterNote`；`GET /api/t2/plan` 带 `raterV2: true`（画面据此换选项）；新生成的报告快照带 `raterV2: true`，作答回顾每支那一行写「填表人：其他（阿姨）」（旧的老师照写「老师」）。不设或 `0` ＝ 一行不动。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**要先跑 `2026-10-18-t2-rater-note.sql`** | 否 |
+| `T1_NO_WEEKLY_PLAN` | T1 报告拿掉周计划图（客户 10/17 第 6 项，#71，规格 `docs/specs/client-changes-2026-10-17.md` §7、D19、D20，A、B 都适用）：`1` ＝ `ReportBody` 不画「多维感官康复与训练周计划图」（新旧快照都不画；AI 的 `rehabSuggestions`／`homeGuidance` 照存、快照形状不变），T2 付费区（B 是交接卡，同一个 `t2Slot`）移到二维码卡下面、专家预约上面，旧版「发育进度对比」最低那一段不再指向「7 日居家活动安排」。前端由 `GET /api/report-config` 读（`src/utils/reportLayout.ts`，一进站就问；问完才捲到 T2 卡、后台列印问完才印）。不设或 `0` ＝ 一行不动。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
+| `HOME_V2` | 新版首页（客户 10/17 第 4 项，issue #72，规格 `docs/specs/client-changes-2026-10-17.md` §5，**只在专案 A**）：`1` ＝ 家长端登入前后都先停首页（`src/home/`：banner 用示范片 A012、三张卡 → 线上干预／评估面板／线下服务点介绍页，人物与医院照先放占位），导览列最前面多「首页」；未登入点卡先登入、登入后带到那一页。前端读 `GET /api/home/config`（`{enabled}`，不需登入，掛在 `tier2Only`，B 是 404、前端也不问——`PRODUCT.features.home`）。不设或 `0` ＝ 画面一行不动。只收 `1`/`true`/`0`/`false`，认不得的值起不来 | 否 |
+| `DEV_INDEX_BASIS` | 后台汇总与导出的「发育指数」怎么算（使用者 2026-10-18：「两个都做，用开关来调整」，规格 `docs/specs/client-changes-2026-10-17.md` D21、§3.2b，A、B 都适用）：不设／`peer` ＝ 同龄估算（#68，`src/developmentIndex/developmentIndex.ts`）；`attainment` ＝ 达成率（客户 SXK-ASQ3 HTML 的 85／70／55 参考带，55 以下以 40 切成 75／70 是暂采，`src/developmentIndex/attainment.ts`；不要逐题作答，旧成绩也有数字）。两种都只出 100／90／80／75／70，栏位不变。只收 `peer`/`attainment`，认不得的值起不来 | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

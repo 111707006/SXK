@@ -33,7 +33,7 @@ export default function PlanPrintSheet({ sheet }: { sheet: PeriodSheet }) {
           {PUSH_PAGE.periodEndRows.map(r => <li key={r.when}><b>{r.when}：</b>{r.then}</li>)}
         </ul>
         <p className="mt-2">{PUSH_PAGE.periodEndNote}</p>
-        <p className="mt-3 text-[11px] opacity-70">{PUSH_PAGE.boundary}</p>
+        <p className="mt-3 text-xs opacity-70">{PUSH_PAGE.boundary}</p>
       </section>
       {sheet.weeks.map(w => (
         <section key={w.week} style={{ breakAfter: 'page' }} data-week={w.week}>
@@ -47,7 +47,7 @@ export default function PlanPrintSheet({ sheet }: { sheet: PeriodSheet }) {
               <article key={a.id} className="mt-3 border border-brand-stone rounded-lg p-3" style={{ breakInside: 'avoid' }}>
                 <h3 className="text-[14px] font-bold">
                   {a.title}
-                  <span className="ml-2 text-[11px] font-normal opacity-70">{SITE_DIMENSION_NAME[dimension]} · {a.id}</span>
+                  <span className="ml-2 text-xs font-normal opacity-70">{SITE_DIMENSION_NAME[dimension]} · {a.id}</span>
                 </h3>
                 {a.trains && <p><b>{PRINT_SHEET.trains}：</b>{a.trains}</p>}
                 {a.need && <p><b>{PRINT_SHEET.need}：</b>{a.need}</p>}

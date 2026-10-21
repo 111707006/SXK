@@ -134,6 +134,16 @@ describe('POST（完整版）', () => {
     expect(oldTable).toHaveLength(0);
   });
 
+  /** 填表人 v2（#70）開關關著：照舊收「老师」、`raterNote` 不看也不存。 */
+  it('T2_RATER_V2 關著：老师照收、raterNote 被忽略', async () => {
+    const resp = await client.postJson(POST, body('SXK-GM', 36, answersFor('SXK-GM', 36), { rater: 'teacher', raterNote: '阿姨' }), bearer(UNLOCKED));
+    expect(resp.status).toBe(201);
+    const got = await resp.json();
+    expect(got.result.rater).toBe('teacher');
+    expect('raterNote' in got.result).toBe(false);
+    expect('raterNote' in v3Table[0].record.result).toBe(false);
+  });
+
   it('作答情境取自孩子檔案：沒上學、女生 → QOL 少「园所与学校生活」那一段', async () => {
     const answers = answersFor('SXK-QOL', 36, 0, { inSchool: false });
     const resp = await client.postJson(POST, body('SXK-QOL', 36, answers, { inSchool: true }), bearer(SCHOOLLESS));

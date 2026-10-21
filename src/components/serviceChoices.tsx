@@ -73,7 +73,7 @@ export function ServiceNote({ state, className = '' }: { state: ServiceChoiceSta
   const note = SERVICE_NOTES[state];
   if (!note) return null;
   return (
-    <span className={`inline-flex items-center gap-0.5 shrink-0 text-[10px] font-bold ${className}`}>
+    <span className={`inline-flex items-center gap-0.5 shrink-0 text-xs font-bold ${className}`}>
       {note}
       {state === 'training' && <ArrowRight size={10} />}
     </span>

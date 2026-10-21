@@ -36,6 +36,8 @@ describe('備案頁尾掛在兩棵 React 樹上', () => {
   it.each([
     ['家長端', 'src/App.tsx'],
     ['後台 /admin', 'src/admin/AdminApp.tsx'],
+    // 第三棵（#65）：開關 REPORT_SCAN_SPA 開著時的掃碼報告頁 `/r/<token>`，家長收藏起來反覆打開的一頁。
+    ['掃碼報告頁 /r/', 'src/components/ScanReportPage.tsx'],
   ])('%s 的樹上有 BeianFooter', (_label, file) => {
     const source = read(file);
     expect(source).toMatch(/import\s*\{[^}]*\bBeianFooter\b[^}]*\}\s*from/);

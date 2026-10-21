@@ -36,7 +36,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
     <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2" id="t2v3-entrance-notices">
       <ul className="space-y-1.5">
         {plan.notices.map(n => (
-          <li key={n.kind} className="text-[11px] text-brand-charcoal/85 leading-relaxed flex gap-1.5">
+          <li key={n.kind} className="text-xs text-brand-charcoal leading-relaxed flex gap-1.5">
             <Info size={12} className="text-amber-700 shrink-0 mt-0.5" />
             <span>{n.text}</span>
           </li>
@@ -47,7 +47,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
   );
 
   const badge = (
-    <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+    <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
       <Layers size={10} /> 第二层 · 深度评估
     </span>
   );
@@ -69,7 +69,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
         {badge}
         {notices}
         {plan.gaps.map(g => (
-          <p key={g.dimension} className="text-[11px] text-brand-charcoal/80 leading-relaxed">{g.text}</p>
+          <p key={g.dimension} className="text-xs text-brand-charcoal/80 leading-relaxed">{g.text}</p>
         ))}
         {serviceButtons}
       </div>
@@ -91,7 +91,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
       {plan.gaps.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           {plan.gaps.map(g => (
-            <p key={g.dimension} className="text-[11px] text-brand-charcoal/80 leading-relaxed">{g.text}</p>
+            <p key={g.dimension} className="text-xs text-brand-charcoal/80 leading-relaxed">{g.text}</p>
           ))}
           {!bookAtNotices && serviceButtons}
         </div>

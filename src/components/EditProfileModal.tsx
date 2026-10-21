@@ -88,7 +88,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-brand-charcoal/50 hover:text-brand-charcoal transition cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-brand-charcoal/80 hover:text-brand-charcoal transition cursor-pointer"
           >
             <X size={16} />
           </button>
@@ -117,7 +117,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
                 className="w-full pl-9 pr-3 py-2.5 bg-brand-cream/20 border border-brand-stone/60 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-moss/20 focus:border-brand-moss text-brand-charcoal transition"
                 placeholder="请输入姓名或昵称"
               />
-              <User className="absolute left-3 top-3 text-brand-charcoal/40" size={14} />
+              <User className="absolute left-3 top-3 text-brand-charcoal/80" size={14} />
             </div>
           </div>
 
@@ -136,32 +136,32 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
               }}
             />
             {!storedBirthDate && (
-              <p className="text-[10px] text-brand-clay font-bold leading-relaxed mt-1">
+              <p className="text-xs text-brand-clay font-bold leading-relaxed mt-1">
                 这份档案还没有出生日期，请补上，系统才能自动换算实足月龄
               </p>
             )}
             {birthDate && calculatedAgeMonth !== null && (
               <div className="flex items-center gap-1.5 bg-brand-sage/10 rounded-xl p-2 border border-brand-stone/40 animate-fade-in mt-1.5">
                 <Sparkles size={11} className="text-brand-moss" />
-                <p className="text-[10px] text-brand-forest font-bold leading-none">
+                <p className="text-xs text-brand-forest font-bold leading-none">
                   年龄：
                   <span className="text-brand-clay text-xs ml-0.5">{formatAge(calculatedAgeMonth)}</span>
-                  <span className="text-brand-charcoal/60 font-medium ml-1">({calculatedAgeMonth} 个月)</span>
+                  <span className="text-brand-charcoal/80 font-medium ml-1">({calculatedAgeMonth} 个月)</span>
                 </p>
               </div>
             )}
             {birthDate && calculatedAgeMonth === null && (
               <div className="flex items-center gap-1.5 bg-rose-50 rounded-xl p-2 border border-rose-100 animate-fade-in mt-1.5">
                 <AlertCircle size={11} className="text-rose-500 shrink-0" />
-                <p className="text-[10px] text-rose-700 font-bold leading-none">这个出生日期无法识别，请重新选择</p>
+                <p className="text-xs text-rose-700 font-bold leading-none">这个出生日期无法识别，请重新选择</p>
               </div>
             )}
             {outOfRange && !birthDateChanged && (
-              <p className="text-[10px] text-brand-clay font-bold leading-relaxed mt-1.5">
+              <p className="text-xs text-brand-clay font-bold leading-relaxed mt-1.5">
                 目前的实足月龄已超出量表适用范围，档案仍可修改，但暂时无法开始新的筛查
               </p>
             )}
-            <p className="text-[10px] text-brand-charcoal/50 leading-relaxed mt-1">系统适用范围为 {APPLICABLE_RANGE_TEXT}</p>
+            <p className="text-xs text-brand-charcoal/80 leading-relaxed mt-1">系统适用范围为 {APPLICABLE_RANGE_TEXT}</p>
           </div>
 
           {/* Gender selection */}
@@ -174,7 +174,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
                 className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                   gender === 'boy'
                     ? 'border-brand-clay bg-brand-sand/30 text-brand-clay'
-                    : 'border-brand-stone/30 bg-brand-cream/10 hover:bg-brand-cream/35 text-brand-charcoal/70'
+                    : 'border-brand-stone/30 bg-brand-cream/10 hover:bg-brand-cream/35 text-brand-charcoal/80'
                 }`}
               >
                 <span>👦 男孩</span>
@@ -185,7 +185,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
                 className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                   gender === 'girl'
                     ? 'border-rose-400 bg-rose-50/40 text-rose-700'
-                    : 'border-brand-stone/30 bg-brand-cream/10 hover:bg-brand-cream/35 text-brand-charcoal/70'
+                    : 'border-brand-stone/30 bg-brand-cream/10 hover:bg-brand-cream/35 text-brand-charcoal/80'
                 }`}
               >
                 <span>👧 女孩</span>
@@ -217,7 +217,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
             {/* Separator */}
             <div className="relative flex py-2 items-center">
               <div className="flex-grow border-t border-dashed border-brand-stone/40"></div>
-              <span className="flex-shrink mx-2 text-[10px] text-brand-charcoal/40 font-semibold">危险区域</span>
+              <span className="flex-shrink mx-2 text-xs text-brand-charcoal/80 font-semibold">危险区域</span>
               <div className="flex-grow border-t border-dashed border-brand-stone/40"></div>
             </div>
 
@@ -228,7 +228,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
                 onClose();
                 onResetAll();
               }}
-              className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-[10px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1 cursor-pointer"
             >
               <Trash2 size={11} />
               重置档案与所有测评成绩

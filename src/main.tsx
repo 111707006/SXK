@@ -2,7 +2,9 @@ import {StrictMode, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import LazyBoundary from './components/LazyBoundary.tsx';
+import ScanReportPage from './components/ScanReportPage.tsx';
 import {captureCompanySlug} from './utils/attribution.ts';
+import {loadReportLayout} from './utils/reportLayout.ts';
 import './index.css';
 
 /**
@@ -11,6 +13,12 @@ import './index.css';
  * 必須在 render 之前 —— 家長可能一進站就直接註冊，而歸屬只在註冊那一刻寫得進去。
  */
 captureCompanySlug();
+
+/**
+ * 報告版面的開關（`GET /api/report-config`，#71）一進站就開始問：家長端、後台、掃碼頁都畫 `ReportBody`，
+ * 等報告畫出來時通常已經回來了，版面不會在家長眼前換一次。
+ */
+void loadReportLayout();
 
 /**
  * 管理中心走 `/admin`，與家長端共用同一個部署與資料庫。
@@ -30,12 +38,20 @@ const AdminApp = lazy(() => import('./admin/AdminApp.tsx'));
 const path = window.location.pathname;
 const isAdmin = path === '/admin' || path.startsWith('/admin/');
 
+/**
+ * 掃碼報告頁（`/r/<token>`，issue #65）。伺服器只在開關 `REPORT_SCAN_SPA` 開著時把這條路徑交給 SPA；
+ * 關著時那條路徑由伺服器自己回 HTML，根本走不到這裡。不進 App —— 掃碼的手機沒有登入。
+ */
+const scanToken = path.match(/^\/r\/([^/]+)\/?$/)?.[1] ?? null;
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {isAdmin ? (
       <LazyBoundary>
         <AdminApp />
       </LazyBoundary>
+    ) : scanToken !== null ? (
+      <ScanReportPage token={scanToken} />
     ) : (
       <App />
     )}

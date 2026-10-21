@@ -22,11 +22,11 @@ const TONE_CHIP: Readonly<Record<Tone, string>> = {
   2: 'bg-amber-100 text-amber-900 border-amber-300',
   3: 'bg-rose-50 text-rose-800 border-rose-200',
 };
-const NEUTRAL_CHIP = 'bg-brand-cream/60 text-brand-charcoal/70 border-brand-stone/40';
+const NEUTRAL_CHIP = 'bg-brand-cream/60 text-brand-charcoal/80 border-brand-stone/40';
 
 /** 三種作答的顏色：達成率族好的是綠；頻率族「很少或没有」也是綠 —— 都是 0 最好。 */
 const KIND_BAR = ['bg-brand-moss', 'bg-amber-400', 'bg-brand-stone/70'] as const;
-const KIND_TEXT = ['text-brand-moss', 'text-amber-700', 'text-brand-charcoal/60'] as const;
+const KIND_TEXT = ['text-brand-moss', 'text-amber-700', 'text-brand-charcoal/80'] as const;
 
 function Bar({ counts }: { counts: readonly [number, number, number] }) {
   const total = Math.max(1, counts[0] + counts[1] + counts[2]);
@@ -41,10 +41,10 @@ function List({ label, items, tone }: { label: string; items: readonly string[];
   if (!items.length) return null;
   return (
     <div className="space-y-1">
-      <div className={`text-[11px] font-bold ${tone}`}>{label}</div>
+      <div className={`text-xs font-bold ${tone}`}>{label}</div>
       <ul className="space-y-0.5">
         {items.map(t => (
-          <li key={t} className="text-xs text-brand-charcoal/85 flex gap-1.5"><span className="mt-1.5 w-1 h-1 rounded-full bg-current shrink-0" />{t}</li>
+          <li key={t} className="text-xs text-brand-charcoal flex gap-1.5"><span className="mt-1.5 w-1 h-1 rounded-full bg-current shrink-0" />{t}</li>
         ))}
       </ul>
     </div>
@@ -58,11 +58,11 @@ function FacetRow({ f, headline, previous }: { f: ScaleDetailFacet; headline: { 
       <span className="text-xs font-semibold text-brand-forest">{f.name}</span>
       <Bar counts={f.counts} />
       <span className="col-span-2 sm:col-span-1 flex items-center gap-2 sm:justify-end flex-wrap">
-        <span className="text-[11px] text-brand-charcoal/60 whitespace-nowrap">
+        <span className="text-xs text-brand-charcoal/80 whitespace-nowrap">
           {headline.label} {n}/{f.asked}
-          {previous && <span className="text-brand-charcoal/40">（{PREVIOUS_LABEL} {previous[headline.index]}/{previous[0] + previous[1] + previous[2]}）</span>}
+          {previous && <span className="text-brand-charcoal/80">（{PREVIOUS_LABEL} {previous[headline.index]}/{previous[0] + previous[1] + previous[2]}）</span>}
         </span>
-        {f.plain && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${f.tone === null ? NEUTRAL_CHIP : TONE_CHIP[f.tone]}`}>{f.plain}</span>}
+        {f.plain && <span className={`text-xs font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${f.tone === null ? NEUTRAL_CHIP : TONE_CHIP[f.tone]}`}>{f.plain}</span>}
       </span>
     </li>
   );
@@ -75,9 +75,9 @@ function Focus({ f, kinds, mode }: { f: ScaleDetailFocus; kinds: readonly string
     <div className="rounded-2xl border border-brand-stone/60 bg-brand-cream/20 p-4 space-y-3 break-inside-avoid">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h5 className="text-sm font-extrabold text-brand-forest">{f.name}</h5>
-        {f.plain && <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${f.tone === null ? NEUTRAL_CHIP : TONE_CHIP[f.tone]}`}>{f.plain}</span>}
+        {f.plain && <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${f.tone === null ? NEUTRAL_CHIP : TONE_CHIP[f.tone]}`}>{f.plain}</span>}
       </div>
-      {f.what && <p className="text-xs text-brand-charcoal/75 leading-relaxed">{f.what}</p>}
+      {f.what && <p className="text-xs text-brand-charcoal/80 leading-relaxed">{f.what}</p>}
       <div className="grid sm:grid-cols-3 gap-3">
         {mode === 'next' && <List label={STRENGTHS_LABEL} items={f.strengths} tone={KIND_TEXT[0]} />}
         {mode === 'frequent' && <List label={`${FREQUENT_START}（${kinds[2]}）`} items={worst} tone={KIND_TEXT[2]} />}
@@ -92,8 +92,8 @@ function Focus({ f, kinds, mode }: { f: ScaleDetailFocus; kinds: readonly string
       )}
       {f.tips.length > 0 && (
         <div className="space-y-1">
-          <div className="text-[11px] font-bold text-brand-forest flex items-center gap-1"><Home size={12} /> {TIPS_LABEL}</div>
-          <ul className="space-y-1">{f.tips.map(t => <li key={t} className="text-xs text-brand-charcoal/85 flex gap-1.5"><span className="text-brand-clay">·</span>{t}</li>)}</ul>
+          <div className="text-xs font-bold text-brand-forest flex items-center gap-1"><Home size={12} /> {TIPS_LABEL}</div>
+          <ul className="space-y-1">{f.tips.map(t => <li key={t} className="text-xs text-brand-charcoal flex gap-1.5"><span className="text-brand-clay">·</span>{t}</li>)}</ul>
         </div>
       )}
     </div>
@@ -111,11 +111,11 @@ export default function ScaleDetailCard({ entry }: { entry: ScaleDetailEntry }) 
         <h4 className="text-base font-extrabold text-brand-forest flex items-center gap-1.5">
           <ClipboardCheck size={16} className="text-brand-clay" /> {d.displayName}
         </h4>
-        <p className="text-xs text-brand-charcoal/65">{d.oneLiner}这次回答了 {d.asked} 题。</p>
+        <p className="text-xs text-brand-charcoal/80">{d.oneLiner}这次回答了 {d.asked} 题。</p>
       </div>
 
       <div className="rounded-xl bg-brand-sage/10 border border-brand-moss/20 p-4 space-y-2">
-        <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+        <div className="flex flex-wrap gap-2 text-xs font-bold">
           {d.kinds.map((k, i) => (k.label ? (
             <span key={k.label} className={`px-2 py-0.5 rounded-full ${i === 0 ? 'bg-brand-moss text-white' : i === 1 ? 'bg-amber-100 text-amber-900' : 'bg-brand-stone/40 text-brand-charcoal'}`}>
               {k.label} {k.count} 题
@@ -127,11 +127,11 @@ export default function ScaleDetailCard({ entry }: { entry: ScaleDetailEntry }) 
 
       {d.facets.length > 1 && (
         <div className="space-y-2">
-          <div className="text-[11px] font-bold text-brand-charcoal/60 flex items-center gap-1"><ListChecks size={12} /> 各个方面</div>
+          <div className="text-xs font-bold text-brand-charcoal/80 flex items-center gap-1"><ListChecks size={12} /> 各个方面</div>
           <ul className="space-y-2.5">
             {d.facets.map(f => <FacetRow key={f.key} f={f} headline={headline} previous={prevByKey.get(f.key)} />)}
           </ul>
-          <div className="flex gap-3 text-[10px] text-brand-charcoal/50 pt-1 flex-wrap">
+          <div className="flex gap-3 text-xs text-brand-charcoal/80 pt-1 flex-wrap">
             {d.kinds.map((k, i) => (k.label ? <span key={k.label} className="flex items-center gap-1"><span className={`w-2.5 h-2.5 rounded-sm ${KIND_BAR[i]}`} />{k.label}</span> : null))}
           </div>
         </div>
@@ -139,7 +139,7 @@ export default function ScaleDetailCard({ entry }: { entry: ScaleDetailEntry }) 
 
       {d.focus.length > 0 && (
         <div className="space-y-3">
-          <div className="text-[11px] font-bold text-brand-charcoal/60">{FOCUS_TITLE[d.mode]}</div>
+          <div className="text-xs font-bold text-brand-charcoal/80">{FOCUS_TITLE[d.mode]}</div>
           {d.focus.map(f => <Focus key={f.key} f={f} kinds={d.kinds.map(k => k.label)} mode={d.mode} />)}
         </div>
       )}

@@ -23,7 +23,8 @@ describe('t2PriceFor', () => {
 
   it('伺服器：plan 附上 pricing，下單照同一份 plan 收（不是固定單價）', () => {
     const server = readFileSync(path.join(__dirname, '..', 'server.ts'), 'utf8');
-    expect(server).toContain("res.json({ ...outcome.plan, pricing: t2PriceFor(outcome.items) })");
+    // 填表人 v2（#70）開著時後面多一個 `raterV2: true`
+    expect(server).toContain("res.json({ ...outcome.plan, pricing: t2PriceFor(outcome.items)");
     const create = server.slice(server.indexOf("paidOnly.post('/api/payment/create'"), server.indexOf('async function settlePayment'));
     expect(create).toContain('await t2PlanFor(userId)');
     expect(create).toContain('amountFen = pricing.priceFen');

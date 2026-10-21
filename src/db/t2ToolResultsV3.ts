@@ -5,11 +5,11 @@
  * 每次交卷一筆、不覆蓋；讀的時候只讀這位家長、**只讀這個版本**；壞列丟掉、其餘照讀。
  * 兩套互不認得對方的列：舊的讀法看到這一版的列安靜略過，這裡只 SELECT 這一版。
  *
- * 欄位：`rater` 沿用五種填表人；`pre` 存作答情境（月齡、年級、上學、性別）—— 完整版沒有前置題。
+ * 欄位：`rater` 沿用五種填表人（`rater_note` 同 9/08 那一套，有說明才寫）；`pre` 存作答情境（月齡、年級、上學、性別）—— 完整版沒有前置題。
  */
 
 import { getPool } from './mysql';
-import { isoOf, parseJson, snapshotFrom, type ChildSnapshot } from './t2ToolResults';
+import { insertRow, isoOf, parseJson, snapshotFrom, type ChildSnapshot } from './t2ToolResults';
 import { isKitV3Tool } from '../t2/kitv3';
 import { TOOLKIT_VERSION_V3 } from '../t2/kitv3/types';
 import type { ToolResultV3 } from '../t2/kitv3/submit';
@@ -22,25 +22,7 @@ export interface ToolResultRecordV3 {
 }
 
 export async function insertToolResultV3(userId: number, childSnapshot: ChildSnapshot, result: ToolResultV3): Promise<number> {
-  const p = getPool();
-  if (!p) throw new Error('MySQL pool is not available');
-  const [res] = await p.execute(
-    `INSERT INTO t2_tool_results
-       (user_id, child_snapshot, tool_id, toolkit_version, assessed_age_month, rater, pre, answers, result)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      userId,
-      JSON.stringify(childSnapshot),
-      result.toolId,
-      result.toolkitVersion,
-      result.assessedAgeMonth,
-      result.rater,
-      JSON.stringify(result.context),
-      JSON.stringify(result.answers),
-      JSON.stringify(result),
-    ],
-  );
-  return Number((res as { insertId: number }).insertId);
+  return insertRow(userId, childSnapshot, result, JSON.stringify(result.context));
 }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);

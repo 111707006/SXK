@@ -47,7 +47,7 @@ class LazyErrorBoundary extends React.Component<Props, State> {
       <div className="py-12 bg-white rounded-3xl border border-brand-stone p-8 text-center space-y-3">
         <AlertTriangle className="mx-auto text-amber-500" size={28} />
         <p className="text-xs font-bold text-brand-forest">本页面加载失败</p>
-        <p className="text-[11px] text-brand-charcoal/60 leading-relaxed">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           可能是网络不稳定，或系统刚完成更新。请重新载入页面；若仍无法加载，请稍后再试。
         </p>
         <button
@@ -65,7 +65,7 @@ class LazyErrorBoundary extends React.Component<Props, State> {
 /** lazy 元件載入中的佔位畫面 */
 function LazyFallback() {
   return (
-    <div className="py-16 bg-white rounded-3xl border border-brand-stone p-8 text-center text-brand-charcoal/60">
+    <div className="py-16 bg-white rounded-3xl border border-brand-stone p-8 text-center text-brand-charcoal/80">
       <p className="text-xs font-medium">载入中…</p>
     </div>
   );

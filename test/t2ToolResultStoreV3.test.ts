@@ -61,6 +61,15 @@ describe('insertToolResultV3', () => {
   });
 });
 
+describe('insertToolResultV3：填表人說明（#70）', () => {
+  it('有 raterNote 才多寫 rater_note 那一欄', async () => {
+    await store.insertToolResultV3(7, SNAPSHOT, { ...GM, rater: 'other', raterNote: '阿姨' });
+    const { sql, params } = executed[0];
+    expect(sql).toMatch(/^INSERT INTO t2_tool_results \(user_id, child_snapshot, tool_id, toolkit_version, assessed_age_month, rater, rater_note, pre, answers, result\) VALUES \(\?, \?, \?, \?, \?, \?, \?, \?, \?, \?\)$/);
+    expect(params.slice(5, 7)).toEqual(['other', '阿姨']);
+  });
+});
+
 describe('listToolResultsV3', () => {
   const row = (id: number, r: unknown, over: Record<string, unknown> = {}) => ({
     id,

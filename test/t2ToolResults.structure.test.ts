@@ -18,6 +18,9 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
 const schema = read('deploy/schema.sql');
 const migration = read('deploy/migrations/2026-09-12-t2-tool-results.sql');
+/** 填表人 v2（#70）：加 `rater_note`。 */
+const raterNoteMigration = read('deploy/migrations/2026-10-18-t2-rater-note.sql');
+const RATER_NOTE_LINE = '  -- 填表人选「其他」时的选填说明（T2_RATER_V2，#70）：去头尾空白、最多 10 字；没填是 NULL。\n  `rater_note` VARCHAR(10) DEFAULT NULL,\n';
 
 /** 只取某一張表的 CREATE TABLE 區塊。 */
 function tableBlock(sql: string, table: string): string {
@@ -30,8 +33,19 @@ function tableBlock(sql: string, table: string): string {
 const RATER_ENUM = `ENUM(${RATERS.map(r => `'${r}'`).join(',')})`;
 
 describe('t2_tool_results', () => {
-  it('schema 與遷移的 CREATE TABLE 一字不差', () => {
-    expect(tableBlock(migration, 't2_tool_results')).toBe(tableBlock(schema, 't2_tool_results'));
+  it('schema ＝ 09-12 遷移的 CREATE TABLE，在 rater 後面多一欄 rater_note（10-18 遷移加的）', () => {
+    const created = tableBlock(migration, 't2_tool_results');
+    const afterRater = created.indexOf('\n', created.indexOf('`rater` ENUM')) + 1;
+    expect(afterRater).toBeGreaterThan(0);
+    expect(tableBlock(schema, 't2_tool_results')).toBe(created.slice(0, afterRater) + RATER_NOTE_LINE + created.slice(afterRater));
+  });
+
+  it('10-18 遷移：rater_note 的定義與位置與 schema 相同、先查 information_schema 才加（可重跑）、有驗證句', () => {
+    expect(raterNoteMigration).toContain("ADD COLUMN `rater_note` VARCHAR(10) DEFAULT NULL AFTER `rater`");
+    expect(raterNoteMigration).toMatch(/information_schema\.COLUMNS[\s\S]*COLUMN_NAME = 'rater_note'/);
+    expect(raterNoteMigration).toMatch(/AS t2_tool_results_rater_note_ok/);
+    // 只加不刪
+    expect(raterNoteMigration).not.toMatch(/DROP|MODIFY|CHANGE COLUMN/i);
   });
 
   it('rater 的 ENUM 就是 RATERS 的五個值，不可為 NULL', () => {

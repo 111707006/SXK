@@ -68,21 +68,21 @@ export default function CheckinScreen({ id, checkinId, times, date }: { id: stri
           <Check size={52} strokeWidth={3} />
         </div>
         <p className="mt-6 text-[28px] font-black text-brand-forest">{CHECKIN.title}</p>
-        {activity && <p className="mt-1.5 text-[15px] text-brand-charcoal/60">{checkinSub(activity.title, times)}</p>}
+        {activity && <p className="mt-1.5 text-[15px] text-brand-charcoal/80">{checkinSub(activity.title, times)}</p>}
 
         {summary && (
           <>
             <div className={`mt-6 grid gap-2.5 ${summary.plan ? 'grid-cols-2' : 'grid-cols-1'}`} data-testid="checkin-numbers">
               <div className="rounded-xl bg-brand-cream py-3">
                 <p className="text-[24px] font-black text-brand-forest tabular-nums">{summary.sessions}</p>
-                <p className="text-[12px] text-brand-charcoal/60 mt-0.5">{CHECKIN.weekSessions}</p>
+                <p className="text-[12px] text-brand-charcoal/80 mt-0.5">{CHECKIN.weekSessions}</p>
               </div>
               {summary.plan && (
                 <div className="rounded-xl bg-brand-cream py-3">
                   <p className="text-[24px] font-black text-brand-forest tabular-nums">
                     {summary.plan.practiced}/{summary.plan.total}
                   </p>
-                  <p className="text-[12px] text-brand-charcoal/60 mt-0.5">{CHECKIN.planPracticed}</p>
+                  <p className="text-[12px] text-brand-charcoal/80 mt-0.5">{CHECKIN.planPracticed}</p>
                 </div>
               )}
             </div>
@@ -90,7 +90,7 @@ export default function CheckinScreen({ id, checkinId, times, date }: { id: stri
             <div className="mt-6 grid grid-cols-7 gap-1.5">
               {summary.days.map((d, i) => (
                 <div key={d.date} className="flex flex-col items-center gap-1" data-day={d.date} data-done={d.done || undefined}>
-                  <span className="text-[11px] text-brand-charcoal/50">{WEEKDAYS[i]}</span>
+                  <span className="text-xs text-brand-charcoal/80">{WEEKDAYS[i]}</span>
                   <span
                     className={`w-9 h-9 rounded-full grid place-items-center ${
                       d.done ? 'bg-brand-forest text-white' : d.today ? 'ring-2 ring-brand-moss' : 'bg-brand-cream'
@@ -124,7 +124,7 @@ export default function CheckinScreen({ id, checkinId, times, date }: { id: stri
         {progressItems.length > 0 && (
           <div className="mt-7 text-left" data-testid="checkin-progress">
             <p className="text-[16px] font-bold text-brand-forest text-center">{CHECKIN.progressTitle}</p>
-            <p className="mt-1 text-[12px] text-brand-charcoal/50 text-center">{CHECKIN.progressSub}</p>
+            <p className="mt-1 text-[12px] text-brand-charcoal/80 text-center">{CHECKIN.progressSub}</p>
             <ul className="mt-3 space-y-2">
               {progressItems.map((t, i) => {
                 const on = progress.includes(i);
@@ -158,7 +158,7 @@ export default function CheckinScreen({ id, checkinId, times, date }: { id: stri
             {CHECKIN.saveFailed}
           </p>
         )}
-        <p className="mt-3 mb-4 text-[12px] text-brand-charcoal/50">{CHECKIN.optional}</p>
+        <p className="mt-3 mb-4 text-[12px] text-brand-charcoal/80">{CHECKIN.optional}</p>
       </div>
       <div className="shrink-0 px-5 pt-3 pb-[calc(18px+env(safe-area-inset-bottom))] grid grid-cols-2 gap-2.5">
         <button

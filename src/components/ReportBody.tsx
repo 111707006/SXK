@@ -132,12 +132,20 @@ export interface ReportBodyProps {
   isAiGenerated?: boolean | null;
   /** 報告編號由它算出。`null` 代表還沒存進歷史，此時整行不出現。 */
   reportId?: string | null;
-  /** 家長端專屬：T2 深度評估入口（票 #56）。放在掃碼帶走那張卡的正上方（2026-10-11）。 */
+  /**
+   * 家長端專屬：T2 深度評估入口（票 #56；B 是交接卡）。放在掃碼帶走那張卡的正上方（2026-10-11）；
+   * `noWeeklyPlan` 時改放在二維碼卡下面、專家預約上面（D20）。
+   */
   t2Slot?: React.ReactNode;
   /** 家長端專屬：掃碼把報告帶回家的二維碼卡。放在預後說明與每週課表之間。 */
   takeawaySlot?: React.ReactNode;
   /** 家長端專屬：專家預約入口。放在每週課表底下，與它同屬最後那一區。 */
   bookingSlot?: React.ReactNode;
+  /**
+   * 週計劃圖整個不畫（伺服器開關 `T1_NO_WEEKLY_PLAN`，#71，D19）：新舊快照都不畫，AI 的練習建議照存、不畫。
+   * 呼叫端從 `useReportLayout()` 拿；沒給 = 關 = 照舊。
+   */
+  noWeeklyPlan?: boolean;
   /**
    * 這位家長的報告歷史（原樣，當 unknown 收）。新版報告的「历次筛查对照」用它；舊版不看。
    * 沒給就只畫這一份。
@@ -145,6 +153,11 @@ export interface ReportBodyProps {
   history?: unknown;
   /** 這一份報告的產生時間：歷次對照只算到它為止（開舊報告時，比它新的不算）。 */
   reportCreatedAt?: string | null;
+  /**
+   * 拿不到這位家長的其他報告（掃碼頁：連結只帶那一筆快照）。新版報告的「历次筛查对照」整塊不畫 ——
+   * 只畫這一份的話，第三次的報告會被說成「这是第一次报告」。
+   */
+  historyUnavailable?: boolean;
 }
 
 export default function ReportBody({
@@ -158,6 +171,8 @@ export default function ReportBody({
   bookingSlot,
   history,
   reportCreatedAt,
+  historyUnavailable,
+  noWeeklyPlan,
 }: ReportBodyProps) {
   /**
    * 新版 T1 報告（`T1_REPORT_REAL`）：看**快照**換版，不看開關（`src/t1report/shape.ts`）。
@@ -181,7 +196,7 @@ export default function ReportBody({
           </div>
           <h2 className="text-xl font-bold text-brand-forest mt-1">儿童综合发展评估报告</h2>
           {/* 對照表要求固定放在報告最上方的定位句，原句照抄（見 statusWording.ts）。 */}
-          <p className="text-[11px] text-brand-charcoal/70 mt-1.5">{SCREENING_DISCLAIMER}</p>
+          <p className="text-xs text-brand-charcoal/80 mt-1.5">{SCREENING_DISCLAIMER}</p>
         </div>
         {/*
           編號由報告 id 算出，同一份報告永遠同一號（ADR-0007）。先前這裡取的是
@@ -189,7 +204,7 @@ export default function ReportBody({
           而這串字的用途正是讓他在電話上說出「我看的是哪一份」。
         */}
         {reportId && (
-          <span className="text-[10px] text-brand-charcoal/50 text-right">
+          <span className="text-xs text-brand-charcoal/80 text-right">
             报告编号: {reportNumber(reportId)}
           </span>
         )}
@@ -248,7 +263,7 @@ export default function ReportBody({
             <Layers size={15} className="text-brand-moss" />
             9 维度评估结果明细
           </h3>
-          <p className="text-[10px] text-brand-charcoal/50 mt-0.5">条形图代表该维度的「关注分」（0-8分，分数越高，越建议进一步了解）</p>
+          <p className="text-xs text-brand-charcoal/80 mt-0.5">条形图代表该维度的「关注分」（0-8分，分数越高，越建议进一步了解）</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -265,14 +280,14 @@ export default function ReportBody({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-brand-forest">{dim.name}</span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full border ${style.badge}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${style.badge}`}>
                       {(STATUS_WORDING[score.status] ?? STATUS_WORDING.normal).label}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[10px] text-brand-charcoal/70">
+                  <div className="flex items-center justify-between text-xs text-brand-charcoal/80">
                     <span>关注分: <strong className="font-extrabold">{concernScore}</strong> / 8</span>
-                    <span className={`text-[9px] ${style.text}`}>{style.action} →</span>
+                    <span className={`text-xs ${style.text}`}>{style.action} →</span>
                   </div>
 
                   <div className="w-full h-1.5 bg-brand-cream/50 rounded-full overflow-hidden border border-brand-stone/30">
@@ -287,15 +302,15 @@ export default function ReportBody({
           })}
         </div>
 
-        <div className="flex justify-center gap-4 text-[9px] text-brand-charcoal/60 pt-1">
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> {STATUS_WORDING.normal.label} (继续观察)
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-brand-charcoal/80 pt-1">
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" /> {STATUS_WORDING.normal.label} (继续观察)
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {STATUS_WORDING.borderline.label} ({PRODUCT.nextStep.legendAttentionHint})
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" /> {STATUS_WORDING.borderline.label} ({PRODUCT.nextStep.legendAttentionHint})
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> {STATUS_WORDING.delay.label} ({PRODUCT.nextStep.legendConcernHint})
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" /> {STATUS_WORDING.delay.label} ({PRODUCT.nextStep.legendConcernHint})
           </span>
         </div>
       </div>
@@ -316,7 +331,7 @@ export default function ReportBody({
       ) : (
         <>
           {/* New Visual Section 1: Overall Peer Development Level Comparison */}
-          <PeerComparison childName={childName} scores={scores} />
+          <PeerComparison childName={childName} scores={scores} noWeeklyPlan={noWeeklyPlan} />
 
           {/*
             1. Circular Dial Gauges for Critical Brain Indices
@@ -351,11 +366,11 @@ export default function ReportBody({
       <div className="space-y-4">
         {/* 新版：這位家長自己的歷次報告，取代三條每個孩子都一樣的預測曲線。 */}
         {real
-          ? <ScreeningHistory history={history} current={{ id: reportId, createdAt: reportCreatedAt, scores }} />
+          ? (historyUnavailable ? null : <ScreeningHistory history={history} current={{ id: reportId, createdAt: reportCreatedAt, scores }} />)
           : <PrognosisTrajectoryChart completedScores={scores} />}
 
         <div className="bg-brand-sand/50 p-4 rounded-2xl border border-brand-stone/60 text-left">
-          <span className="text-[10px] font-bold text-brand-clay uppercase tracking-wider flex items-center gap-1 mb-1.5">
+          <span className="text-xs font-bold text-brand-clay uppercase tracking-wider flex items-center gap-1 mb-1.5">
             <Compass size={11} className="text-brand-clay" />
             {/* 新版這一段是「接下来怎么做」，不是預測（欄位名沿用 prognosisPrediction）。 */}
             {real ? '接下来怎么做' : '后续发展预判与家长指引'}
@@ -369,19 +384,30 @@ export default function ReportBody({
       {/*
         家長端專屬：T2 深度評估入口。後台不放 —— 那是一顆按下去會開始做事的按鈕。
         2026-10-11 使用者：從雷達圖底下移到二維碼卡的正上方（讀完整份報告、「接下来怎么做」之後才請家長往下一步）。
+        開關 `T1_NO_WEEKLY_PLAN` 開著時不在這裡，在下面週計劃圖原本那一區、專家預約上面（2026-10-18，D20）。
+        捲到 T2 卡（`AnalysisReport` 的 `t2SlotRef`）跟著插槽走，兩個位置都捲得到。
       */}
-      {t2Slot}
+      {!noWeeklyPlan && t2Slot}
 
       {/* 家長端專屬：掃碼把報告帶回自己的手機（issue #22）。 */}
       {takeawaySlot}
 
       {/* 3. Gamified Weekly Sensori-Motor Training Calendar */}
+      {/* 週計劃圖拿掉之後，沒有插槽的地方（後台、列印、掃碼頁）這一區是空的：整塊不畫，不留一條空的分隔線。 */}
+      {(!noWeeklyPlan || t2Slot || bookingSlot) && (
       <div className="space-y-4 pt-4 border-t border-brand-cream/80">
-        <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} plain={real} />
+        {/*
+          `T1_NO_WEEKLY_PLAN`（使用者 2026-10-18，D19、D20）：週計劃圖不畫；T2 付費區（B 是交接卡）放進這一區、
+          專家預約上面 —— 二維碼卡之後、預約之前，家長先看到下一步的深度評估。推翻 10-11「二維碼卡正上方」。
+        */}
+        {noWeeklyPlan
+          ? t2Slot
+          : <WeeklyRehabPlanner rehabSuggestions={aiReport.rehabSuggestions} homeGuidance={aiReport.homeGuidance} plain={real} />}
 
         {/* 家長端專屬：專家預約入口與表單。 */}
         {bookingSlot}
       </div>
+      )}
 
       {/*
         新版（A、有商城）才有：報告最底下另外一塊「相关产品」，照被標記的方面挑商城的產品（使用者 2026-10-08）。
@@ -465,7 +491,7 @@ function RadarSection({ scores }: { scores: DimensionScore[] }) {
           {/* 客戶指定的字串，一字不動（issue #18 / p.12）：不加空格、破折號用兩個全形。 */}
           9大维度结论——雷达图分析
         </h3>
-        <p className="text-[10px] text-brand-charcoal/50 mt-0.5">
+        <p className="text-xs text-brand-charcoal/80 mt-0.5">
           共评测 9 项发展维度，其中 <span className="font-bold text-rose-600">{attentionCount} 项</span>{' '}
           {STATUS_WORDING.borderline.tag}（<span className="font-bold text-rose-600">{redCount} 项</span>{' '}
           {STATUS_WORDING.delay.tag}）
@@ -564,26 +590,26 @@ function RadarSection({ scores }: { scores: DimensionScore[] }) {
         圖例三級，與九宮格、篩查結論頁同一組字。
         先前這裡是四級（依關注分 ≥6／5／3–4／≤2 切），那是第二套刻度 —— 見 SEVERITY 的說明。
       */}
-      <div className="flex flex-wrap justify-center gap-3 text-[10px]">
+      <div className="flex flex-wrap justify-center gap-3 text-xs">
         {(['delay', 'borderline', 'normal'] as const).map(status => (
           <div key={status} className="flex items-center gap-1">
             <div className={`w-2.5 h-2.5 rounded-full ${look(status).fill}`} />
-            <span className="text-brand-charcoal/70">{STATUS_WORDING[status].label}</span>
+            <span className="text-brand-charcoal/80">{STATUS_WORDING[status].label}</span>
           </div>
         ))}
       </div>
 
       {/* 详细列表 */}
       <div className="border-t border-brand-cream pt-3 space-y-2">
-        <p className="text-[10px] font-bold text-brand-charcoal/60 text-center">各维度关注分详情</p>
-        <div className="grid grid-cols-3 gap-2">
+        <p className="text-xs font-bold text-brand-charcoal/80 text-center">各维度关注分详情</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {sortedScores.map((item) => (
             <div
               key={`${item.dimensionId}-${item.tierId}`}
-              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] ${look(item.status).tint}`}
+              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs ${look(item.status).tint}`}
             >
-              <span className="font-medium text-brand-charcoal/80 truncate">{item.dimensionName}</span>
-              <span className={`font-bold ml-1 ${look(item.status).text}`}>{item.concernScore}</span>
+              <span className="font-medium text-brand-charcoal/80 min-w-0">{item.dimensionName}</span>
+              <span className={`font-bold ml-1 shrink-0 ${look(item.status).text}`}>{item.concernScore}</span>
             </div>
           ))}
         </div>
@@ -598,15 +624,18 @@ function RadarSection({ scores }: { scores: DimensionScore[] }) {
  * ⚠️ **這張圖沒有常模。** 百分位是九個維度得分率的平均，不是任何一份常模樣本的分位數。
  * 它留在報告裡是產品決定（家長看得到它），不是因為它有臨床意義 —— 見本檔開頭的警告。
  */
-function PeerComparison({ childName, scores }: { childName: string; scores: DimensionScore[] }) {
+function PeerComparison({ childName, scores, noWeeklyPlan }: { childName: string; scores: DimensionScore[]; noWeeklyPlan?: boolean }) {
   const avgPct = scores.length > 0
     ? Math.round(scores.reduce((acc, s) => acc + (s.score / s.maxScore) * 100, 0) / scores.length)
     : 50;
 
   // 主語是「发展节奏」，不是孩子 —— 對照表：避免「孩子有……」這種以孩子為主語的判定句。
+  // 週計劃圖拿掉之後（`T1_NO_WEEKLY_PLAN`，#71）不能再叫家長去看「最下方的 7 日居家活动安排」（暫採的句子，規格 §7）。
   const note =
     avgPct < 40
-      ? `${childName} 的整体发展节奏与同龄常见的节奏有一定差距。建议跟进最下方的 7 日居家活动安排，并近期预约专家一对一说明。`
+      ? noWeeklyPlan
+        ? `${childName} 的整体发展节奏与同龄常见的节奏有一定差距。建议近期预约专家一对一说明。`
+        : `${childName} 的整体发展节奏与同龄常见的节奏有一定差距。建议跟进最下方的 7 日居家活动安排，并近期预约专家一对一说明。`
       : avgPct < 70
         ? `${childName} 的整体发展节奏接近同龄常见水平，有几项仍在建立中，多做亲子互动与居家共读会有帮助。`
         : avgPct < 85
@@ -645,9 +674,10 @@ function PeerComparison({ childName, scores }: { childName: string; scores: Dime
         </div>
 
         {/* Labels matching attachment */}
-        <div className="flex justify-between text-[10px] text-brand-charcoal/80 font-bold px-1 mt-2">
-          <span className="w-1/4 text-center">{STATUS_WORDING.delay.label}</span>
-          <span className="w-1/4 text-center">{STATUS_WORDING.borderline.label}</span>
+        <div className="flex justify-between text-xs text-brand-charcoal/80 font-bold px-1 mt-2">
+          {/* 手機上四格各約 80px：用短字，完整的判定說法在上面的色條 title 與報告其他段 */}
+          <span className="w-1/4 text-center">较多支持</span>
+          <span className="w-1/4 text-center">少量支持</span>
           <span className="w-1/4 text-center">平均水平</span>
           <span className="w-1/4 text-center">高于平均</span>
         </div>

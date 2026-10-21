@@ -17,6 +17,7 @@ import type { KitV3Bank, KitV3Option } from './kitv3/types';
 import type { TemperamentScoring } from './kitv3/score';
 import type { ToolResultV3 } from './kitv3/submit';
 import { RECOMMEND_CONFIG } from './recommend/config';
+import { raterLineOf } from './reportCopy';
 
 /** 量表給家長看的名字（推薦設定裡的客規名稱）；設定裡沒有就退回代碼。 */
 export function toolNameV3(toolId: string): string {
@@ -130,6 +131,8 @@ export interface ReviewGroupV3 {
   toolId: string;
   heading: string;
   computedAt: string;
+  /** 見 `ReviewGroup.raterLine`（#70）。 */
+  raterLine?: string;
   items: ReviewItemV3[];
 }
 
@@ -151,7 +154,7 @@ function isUnstable(options: ReadonlyArray<KitV3Option>, value: number | null | 
 
 /** 每一支一組，依交卷順序；沒有要列的題就不出那一組。`banks` 是已經載好的題庫（沒載到的那一支先不列）。 */
 export function reviewGroupsV3(
-  findings: Pick<T2FindingsV3, 'toolResults'>,
+  findings: Pick<T2FindingsV3, 'toolResults' | 'raterV2'>,
   banks: Readonly<Record<string, KitV3Bank>>,
 ): ReviewGroupV3[] {
   const groups: ReviewGroupV3[] = [];
@@ -173,7 +176,7 @@ export function reviewGroupsV3(
         });
       }
     }
-    if (items.length > 0) groups.push({ toolId: r.toolId, heading: toolNameV3(r.toolId), computedAt: r.computedAt, items });
+    if (items.length > 0) groups.push({ toolId: r.toolId, heading: toolNameV3(r.toolId), computedAt: r.computedAt, ...raterLineOf(findings.raterV2, r), items });
   }
   return groups;
 }

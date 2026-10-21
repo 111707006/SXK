@@ -191,11 +191,11 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
             </div>
             <div>
               <h2 className="text-xl font-bold text-brand-forest">T1 综合评估结论</h2>
-              <p className="text-xs text-brand-charcoal/70 mt-0.5">
+              <p className="text-xs text-brand-charcoal/80 mt-0.5">
                 受测儿童：{child.name} | 实足月龄：{child.ageMonth}个月 | 评估量表：{ageBandName}
               </p>
               {/* 對照表要求固定放在最上方的定位句，原句照抄（見 statusWording.ts）。 */}
-              <p className="text-[11px] text-brand-charcoal/60 mt-1">{SCREENING_DISCLAIMER}</p>
+              <p className="text-xs text-brand-charcoal/80 mt-1">{SCREENING_DISCLAIMER}</p>
             </div>
           </div>
 
@@ -215,7 +215,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                 {/* 紅燈與黃燈分開講，句型見 flaggedSummary；全綠時用對照表指定的那一句。 */}
                 {flaggedSummary(calculatedScores) ?? ALL_CLEAR_SUMMARY}
               </h3>
-              <p className="text-xs text-brand-charcoal/75 leading-relaxed">
+              <p className="text-xs text-brand-charcoal/80 leading-relaxed">
                 {lowDimensions.length > 0
                   ? PRODUCT.nextStep.screeningResultWithFindings
                   : PRODUCT.nextStep.screeningResultAllClear
@@ -247,7 +247,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                       <span className="text-xs font-extrabold text-brand-forest">{score.dimensionName}</span>
                     </div>
 
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${
                       score.status === 'delay' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                       score.status === 'borderline' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                       'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -257,8 +257,8 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                   </div>
 
                   <div className="space-y-1.5 mt-3">
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-brand-charcoal/60">实测得分:</span>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-brand-charcoal/80">实测得分:</span>
                       <span className="font-bold text-brand-forest">{score.score} / {score.maxScore}</span>
                     </div>
                     {/* Tiny Progress bar inside */}
@@ -274,8 +274,8 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                   </div>
 
                   {/* Deep Assessment indicator */}
-                  <div className="border-t border-brand-cream mt-2 pt-2 text-[10px] text-right flex items-center justify-between">
-                    <span className="text-[9px] text-brand-charcoal/40">T1 基础评估层</span>
+                  <div className="border-t border-brand-cream mt-2 pt-2 text-xs text-right flex items-center justify-between">
+                    <span className="text-xs text-brand-charcoal/80">T1 基础评估层</span>
                     {(score.status === 'delay' || score.status === 'borderline') ? (
                       // 顏色跟著等級走：紅＝優先諮詢、橘黃＝進一步了解。先前兩級都是 rose，
                       // 標籤分成兩句之後那樣會自相矛盾。
@@ -331,7 +331,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
       {/* Top Breadcrumb & age indicator */}
       <div className="bg-white rounded-3xl border border-brand-stone p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-left shadow-sm">
         <div className="space-y-1">
-          <h3 className="text-xs font-bold text-brand-charcoal/60 uppercase tracking-wider">分龄自适应 AI 精准评估</h3>
+          <h3 className="text-xs font-bold text-brand-charcoal/80 uppercase tracking-wider">分龄自适应 AI 精准评估</h3>
           <h2 className="text-base font-extrabold text-brand-forest flex items-center gap-1.5">
             <Sparkle size={16} className="text-brand-moss animate-spin-slow" />
             T1 综合评估层 —— 全维度分龄极速检评
@@ -344,7 +344,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
 
       {/* Progress visual tracker */}
       <div className="bg-white rounded-2xl border border-brand-stone p-4 shadow-sm text-left">
-        <div className="flex justify-between items-center text-xs font-semibold mb-2 text-brand-charcoal/70">
+        <div className="flex justify-between items-center text-xs font-semibold mb-2 text-brand-charcoal/80">
           <span>评估进度：9 大维度已填 {currentStep} / 9</span>
           <span className="font-bold text-brand-forest">{progressPercent}%</span>
         </div>
@@ -363,13 +363,13 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
             <IconComponent name={activeDimId} size={22} />
           </div>
           <div>
-            <div className="text-[10px] uppercase font-extrabold tracking-wide text-brand-charcoal/55 flex items-center gap-1.5">
+            <div className="text-xs uppercase font-extrabold tracking-wide text-brand-charcoal/80 flex items-center gap-1.5">
               <span>DIMENSION 0{currentStep + 1} / 09</span>
               <span className="w-1.5 h-1.5 rounded-full bg-brand-moss" />
               <span>T1 评估入口</span>
             </div>
             <h3 className="text-base font-bold text-brand-forest mt-0.5">{dimensionNames[activeDimId]}</h3>
-            <p className="text-[11px] text-brand-charcoal/70 mt-1 leading-relaxed">
+            <p className="text-xs text-brand-charcoal/80 mt-1 leading-relaxed">
               {dimensionDescs[activeDimId]}
             </p>
           </div>
@@ -391,7 +391,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                 }`}
               >
                 <div className="flex gap-3 items-start">
-                  <span className="text-xs font-bold text-brand-charcoal/50 bg-brand-cream border border-brand-stone/20 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-xs font-bold text-brand-charcoal/80 bg-brand-cream border border-brand-stone/20 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                     {idx + 1}
                   </span>
                   <div className="space-y-3.5 flex-1">
@@ -445,7 +445,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
             上一步
           </button>
 
-          <div className="text-[11px] font-semibold text-brand-charcoal/60">
+          <div className="text-xs font-semibold text-brand-charcoal/80">
             维度 {currentStep + 1} / 9
           </div>
 
@@ -457,7 +457,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
               className={`px-6 py-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
                 isCurrentStepFinished
                   ? 'bg-brand-moss hover:bg-brand-moss/90 text-white shadow-brand-moss/10 active:scale-[0.98]'
-                  : 'bg-brand-cream border border-brand-stone text-brand-charcoal/40 cursor-not-allowed shadow-none'
+                  : 'bg-brand-cream border border-brand-stone text-brand-charcoal/80 cursor-not-allowed shadow-none'
               }`}
             >
               提交 T1 综合评估
@@ -471,7 +471,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
               className={`px-6 py-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
                 isCurrentStepFinished
                   ? 'bg-brand-forest hover:bg-brand-forest/95 text-white shadow-brand-forest/10 active:scale-[0.98]'
-                  : 'bg-brand-cream border border-brand-stone text-brand-charcoal/40 cursor-not-allowed shadow-none'
+                  : 'bg-brand-cream border border-brand-stone text-brand-charcoal/80 cursor-not-allowed shadow-none'
               }`}
             >
               下一个维度

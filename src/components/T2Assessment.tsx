@@ -4,7 +4,6 @@ import { authFetch } from '../utils/api';
 import { formatAge } from '../utils/dateUtils';
 import { describePlanItem } from '../t2/entrance';
 import {
-  RATER_OPTIONS,
   asrItemNotes,
   canSubmit,
   completedAt,
@@ -21,6 +20,8 @@ import type { AnswerValue, CompletedEntry, Draft, PreValue, ToolForm } from '../
 import type { PlanItem, T2Plan, ToolId } from '../t2/types';
 import type { PlanV3Response } from '../t2/recommend/parentPlan';
 import T2AssessmentV3 from './T2AssessmentV3';
+import T2RaterNoteInput from './T2RaterNoteInput';
+import { raterOptions, raterPayload } from '../t2/raterV2';
 
 /** `GET /api/t2/tool-results` 的回應：每支最新且完整的一筆，各附 band。這裡只讀四個欄位。 */
 interface ToolResultsResponse {
@@ -78,6 +79,8 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selected, setSelected] = useState<PlanItem | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  /** 填表人選「其他」時的選填說明（#70）；換一支、交卷成功就清掉。 */
+  const [raterNote, setRaterNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -113,6 +116,9 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
     return () => { cancelled = true; };
   }, []);
 
+  /** 伺服器開了 `T2_RATER_V2`（plan 上帶 `raterV2: true`）：沒有「老师」、「其他」可寫是谁（#70）。 */
+  const raterV2 = plan?.raterV2 === true;
+
   const form: ToolForm | null = useMemo(
     () => (plan && selected ? formFor(selected.toolId, plan.ageMonth) : null),
     [plan, selected],
@@ -121,6 +127,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
   const openTool = (item: PlanItem) => {
     setSelected(item);
     setDraft(EMPTY_DRAFT);
+    setRaterNote('');
     setSubmitError(null);
     setFlash(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -129,6 +136,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
   const closeTool = () => {
     setSelected(null);
     setDraft(EMPTY_DRAFT);
+    setRaterNote('');
     setSubmitError(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -149,7 +157,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
         body: JSON.stringify({
           toolId: form.toolId,
           assessedAgeMonth: plan.ageMonth,
-          rater: draft.rater,
+          ...raterPayload(raterV2, draft.rater, raterNote),
           pre: draft.pre,
           answers: draft.answers,
         }),
@@ -166,6 +174,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
       setFlash(`${describePlanItem(selected!)} 已完成，已记录。`);
       setSelected(null);
       setDraft(EMPTY_DRAFT);
+      setRaterNote('');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.warn('Failed to submit T2 tool result:', err);
@@ -180,7 +189,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
       type="button"
       onClick={onClick}
       disabled={submitting}
-      className={`flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition ${submitting ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal hover:text-brand-forest transition ${submitting ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <ArrowLeft size={16} />
       {label}
@@ -191,7 +200,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
     <div className="bg-white rounded-3xl border border-brand-stone p-6 md:p-8 max-w-3xl mx-auto shadow-sm text-left">
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
         {back}
-        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
           <Layers size={10} /> 第二层 · 深度评估
         </span>
       </div>
@@ -201,7 +210,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
 
   if (status === 'loading') {
     return shell(
-      <div className="flex items-center gap-2 text-xs text-brand-charcoal/60">
+      <div className="flex items-center gap-2 text-xs text-brand-charcoal/80">
         <Loader2 size={14} className="animate-spin text-brand-moss" />
         正在读取要作答的问卷...
       </div>,
@@ -213,7 +222,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
 
   if (status === 'error' || !plan) {
     return shell(
-      <div className="text-xs text-brand-charcoal/60">暂时读不到要作答的问卷，请稍后再打开。</div>,
+      <div className="text-xs text-brand-charcoal/80">暂时读不到要作答的问卷，请稍后再打开。</div>,
       backButton('返回报告', onBack),
     );
   }
@@ -235,12 +244,12 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
     return shell(
       <div className="space-y-6">
         <div className="flex items-center gap-4 bg-brand-cream/35 p-4 rounded-2xl border border-brand-stone/50">
-          <div className="px-3 py-2 rounded-xl bg-white shadow-sm border border-brand-stone/40 text-brand-forest font-mono text-[11px] font-bold shrink-0">
+          <div className="px-3 py-2 rounded-xl bg-white shadow-sm border border-brand-stone/40 text-brand-forest font-mono text-xs font-bold shrink-0">
             {form.toolId.toUpperCase()}
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-extrabold text-brand-forest">{describePlanItem(selected)}</h2>
-            <p className="text-[11px] text-brand-charcoal/70 mt-0.5">
+            <p className="text-xs text-brand-charcoal/80 mt-0.5">
               按孩子现在 {formatAge(plan.ageMonth)} 出题；请照最近一个月的日常表现作答。
             </p>
           </div>
@@ -250,7 +259,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
         <section className="space-y-2">
           <h3 className="text-xs font-bold text-brand-forest">这份问卷由谁填写？</h3>
           <div className="flex flex-wrap gap-2">
-            {RATER_OPTIONS.map(o => {
+            {raterOptions(raterV2).map(o => {
               const on = draft.rater === o.value;
               return (
                 <button
@@ -270,6 +279,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
               );
             })}
           </div>
+          <T2RaterNoteInput v2={raterV2} rater={draft.rater} value={raterNote} onChange={setRaterNote} disabled={submitting} id="t2-rater-note" />
         </section>
 
         {/* 前置題（§5.1）：先於題目，不計分 */}
@@ -280,7 +290,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
           return (
             <section key={q.key} className="space-y-2 rounded-2xl border border-brand-stone/60 bg-brand-sand/40 p-4">
               <h3 className="text-xs font-bold text-brand-forest">{displayPrompt(form.toolId, q.prompt)}</h3>
-              {q.kind === 'multi' && <p className="text-[10px] text-brand-charcoal/50">可以多选</p>}
+              {q.kind === 'multi' && <p className="text-xs text-brand-charcoal/80">可以多选</p>}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {q.options.map(o => {
                   const on = q.kind === 'multi'
@@ -335,7 +345,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
                 return (
                   <div key={fi.key} className="p-4 bg-white border border-brand-stone rounded-2xl space-y-3 hover:border-brand-moss/40 transition">
                     <div className="flex gap-2.5">
-                      <span className="text-[11px] font-bold text-brand-charcoal/60 bg-brand-cream border border-brand-stone/30 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-xs font-bold text-brand-charcoal/80 bg-brand-cream border border-brand-stone/30 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                         {base + idx + 1}
                       </span>
                       <div className="flex-1 space-y-1">
@@ -343,7 +353,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
                           {displayItemText(form.toolId, fi.item)}
                         </h4>
                         {notes.map(n => (
-                          <p key={n} className="text-[10px] text-brand-charcoal/60 leading-relaxed">{n}</p>
+                          <p key={n} className="text-xs text-brand-charcoal/80 leading-relaxed">{n}</p>
                         ))}
                       </div>
                     </div>
@@ -368,7 +378,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
                               }`}
                             >
                               <span className={`block text-xs leading-relaxed ${on ? 'font-semibold' : 'font-medium'}`}>{anchor}</span>
-                              <span className="block text-[10px] text-brand-charcoal/45 mt-0.5">{opt.label}</span>
+                              <span className="block text-xs text-brand-charcoal/80 mt-0.5">{opt.label}</span>
                             </button>
                           );
                         })}
@@ -393,7 +403,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
                               <span className="block">{displayPrompt(form.toolId, opt.label)}</span>
                               {/* ADL：七級的定義全文（§3.1「每級有一句定義，畫面要全文顯示」） */}
                               {opt.definition && (
-                                <span className="block text-[10px] text-brand-charcoal/55 font-normal leading-relaxed mt-0.5">{opt.definition}</span>
+                                <span className="block text-xs text-brand-charcoal/80 font-normal leading-relaxed mt-0.5">{opt.definition}</span>
                               )}
                             </button>
                           );
@@ -408,11 +418,11 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
         })}
 
         {submitError && (
-          <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{submitError}</p>
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{submitError}</p>
         )}
 
         <div className="pt-6 border-t border-brand-stone/60 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className={`text-[11px] font-semibold ${ready ? 'text-brand-moss' : 'text-brand-charcoal/60'}`}>{gateText}</span>
+          <span className={`text-xs font-semibold ${ready ? 'text-brand-moss' : 'text-brand-charcoal/80'}`}>{gateText}</span>
           <button
             type="button"
             id="t2-submit-btn"
@@ -421,7 +431,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
             className={`px-6 py-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
               ready && !submitting
                 ? 'bg-brand-forest hover:bg-brand-forest/90 text-white shadow-brand-forest/20 active:scale-[0.98] cursor-pointer'
-                : 'bg-brand-cream border border-brand-stone text-brand-charcoal/40 cursor-not-allowed shadow-none'
+                : 'bg-brand-cream border border-brand-stone text-brand-charcoal/80 cursor-not-allowed shadow-none'
             }`}
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
@@ -449,7 +459,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
     <div className="space-y-5">
       <div className="space-y-1">
         <h2 className="text-sm font-extrabold text-brand-forest">逐份作答</h2>
-        <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           按孩子现在 {formatAge(plan.ageMonth)} 出题，每份都可以分开做、也可以重做（每次都另记一笔）。
           已完成 {doneCount} / {total} 份。
         </p>
@@ -463,12 +473,12 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
       )}
 
       {total === 0 && (
-        <p className="text-xs text-brand-charcoal/60">目前没有要作答的问卷。请回到报告查看安排。</p>
+        <p className="text-xs text-brand-charcoal/80">目前没有要作答的问卷。请回到报告查看安排。</p>
       )}
 
       {groups.map(g => (
         <section key={g.title} className="space-y-2">
-          <div className="text-[10px] font-bold text-brand-charcoal/50 uppercase tracking-wider">
+          <div className="text-xs font-bold text-brand-charcoal/80 uppercase tracking-wider">
             {g.title}
             {g.note && <span className="ml-2 font-medium normal-case tracking-normal">{g.note}</span>}
           </div>
@@ -480,15 +490,15 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
                 <li key={item.toolId} className="p-4 bg-white border border-brand-stone rounded-2xl flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="text-xs font-semibold text-brand-forest flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-brand-charcoal/50">{item.toolId.toUpperCase()}</span>
+                      <span className="font-mono text-xs text-brand-charcoal/80">{item.toolId.toUpperCase()}</span>
                       {describePlanItem(item)}
                     </div>
                     {when && (
-                      <div className="text-[10px] text-emerald-700 flex items-center gap-1">
+                      <div className="text-xs text-emerald-700 flex items-center gap-1">
                         <Check size={11} /> 已完成 · {formatDay(when)}
                       </div>
                     )}
-                    {hint && <div className="text-[10px] text-brand-clay font-semibold">{hint}</div>}
+                    {hint && <div className="text-xs text-brand-clay font-semibold">{hint}</div>}
                   </div>
                   <button
                     type="button"
@@ -512,7 +522,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
 
       {/* 生成報告（票 #61）：一支都沒做完也生得出來（勘誤 P4），所以不擋；做了幾份就照幾份整理。 */}
       <div className="pt-5 border-t border-brand-stone/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           {doneCount === 0
             ? '还没有完成任何一份问卷；先答完必做的几份，报告会更完整。'
             : `已完成的 ${doneCount} 份会整理成一份报告，并安排这一周的家庭活动。`}

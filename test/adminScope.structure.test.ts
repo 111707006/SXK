@@ -40,9 +40,13 @@ function stripComments(source: string): string {
  *
  * `handoff_imports` 2026-09-29 加入（ADR-0009 的「来源」欄，專案 A）：只在家長列表與詳情裡當子查詢讀，
  * 以 `h.user_id = u.id` 掛在外層那句已帶條件的 `users` 上。
+ *
+ * `t2_findings` 2026-10-18 加入（#67，專案 A 的家長詳情與列印帶出 T2 報告）：沒有 company_id，
+ * 一律 JOIN `users` 帶條件。
  */
 const SCOPED_TABLES = [
   'users', 'user_data', 'expert_bookings', 'specialists', 'payments', 'handoff_codes', 'handoff_invites', 'handoff_imports',
+  't2_findings',
 ];
 
 /**
@@ -56,6 +60,9 @@ const GLOBAL_TABLES: Record<string, string> = {
   companies: '合作公司本身的名冊。誰看得到由路由層的 requireGlobal 決定，不是公司條件。',
   admin_users: '後台成員，不是家長。只有全域管理員碰得到。',
   admin_company_switches: '切換紀錄。寫入的是檢視者自己的行為，不是任何一位家長的資料。',
+  admin_exports:
+    '導出紀錄（#69）。寫入的是檢視者自己的行為（誰、何時、範圍、笔数），不含任何一位家長的資料；' +
+    '範圍取自路由層 withScope 給的條件本身。',
   // `intervention_materials`（issue #20 的素材庫）曾列在這裡；那條程式 2026-09 隨
   // ADR-0005 退場（#63），表留著但沒有查詢碰它，於是從清單拿掉 —— 這份清單要求
   // 每一張列出來的表都真的被碰到，一條沒人用的豁免就是一扇沒人看的門。
@@ -228,10 +235,25 @@ describe('後台路由不得繞過單一入口', () => {
   /**
    * 下限跟著「受公司條件保護的路由有幾支」走，加一支就把它往上調一格。
    * 2026-09-11 先從 8 降到 7（ADR-0007 移除伺服器端的匯出端點），
-   * 再回到 8（ADR-0006 加上 `DELETE /parents/:id`）。
+   * 再回到 8（ADR-0006 加上 `DELETE /parents/:id`）；2026-10-18 到 10（#69 的家長彙總與導出）。
    */
   it('每一支讀寫家長資料的路由都經過 withScope', () => {
     const scopeUses = routes.match(/withScope\(req, res\)/g) || [];
-    expect(scopeUses.length).toBeGreaterThanOrEqual(8);
+    expect(scopeUses.length).toBeGreaterThanOrEqual(10);
+  });
+
+  /**
+   * 家長彙總與導出（#69）：所有後台帳號都能用（使用者 2026-10-18），所以**不加 `requireGlobal`**；
+   * 範圍一律走 `withScope`。兩件事都要成立：加了 requireGlobal 公司成員就導不出自家，
+   * 少了 withScope 就是一份沒有公司條件的整庫名單。
+   */
+  it('家長彙總與導出走 withScope、不走 requireGlobal', () => {
+    for (const path of ["router.get('/parent-summary'", "router.post('/parent-summary/export'"]) {
+      const start = routes.indexOf(path);
+      expect(start, `${path} 不在 routes.ts`).toBeGreaterThan(0);
+      const body = routes.slice(start, routes.indexOf('\n  });', start));
+      expect(body).toContain('withScope(req, res)');
+      expect(body).not.toContain('requireGlobal');
+    }
   });
 });

@@ -61,15 +61,15 @@ export default function T2PromoCard({ promo, locked, freePeriod = false, pricing
             {/* 「套餐价」在「N 项深度评估」底下靠右，貼近 ¥（使用者 2026-10-14） */}
             <div className="leading-tight">
               <div className="text-sm font-bold text-brand-forest">{promoCountLabel(promo.count)}</div>
-              <div className="text-[11px] text-brand-charcoal/60 text-right">{PROMO_PRICE_LABEL}</div>
+              <div className="text-xs text-brand-charcoal/80 text-right">{PROMO_PRICE_LABEL}</div>
             </div>
             <div className="text-3xl md:text-4xl font-extrabold text-brand-forest leading-none">
               <span className="text-lg align-top mr-0.5">¥</span>{formatFen(pricing.priceFen)}
             </div>
-            <div className="text-[11px] text-brand-charcoal/50 line-through pb-0.5">
+            <div className="text-xs text-brand-charcoal/80 line-through pb-0.5">
               {PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}
             </div>
-            {!locked && <div className="basis-full text-[11px] font-semibold text-brand-moss">{PROMO_FREE_NOTE}</div>}
+            {!locked && <div className="basis-full text-xs font-semibold text-brand-moss">{PROMO_FREE_NOTE}</div>}
           </div>
         ) : (
           <div className="text-sm font-bold text-brand-forest">{done ? promoDoneLabel(promo.count) : promoCountLabel(promo.count)}</div>

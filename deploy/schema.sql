@@ -271,6 +271,24 @@ CREATE TABLE IF NOT EXISTS `admin_company_switches` (
   CONSTRAINT `fk_switches_admin` FOREIGN KEY (`admin_user_id`) REFERENCES `admin_users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 后台的导出纪录（#69，2026-10-18-admin-exports.sql）。
+-- 每导出一次「家长汇总」就记一列：谁、何时、范围（公司成员是自家；全域管理员是当下切到的那一家或未归属）、
+-- 几笔、用了哪组筛选。不存导出的内容。记不下来就不给档。
+CREATE TABLE IF NOT EXISTS `admin_exports` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `admin_user_id` INT UNSIGNED NOT NULL,
+  `scope_kind` ENUM('company','unassigned') NOT NULL,
+  `company_id` INT UNSIGNED DEFAULT NULL,
+  `kind` VARCHAR(32) NOT NULL,
+  `row_count` INT UNSIGNED NOT NULL,
+  `filters` VARCHAR(255) DEFAULT NULL,
+  `request_ip` VARCHAR(45) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_admin_exports_admin` (`admin_user_id`, `created_at`),
+  INDEX `idx_admin_exports_company` (`company_id`, `created_at`),
+  CONSTRAINT `fk_admin_exports_admin` FOREIGN KEY (`admin_user_id`) REFERENCES `admin_users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- 专家（隶属于合作公司）
 -- ============================================================
@@ -453,6 +471,8 @@ CREATE TABLE IF NOT EXISTS `t2_tool_results` (
   `assessed_age_month` SMALLINT UNSIGNED NOT NULL,
   -- 填表人身份 ＝ src/t2/types.ts 的 RATERS。没有治疗师（T2 没有治疗师在场）。
   `rater` ENUM('father','mother','caregiver','teacher','other') NOT NULL,
+  -- 填表人选「其他」时的选填说明（T2_RATER_V2，#70）：去头尾空白、最多 10 字；没填是 NULL。
+  `rater_note` VARCHAR(10) DEFAULT NULL,
   -- 前置题答案（ToolResult.pre），原样。
   `pre` JSON NOT NULL,
   -- 逐题答案（ToolResult.answers）：题 key → 值。

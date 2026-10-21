@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 // tcb import removed - replaced with MySQL
 import * as mysqlDb from './src/db/mysql';
 import { createAdminRouter } from './src/admin/routes';
+import { developmentIndexFor, resolveDevIndexBasis } from './src/developmentIndex/basis';
 import { notifyExpertBooking } from './src/notify';
 import { inviteChannelStatus, sendHandoffInvite, sendVerificationCode } from './src/sms';
 import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
@@ -17,6 +18,7 @@ import {
   resolveReportLinkBase,
 } from './src/utils/reportLink';
 import { renderParentExportHtml } from './src/admin/exportView';
+import { renderableReportOf } from './src/utils/reportHistory';
 import { readServiceType } from './src/utils/serviceTypes';
 import { isValidCompanySlug } from './src/utils/companySlug';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
@@ -187,6 +189,32 @@ assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3, T2_SCALE_DETAIL);
 // **只在專案 A**：B 設了也不生效（啟動時印一行），B 的報告一個字都不變。同一套 fail-closed 解析。
 const T1_REPORT_REAL_REQUESTED = resolvePaywallSwitch('T1_REPORT_REAL', process.env.T1_REPORT_REAL);
 const T1_REPORT_REAL = APP_MODE === 'full' && T1_REPORT_REAL_REQUESTED;
+
+// 掃碼頁改走 SPA（客戶 10/17 第 1 項，規格 docs/specs/client-changes-2026-10-17.md §2）：開著時 `/r/:token` 交給 SPA，
+// 前端打 `GET /api/r/:token` 拿那一筆報告快照、畫與 App 同一個 `ReportBody`。關著＝那支端點不註冊、`/r/:token`
+// 照舊回伺服器拼的 HTML，一字不差。A、B 都適用。同一套 fail-closed 解析。
+const REPORT_SCAN_SPA = resolvePaywallSwitch('REPORT_SCAN_SPA', process.env.REPORT_SCAN_SPA);
+
+// T2 填表人 v2（客戶 10/17 第 5 項，#70，規格 docs/specs/client-changes-2026-10-17.md §6）：開著時交卷（兩條路）不收新的「老师」、
+// 「其他」可帶選填說明 `raterNote`（存 `t2_tool_results.rater_note`，規則在 `src/t2/raterV2.ts`）；`GET /api/t2/plan` 帶
+// `raterV2: true` 讓作答畫面換選項；生成的報告快照帶 `raterV2: true`，作答回顧每支那一行寫填表人。關著＝一行不動。
+// 只有專案 A 有 T2。同一套 fail-closed 解析。
+const T2_RATER_V2 = resolvePaywallSwitch('T2_RATER_V2', process.env.T2_RATER_V2);
+
+// T1 報告拿掉週計劃圖、T2 付費區移到原位置（客戶 10/17 第 6 項，規格 §7、D19、D20，#71）：開著時 `ReportBody`
+// 不畫 `WeeklyRehabPlanner`（新舊快照都不畫，AI 建議照存），T2 付費區（B 是交接卡）移到二維碼卡下面、專家預約上面。
+// 畫面要知道 —— 舊快照沒有東西可看 —— 所以由 `GET /api/report-config` 帶到前端。A、B 都適用。同一套 fail-closed 解析。
+const T1_NO_WEEKLY_PLAN = resolvePaywallSwitch('T1_NO_WEEKLY_PLAN', process.env.T1_NO_WEEKLY_PLAN);
+
+// 後台匯總的發育指數用哪一種算法（使用者 2026-10-18：「兩個都做，用開關來調整」）：`peer`（預設）＝同齡估算（#68）、
+// `attainment`＝達成率（客戶 SXK-ASQ3 HTML 的 85／70／55 參考帶，`src/developmentIndex/attainment.ts`）。A、B 都適用；
+// 兩種都只出那五個值，欄位不變。認不得的值起不來。
+const DEV_INDEX_BASIS = resolveDevIndexBasis(process.env.DEV_INDEX_BASIS);
+
+// 新版首頁（客戶 10/17 第 4 項，issue #72，規格 docs/specs/client-changes-2026-10-17.md §5）：開著時 A 的家長端
+// 登入前後都先停在首頁（banner＋三張卡），導覽列最前面多「首页」。前端讀 `GET /api/home/config` 知道開了沒；
+// 關著＝畫面一行不動。**只在專案 A**：那支端點掛在 `tier2Only`，B 設了也是 404。同一套 fail-closed 解析。
+const HOME_V2_REQUESTED = resolvePaywallSwitch('HOME_V2', process.env.HOME_V2);
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -1226,7 +1254,7 @@ tier2Only.get('/api/t2/plan', async (req, res) => {
       return;
     }
     // 價錢跟著 plan 走（每 3 項跳一檔，src/t2/pricing.ts）；沒有要做的是 null，畫面不出價錢
-    res.json({ ...outcome.plan, pricing: t2PriceFor(outcome.items) });
+    res.json({ ...outcome.plan, pricing: t2PriceFor(outcome.items), ...(T2_RATER_V2 ? { raterV2: true } : {}) });
   } catch (err: any) {
     console.error('[T2] plan failed:', err.message);
     res.status(500).json({ error: '暂时无法读取深度评估的安排，请稍后重试。' });
@@ -1342,7 +1370,7 @@ function latestPerToolV3(records: ToolResultRecordV3[]): Array<{ id: number; cre
 }
 
 async function submitT2ToolResultV3(userId: UserId, body: unknown, res: express.Response): Promise<void> {
-  const parsed = readV3Submission(body);
+  const parsed = readV3Submission(body, { raterV2: T2_RATER_V2 });
   if (!parsed.ok) {
     res.status(parsed.status).json(parsed.body);
     return;
@@ -1371,7 +1399,7 @@ tier2Only.post('/api/t2/tool-results', async (req, res) => {
       return;
     }
 
-    const parsed = readToolSubmission(req.body);
+    const parsed = readToolSubmission(req.body, { raterV2: T2_RATER_V2 });
     if (!parsed.ok) {
       res.status(parsed.status).json(parsed.body);
       return;
@@ -1514,7 +1542,9 @@ async function loadActivityLibrary(): Promise<Activity[]> {
   return (await readActivityLibrary()) ?? [];
 }
 
-async function storeT2Findings(userId: UserId, input: t2FindingsStore.FindingsInsert): Promise<FindingsRecord> {
+async function storeT2Findings(userId: UserId, stored: t2FindingsStore.FindingsInsert): Promise<FindingsRecord> {
+  // 填表人 v2（#70）：快照記下「這一份要寫填表人」，報告頁看快照、不看開關。存的時候才蓋上，不進模型的輸入。
+  const input = T2_RATER_V2 ? { ...stored, findings: { ...stored.findings, raterV2: true as const } } : stored;
   const dbUserId = toDbUserId(userId);
   if (mysqlDb.isConfigured() && dbUserId !== null) {
     const id = await withTimeout(t2FindingsStore.insertFindings(dbUserId, input), 2000);
@@ -2595,6 +2625,14 @@ app.get('/api/db/status', (req, res) => {
     configured: mysqlDb.isConfigured(),
     engine: mysqlDb.isConfigured() ? 'mysql' : 'memory',
   });
+});
+
+/**
+ * 報告版面的伺服器開關（#71）。家長端、後台、掃碼頁畫同一個 `ReportBody`，三處都讀這一支
+ * （`src/utils/reportLayout.ts`），所以公開、不需登入；只帶開關，不帶任何資料。
+ */
+app.get('/api/report-config', (_req, res) => {
+  res.json({ noWeeklyPlan: T1_NO_WEEKLY_PLAN });
 });
 
 /**
@@ -3778,12 +3816,71 @@ app.post('/api/report-link', async (req, res) => {
 });
 
 /**
+ * 新版首頁開了沒（開關 `HOME_V2`，issue #72）。**公開，不需要登入** —— 未登入的家長就是要看到新首頁。
+ * 只在專案 A（`tier2Only`）：B 沒有這支，前端也不問（`PRODUCT.features.home`）。
+ */
+tier2Only.get('/api/home/config', (_req, res) => {
+  res.json({ enabled: HOME_V2_REQUESTED });
+});
+
+/**
+ * 掃碼頁（開關 `REPORT_SCAN_SPA` 開著時）的資料：token 指的**那一筆**報告快照，收乾淨後只剩
+ * 報告本體要的欄位（`renderableReportOf`），加上當時的孩子（姓名、月齡、性別）。**公開，不需要登入**。
+ *
+ * 查法與下面的 `/r/:token` 相同：token 形狀不對不碰資料庫；查無、報告已不在歷史裡一律 404，
+ * **不退回最新一份**；2 秒逾時。不帶手機號、帳號、其他報告 —— 這條連結撤不回來。
+ * 歷次對照因此畫不出來（那要其他報告），掃碼頁不畫那一塊。
+ */
+async function findScannedReport(token: string) {
+  if (!isValidReportLinkToken(token) || !mysqlDb.isConfigured()) return null;
+  const link = await withTimeout(mysqlDb.findReportLinkByToken(token), 2000);
+  if (!link) return null;
+  const row = await withTimeout(mysqlDb.getUserDataByUserId(link.userId), 2000);
+  const data = row ? mysqlDb.parseUserDataRow(row) : null;
+  const history: unknown[] = Array.isArray(data?.reportHistory) ? data.reportHistory : [];
+  const raw: any = history.find((r: any) => r?.id === link.reportId);
+  const record = raw ? renderableReportOf(raw) : null;
+  if (!record) return null;
+  const child = raw.child ?? {};
+  return {
+    child: {
+      name: typeof child.name === 'string' ? child.name : null,
+      ageMonth: typeof child.ageMonth === 'number' ? child.ageMonth : null,
+      gender: child.gender === 'boy' || child.gender === 'girl' ? child.gender : null,
+    },
+    record,
+  };
+}
+
+if (REPORT_SCAN_SPA) {
+  app.get('/api/r/:token', async (req, res) => {
+    try {
+      const found = await findScannedReport(req.params.token);
+      if (!found) {
+        res.status(404).json({ error: 'REPORT_LINK_NOT_FOUND' });
+        return;
+      }
+      res.json(found);
+    } catch (err: any) {
+      console.error('[ReportLink] scan data failed:', err.message);
+      res.status(500).json({ error: 'REPORT_LINK_UNAVAILABLE' });
+    }
+  });
+}
+
+/**
  * 掃碼之後打開的那一頁。**公開，不需要登入** —— 那正是這個功能存在的理由。
  *
  * 走的是伺服器端渲染的 HTML，不是 SPA：手機上打開就是一頁純文件，
  * 不必下載整個前端，離線存下來也還讀得到。
  */
-app.get('/r/:token', async (req, res) => {
+app.get('/r/:token', async (req, res, next) => {
+  // 開關開著：交給 SPA（正式站是 `startServer()` 的 `app.get('*')`、開發是 Vite 的 SPA 兜底），
+  // 前端看路徑畫掃碼報告頁（`src/components/ScanReportPage.tsx`）。失效字樣也由前端畫，這裡不先查。
+  if (REPORT_SCAN_SPA) {
+    next();
+    return;
+  }
   try {
     const token = req.params.token;
     // 形狀不對的一律 404，不去碰資料庫。這是一條公開路徑，每一次查詢都是
@@ -3917,6 +4014,10 @@ app.use(
         : undefined,
       // 後台上傳示範片與封面（使用者 2026-10-08）：寫進同一個 `/media` 目錄。只有專案 A（B 沒有活動）。
       activityMediaDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
+      // 家長詳情與列印帶出最新的 T2 報告（#67）。只有專案 A（B 沒有 T2）。
+      t2Reports: APP_MODE === 'full',
+      // 發育指數的算法（`DEV_INDEX_BASIS`）。
+      developmentIndexOf: developmentIndexFor(DEV_INDEX_BASIS),
     }
   )
 );
@@ -4000,6 +4101,13 @@ export async function startServer() {
       console.log('[SenXinKang Server] T1_REPORT_REAL=1: T1 reports use per-item answers, validated AI text or the per-child template; no gauge numbers.');
     } else if (T1_REPORT_REAL_REQUESTED) {
       console.warn('[SenXinKang Server] T1_REPORT_REAL is set but ignored: project B keeps the old T1 report (A only).');
+    }
+    if (HOME_V2_REQUESTED) {
+      console.log(
+        APP_MODE === 'full'
+          ? '[SenXinKang Server] HOME_V2=1: parents land on the new home page (banner + three cards).'
+          : '[SenXinKang Server] HOME_V2 is set but ignored: project B has no new home page (A only).'
+      );
     }
     if (DEMO_LOGIN_CODE) {
       console.warn(

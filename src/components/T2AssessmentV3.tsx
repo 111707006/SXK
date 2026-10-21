@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, FileText, Layers, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
 import { authFetch } from '../utils/api';
 import { formatAge } from '../utils/dateUtils';
-import { RATER_OPTIONS } from '../t2/answering';
+import { raterOptions, raterPayload } from '../t2/raterV2';
+import T2RaterNoteInput from './T2RaterNoteInput';
 import { GRADE_LABELS, formV3, isNa, keepAnswersFor, missingV3, setNa, type V3Answers } from '../t2/answeringV3';
 import { KITV3_LOADERS } from '../t2/kitv3/lazy';
 import { clearDraft, loadDraft, ownerOf, saveDraft } from '../t2/draftV3';
@@ -62,6 +63,10 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
   const [bank, setBank] = useState<KitV3Bank | null>(null);
   const [loadingBank, setLoadingBank] = useState(false);
   const [rater, setRater] = useState<Rater | null>(null);
+  /** 填表人選「其他」時的選填說明（#70）；不進草稿，換一支就清掉。 */
+  const [raterNote, setRaterNote] = useState('');
+  /** 伺服器開了 `T2_RATER_V2`（plan 上帶 `raterV2: true`）：沒有「老师」、「其他」可寫是谁。 */
+  const raterV2 = plan.raterV2 === true;
   const [grade, setGrade] = useState<number | undefined>(undefined);
   const [answers, setAnswers] = useState<V3Answers>({});
   const [submitting, setSubmitting] = useState(false);
@@ -97,6 +102,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     setSelected(tool);
     setBank(null);
     setRater(null);
+    setRaterNote('');
     setGrade(undefined);
     setAnswers({});
     setError(null);
@@ -110,7 +116,8 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
       const draft = owner ? loadDraft(owner, tool.code) : null;
       if (draft) {
         const g = loaded.family === 'ld' ? draft.grade : undefined;
-        setRater(draft.rater);
+        // 開關打開以前存的草稿選了老师：畫面上已經沒有這一項，請家長重選
+        setRater(raterV2 && draft.rater === 'teacher' ? null : draft.rater);
         setGrade(g);
         setAnswers(keepAnswersFor(formV3(loaded, { ageM: plan.answerAgeMonth, ...plan.context, ...(g !== undefined ? { grade: g } : {}) }), draft.answers));
         setResumed(Object.keys(draft.answers).length > 0);
@@ -156,7 +163,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           toolkitVersion: 'kit-20260923',
           toolId: selected.code,
           assessedAgeMonth: plan.answerAgeMonth,
-          rater,
+          ...raterPayload(raterV2, rater, raterNote),
           answers,
           ...(form.grade ? { grade: form.grade.value } : {}),
         }),
@@ -184,7 +191,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
       type="button"
       onClick={onClick}
       disabled={submitting}
-      className={`flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal/85 hover:text-brand-forest transition ${submitting ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`flex items-center gap-1.5 text-xs font-semibold text-brand-charcoal hover:text-brand-forest transition ${submitting ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <ArrowLeft size={16} />
       {label}
@@ -195,7 +202,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     <div className="bg-white rounded-3xl border border-brand-stone p-6 md:p-8 max-w-3xl mx-auto shadow-sm text-left">
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
         {back}
-        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-[10px] font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
+        <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
           <Layers size={10} /> 第二层 · 深度评估
         </span>
       </div>
@@ -213,9 +220,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     if (loadingBank || !form) {
       return shell(
         error
-          ? <p className="text-xs text-brand-charcoal/60">{error}</p>
+          ? <p className="text-xs text-brand-charcoal/80">{error}</p>
           : (
-            <div className="flex items-center gap-2 text-xs text-brand-charcoal/60">
+            <div className="flex items-center gap-2 text-xs text-brand-charcoal/80">
               <Loader2 size={14} className="animate-spin text-brand-moss" />
               正在打开问卷...
             </div>
@@ -229,18 +236,18 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
       <div className="space-y-6">
         <div className="bg-brand-cream/35 p-4 rounded-2xl border border-brand-stone/50">
           <h2 className="text-sm font-extrabold text-brand-forest">{selected.name}</h2>
-          <p className="text-[11px] text-brand-charcoal/70 mt-0.5">
+          <p className="text-xs text-brand-charcoal/80 mt-0.5">
             按孩子现在 {formatAge(plan.answerAgeMonth)} 出题；请照孩子平常的表现作答。
           </p>
           {resumed && (
-            <p className="text-[11px] text-brand-moss font-semibold mt-1" id="t2v3-resumed">已接着上次没答完的地方继续，答案都还在。</p>
+            <p className="text-xs text-brand-moss font-semibold mt-1" id="t2v3-resumed">已接着上次没答完的地方继续，答案都还在。</p>
           )}
         </div>
 
         <section className="space-y-2">
           <h3 className="text-xs font-bold text-brand-forest">这份问卷由谁填写？</h3>
           <div className="flex flex-wrap gap-2">
-            {RATER_OPTIONS.map(o => (
+            {raterOptions(raterV2).map(o => (
               <button
                 key={o.value}
                 type="button"
@@ -253,12 +260,13 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
               </button>
             ))}
           </div>
+          <T2RaterNoteInput v2={raterV2} rater={rater} value={raterNote} onChange={setRaterNote} disabled={submitting} id="t2v3-rater-note" />
         </section>
 
         {form.grade && (
           <section className="space-y-2">
             <h3 className="text-xs font-bold text-brand-forest">孩子现在读几年级？</h3>
-            <p className="text-[10px] text-brand-charcoal/55">按年龄先选好了；跳级或晚读的请改成实际的年级，题目会跟着换。</p>
+            <p className="text-xs text-brand-charcoal/80">按年龄先选好了；跳级或晚读的请改成实际的年级，题目会跟着换。</p>
             <select
               id="t2v3-grade"
               value={form.grade.value}
@@ -280,7 +288,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-xs font-bold text-brand-forest border-l-4 border-brand-moss pl-2">{section.name}</h3>
                 {section.naLabel && (
-                  <label className="text-[11px] text-brand-charcoal/70 flex items-center gap-1.5 cursor-pointer">
+                  <label className="text-xs text-brand-charcoal/80 flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
                       id={`t2v3-na-${section.key}`}
@@ -292,9 +300,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
                   </label>
                 )}
               </div>
-              {section.optional && <p className="text-[10px] text-brand-charcoal/50">这一部分可以不填。</p>}
+              {section.optional && <p className="text-xs text-brand-charcoal/80">这一部分可以不填。</p>}
               {na ? (
-                <p className="text-[11px] text-brand-charcoal/55 bg-brand-cream/30 rounded-xl px-3 py-2">这一部分这次不作答。</p>
+                <p className="text-xs text-brand-charcoal/80 bg-brand-cream/30 rounded-xl px-3 py-2">这一部分这次不作答。</p>
               ) : (
                 section.items.map(item => {
                   no += 1;
@@ -303,12 +311,12 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
                   return (
                     <div key={item.key} className="p-4 bg-white border border-brand-stone rounded-2xl space-y-3 hover:border-brand-moss/40 transition">
                       <div className="flex gap-2.5">
-                        <span className="text-[11px] font-bold text-brand-charcoal/60 bg-brand-cream border border-brand-stone/30 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-xs font-bold text-brand-charcoal/80 bg-brand-cream border border-brand-stone/30 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                           {no}
                         </span>
                         <div className="flex-1 space-y-1">
                           <h4 className="text-xs sm:text-sm font-semibold text-brand-forest leading-relaxed">{item.text}</h4>
-                          {item.hint && <p className="text-[10px] text-brand-charcoal/60 leading-relaxed">{item.hint}</p>}
+                          {item.hint && <p className="text-xs text-brand-charcoal/80 leading-relaxed">{item.hint}</p>}
                         </div>
                       </div>
                       <div className={`grid grid-cols-1 gap-2 pl-8 ${wide ? '' : section.options.length <= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
@@ -325,8 +333,8 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
                               className={`py-2.5 px-3 rounded-xl border text-xs transition cursor-pointer ${wide ? 'text-left' : 'text-center'} ${choice(on)}`}
                             >
                               <span className="block leading-relaxed">{anchor ?? opt.label}</span>
-                              {anchor && <span className="block text-[10px] text-brand-charcoal/45 mt-0.5">{opt.label}</span>}
-                              {!anchor && opt.hint && <span className="block text-[10px] text-brand-charcoal/55 font-normal leading-relaxed mt-0.5">{opt.hint}</span>}
+                              {anchor && <span className="block text-xs text-brand-charcoal/80 mt-0.5">{opt.label}</span>}
+                              {!anchor && opt.hint && <span className="block text-xs text-brand-charcoal/80 font-normal leading-relaxed mt-0.5">{opt.hint}</span>}
                             </button>
                           );
                         })}
@@ -339,10 +347,10 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           );
         })}
 
-        {error && <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{error}</p>}
+        {error && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{error}</p>}
 
         <div className="pt-6 border-t border-brand-stone/60 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className={`text-[11px] font-semibold ${ready ? 'text-brand-moss' : 'text-brand-charcoal/60'}`}>{gateText}</span>
+          <span className={`text-xs font-semibold ${ready ? 'text-brand-moss' : 'text-brand-charcoal/80'}`}>{gateText}</span>
           <button
             type="button"
             id="t2v3-submit-btn"
@@ -351,7 +359,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
             className={`px-6 py-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
               ready && !submitting
                 ? 'bg-brand-forest hover:bg-brand-forest/90 text-white shadow-brand-forest/20 active:scale-[0.98] cursor-pointer'
-                : 'bg-brand-cream border border-brand-stone text-brand-charcoal/40 cursor-not-allowed shadow-none'
+                : 'bg-brand-cream border border-brand-stone text-brand-charcoal/80 cursor-not-allowed shadow-none'
             }`}
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
@@ -375,7 +383,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     <div className="space-y-5">
       <div className="space-y-1">
         <h2 className="text-sm font-extrabold text-brand-forest">逐份作答</h2>
-        <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           按孩子现在 {formatAge(plan.answerAgeMonth)} 出题，每份都可以分开做、也可以重做（每次都另记一笔）。
           已完成 {doneCount} / {tools.length} 份{plan.totalMinutes > 0 && <>，全部约 {plan.totalMinutes} 分钟</>}。
         </p>
@@ -388,11 +396,11 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
         </div>
       )}
 
-      {tools.length === 0 && <p className="text-xs text-brand-charcoal/60">目前没有要作答的问卷。请回到报告查看安排。</p>}
+      {tools.length === 0 && <p className="text-xs text-brand-charcoal/80">目前没有要作答的问卷。请回到报告查看安排。</p>}
 
       {bySession.map(g => (
         <section key={g.title} className="space-y-2">
-          <div className="text-[10px] font-bold text-brand-charcoal/50 uppercase tracking-wider">{g.title}</div>
+          <div className="text-xs font-bold text-brand-charcoal/80 uppercase tracking-wider">{g.title}</div>
           <ul className="space-y-2">
             {g.items.map(t => {
               const when = completed[t.code];
@@ -400,14 +408,14 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
                 <li key={t.code} className="p-4 bg-white border border-brand-stone rounded-2xl flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="text-xs font-semibold text-brand-forest">{t.name}</div>
-                    {t.reason && <div className="text-[11px] text-brand-charcoal/70 leading-relaxed">{t.reason}</div>}
+                    {t.reason && <div className="text-xs text-brand-charcoal/80 leading-relaxed">{t.reason}</div>}
                     {(t.rater || t.minutes) && (
-                      <div className="text-[10px] text-brand-charcoal/50">
+                      <div className="text-xs text-brand-charcoal/80">
                         {[t.rater, t.minutes ? `约 ${t.minutes} 分钟` : null].filter(Boolean).join(' · ')}
                       </div>
                     )}
                     {when && (
-                      <div className="text-[10px] text-emerald-700 flex items-center gap-1">
+                      <div className="text-xs text-emerald-700 flex items-center gap-1">
                         <Check size={11} /> 已完成 · {formatDay(when)}
                       </div>
                     )}
@@ -433,7 +441,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
       ))}
 
       <div className="pt-5 border-t border-brand-stone/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           {doneCount === 0 ? '还没有完成任何一份问卷；至少答完一份才能生成报告。' : `已完成的 ${doneCount} 份会整理成一份报告。`}
         </p>
         <div className="flex flex-wrap gap-2 shrink-0">

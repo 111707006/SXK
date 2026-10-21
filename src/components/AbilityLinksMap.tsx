@@ -74,7 +74,7 @@ export function AbilityLinksMap({ scores }: { scores: DimensionScore[] }) {
           <Share2 size={15} className="text-brand-moss" />
           {ABILITY_MAP_COPY.title}
         </h3>
-        <p className="text-[10px] text-brand-charcoal/50 mt-0.5">{ABILITY_MAP_COPY.subtitle}</p>
+        <p className="text-xs text-brand-charcoal/80 mt-0.5">{ABILITY_MAP_COPY.subtitle}</p>
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-w-md mx-auto block select-none" aria-label={ABILITY_MAP_COPY.title}>
@@ -137,15 +137,15 @@ export function AbilityLinksMap({ scores }: { scores: DimensionScore[] }) {
         })}
       </svg>
 
-      <div className="flex justify-center flex-wrap gap-x-4 gap-y-1 text-[9px] text-brand-charcoal/60">
+      <div className="flex justify-center flex-wrap gap-x-4 gap-y-1 text-xs text-brand-charcoal/80">
         {(['normal', 'borderline', 'delay'] as const).map(s => (
-          <span key={s} className="flex items-center gap-1">
+          <span key={s} className="flex items-center gap-1 whitespace-nowrap">
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: STATUS_HEX[s] }} /> {STATUS_WORDING[s].label}
           </span>
         ))}
       </div>
 
-      <div aria-live="polite" className="rounded-xl bg-brand-cream/40 border border-brand-stone/50 p-3.5 text-[11px] text-brand-charcoal leading-relaxed space-y-1.5 min-h-[3rem]">
+      <div aria-live="polite" className="rounded-xl bg-brand-cream/40 border border-brand-stone/50 p-3.5 text-xs text-brand-charcoal leading-relaxed space-y-1.5 min-h-[3rem]">
         {selectedLink ? (
           linkSentences(selectedLink).map((t, i) => (
             <p key={i} className={i === 0 ? 'font-semibold' : 'text-brand-forest'}>{t}</p>
@@ -155,12 +155,12 @@ export function AbilityLinksMap({ scores }: { scores: DimensionScore[] }) {
             <p className="font-semibold flex items-center gap-1.5 flex-wrap">
               {abilityName(selectedNode)}
               {statusOf(selectedNode) && (
-                <span className={`text-[9px] px-2 py-0.5 rounded-full border font-bold ${STATUS_CLASS[statusOf(selectedNode)!]}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full border font-bold ${STATUS_CLASS[statusOf(selectedNode)!]}`}>
                   {statusLabel(selectedNode)}
                 </span>
               )}
             </p>
-            <p className="text-brand-charcoal/70">{ABILITY_MAP_COPY.linksOf(abilityName(selectedNode))}</p>
+            <p className="text-brand-charcoal/80">{ABILITY_MAP_COPY.linksOf(abilityName(selectedNode))}</p>
             <ul className="space-y-1.5">
               {nodeLinks.map(l => (
                 <li key={l.key}>
@@ -172,7 +172,7 @@ export function AbilityLinksMap({ scores }: { scores: DimensionScore[] }) {
             </ul>
           </>
         ) : (
-          <p className="text-brand-charcoal/60">{ABILITY_MAP_COPY.hint}</p>
+          <p className="text-brand-charcoal/80">{ABILITY_MAP_COPY.hint}</p>
         )}
       </div>
     </div>

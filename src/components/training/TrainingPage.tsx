@@ -63,7 +63,7 @@ export default function TrainingPage({ childName, onBookService, onGoToT2 }: Tra
       {status === 'ready' && findings ? (
         <TrainingSection findings={findings} childName={childName} onBookService={onBookService} onReassess={onGoToT2} />
       ) : status === 'loading' ? (
-        <div className="flex items-center gap-2 text-xs text-brand-charcoal/60">
+        <div className="flex items-center gap-2 text-xs text-brand-charcoal/80">
           <Loader2 size={14} className="animate-spin text-brand-moss" />
           {TRAINING_PAGE.loading}
         </div>

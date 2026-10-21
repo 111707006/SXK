@@ -83,7 +83,7 @@ describe('段落順序（§6.3）', () => {
   // 2026-09-28 使用者：線上干預不放在報告裡（內容在導覽列那一頁，trainingView.structure 驗）。第六段只留一行連結。
   it('第六段只是連到「线上干预」那一頁的一行，weeklyPlanIntro 在它上面', () => {
     const weekly = view.slice(view.indexOf('id="t2-weekly"'), view.indexOf('</section>', view.indexOf('id="t2-weekly"')));
-    expect(weekly).toContain('onClick={onOpenTraining}');
+    expect(weekly).toContain('onClick={actions.onOpenTraining}');
     expect(weekly).toContain('{REPORT_TRAINING_LINK.action}');
     expect(weekly.indexOf('prose.weeklyPlanIntro')).toBeLessThan(weekly.indexOf('onOpenTraining'));
     expect(view).not.toContain('TrainingSection');
@@ -101,7 +101,7 @@ describe('哪些維度有段落', () => {
   it('no_tool 從快照裡挑、另成一段、導向四種服務', () => {
     expect(view).toMatch(/findings\.dimensions\.filter\(d => d\.band === 'no_tool'\)/);
     const noToolSection = view.slice(view.indexOf('id="t2-no-tool"'), view.indexOf('id="t2-temperament"'));
-    expect(noToolSection).toContain('{serviceButtons}');
+    expect(noToolSection).toContain('{actions.serviceButtons}');
     // 標題旁那一句與九宮格同一支（v2.1 S05：6 歲以上的認知、語言、動作換成客戶的固定句）
     expect(noToolSection).toContain('dimensionStatus(d, ageMonth).tag');
     // 四種並列、沒做的灰掉（2026-09-29）：走 serviceChoices；线上干预训练指导去「线上干预」那一頁
@@ -154,7 +154,7 @@ describe('模板與 AI 同一個畫面', () => {
     const uses = view.match(/isAiGenerated/g) ?? [];
     // 型別宣告一次、標來源一次。
     expect(uses.length).toBe(2);
-    expect(view).toContain('reportSourceLabel(entry!.isAiGenerated)');
+    expect(view).toContain('reportSourceLabel(entry.isAiGenerated)');
     expect(view).not.toMatch(/isAiGenerated\s*(\?|&&|\|\||===)/);
   });
 
@@ -248,7 +248,7 @@ describe('完整版快照（T2 v3）改畫 T2ReportV3', () => {
 
   it('T2Report 看 isFindingsV3 分流，在讀 prose、算目標之前', () => {
     const report = read('src/components/T2Report.tsx');
-    const branch = report.indexOf('isFindingsV3(entry!.findings)');
+    const branch = report.indexOf('isFindingsV3(entry.findings)');
     expect(branch).toBeGreaterThan(0);
     expect(branch).toBeLessThan(report.indexOf('buildSmartGoals(findings'));
   });
@@ -281,7 +281,7 @@ describe('完整版報告可以列印／存 PDF', () => {
 
   it('印的時候作答回顧展開；按鈕、預約、線上干預連結不印', () => {
     expect(v3).toMatch(/addEventListener\('beforeprint'/);
-    expect(v3).toMatch(/print:hidden">\{serviceButtons\}/);
+    expect(v3).toMatch(/print:hidden">\{actions\.serviceButtons\}/);
     expect(v3).toMatch(/id="t2v3-weekly" className="print:hidden"/);
   });
 });

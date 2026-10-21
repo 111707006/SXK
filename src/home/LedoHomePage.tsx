@@ -1,15 +1,24 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DimensionScore } from '../types';
 import { STATUS_WORDING } from '../utils/statusWording';
+import { authFetch } from '../utils/api';
+import { calendarDateOf, weekEndOf, weekStartOf } from '../t2/weeks';
+import type { Checkin } from '../t2/practice';
 import { Avatar, Chip, Greeting, ListRow, SectionHead, Tile, greetingFor } from '../components/ledo/ui';
 import { BANNER, HOSPITAL_PHOTO } from './HomePage';
 import { HOME_CARDS, HOME_COPY, type HomeTarget } from './homeNav';
 
 /**
- * Ledo 版首頁（設計稿第 2 頁）：打招呼、示範片大卡、孩子的概況（T1 三色數字）、三個去處改成清單行。
+ * Ledo 版首頁（設計稿第 2 頁）：打招呼、示範片大卡、孩子的概況、三個去處改成清單行。
  *
- * 跟設計稿不一樣的地方（都是因為現在沒有資料來源，不畫假的）：
- * - 本週日期條與「本周练过的活动 2/4」要讀打卡紀錄，首頁不讀，先不放（線上干預那一頁有）。
+ * 概況照設計稿排（使用者 2026-10-21：「首頁中間改成原先設計稿樣式」）：左邊兩格（發展穩定、需要較多支持，
+ * 少量支持寫在後一格的小字，同評估面板），右邊一格高的「本周练过」配插畫，按了去線上干預。
+ *
+ * 跟設計稿不一樣的地方：
+ * - 「本周练过」寫的是**這一週有打卡的天數**，不是稿上的「活動 2/4」。x/4 要讀每週活動，而
+ *   `GET /api/t2/weekly-plan` 讀一次就會替這一週配活動（v3 是開一期、12 週從這一週起算）——
+ *   家長只是打開首頁，不該把計劃的起點定下來。打卡只讀不寫。讀不到（沒登入、讀失敗）就不寫數字。
+ * - 本週日期條還沒放。
  * - 大卡上的字寫示範片本身，不寫「今天练」—— 首頁不知道今天排了哪一支。
  */
 
@@ -23,10 +32,9 @@ export interface LedoHomeProps {
   scores?: DimensionScore[];
 }
 
-/** 三格並排放不下「需要少量支持」（375px 會折成兩行）：色塊上去掉「需要」（同設計稿），報告與面板照用全名。 */
+/** 色塊小字放不下「需要少量支持」的全名（375px 會折行）：去掉「需要」，報告與面板照用全名。 */
 const SHORT = {
   borderline: STATUS_WORDING.borderline.label.replace(/^需要/, ''),
-  delay: STATUS_WORDING.delay.label.replace(/^需要/, ''),
 };
 
 const CARD_IMG: Record<string, string> = {
@@ -40,6 +48,30 @@ function doneDate(scores: DimensionScore[]): string | null {
   if (t.length === 0) return null;
   const d = new Date(Math.max(...t));
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+}
+
+/** 這一週（Asia/Shanghai，週一起）有打卡的天數；讀不到是 null。`enabled` 為假時不讀。 */
+function useWeekPracticeDays(enabled: boolean): number | null {
+  const [days, setDays] = useState<number | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const today = calendarDateOf(new Date());
+    authFetch(`/api/t2/checkins?from=${weekStartOf(today)}&to=${weekEndOf(today)}`)
+      .then(async resp => {
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const body = (await resp.json()) as { checkins?: Checkin[] };
+        if (!Array.isArray(body.checkins)) throw new Error('bad checkins body');
+        if (alive) setDays(new Set(body.checkins.map(c => c.checkinDate)).size);
+      })
+      .catch(() => {
+        if (alive) setDays(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [enabled]);
+  return days;
 }
 
 export default function LedoHomePage({ onOpen, onOpenReport, childName, scores = [] }: LedoHomeProps) {
@@ -56,6 +88,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
   const t1 = scores.filter(s => s.tierId === 'T1');
   const count = (st: DimensionScore['status']) => t1.filter(s => s.status === st).length;
   const date = doneDate(t1);
+  const practiceDays = useWeekPracticeDays(t1.length > 0);
   const sub: Record<string, string> = {
     training: '每周几个在家陪孩子做的活动',
     t1: date ? `${date}完成 · ${t1.length} 个方面` : '了解孩子的 9 个方面',
@@ -98,10 +131,35 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
       {t1.length > 0 && (
         <>
           <SectionHead title={childName ? `${childName}的概况` : '孩子的概况'} action={onOpenReport ? '看报告' : undefined} onAction={onOpenReport} />
-          <div className="grid grid-cols-3 gap-2">
-            <Tile tone="ok" value={count('normal')} label={STATUS_WORDING.normal.label} />
-            <Tile tone="mild" value={count('borderline')} label={SHORT.borderline} />
-            <Tile tone="more" value={count('delay')} label={SHORT.delay} />
+          <div id="home-overview" className="grid grid-cols-2 gap-2">
+            <div className="flex min-w-0 flex-col gap-2">
+              <Tile tone="ok" value={count('normal')} label={`个方面${STATUS_WORDING.normal.label}`} className="flex-1" />
+              <Tile
+                tone="more"
+                value={count('delay')}
+                label={`个方面${STATUS_WORDING.delay.label}`}
+                note={count('borderline') > 0 ? `另有 ${count('borderline')} 项${SHORT.borderline}` : undefined}
+                className="flex-1"
+              />
+            </div>
+            <button
+              type="button"
+              id="home-overview-training"
+              onClick={() => onOpen('training')}
+              className="flex min-w-0 flex-col gap-1 rounded-3xl bg-ledo-accent-soft p-3.5 text-left text-ledo-accent-soft-ink cursor-pointer"
+            >
+              {practiceDays !== null && (
+                <span className="text-[28px] font-black leading-tight tabular-nums">
+                  {practiceDays}
+                  <span className="text-base font-bold"> / 7 天</span>
+                </span>
+              )}
+              <span className="text-xs font-bold">{practiceDays !== null ? '本周练过的天数' : '本周的家庭活动'}</span>
+              {/* 圖填滿左邊兩格撐出來的高度（同設計稿）；太矮時至少留 4:5 */}
+              <span className="relative mt-1 min-h-[120px] flex-1 overflow-hidden rounded-2xl bg-white">
+                <img src="/ledo/training.jpg" alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+              </span>
+            </button>
           </div>
         </>
       )}

@@ -236,7 +236,9 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     const identity = req.admin!;
     // 全域管理員需要公司清單才切換得了；公司成員不該知道還有別家公司存在。
     const companies = identity.role === 'global_admin' ? await store.listCompanies() : [];
-    res.json({ identity: identityView(identity), companies });
+    // `shape`（#89）：A 的合作公司由伺服器開關 `A_COMPANIES` 決定，後台畫面要在執行期知道（建置期的
+    // `PRODUCT.adminCenter` 只知道是 A 還是 B）。
+    res.json({ identity: identityView(identity), companies, shape });
   });
 
   /**

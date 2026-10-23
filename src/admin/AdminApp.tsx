@@ -32,6 +32,7 @@ import {
   type AdminTabId,
 } from './adminView';
 import { PRODUCT } from '../productConfig';
+import type { AdminCenterShape } from './companyScope';
 import { BeianFooter } from '../components/BeianFooter';
 import LazyBoundary from '../components/LazyBoundary';
 import { Button, ErrorNote, Field, Spinner, TextInput, toErrorView } from './ui';
@@ -61,7 +62,18 @@ const ParentReportPrint = lazy(() => import('./panels/ParentReportPrint'));
  * 畫面藏了分頁而路由還在，等於功能還在只是找不到；反過來則是一顆按下去 404
  * 的按鈕。
  */
-const ADMIN_SHAPE = PRODUCT.adminCenter;
+const BUILD_SHAPE = PRODUCT.adminCenter;
+
+/**
+ * `/me` 帶回來的形狀（#89）：A 開了合作公司（伺服器開關 `A_COMPANIES`）時 `multiCompany` 是 true。
+ * 讀不懂就照建置期的那一份 —— 寧可少幾個分頁，也不要猜。
+ */
+function shapeFrom(raw: unknown): AdminCenterShape {
+  if (typeof raw !== 'object' || raw === null) return BUILD_SHAPE;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.multiCompany !== 'boolean') return BUILD_SHAPE;
+  return { multiCompany: r.multiCompany, ...(typeof r.projectA === 'boolean' ? { projectA: r.projectA } : {}) };
+}
 
 /**
  * 後台的入口。`/admin/parents/:id/print` 走列印頁，其餘一律是管理中心本體。
@@ -92,6 +104,7 @@ function AdminCenter() {
   const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<AdminTabId>('parents');
   const [switching, setSwitching] = useState(false);
+  const [shape, setShape] = useState<AdminCenterShape>(BUILD_SHAPE);
 
   const boot = useCallback(async () => {
     if (!getAdminToken()) {
@@ -101,6 +114,7 @@ function AdminCenter() {
     }
     try {
       const result = await adminApi.me();
+      setShape(shapeFrom(result.shape));
       setIdentity(result.identity);
       setCompanies(result.companies);
       setUnavailable(false);
@@ -179,7 +193,7 @@ function AdminCenter() {
     );
   }
 
-  const screen = resolveScreen({ identity, unavailable, shape: ADMIN_SHAPE });
+  const screen = resolveScreen({ identity, unavailable, shape: shape });
 
   if (screen.kind === 'unavailable') {
     return (
@@ -222,7 +236,7 @@ function AdminCenter() {
 
   // screen 是 needs_company 或 ready，兩者都已經有身分。
   const current = identity!;
-  const tabs = visibleTabs(current, ADMIN_SHAPE);
+  const tabs = visibleTabs(current, shape);
   const activeTab = tabs.some(t => t.id === tab) ? tab : 'parents';
 
   return (
@@ -234,13 +248,13 @@ function AdminCenter() {
             <div>
               <p className="text-sm font-bold text-brand-forest">管理中心</p>
               <p className="text-[11px] text-brand-charcoal/50">
-                当前视野：{selectionLabel(current, companies, ADMIN_SHAPE)}
+                当前视野：{selectionLabel(current, companies, shape)}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {showCompanySwitcher(current, ADMIN_SHAPE) && (
+            {showCompanySwitcher(current, shape) && (
               <div className="relative">
                 <select
                   value={scopeValue(current)}
@@ -251,7 +265,7 @@ function AdminCenter() {
                   <option value="" disabled>
                     选择要查看的合作公司
                   </option>
-                  {switcherOptions(companies).map(o => (
+                  {switcherOptions(companies, shape).map(o => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -321,12 +335,12 @@ function AdminCenter() {
       ) : (
         // key 讓分頁在切換視野時整個重掛。沿用舊 state 會把上一家公司的家長
         // 留在畫面上直到新請求回來，而那不是閃爍，是外洩。
-        <div key={scopeKey(current, ADMIN_SHAPE)}>
+        <div key={scopeKey(current, shape)}>
           {activeTab === 'parents' && (
             // B→A 交接的邀請簡訊（ADR-0009）只有專案 B 的全域管理員發得了，合作公司帳號看不到。
             <ParentsPanel
               onError={handleError}
-              canInvite={current.role === 'global_admin' && ADMIN_SHAPE.multiCompany}
+              canInvite={current.role === 'global_admin' && PRODUCT.features.handoff === 'send'}
               showSource={PRODUCT.features.handoff === 'receive'}
             />
           )}

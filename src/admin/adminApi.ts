@@ -7,6 +7,7 @@
  */
 
 import type { HomeMediaItem, HomeMediaKind, HomeMediaSlot } from '../homeMedia/shape';
+import type { AdminCenterShape } from './companyScope';
 import type { AssessmentRecord } from '../types';
 import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
@@ -274,7 +275,7 @@ export const adminApi = {
       })
     ),
 
-  me: () => request<{ identity: AdminIdentityView; companies: AdminCompany[] }>('/me'),
+  me: () => request<{ identity: AdminIdentityView; companies: AdminCompany[]; shape?: AdminCenterShape }>('/me'),
 
   selectCompany: (selection: { companyId: number } | 'unassigned' | null) =>
     withRotatedToken(

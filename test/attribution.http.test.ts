@@ -2,6 +2,10 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vites
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 import { bearer } from './helpers/session';
 
+// 歸屬（進站代號）在專案 A 要開了合作公司才算數（`A_COMPANIES`，客戶 10/22，#89）；這裡驗的是那套機制本身。
+// ⚠️ 必須在載入 `server.ts` 之前設定。關著時代號被忽略，見 `test/aCompanies.http.test.ts`。
+process.env.A_COMPANIES = '1';
+
 /**
  * 歸屬（#5）與家長端專家名單（#9）的 HTTP 測試。
  *

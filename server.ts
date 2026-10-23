@@ -233,6 +233,13 @@ const HOME_V2_REQUESTED = resolvePaywallSwitch('HOME_V2', process.env.HOME_V2);
 const HOME_MEDIA_REQUESTED = resolvePaywallSwitch('HOME_MEDIA', process.env.HOME_MEDIA);
 const HOME_MEDIA = HOME_MEDIA_REQUESTED && APP_MODE === 'full';
 
+// A 的合作公司（客戶 10/22，issue #89／#90，規格 docs/specs/client-changes-2026-10-22-2-media.md）：開著時專案 B 的公司機制
+// 在 A 也註冊 —— 進站代號（`?c=`）在建帳號那一刻定歸屬、後台公司分頁與視野切換、公司成員只看自家、公司 Logo 端點。
+// 關著＝A 照舊沒有合作公司（登入時的進站代號被忽略，家長全部未歸屬＝森心康直屬）。B→A 交接照舊建未歸屬帳號。
+// **只在專案 A**（B 本來就有，設了不生效，啟動印一行）。同一套 fail-closed 解析。
+const A_COMPANIES_REQUESTED = resolvePaywallSwitch('A_COMPANIES', process.env.A_COMPANIES);
+const A_COMPANIES = A_COMPANIES_REQUESTED && APP_MODE === 'full';
+
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
 
@@ -258,7 +265,8 @@ const paidOnly = APP_MODE === 'full' ? app : express.Router();
 //
 // It lives here rather than being read from src/productConfig.ts because that
 // module reads `import.meta.env`, which only exists in the browser build.
-const ADMIN_MULTI_COMPANY = APP_MODE === 't1only';
+const COMPANIES_ENABLED = APP_MODE === 't1only' || A_COMPANIES;
+const ADMIN_MULTI_COMPANY = COMPANIES_ENABLED;
 
 // Per-company branding is a project-B-only idea, so the endpoint that serves it
 // only exists there — same never-mounted-Router trick as tier2Only above.
@@ -267,6 +275,10 @@ const ADMIN_MULTI_COMPANY = APP_MODE === 't1only';
 // visitor pays for and that can only ever come back empty. Worse, it would come
 // back 404 and paint a red line in every parent's console, which reads as broken.
 const multiCompanyOnly = APP_MODE === 't1only' ? app : express.Router();
+
+// 合作公司的家長端那一半（公司 Logo）：B 一直有，A 在 `A_COMPANIES` 開著時也有（#89／#90）。
+// 與上面那個分開：`multiCompanyOnly` 還掛著 B→A 交接的發出端，那一支永遠只在 B。
+const companiesOnly = COMPANIES_ENABLED ? app : express.Router();
 
 // ── Branding (backend counterpart of PRODUCT.brand) ──
 // Project B ships to a partner company and must not say "森心康" anywhere the
@@ -3081,7 +3093,7 @@ app.get('/api/specialists', async (req, res) => {
  *   unknown         查無此識別碼，或那家公司已停用
  *   not_configured  公司在，但還沒設 LOGO
  */
-multiCompanyOnly.get('/api/company-brand', async (req, res) => {
+companiesOnly.get('/api/company-brand', async (req, res) => {
   const done = (logoUrl: string | null, reason: string) => res.json({ logoUrl, reason });
   try {
     const raw = req.query.c;
@@ -3469,7 +3481,8 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     // 而他手上那組正確的驗證碼已經被作廢了 —— 他按「重新获取」會撞上冷卻期，
     // 於是被擋在門外一分鐘，手裡拿著一組再也驗不過的號碼。
     // 這一句查的是公司名冊，跟驗證碼有沒有被用過完全無關，先問不會少任何保護。
-    const scope = await resolveCompanyScope(req.body?.companySlug);
+    // A 沒開合作公司（`A_COMPANIES` 關著）時進站代號一律忽略 —— 家長全部未歸屬，與現在一樣。
+    const scope = await resolveCompanyScope(COMPANIES_ENABLED ? req.body?.companySlug : undefined);
     if (!scope.ok) {
       console.error('[SMS Verify] 归属查询失败，无法判断这次登入属于哪一个范围，拒绝继续。');
       res.status(503).json({ error: '登录暂时不可用，请稍后再试。' });
@@ -4030,7 +4043,7 @@ ${BRAND_FONT_LINK_TAG}
 app.use(
   '/api/admin',
   createAdminRouter(
-    { multiCompany: ADMIN_MULTI_COMPANY },
+    { multiCompany: ADMIN_MULTI_COMPANY, projectA: APP_MODE === 'full' },
     {
       // 硬刪要連記憶體裡這份熱備份一起刪（ADR-0006）。少了這一行，被刪掉的孩子的
       // 姓名、生日、分數與整串報告歷史會留在跑著的進程裡直到下一次重啟，而條款
@@ -4150,6 +4163,13 @@ export async function startServer() {
         APP_MODE === 'full'
           ? '[SenXinKang Server] HOME_V2=1: parents land on the new home page (banner + three cards).'
           : '[SenXinKang Server] HOME_V2 is set but ignored: project B has no new home page (A only).'
+      );
+    }
+    if (A_COMPANIES_REQUESTED) {
+      console.log(
+        A_COMPANIES
+          ? '[SenXinKang Server] A_COMPANIES=1: project A has partner companies (entry slug sets the account owner, admin company scope).'
+          : '[SenXinKang Server] A_COMPANIES is set but ignored: project B always has partner companies (A only).'
       );
     }
     if (HOME_MEDIA_REQUESTED) {

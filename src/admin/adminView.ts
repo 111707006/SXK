@@ -13,15 +13,18 @@
  * 因此判斷全部住在這裡，`AdminApp.tsx` 只負責把結果畫出來。
  */
 import type { AdminCompany, AdminErrorCode, AdminIdentityView } from './adminApi';
-import type { AdminCenterShape } from './companyScope';
+import { isProjectA, type AdminCenterShape } from './companyScope';
 
-// 形狀的型別與伺服器端共用同一份定義（`companyScope.ts`）。只是型別，編譯後
-// 不留任何東西 —— 這個模組仍然不匯入任何伺服器端的執行期程式碼。
+// 形狀的型別與伺服器端共用同一份定義（`companyScope.ts`）。那一檔沒有任何 import（純函式），
+// 帶進來的只有 `isProjectA` —— 這個模組仍然不匯入任何會碰資料庫的程式碼。
 export type { AdminCenterShape };
 
 /** 「未歸屬」在選單、視野識別碼與畫面文字上的三個固定寫法，只此一處。 */
 const UNASSIGNED_VALUE = 'unassigned';
 const UNASSIGNED_LABEL = '未归属的家长';
+/** A 的未歸屬就是森心康直屬（CONTEXT.md「未歸屬」）；A 有合作公司（#89）之後選單上這樣寫。 */
+const DIRECT_LABEL = '森心康直属家长';
+const unassignedLabel = (shape: AdminCenterShape) => (isProjectA(shape) ? DIRECT_LABEL : UNASSIGNED_LABEL);
 
 // ══════════════════════════════════════════════
 // 畫面分流
@@ -141,8 +144,10 @@ const MULTI_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['company', 'companies', 
 
 export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape): AdminTab[] {
   const all = identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
-  if (shape.multiCompany) return all.filter(t => !SINGLE_COMPANY_ONLY_TABS.includes(t.id));
-  return all.filter(t => !MULTI_COMPANY_ONLY_TABS.includes(t.id));
+  // 2026-10-23（#89）：A 也可以有合作公司 —— 「A 才有的分頁」看是不是 A，「多公司才有的分頁」看有沒有合作公司。
+  return all
+    .filter(t => isProjectA(shape) || !SINGLE_COMPANY_ONLY_TABS.includes(t.id))
+    .filter(t => shape.multiCompany || !MULTI_COMPANY_ONLY_TABS.includes(t.id));
 }
 
 /**
@@ -192,10 +197,10 @@ export interface SwitcherOption {
  * 刻意**沒有「全部公司」**這一項 —— 與 `CompanyCondition` 型別上沒有那個值
  * 是同一個決定：看別家的資料必須是一個明確的動作。
  */
-export function switcherOptions(companies: AdminCompany[]): SwitcherOption[] {
+export function switcherOptions(companies: AdminCompany[], shape?: AdminCenterShape): SwitcherOption[] {
   return [
     ...companies.map(c => ({ value: `company:${c.id}`, label: c.name })),
-    { value: UNASSIGNED_VALUE, label: UNASSIGNED_LABEL },
+    { value: UNASSIGNED_VALUE, label: shape ? unassignedLabel(shape) : UNASSIGNED_LABEL },
   ];
 }
 
@@ -229,7 +234,7 @@ export function selectionLabel(
   if (!shape.multiCompany) return UNASSIGNED_LABEL;
 
   if (identity.selection === null) return '尚未选定';
-  if (identity.selection.kind === 'unassigned') return UNASSIGNED_LABEL;
+  if (identity.selection.kind === 'unassigned') return unassignedLabel(shape);
   return nameOf(identity.selection.companyId) ?? `公司 #${identity.selection.companyId}`;
 }
 

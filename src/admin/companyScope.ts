@@ -87,6 +87,17 @@ export interface AdminCenterShape {
    * `false` 時全域管理員的視野**固定在未歸屬**，沒有「請先選定公司」這個狀態。
    */
   multiCompany: boolean;
+  /**
+   * 這是不是專案 A（森心康自己的產品：活動庫的示範片、首頁素材那幾個分頁、「筛查渠道」的森心康寫法）。
+   * 2026-10-23 起 A 也可以有合作公司（`A_COMPANIES`，客戶 10/22，#89），「有沒有合作公司」與「是不是 A」
+   * 不再是同一件事。沒給＝照舊由 `multiCompany` 推（單一機構就是 A）。
+   */
+  projectA?: boolean;
+}
+
+/** 是不是專案 A（見 `AdminCenterShape.projectA`）。 */
+export function isProjectA(shape: AdminCenterShape): boolean {
+  return shape.projectA ?? !shape.multiCompany;
 }
 
 /**

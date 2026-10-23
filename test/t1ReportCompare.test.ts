@@ -43,7 +43,37 @@ describe('內建孩子', () => {
   });
 });
 
+describe('10/22 新寫法（--writing 1022，#81）', () => {
+  it('每個孩子一節，現行與新寫法並排：首席專家結論、「这次看到的是：」', () => {
+    const doc = compareDocument(Object.keys(SAMPLES), 'full', new Date('2026-10-23T00:00:00Z'), { writing: '1022' });
+    for (const name of Object.keys(SAMPLES)) expect(doc).toContain(`## ${name}：`);
+    expect(doc).toContain('首席专家结论');
+    expect(doc).toContain('这次看到的是：');
+    expect(doc).toContain('T2 深度评估');
+    expect(doc).not.toContain('四个仪表');
+  });
+
+  it('compareReports 帶回新寫法的那一份', () => {
+    const { real, real1022 } = compareReports(SAMPLES['one-red'].input, 'full', { writing: '1022' });
+    expect(real1022).toBeDefined();
+    expect(real1022!.summary).not.toEqual(real.summary);
+  });
+});
+
 describe('CLI', () => {
+  it('--writing 1022 寫出新寫法；認不得的值退出', () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 't1cmp-'));
+    try {
+      const out = path.join(dir, 'cmp.md');
+      const tsxCli = createRequire(import.meta.url).resolve('tsx/cli');
+      execFileSync(process.execPath, [tsxCli, 'scripts/t1-report-compare.ts', '--all', '--writing', '1022', '--out', out], { cwd: ROOT, encoding: 'utf8' });
+      expect(readFileSync(out, 'utf8')).toContain('这次看到的是：');
+      expect(() => execFileSync(process.execPath, [tsxCli, 'scripts/t1-report-compare.ts', '--all', '--writing', '1023', '--out', out], { cwd: ROOT, stdio: 'pipe' })).toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('--all --out 寫出檔案；不寫進 repo', () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), 't1cmp-'));
     try {

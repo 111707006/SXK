@@ -6,6 +6,7 @@
  *   npx tsx scripts/t1-report-compare.ts --sample one-red --out C:/tmp/t1.md
  *   npx tsx scripts/t1-report-compare.ts --input child.json          # {child, scores, history?}
  *   npx tsx scripts/t1-report-compare.ts --all --mode t1only         # 舊版照專案 B 的兜底建議
+ *   npx tsx scripts/t1-report-compare.ts --all --writing 1022        # 現行與客戶 10/22 新寫法並排（T1_REPORT_1022，#81）
  *
  * `--out` 不給就寫到作業系統的暫存目錄（不寫進 repo），路徑印在最後一行。
  * 內建孩子見 `scripts/t1/compare.ts` 的 `SAMPLES`（`--list` 列出）。
@@ -16,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { SAMPLES, compareDocument, compareMarkdown, type CompareInput } from './t1/compare';
 import type { LegacyAppMode } from '../src/t1report/legacy';
+import type { T1ReportOptions } from '../src/t1report/report';
 
 const argv = process.argv.slice(2);
 const valueOf = (flag: string): string | undefined => {
@@ -34,6 +36,13 @@ if (mode !== 'full' && mode !== 't1only') {
   process.exit(1);
 }
 
+const writing = valueOf('--writing');
+if (writing !== undefined && writing !== '1022') {
+  console.error(`--writing 只收 1022，拿到 ${writing}`);
+  process.exit(1);
+}
+const options: T1ReportOptions = writing === '1022' ? { writing: '1022' } : {};
+
 let doc: string;
 const inputFile = valueOf('--input');
 if (inputFile) {
@@ -42,7 +51,7 @@ if (inputFile) {
     console.error('--input 的 JSON 要有 child 與 scores（陣列）');
     process.exit(1);
   }
-  doc = `# T1 报告新旧对照\n\n${compareMarkdown(path.basename(inputFile), '自订输入', input, mode)}`;
+  doc = `# T1 报告新旧对照\n\n${compareMarkdown(path.basename(inputFile), '自订输入', input, mode, options)}`;
 } else {
   const sample = valueOf('--sample');
   const names = argv.includes('--all') ? Object.keys(SAMPLES) : sample ? [sample] : [];
@@ -55,7 +64,7 @@ if (inputFile) {
     console.error(`没有这个内建孩子：${unknown.join('、')}（--list 列出内建的孩子）`);
     process.exit(1);
   }
-  doc = compareDocument(names, mode);
+  doc = compareDocument(names, mode, new Date(), options);
 }
 
 const out = valueOf('--out') ?? path.join(os.tmpdir(), `t1-report-compare-${Date.now()}.md`);

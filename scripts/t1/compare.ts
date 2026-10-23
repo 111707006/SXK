@@ -13,7 +13,7 @@
 import { getT1AgeBand } from '../../src/t1Data';
 import type { AssessmentStatus, DimensionScore } from '../../src/types';
 import { generateLegacyFallbackReport, type LegacyAppMode, type LegacyT1Report } from '../../src/t1report/legacy';
-import { t1ReportInputOf, templateT1Report } from '../../src/t1report/report';
+import { t1ReportInputOf, templateT1Report, type T1ReportOptions } from '../../src/t1report/report';
 import { ANSWER_LABEL, screeningSeries, t1AnswersOf, type T1Answer } from '../../src/t1report/answers';
 import { STATUS_WORDING } from '../../src/utils/statusWording';
 import type { T1RealReport } from '../../src/t1report/shape';
@@ -58,6 +58,7 @@ export const SAMPLES: Record<string, { label: string; input: CompareInput }> = (
   const preschool: CompareChild = { name: '森森', ageMonth: 42, gender: 'boy' };
   const kinder: CompareChild = { name: '果果', ageMonth: 60, gender: 'girl' };
   const school: CompareChild = { name: '乐乐', ageMonth: 100, gender: 'boy' };
+  const teen: CompareChild = { name: '安安', ageMonth: 130, gender: 'girl' };
   return {
     'all-green': {
       label: '20 个月，全部做得到（全绿）',
@@ -85,18 +86,27 @@ export const SAMPLES: Record<string, { label: string; input: CompareInput }> = (
         ],
       },
     },
+    // 客戶 10/22 的例句（「体育课上比同学吃力一些，写字有时也比较费力」）是學齡孩子的動作發展：對一個樣子給客戶看
+    'teen-motor': {
+      label: '130 个月，动作发展第一、二题有时做得到（一黄），其余全绿',
+      input: { child: teen, scores: scoresFor(130, (d, i) => (d === 'gross_motor' && i < 2 ? 1 : 2)) },
+    },
   };
 })();
 
 export interface CompareResult {
   legacy: LegacyT1Report;
   real: T1RealReport;
+  /** 帶了 `{ writing: '1022' }` 才有：客戶 10/22 的新寫法（`T1_REPORT_1022`，#81）。 */
+  real1022?: T1RealReport;
 }
 
-export function compareReports(input: CompareInput, mode: LegacyAppMode = 'full'): CompareResult {
+export function compareReports(input: CompareInput, mode: LegacyAppMode = 'full', options: T1ReportOptions = {}): CompareResult {
+  const real = t1ReportInputOf(input.child, input.scores);
   return {
     legacy: generateLegacyFallbackReport(input.child, input.scores, mode),
-    real: templateT1Report(t1ReportInputOf(input.child, input.scores)),
+    real: templateT1Report(real),
+    ...(options.writing === '1022' ? { real1022: templateT1Report(real, options) } : {}),
   };
 }
 
@@ -104,8 +114,8 @@ const cell = (s: string) => s.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
 const list = (xs: string[]) => (xs.length ? xs.map((x, i) => `${i + 1}. ${x}`).join('<br>') : '（无）');
 
 /** 一個孩子的並排 Markdown（標題、輸入、逐欄對照、新版才有的分方面說明與歷次對照）。 */
-export function compareMarkdown(name: string, label: string, input: CompareInput, mode: LegacyAppMode = 'full'): string {
-  const { legacy, real } = compareReports(input, mode);
+export function compareMarkdown(name: string, label: string, input: CompareInput, mode: LegacyAppMode = 'full', options: T1ReportOptions = {}): string {
+  const { legacy, real, real1022 } = compareReports(input, mode, options);
   const answers = t1AnswersOf(input.scores, input.child.ageMonth);
   const out: string[] = [];
   out.push(`## ${name}：${label}`, '');
@@ -116,6 +126,20 @@ export function compareMarkdown(name: string, label: string, input: CompareInput
     out.push(`| ${d.dimensionName} | ${STATUS_WORDING[d.status].label} | ${d.score}/${d.maxScore} | ${items} |`);
   }
   out.push('');
+  const notes = (r: T1RealReport) => (r.perDimension.length
+    ? r.perDimension.map(n => `**${answers.dimensions.find(d => d.dimensionId === n.dimensionId)?.dimensionName ?? n.dimensionId}**：${n.note}`).join('<br>')
+    : '（没有被标记的方面）');
+  if (real1022) {
+    // 10/22 新寫法：現行（T1_REPORT_REAL）與新寫法並排；舊版 legacy 不再列（客戶要看的是首席专家结论与多练段落）
+    out.push('| 栏位 | 现行（T1_REPORT_REAL 模板） | 10/22 新写法（T1_REPORT_1022 模板） |', '|---|---|---|');
+    out.push(`| 首席专家结论 summary | ${cell(real.summary)} | ${cell(real1022.summary)} |`);
+    out.push(`| 接下来可以多练的 perDimension | ${cell(notes(real))} | ${cell(notes(real1022))} |`);
+    out.push(`| 练习建议 | ${cell(list(real.rehabSuggestions))} | ${cell(list(real1022.rehabSuggestions))} |`);
+    out.push(`| 居家指导 | ${cell(list(real.homeGuidance))} | ${cell(list(real1022.homeGuidance))} |`);
+    out.push(`| 接下来怎么做 | ${cell(real.prognosisPrediction)} | ${cell(real1022.prognosisPrediction)} |`);
+    out.push('');
+    return out.join('\n');
+  }
   out.push(`| 栏位 | 旧版（legacy，${mode === 'full' ? '专案 A' : '专案 B'}） | 新版（T1_REPORT_REAL 模板） |`, '|---|---|---|');
   out.push(`| 总览 summary | ${cell(legacy.summary)} | ${cell(real.summary)} |`);
   out.push(`| 康复／练习建议 | ${cell(list(legacy.rehabSuggestions))} | ${cell(list(real.rehabSuggestions))} |`);
@@ -124,7 +148,7 @@ export function compareMarkdown(name: string, label: string, input: CompareInput
   out.push(`| 神经环路分析 | ${cell(legacy.neuralPathwayAnalysis)} | （新版不写） |`);
   const m = legacy.criticalMetrics;
   out.push(`| 四个仪表 | 可塑性 ${m.neuralPlasticity}、感觉整合 ${m.sensoryIntegration}、家庭环境 ${m.familyEnvironmentScore}、运动控制 ${m.motorControlIndex} | （新版不产） |`);
-  out.push(`| 分方面说明 perDimension | （旧版没有） | ${cell(real.perDimension.length ? real.perDimension.map(n => `**${answers.dimensions.find(d => d.dimensionId === n.dimensionId)?.dimensionName ?? n.dimensionId}**：${n.note}`).join('<br>') : '（没有被标记的方面）')} |`);
+  out.push(`| 分方面说明 perDimension | （旧版没有） | ${cell(notes(real))} |`);
   out.push('');
   const series = screeningSeries(input.history ?? [], { id: 'current', createdAt: '2026-10-08T00:00:00.000Z', scores: input.scores, ageMonth: input.child.ageMonth });
   if (series.length > 1) {
@@ -139,7 +163,20 @@ export function compareMarkdown(name: string, label: string, input: CompareInput
   return out.join('\n');
 }
 
-export function compareDocument(names: string[], mode: LegacyAppMode = 'full', now = new Date()): string {
+export function compareDocument(names: string[], mode: LegacyAppMode = 'full', now = new Date(), options: T1ReportOptions = {}): string {
+  if (options.writing === '1022') {
+    const head1022 = [
+      '# T1 报告：首席专家结论与「接下来可以多练的」新写法样本（客户 10/22）',
+      '',
+      `产生于 ${now.toISOString().slice(0, 16).replace('T', ' ')}（UTC）。两边都是本地模板，没有呼叫模型；同一份输入各跑一次。`,
+      '左栏＝现行（`T1_REPORT_REAL`）；右栏＝10/22 新写法（`T1_REPORT_1022`）：首席专家结论三句（整体、先关注哪几个方面、下一步），',
+      '不写题数；每个被标记方面的说明以「这次看到的是：」开头、接练法，没有「这一项 N 题里……」统计句。',
+      '模型写的字会更口语（例：「这次看到的是：体育课上比同学吃力一些，写字有时也比较费力。可以先从大动作玩起：……」）；',
+      '模板是模型写坏或连不上时的退路，引用的是题目原文。',
+      '',
+    ];
+    return [...head1022, ...names.map(n => compareMarkdown(n, SAMPLES[n].label, SAMPLES[n].input, mode, options))].join('\n');
+  }
   const head = [
     '# T1 报告新旧对照',
     '',

@@ -723,6 +723,22 @@ CREATE TABLE IF NOT EXISTS `home_media` (
   INDEX `idx_home_media_slot` (`slot`, `active`, `sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 居家训练使用权（客户 10/22，#91；迁移 deploy/migrations/2026-10-23-training-passes.sql，只有专案 A、TRAINING_PLAN 用）。
+CREATE TABLE IF NOT EXISTS `training_passes` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  `starts_on` DATE NOT NULL,
+  `ends_on` DATE NOT NULL,
+  `months` TINYINT UNSIGNED NOT NULL,
+  `source` ENUM('payment','code','proxy','t2_bonus') NOT NULL,
+  `ref_id` INT UNSIGNED NULL,
+  `unique_key` VARCHAR(64) NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_training_pass_key` (`unique_key`),
+  INDEX `idx_training_passes_user` (`user_id`, `ends_on`),
+  CONSTRAINT `fk_training_passes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- 既有数据库的迁移（sxk_db 已建过旧版 users 时执行）
 -- ============================================================

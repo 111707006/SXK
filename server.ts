@@ -1,3 +1,6 @@
+import { listTrainingPasses, insertTrainingPass, hasScaleT2Findings } from './src/db/trainingPasses';
+import { trainingPassState, type TrainingPassDeps, type TrainingPassState } from './src/t2/trainingPassService';
+import { NON_SCALE_TOOLKITS } from './src/t2/snapshotKinds';
 import { loadPublicHomeMedia } from './src/db/homeMedia';
 import { EMPTY_HOME_MEDIA } from './src/homeMedia/shape';
 import express from 'express';
@@ -35,7 +38,7 @@ import { buildT2Findings, latestCompleteResults } from './src/t2/findings';
 import { readToolSubmission, refusalToHttp, toolBands } from './src/t2/toolResults';
 import { ageKeyOf, matchWeeklyActivities } from './src/t2/activityMatch';
 import type { WeeklyActivities } from './src/t2/activityMatch';
-import { isCalendarDate, weekEndOf, weekStartOf } from './src/t2/weeks';
+import { calendarDateOf, isCalendarDate, weekEndOf, weekStartOf } from './src/t2/weeks';
 import { planPosition } from './src/t2/trainingPlan';
 import { createT2LibraryRouter } from './src/t2/libraryRoutes';
 import { buildSmartGoals } from './src/t2/goals';
@@ -240,6 +243,18 @@ const HOME_MEDIA = HOME_MEDIA_REQUESTED && APP_MODE === 'full';
 // **只在專案 A**（B 本來就有，設了不生效，啟動印一行）。同一套 fail-closed 解析。
 const A_COMPANIES_REQUESTED = resolvePaywallSwitch('A_COMPANIES', process.env.A_COMPANIES);
 const A_COMPANIES = A_COMPANIES_REQUESTED && APP_MODE === 'full';
+
+// 訓練計劃與居家訓練使用權（客戶 10/22，issue #91 起，規格 docs/specs/client-changes-2026-10-22-3-plan.md，ADR-0013）：
+// 開著時線上干預那幾支（每週活動、整期計劃、片庫、單支活動、打卡、提醒）只看「有沒有一段還沒到期的使用權」
+// （`training_passes`，`src/t2/trainingPass.ts`），取代 ADR-0012 的「先 T2、再線上干預收費站」；有效的使用權也等於
+// T2 已解鎖（訓練計劃包含 T2）；`/api/unlocks` 多回 `trainingPass`；有 T2 報告的家長第一次查附送一個月。
+// 關著＝一行不動。**只在專案 A**、要同時開 `TRAINING_PUSH_V3`（否則起不來）；B 設了不生效（啟動印一行）。
+// ⚠️ 要先跑 `deploy/migrations/2026-10-23-training-passes.sql`。
+const TRAINING_PLAN_REQUESTED = resolvePaywallSwitch('TRAINING_PLAN', process.env.TRAINING_PLAN);
+if (TRAINING_PLAN_REQUESTED && APP_MODE === 'full' && !TRAINING_PUSH_V3) {
+  throw new Error('TRAINING_PLAN=1 需要同時設 TRAINING_PUSH_V3=1（使用權的長度對齊 v3 推送規則的一期 12 週）');
+}
+const TRAINING_PLAN = TRAINING_PLAN_REQUESTED && APP_MODE === 'full';
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -1030,6 +1045,8 @@ async function denyIfT2Locked(req: express.Request, userId: UserId | null = curr
   if (!user) return { status: 401, body: { error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' } };
 
   if (!(await mysqlDb.hasT2Unlock(user.id))) {
+    // 訓練計劃包含 T2（#91）：有一段還沒到期的使用權就放行。
+    if (TRAINING_PLAN && (await trainingPassOf(user.id)).active) return null;
     return { status: 403, body: { error: '尚未解锁深度评估。', code: 'LOCKED' } };
   }
   return null;
@@ -1092,6 +1109,31 @@ const TRAINING_PRICE_FEN = resolveTrainingPriceFen(process.env.TRAINING_PRICE_FE
  * 線上干預那幾支（週活動、片庫、單支活動、打卡、提醒）自己的收費站，疊在 T2 閘門**後面**（ADR-0012：先買 T2，
  * 才能在 T2 報告裡買線上干預）。這一支只管線上干預的權益：要登入；價錢是 0 就放行。記憶體模式、展示開關同 T2 閘門放行。
  */
+/** 居家訓練使用權的資料層（`TRAINING_PLAN`，#91）。 */
+const TRAINING_PASS_DEPS: TrainingPassDeps = {
+  list: listTrainingPasses,
+  insert: insertTrainingPass,
+  hasScaleT2Report: userId => hasScaleT2Findings(userId, NON_SCALE_TOOLKITS),
+};
+
+/** 這位家長今天的使用權（`TRAINING_PLAN`，#91）。順手發 T2 附送的一個月。 */
+function trainingPassOf(dbUserId: number): Promise<TrainingPassState> {
+  return trainingPassState(TRAINING_PASS_DEPS, dbUserId, calendarDateOf(new Date()));
+}
+
+/**
+ * 線上干預那幾支在 `TRAINING_PLAN` 開著時的閘門：只看使用權（取代 T2 閘門＋線上干預收費站）。
+ * 免費期間（`PAYWALL_FREE`）與展示開關只管 T2，不讓居家訓練變免費（規格三）。記憶體模式照其他閘門放行。
+ */
+async function denyIfNoTrainingPass(userId: UserId | null): Promise<UnlockDenial | null> {
+  if (!mysqlDb.isConfigured()) return null;
+  if (!userId) return { status: 401, body: { error: '请先登录后再使用居家训练。', code: 'UNAUTHENTICATED' } };
+  const user = await findSessionUser(userId);
+  if (!user) return { status: 401, body: { error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' } };
+  if ((await trainingPassOf(user.id)).active) return null;
+  return { status: 403, body: { error: '还没有开通居家训练，或已经到期。', code: 'TRAINING_PASS_REQUIRED' } };
+}
+
 async function denyIfTrainingLocked(userId: UserId | null): Promise<UnlockDenial | null> {
   if (!mysqlDb.isConfigured()) return null;
   if (PAYWALL_OFF) return null;
@@ -1116,7 +1158,10 @@ tier2Only.use('/api/t2', async (req: express.Request, res: express.Response, nex
     }
     const userId = isT2IcsPath(req.path) ? t2IcsRequestUserId(req) : currentUserId(req);
     // 線上干預要先買過 T2，再過自己的收費站（現在免費；ADR-0012）；其餘照舊只看 T2。
-    const denial = (await denyIfT2Locked(req, userId)) ?? (isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : null);
+    // `TRAINING_PLAN`（#91）：線上干預只看使用權。
+    const denial = TRAINING_PLAN && isTrainingPath(req.path)
+      ? await denyIfNoTrainingPass(userId)
+      : (await denyIfT2Locked(req, userId)) ?? (isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : null);
     if (denial) {
       res.status(denial.status).json(denial.body);
       return;
@@ -2698,8 +2743,10 @@ paidOnly.get('/api/unlocks', async (req, res) => {
     }
     // 免費期間：登入的家長一律當成已經買了 T2，前端直接進深度評估、不畫付費牆。權益表一次都不查 ——
     // 這不是一筆購買，不寫進任何地方；開關一拿掉，沒買的家長照舊看到付費牆。
+    // 居家訓練使用權（`TRAINING_PLAN`，#91）：有效與否、到哪天。免費期間也照實回（免費只管 T2）。
+    const trainingPass = TRAINING_PLAN ? await trainingPassOf(user.id) : undefined;
     if (PAYWALL_FREE) {
-      res.json({ dimensionIds: [], t2: true, available: true, free: true, priceFen: UNLOCK_PRICE_FEN });
+      res.json({ dimensionIds: [], t2: true, available: true, free: true, priceFen: UNLOCK_PRICE_FEN, ...(trainingPass ? { trainingPass } : {}) });
       return;
     }
     // The price ships with the list so the paywall never hardcodes its own copy
@@ -2711,9 +2758,11 @@ paidOnly.get('/api/unlocks', async (req, res) => {
       // rather than one merged list because merging them is exactly how a t3
       // purchase would start opening T2.
       dimensionIds: await mysqlDb.listUnlockedDimensions(user.id),
-      t2: await mysqlDb.hasT2Unlock(user.id),
+      // 訓練計劃包含 T2（#91）。
+      t2: (await mysqlDb.hasT2Unlock(user.id)) || trainingPass?.active === true,
       available: true,
       priceFen: UNLOCK_PRICE_FEN,
+      ...(trainingPass ? { trainingPass } : {}),
     });
   } catch (err: any) {
     console.error('[Payment] Failed to list unlocks:', err.message);
@@ -4192,6 +4241,13 @@ export async function startServer() {
         APP_MODE === 'full'
           ? '[SenXinKang Server] HOME_V2=1: parents land on the new home page (banner + three cards).'
           : '[SenXinKang Server] HOME_V2 is set but ignored: project B has no new home page (A only).'
+      );
+    }
+    if (TRAINING_PLAN_REQUESTED) {
+      console.log(
+        TRAINING_PLAN
+          ? '[SenXinKang Server] TRAINING_PLAN=1: home training opens with a training pass (training_passes); a pass also opens T2.'
+          : '[SenXinKang Server] TRAINING_PLAN is set but ignored: project B has no home training (A only).'
       );
     }
     if (A_COMPANIES_REQUESTED) {

@@ -77,6 +77,14 @@ export const TRAINING_PAGE = {
   retry: '再试一次',
 } as const;
 
+/** 居家訓練使用權（`TRAINING_PLAN`，#91）在「线上干预」那一頁上的說法。 */
+export const TRAINING_PASS = {
+  remaining: (days: number, endsOn: string) => `居家训练还剩 ${days} 天（到 ${Number(endsOn.slice(5, 7))} 月 ${Number(endsOn.slice(8, 10))} 日）`,
+  none: '还没有开通居家训练。开通后做一次 T1 评估，当天就会排出每周的家庭活动；以前的报告与打卡纪录都还在。',
+  expired: '居家训练已经到期。续买之后接着按孩子的结果安排活动；以前的报告与打卡纪录都还在。',
+  renew: '开通居家训练',
+} as const;
+
 export const REPORT_TRAINING_LINK = {
   text: '按这份报告安排的每周家庭活动、示范片与打卡，都在「线上干预」。',
   action: '打开线上干预',

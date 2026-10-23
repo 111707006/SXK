@@ -180,6 +180,8 @@ export default function App() {
   const [unlocksAvailable, setUnlocksAvailable] = useState<boolean | null>(null);
   // 免費期間（伺服器 `PAYWALL_FREE`，`/api/unlocks` 回 `free: true`）：權益照開，但 T1 報告上的 T2 卡仍畫價錢當參考（使用者 2026-10-11）
   const [t2FreePeriod, setT2FreePeriod] = useState(false);
+  /** 居家訓練使用權（伺服器 `TRAINING_PLAN`，#91）：`null`＝這個部署沒有這回事（或還沒查到）。 */
+  const [trainingPass, setTrainingPass] = useState<{ active: boolean; endsOn: string | null; lastEndsOn: string | null } | null>(null);
   /** 單價（分）。以後端回傳為準，前端不自己寫死金額。 */
   const [unlockPriceFen, setUnlockPriceFen] = useState<number>(DEFAULT_UNLOCK_PRICE_FEN);
   /**
@@ -537,6 +539,15 @@ export default function App() {
         setT2Unlocked(data.t2 === true);
         setUnlocksAvailable(data.available === true);
         setT2FreePeriod(data.free === true);
+        setTrainingPass(
+          data.trainingPass && typeof data.trainingPass.active === 'boolean'
+            ? {
+                active: data.trainingPass.active,
+                endsOn: typeof data.trainingPass.endsOn === 'string' ? data.trainingPass.endsOn : null,
+                lastEndsOn: typeof data.trainingPass.lastEndsOn === 'string' ? data.trainingPass.lastEndsOn : null,
+              }
+            : null,
+        );
         if (typeof data.priceFen === 'number' && data.priceFen > 0) setUnlockPriceFen(data.priceFen);
       } catch (err) {
         // 保持 null（尚未確定）—— 讀不到權益時 fail-closed，不樂觀放行。
@@ -1837,6 +1848,7 @@ export default function App() {
               <div className="animate-fade-in">
                 <LazyBoundary>
                   <TrainingPage
+                    trainingPass={trainingPass}
                     childName={child?.name}
                     onBookService={type => goToExpertBooking(type)}
                     onGoToT2={goToT2Entrance}

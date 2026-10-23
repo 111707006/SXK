@@ -67,10 +67,11 @@ describe('價錢', () => {
 describe('server.ts 怎麼接', () => {
   const server = read('server.ts');
 
-  it('/api/t2 閘門：每一支都先過 T2；線上干預再過自己的收費站（ADR-0012）', () => {
+  it('/api/t2 閘門：每一支都先過 T2；線上干預再過自己的收費站（ADR-0012）；TRAINING_PLAN 開著時線上干預只看使用權（#91）', () => {
     expect(server).toContain(
-      'const denial = (await denyIfT2Locked(req, userId)) ?? (isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : null);',
+      ': (await denyIfT2Locked(req, userId)) ?? (isTrainingPath(req.path) ? await denyIfTrainingLocked(userId) : null);',
     );
+    expect(server).toMatch(/const denial = TRAINING_PLAN && isTrainingPath\(req\.path\)\s*\? await denyIfNoTrainingPass\(userId\)/);
     expect(server).toContain('const TRAINING_PRICE_FEN = resolveTrainingPriceFen(process.env.TRAINING_PRICE_FEN);');
   });
 

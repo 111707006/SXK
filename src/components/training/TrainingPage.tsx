@@ -17,7 +17,9 @@ import type { ServiceType } from '../../utils/serviceTypes';
 import { authFetch } from '../../utils/api';
 import { PRODUCT } from '../../productConfig';
 import type { T2Findings } from '../../t2/types';
-import { TRAINING_PAGE } from '../../t2/trainingCopy';
+import { TRAINING_PAGE, TRAINING_PASS } from '../../t2/trainingCopy';
+import { calendarDateOf } from '../../t2/weeks';
+import { daysLeft } from '../../t2/trainingPass';
 import TrainingSection from './TrainingSection';
 
 export interface TrainingPageProps {
@@ -25,11 +27,18 @@ export interface TrainingPageProps {
   onBookService: (type: ServiceType) => void;
   /** 去 T2 入口（即時 T1 報告並捲到那張卡）。沒報告、沒解鎖、計劃頁「重新评估」都走它。 */
   onGoToT2: () => void;
+  /**
+   * 居家訓練使用權（`TRAINING_PLAN`，#91）：`null`＝這個部署沒有使用權這回事（照舊）。有效時頁首寫「还剩 N 天」；
+   * 沒有或到期時整頁換成開通／續買的說明，不去讀報告（伺服器那幾支本來就是 403）。
+   */
+  trainingPass?: { active: boolean; endsOn: string | null; lastEndsOn: string | null } | null;
+  /** 去開通／續買（訓練計劃頁，#110）；沒給就不畫按鈕。 */
+  onOpenPlans?: () => void;
 }
 
 type Status = 'loading' | 'ready' | 'none' | 'locked' | 'error';
 
-export default function TrainingPage({ childName, onBookService, onGoToT2 }: TrainingPageProps) {
+export default function TrainingPage({ childName, onBookService, onGoToT2, trainingPass = null, onOpenPlans }: TrainingPageProps) {
   const [status, setStatus] = useState<Status>('loading');
   const [findings, setFindings] = useState<T2Findings | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -58,6 +67,8 @@ export default function TrainingPage({ childName, onBookService, onGoToT2 }: Tra
   }, [attempt]);
 
   const retry = useCallback(() => setAttempt(n => n + 1), []);
+  const passBlocked = trainingPass !== null && !trainingPass.active;
+  const today = calendarDateOf(new Date());
 
   return (
     <div
@@ -66,7 +77,30 @@ export default function TrainingPage({ childName, onBookService, onGoToT2 }: Tra
         : 'bg-white rounded-3xl border border-brand-stone p-5 md:p-8 max-w-3xl mx-auto shadow-sm text-left'}
       id="training-page"
     >
-      {status === 'ready' && findings ? (
+      {trainingPass?.active && trainingPass.endsOn && (
+        <p id="training-pass-remaining" className="mb-3 rounded-full bg-ledo-accent-soft px-3.5 py-1.5 text-xs font-bold text-ledo-accent-soft-ink">
+          {TRAINING_PASS.remaining(daysLeft(today, trainingPass.endsOn), trainingPass.endsOn)}
+          {onOpenPlans && daysLeft(today, trainingPass.endsOn) <= 7 && (
+            <button type="button" onClick={onOpenPlans} className="ml-2 underline underline-offset-2 cursor-pointer">{TRAINING_PASS.renew}</button>
+          )}
+        </p>
+      )}
+      {passBlocked ? (
+        <div id="training-pass-required" className="space-y-4">
+          <h2 className="text-xl font-extrabold text-brand-forest">{TRAINING_PAGE.navLabel}</h2>
+          <p className="text-xs text-brand-charcoal leading-relaxed">{trainingPass.lastEndsOn ? TRAINING_PASS.expired : TRAINING_PASS.none}</p>
+          {onOpenPlans && (
+            <button
+              type="button"
+              id="training-pass-renew"
+              onClick={onOpenPlans}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-forest hover:bg-brand-forest/90 text-white shadow-md shadow-brand-forest/20 active:scale-[0.98] transition cursor-pointer"
+            >
+              {TRAINING_PASS.renew}
+            </button>
+          )}
+        </div>
+      ) : status === 'ready' && findings ? (
         <TrainingSection findings={findings} childName={childName} onBookService={onBookService} onReassess={onGoToT2} />
       ) : status === 'loading' ? (
         <div className="flex items-center gap-2 text-xs text-brand-charcoal/80">

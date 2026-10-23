@@ -8,7 +8,7 @@
  * ⚠️ 只給伺服器載。篩查渠道的字裡有品牌名（A 才用得到），後台的畫面只吃伺服器回的字。
  */
 import type { AssessmentRecord, AssessmentStatus, DimensionScore } from '../types';
-import type { AdminCenterShape } from './companyScope';
+import { isProjectA, type AdminCenterShape } from './companyScope';
 import { DIMENSIONS_DATA } from '../data';
 import { latestAssessedAgeMonth } from '../utils/ageBandDrift';
 
@@ -17,7 +17,7 @@ export interface SummarySource {
   userId: number;
   phone: string | null;
   companyId: number | null;
-  /** 歸屬那家合作公司的名字（B）；未歸屬是 null。 */
+  /** 歸屬那家合作公司的名字（B；A 開了合作公司時也有，#90）；未歸屬是 null。 */
   companyName: string | null;
   child: any;
   scores: DimensionScore[];
@@ -79,7 +79,10 @@ export const CHANNEL_SCREENING_SYSTEM = '筛查系统（森心康）';
 export const CHANNEL_UNASSIGNED = '未归属';
 
 export function channelOf(source: SummarySource, shape: AdminCenterShape): string {
-  if (shape.multiCompany) return source.companyName ?? CHANNEL_UNASSIGNED;
+  // B：篩查渠道就是歸屬。
+  if (shape.multiCompany && !isProjectA(shape)) return source.companyName ?? CHANNEL_UNASSIGNED;
+  // A 開了合作公司（`A_COMPANIES`，#90）：歸屬某家合作公司就寫那家（第四種）；其餘照下面三種。
+  if (source.companyName) return source.companyName;
   const first = (source.handoffImports ?? []).reduce<SummarySource['handoffImports'][number] | null>(
     (best, h) => (!best || h.at < best.at || (h.at === best.at && h.id < best.id) ? h : best),
     null

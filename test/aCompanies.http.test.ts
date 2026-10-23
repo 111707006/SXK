@@ -85,7 +85,9 @@ describe('A_COMPANIES 關著', () => {
     expect(findCompanyBySlug).not.toHaveBeenCalled();
   });
 
-  it('公司 Logo 端點不存在（404）', async () => {
+  it('公司 Logo 與頁首徽章的端點不存在（404）、首頁設定說 companies: false', async () => {
     expect((await client.get('/api/company-brand?c=jia')).status).toBe(404);
+    expect((await client.get('/api/company-badge?c=jia')).status).toBe(404);
+    expect((await (await client.get('/api/home/config')).json()).companies).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 // tcb import removed - replaced with MySQL
 import * as mysqlDb from './src/db/mysql';
+import { isAllowedAssetUrl } from './src/utils/assetUrl';
 import { createAdminRouter } from './src/admin/routes';
 import { developmentIndexFor, resolveDevIndexBasis } from './src/developmentIndex/basis';
 import { notifyExpertBooking } from './src/notify';
@@ -3850,8 +3851,36 @@ app.post('/api/report-link', async (req, res) => {
  * 只在專案 A（`tier2Only`）：B 沒有這支，前端也不問（`PRODUCT.features.home`）。
  */
 tier2Only.get('/api/home/config', (_req, res) => {
-  // `homeMedia`（#87）：開屏與輪播讀後台素材。
-  res.json({ enabled: HOME_V2_REQUESTED, homeMedia: HOME_MEDIA });
+  // `homeMedia`（#87）：開屏與輪播讀後台素材。`companies`（#90）：A 開了合作公司，頁首要問家長歸屬哪一家。
+  res.json({ enabled: HOME_V2_REQUESTED, homeMedia: HOME_MEDIA, companies: A_COMPANIES });
+});
+
+/**
+ * 專案 A 頁首的合作公司徽章（`A_COMPANIES`，#90）：回 `{company: {name, logoUrl} | null}`。**公開**（登入前也畫）。
+ * 帶了通行證看帳號上的歸屬（不可逆，以它為準 —— 進站代號可能是後來另一家的連結）；沒帶看 `?c=`。
+ * 沒歸屬、查無、停用、逾時一律 `company: null`（頁首照規格一）。LOGO 網址再擋一次（會進 `<img src>`）。
+ */
+(A_COMPANIES ? app : express.Router()).get('/api/company-badge', async (req, res) => {
+  const none = () => res.json({ company: null });
+  try {
+    if (!mysqlDb.isConfigured()) return none();
+    const userId = toDbUserId(currentUserId(req));
+    let row: mysqlDb.CompanyBadgeRow | null = null;
+    if (userId !== null) {
+      row = await withTimeout(mysqlDb.findCompanyBadgeByUserId(userId), 2000);
+    } else {
+      const raw = req.query.c;
+      const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+      if (!slug || !isValidCompanySlug(slug)) return none();
+      row = await withTimeout(mysqlDb.findCompanyBadgeBySlug(slug), 2000);
+    }
+    if (!row) return none();
+    const logoUrl = row.logoUrl && isAllowedAssetUrl(row.logoUrl) ? row.logoUrl : null;
+    return res.json({ company: { name: row.name, logoUrl } });
+  } catch (err: any) {
+    console.error('[CompanyBadge] Lookup failed:', err.message);
+    return none();
+  }
 });
 
 /**

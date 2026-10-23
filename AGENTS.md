@@ -309,6 +309,7 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `/api/admin/home-media` | GET／POST | 后台首页素材（全域管理员，`HOME_MEDIA` 开着才注册）：GET 回全部（含停用）；POST `?slot=splash｜banner&kind=image｜video`，本体就是档案（jpg／png ≤2 MB、mp4 ≤30 MB，看档头），存成 `MEDIA_DIR/home/<槽位>-<时间>-<乱数>.<副档名>`、网址带 `?v=`。不对的 415、太大 413，都不写档 | `Authorization: Bearer <后台 token>` |
 | `/api/admin/home-media/:id` | PATCH | 改连结（只收站内路径或 https，`isSafeMediaLink`；`null` 清掉）、排序、启用（带了才改）；没有删除 | 同上 |
 | `/api/admin/home-media/:id/poster` | PUT | 短片的封面（jpg ≤2 MB，后台浏览器抽的一格）；图片 404 | 同上 |
+| `/api/company-badge` | GET | 专案 A、`A_COMPANIES` 开着才注册（#90）：头部的合作公司徽章，回 `{company: {name, logoUrl} \| null}`；带通行证看帐号上的归属，没带看 `?c=`。没归属、停用、逾时都是 `null`。**公开**。B 没有这一支（B 的家长端只拿得到 LOGO：`/api/company-brand`） | `c`（query，未登入时） |
 | `/api/handoff/config` | GET | 专案 B：交接开了没（`{enabled, targetName}`／`{enabled: false}`）；B 报告页据此画不画那张卡 | 无 |
 | `/api/handoff/start` | POST | 专案 B：家长按「到森心康做深度评估」。回 `{url: "<A>/handoff#code=…", expiresInSec: 120}`（`no-store`）。没同意 400 `CONSENT_REQUIRED`、没手机号或没做 T1 409、没开 404 | `consent: true`；`Authorization: Bearer <token>` |
 | `/internal/handoff/redeem` | POST | 专案 B，**只给 A 的伺服器**：兑换交接码（**不过期、可重复**，每次记一次使用），交出手机、来源公司、孩子、T1 成绩、对得上的那份 T1 报告。任何失败都是同一个 404 | `code`；`Authorization: Bearer <HANDOFF_SECRET>` |

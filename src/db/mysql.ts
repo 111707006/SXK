@@ -384,6 +384,35 @@ export async function findCompanyLogoBySlug(slug: string): Promise<string | null
   return row?.logo_url ?? null;
 }
 
+/**
+ * 專案 A 的頁首徽章（`A_COMPANIES`，客戶 10/22，#90）：家長歸屬的那家合作公司的名稱與 LOGO。
+ * 登入了看帳號上的歸屬（不可逆、以它為準）；還沒登入看進站代號。停用的公司不畫。
+ * ⚠️ 只給專案 A —— B 的家長端照舊只拿得到 LOGO（機構名稱只給後台，見 `findCompanyLogoBySlug`）。
+ */
+export interface CompanyBadgeRow {
+  name: string;
+  logoUrl: string | null;
+}
+
+export async function findCompanyBadgeByUserId(userId: number): Promise<CompanyBadgeRow | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    'SELECT c.name, c.logo_url FROM companies c JOIN users u ON u.company_id = c.id WHERE u.id = ? AND c.active = 1 LIMIT 1',
+    [userId]
+  );
+  const row = (rows as any[])[0];
+  return row ? { name: row.name, logoUrl: row.logo_url ?? null } : null;
+}
+
+export async function findCompanyBadgeBySlug(slug: string): Promise<CompanyBadgeRow | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute('SELECT name, logo_url FROM companies WHERE slug = ? AND active = 1 LIMIT 1', [slug]);
+  const row = (rows as any[])[0];
+  return row ? { name: row.name, logoUrl: row.logo_url ?? null } : null;
+}
+
 function safeJsonArray(raw: string): string[] {
   try {
     const parsed = JSON.parse(raw);

@@ -65,8 +65,12 @@ describe('A_COMPANIES 開著', () => {
     expect(me.identity.role).toBe('company_member');
   });
 
-  it('公司 Logo 端點存在', async () => {
+  it('公司 Logo 與頁首徽章的端點存在；首頁設定說 companies: true', async () => {
     expect((await client.get('/api/company-brand?c=yiyuan')).status).toBe(200);
+    const badge = await client.get('/api/company-badge?c=yiyuan');
+    expect(badge.status).toBe(200);
+    expect(await badge.json()).toEqual({ company: null }); // 測試沒有資料庫：讀不到就是不畫
+    expect((await (await client.get('/api/home/config')).json()).companies).toBe(true);
   });
 
   it('B→A 交接的發出端仍然只在 B（404）', async () => {

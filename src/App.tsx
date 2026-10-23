@@ -40,6 +40,7 @@ import LedoDashboard from './components/ledo/LedoDashboard';
 import OutOfRangeCard from './components/OutOfRangeCard';
 import { useViewHistory } from './utils/viewHistory';
 import SplashScreen from './home/SplashScreen';
+import CompanyBadge from './components/CompanyBadge';
 import { isInT1Range } from './t1Data';
 import LedoReportLibrary from './components/ledo/LedoReportLibrary';
 
@@ -105,6 +106,8 @@ export default function App() {
   /** 家長在首頁開關問到之前自己按過「评估面板」：問到之後不把他換回首頁。 */
   const dashboardChosenRef = useRef(false);
   const homeV2 = PRODUCT.features.home && homeConfigOn;
+  /** A 開了合作公司（`A_COMPANIES`，#90）：頁首要畫家長歸屬那家的徽章。由同一支 `/api/home/config` 帶回來。 */
+  const [companiesOn, setCompaniesOn] = useState(false);
   /** 未登入時：開關開著先給首頁；點了卡或「登录／注册」才是登入頁。 */
   const [homeLoginOpen, setHomeLoginOpen] = useState(false);
   /** 未登入點的那張卡：登入後帶過去（`viewAfterLogin`）。 */
@@ -346,7 +349,11 @@ export default function App() {
       try {
         const resp = await fetch('/api/home/config');
         const ct = resp.headers.get('content-type');
-        if (resp.ok && ct && ct.includes('application/json')) on = (await resp.json())?.enabled === true;
+        if (resp.ok && ct && ct.includes('application/json')) {
+          const body = await resp.json();
+          on = body?.enabled === true;
+          if (!cancelled) setCompaniesOn(body?.companies === true);
+        }
       } catch {
         // 網路斷了：當成關著。
       }
@@ -1083,6 +1090,8 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-2">
                 {/* 新版首頁開著時頁首寫客戶示意圖上那一行（規格 §5.1）；關著照舊是系統名。 */}
                 <h1 className={`text-base font-extrabold font-sans text-brand-forest tracking-tight${PRODUCT.features.ledo && child ? ' max-sm:sr-only' : ''}`}>{homeV2 && !PRODUCT.features.ui1022 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}</h1>
+                {/* A 的合作公司（#90）：家長歸屬某家醫院時，平台名稱旁畫那家的 LOGO 與名稱。 */}
+                {PRODUCT.mode === 'full' && <CompanyBadge enabled={companiesOn} identity={userIdentity} />}
                 {/*
                   建置模式標記 —— 2026-09-10 起**不顯示在畫面上**。
 

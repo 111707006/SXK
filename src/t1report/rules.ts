@@ -107,6 +107,40 @@ export function findAdviceMismatch(text: string, names: ReadonlyArray<{ name: st
   return hits;
 }
 
+// ---------------------------------------------------------------------------
+// 客戶 10/22 的新寫法（`T1_REPORT_1022`，#81）
+// ---------------------------------------------------------------------------
+
+/** 新寫法每一段說明的開頭（模板照寫、提示叫模型照寫、驗證器認前五個字，冒號全形半形都算）。 */
+export const NOTE_OPENING_1022 = '这次看到的是：';
+
+const COUNT = String.raw`(?:\d+|[一二三四五六七八九十两几]+)`;
+
+/**
+ * 題數統計句（客戶 10/22：「不要『这一项 4 题里做到几题』的統計」）。**暫採**，擋的是「數字＋題」與「做到了 N 項」、
+ * 合計分數（「3/8」「合计…分」）；「这一题」「第一题」「每一题」「哪几题」是在講某一題，不算；練習的分鐘數、次數不算。
+ */
+export const TALLY_PATTERNS: ReadonlyArray<RegExp> = [
+  new RegExp(String.raw`(?<![这那第每哪某])${COUNT}\s*道?\s*题`),
+  new RegExp(String.raw`做到(?:了)?\s*${COUNT}\s*项`),
+  /\d+\s*[/／]\s*\d+/,
+  /合计[^。；，]{0,10}分/,
+];
+
+/** `text` 裡第一個統計句（附前後文），沒有回 null。題目原文由呼叫端先挖掉（題目裡有「1–2 秒」這種數字）。 */
+export function findTallySentence(text: string): string | null {
+  for (const re of TALLY_PATTERNS) {
+    const m = re.exec(text);
+    if (m) return `「${m[0]}」 …${text.slice(Math.max(0, m.index - 12), m.index + m[0].length + 12).replace(/\s+/g, ' ')}…`;
+  }
+  return null;
+}
+
+/** 以「。！？」切句、去掉空的（首席專家結論要三句）。分號、括號裡的不另算一句。 */
+export function sentencesOf(text: string): string[] {
+  return text.split(/[。！？!?]/).map(s => s.trim()).filter(Boolean);
+}
+
 /** `text` 裡違規的地方：禁字（附前後文）、有預測卻沒有免責那一句。題目原文先挖掉。 */
 export function findT1ReportViolations(text: string, questionTexts: ReadonlyArray<string> = []): string[] {
   let scrubbed = text;

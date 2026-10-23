@@ -31,11 +31,30 @@ import { charCount } from '../t2/report/prose';
 import { flaggedDimensions, itemsAnswered, t1AnswersOf, type T1Answers, type T1DimensionAnswers } from './answers';
 import { T1_REPORT_REAL_VERSION, type T1RealReport } from './shape';
 import { buildT1ReportPrompt } from './prompt';
-import { T1_REPORT_LIMITS, findAdviceMismatch, findT1ReportViolations, tidyDisclaimers } from './rules';
+import {
+  NOTE_OPENING_1022, T1_REPORT_LIMITS, findAdviceMismatch, findTallySentence, findT1ReportViolations, sentencesOf, tidyDisclaimers,
+} from './rules';
 
 export {
   PREDICTION_DISCLAIMER, PREDICTION_DISCLAIMER_TEXT, PREDICTION_PATTERNS, T1_REPORT_LIMITS, findPredictionSignal, findT1ReportViolations,
 } from './rules';
+
+/**
+ * 寫法（伺服器開關 `T1_REPORT_1022`，#81，規格 docs/specs/client-changes-2026-10-22-1-ui.md）：
+ * 不帶 ＝ 10/08 那一版（開關關著，輸出一字不變，`test/fixtures/t1ReportBaseline.json` 盯著）；
+ * `'1022'` ＝ 客戶 10/22 的新寫法：首席專家結論（`summary`）三句、不寫題數；被標記方面的說明以「这次看到的是：」開頭、
+ * 接練法、沒有「这一项 N 题里」那種統計句。驗證器另擋統計句、說明的開頭、結論的句數。快照形狀與 `version` 不變。
+ */
+export interface T1ReportOptions {
+  writing?: '1022';
+}
+
+/** 新寫法只在新版報告裡：開了 `T1_REPORT_1022` 沒開 `T1_REPORT_REAL` → 起不來（看「設了沒」，不看專案；B 兩個都不生效）。 */
+export function assertT1ReportSwitches(realRequested: boolean, writing1022Requested: boolean): void {
+  if (writing1022Requested && !realRequested) {
+    throw new Error('T1_REPORT_1022 requires T1_REPORT_REAL=1: the 10/22 writing only exists in the new T1 report (src/t1report/).');
+  }
+}
 
 export interface T1ReportInput {
   child: { name?: string; ageMonth?: number; gender?: string };
@@ -145,6 +164,63 @@ function templateNote(d: T1DimensionAnswers): string {
   return `${tally}${status.tag}。`;
 }
 
+/** 新寫法一段說明最多引幾題（還做不到的先，不夠再補有時做得到的）。超過字數上限就少引一題。 */
+const NOTE_QUOTES_1022 = 2;
+
+/**
+ * 新寫法的一段說明（#81）：「这次看到的是：」＋這一方面還做不到／有時做得到的題目原文＋「可以这样练：」＋練法。
+ * 不寫題數、不寫合計分數；沒有逐題作答（舊成績）就只講這一方面的中性描述。
+ */
+function templateNote1022(d: T1DimensionAnswers, group: AgeGroup): string {
+  const quote = (xs: ReadonlyArray<{ text: string }>) => xs.map(x => `「${x.text}」`).join('、');
+  const seen = (quotes: number): string => {
+    const notYet = itemsAnswered(d, 0).slice(0, quotes);
+    const partly = itemsAnswered(d, 1).slice(0, quotes - notYet.length);
+    if (notYet.length && partly.length) return `${quote(notYet)}还做不到，${quote(partly)}有时做得到。`;
+    if (notYet.length) return `${quote(notYet)}还做不到。`;
+    if (partly.length) return `${quote(partly)}有时做得到，还不太稳定。`;
+    return `这一方面${STATUS_WORDING[d.status].describe}。`;
+  };
+  const noteOf = (quotes: number) => `${NOTE_OPENING_1022}${seen(quotes)}可以这样练：${practiceOf(group, d.dimensionId)}`;
+  for (let n = NOTE_QUOTES_1022; n > 1; n--) {
+    const note = noteOf(n);
+    if (charCount(note) <= T1_REPORT_LIMITS.note.max) return note;
+  }
+  return noteOf(1);
+}
+
+/** 新寫法的首席專家結論（#81）：整體一句、先關注哪幾方面一句（紅燈在前、點名）、下一步一句。不寫題數。 */
+function templateSummary1022(input: T1ReportInput): string {
+  const { answers } = input;
+  const who = input.child.name || '孩子';
+  const red = answers.dimensions.filter(d => d.status === 'delay').map(d => d.dimensionName);
+  const yellow = answers.dimensions.filter(d => d.status === 'borderline').map(d => d.dimensionName);
+  const flagged = red.length + yellow.length;
+  if (flagged === 0) {
+    return [
+      `${who}这次筛查各方面发展稳定，可作为日后对照的基线记录。`,
+      '目前没有需要特别留意的方面，继续保持日常的亲子游戏和陪伴就好。',
+      '三个月后再做一次筛查，和这一次对照，看看这段时间的变化。',
+    ].join('');
+  }
+  const stable = answers.dimensions.length - flagged;
+  const some = flagged === 1 ? '一个' : flagged === 2 ? '两个' : '几个';
+  const overall = stable > flagged
+    ? `${who}这次筛查，大部分方面发展稳定，有${some}方面还需要多陪孩子练一练。`
+    : stable > 0
+      ? `${who}这次筛查，有一些方面发展稳定，也有${some}方面还需要多陪孩子练一练。`
+      : `${who}这次筛查，各个方面都还需要多陪孩子练一练。`;
+  // 紅燈在前、分號隔開黃燈：「优先安排专业咨询」只落在紅燈那一段（`findAdviceMismatch`）
+  const parts: string[] = [];
+  if (red.length) parts.push(`${red.join('、')}方面${STATUS_WORDING.delay.describe}，${STATUS_WORDING.delay.tag}`);
+  if (yellow.length) parts.push(`${yellow.join('、')}方面${STATUS_WORDING.borderline.describe}，${STATUS_WORDING.borderline.tag}`);
+  return [
+    overall,
+    `需要先关注的方面：${parts.join('；')}。`,
+    `下一步建议做「T2 深度评估」，把${flagged === 1 ? '这个' : '这几个'}方面看得更细，再定在家怎么练。`,
+  ].join('');
+}
+
 /** 居家建議：被標記的方面挑一題還不能（沒有就挑有時）做的，放進日常；不夠三條用一般的補。 */
 function templateHome(answers: T1Answers, group: AgeGroup): string[] {
   const out: string[] = [];
@@ -190,16 +266,17 @@ function templateNextSteps(answers: T1Answers, group: AgeGroup): string {
 }
 
 /** 模板退路。產出一定過 `validateT1Report`（`test/t1ReportReal.test.ts` 窮舉年齡段×判定盯著）。 */
-export function templateT1Report(input: T1ReportInput): T1RealReport {
+export function templateT1Report(input: T1ReportInput, options: T1ReportOptions = {}): T1RealReport {
   const { answers } = input;
+  const is1022 = options.writing === '1022';
   const group = ageGroupOf(answers);
   const flagged = flaggedDimensions(answers);
   const rehab = flagged.slice(0, 4).map(d => `「${d.dimensionName}」：${practiceOf(group, d.dimensionId)}`);
   for (const g of GENERAL_PRACTICE[group]) if (rehab.length < 3) rehab.push(g);
   return {
     version: T1_REPORT_REAL_VERSION,
-    summary: templateSummary(input),
-    perDimension: flagged.map(d => ({ dimensionId: d.dimensionId, note: templateNote(d) })),
+    summary: is1022 ? templateSummary1022(input) : templateSummary(input),
+    perDimension: flagged.map(d => ({ dimensionId: d.dimensionId, note: is1022 ? templateNote1022(d, group) : templateNote(d) })),
     rehabSuggestions: rehab,
     homeGuidance: templateHome(answers, group),
     prognosisPrediction: templateNextSteps(answers, group),
@@ -250,7 +327,7 @@ function checkList(value: unknown, where: string, count: { min: number; max: num
  * 模型回來的 JSON（`summary`／`perDimension`／`rehabSuggestions`／`homeGuidance`／`nextSteps`）→ 驗過的報告。
  * 形狀 → 一致性 → 用字，任一項不過整份丟。
  */
-export function validateT1Report(value: unknown, input: T1ReportInput): T1ReportValidation {
+export function validateT1Report(value: unknown, input: T1ReportInput, options: T1ReportOptions = {}): T1ReportValidation {
   const errors: string[] = [];
   const texts: Array<{ where: string; text: string }> = [];
   if (!isRecord(value)) return { ok: false, errors: ['整份：要是一個物件'] };
@@ -309,6 +386,23 @@ export function validateT1Report(value: unknown, input: T1ReportInput): T1Report
     for (const hit of findAdviceMismatch(scrubbed, statuses)) errors.push(`${where}：${hit}`);
   }
 
+  if (options.writing === '1022') {
+    // 新寫法（#81）：每一欄都不寫題數與合計分數（題目原文先挖掉）；說明以「这次看到的是」開頭；結論三句。
+    for (const { where, text } of texts) {
+      let scrubbed = text;
+      for (const q of questions) scrubbed = scrubbed.split(q).join('');
+      const tally = findTallySentence(scrubbed);
+      if (tally) errors.push(`${where}：统计句 ${tally}`);
+    }
+    for (const n of notes) {
+      if (!n.note.startsWith(NOTE_OPENING_1022.slice(0, -1))) errors.push(`perDimension ${n.dimensionId}.note：要以「${NOTE_OPENING_1022}」开头`);
+    }
+    if (summary !== null) {
+      const count = sentencesOf(summary).length;
+      if (count !== 3) errors.push(`summary：首席专家结论要三句，拿到 ${count} 句`);
+    }
+  }
+
   if (errors.length) return { ok: false, errors };
   // 照被標記的順序排（紅燈在前），畫面不必再排。
   const order = flagged.map(d => d.dimensionId);
@@ -351,16 +445,16 @@ export interface T1ReportOutcome {
 }
 
 /** 永遠回得出一份報告：模型過了用模型的，否則用模板。 */
-export async function generateT1Report(input: T1ReportInput, engine: ProseEngine): Promise<T1ReportOutcome> {
-  const { system, user } = buildT1ReportPrompt(input);
+export async function generateT1Report(input: T1ReportInput, engine: ProseEngine, options: T1ReportOptions = {}): Promise<T1ReportOutcome> {
+  const { system, user } = buildT1ReportPrompt(input, options);
   let raw: unknown;
   let aiEngine: string;
   try {
     ({ report: raw, aiEngine } = await engine(system, user));
   } catch (err: any) {
-    return { report: templateT1Report(input), isAiGenerated: false, aiEngine: ALL_ENGINES_FAILED, errors: [`所有引擎皆失敗：${err?.message ?? err}`] };
+    return { report: templateT1Report(input, options), isAiGenerated: false, aiEngine: ALL_ENGINES_FAILED, errors: [`所有引擎皆失敗：${err?.message ?? err}`] };
   }
-  const checked = validateT1Report(raw, input);
+  const checked = validateT1Report(raw, input, options);
   if (checked.ok) return { report: checked.report, isAiGenerated: true, aiEngine, errors: [] };
-  return { report: templateT1Report(input), isAiGenerated: false, aiEngine: templateEngineLabel(aiEngine), errors: checked.errors };
+  return { report: templateT1Report(input, options), isAiGenerated: false, aiEngine: templateEngineLabel(aiEngine), errors: checked.errors };
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { PROFILE_AGE_RANGE } from '../utils/profileAgeRange';
 import { ChevronDown } from 'lucide-react';
 import {
   BirthDateSelection,
@@ -55,7 +56,7 @@ export default function BirthDateSelect({
   size = 'md',
   idPrefix = 'birthdate',
 }: BirthDateSelectProps) {
-  const dateWindow = useMemo(() => birthDateWindow(today, storedBirthDate), [today, storedBirthDate]);
+  const dateWindow = useMemo(() => birthDateWindow(today, storedBirthDate, PROFILE_AGE_RANGE), [today, storedBirthDate]);
 
   const [selection, setSelection] = useState<BirthDateSelection>(() => birthDateToSelection(value));
   // 上一次由這個元件送出去的值。外面把 `value` 換掉了（例如按下資料樣例）才重新讀，

@@ -344,6 +344,14 @@ export const T1_AGE_RANGE = {
 } as const;
 
 /**
+ * 這個月齡在不在 T1 的題目範圍內（客戶 10/22，issue #82）。範圍外的孩子檔案照存，評估面板不給 T1、
+ * 改畫「建议寻找专业人士」。依**當下**月齡算：孩子長大超過上限一樣變範圍外。讀不出來的月齡不算在範圍內。
+ */
+export function isInT1Range(ageMonth: number): boolean {
+  return Number.isFinite(ageMonth) && ageMonth >= T1_AGE_RANGE.minMonths && ageMonth <= T1_AGE_RANGE.maxMonths;
+}
+
+/**
  * 適用範圍外的月齡一律落到最近的一段。
  *
  * 題目與名稱**必須落到同一段**：舊版的名稱退回值是「1岁以下量表」與

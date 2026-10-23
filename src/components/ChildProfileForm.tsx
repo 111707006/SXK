@@ -4,7 +4,7 @@ import { User, AlertCircle, Sparkles } from 'lucide-react';
 import { calculateAgeMonth, formatAge } from '../utils/dateUtils';
 import { useToday } from '../utils/useToday';
 import { APPLICABLE_RANGE_TEXT } from '../utils/birthDateOptions';
-import { T1_AGE_RANGE } from '../t1Data';
+import { PROFILE_AGE_RANGE } from '../utils/profileAgeRange';
 import BirthDateSelect from './BirthDateSelect';
 import ChildExtraFields, { extrasOf, type ChildExtras } from './ChildExtraFields';
 import { PRODUCT } from '../productConfig';
@@ -49,8 +49,8 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
     }
     // 三個下拉已經選不到範圍外的日期了，這一條留著是因為 `birthDate` 也可能來自
     // 資料樣例或既有檔案 —— 表單的規則不該只靠輸入控制項擋。
-    if (calculatedAgeMonth < T1_AGE_RANGE.minMonths || calculatedAgeMonth > T1_AGE_RANGE.maxMonths) {
-      setError(`系统评估与量表适用范围为${APPLICABLE_RANGE_TEXT}，请选择正确的出生日期`);
+    if (calculatedAgeMonth < PROFILE_AGE_RANGE.minMonths || calculatedAgeMonth > PROFILE_AGE_RANGE.maxMonths) {
+      setError(PRODUCT.features.ui1022 ? '请选择正确的出生日期' : `系统评估与量表适用范围为${APPLICABLE_RANGE_TEXT}，请选择正确的出生日期`);
       return;
     }
     setError('');
@@ -142,7 +142,10 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
                 <p className="text-xs text-rose-700 font-bold leading-none">这个出生日期无法识别，请重新选择</p>
               </div>
             )}
-            <p className="text-xs text-brand-charcoal/80 leading-relaxed">系统适用范围为 {APPLICABLE_RANGE_TEXT}，超出范围的日期不会出现在选项中</p>
+            {/* 1022：不寫適用範圍（範圍外的孩子由評估面板另外說明，issue #82）。 */}
+            {!PRODUCT.features.ui1022 && (
+              <p className="text-xs text-brand-charcoal/80 leading-relaxed">系统适用范围为 {APPLICABLE_RANGE_TEXT}，超出范围的日期不会出现在选项中</p>
+            )}
           </div>
         </div>
 

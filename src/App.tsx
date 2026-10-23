@@ -37,6 +37,8 @@ const OfflineServicePage = lazy(() => import('./home/OfflineServicePage'));
 // Ledo 版首頁（`PRODUCT.features.ledo`）：B 沒有首頁，A 的建置才會載入它。
 const LedoHomePage = lazy(() => import('./home/LedoHomePage'));
 import LedoDashboard from './components/ledo/LedoDashboard';
+import OutOfRangeCard from './components/OutOfRangeCard';
+import { isInT1Range } from './t1Data';
 import LedoReportLibrary from './components/ledo/LedoReportLibrary';
 
 import LazyBoundary from './components/LazyBoundary';
@@ -889,6 +891,20 @@ export default function App() {
    */
   const isRouteBlocked = t2Access === 'locked';
 
+  /**
+   * 1022（issue #82）：12–180 個月以外的孩子不給 T1 —— 評估面板與 T1 那一頁都改畫紅燈卡「建议寻找专业人士」。
+   * 依當下月齡算（`child.ageMonth` 由 `refreshChildAge` 跟著日子走）。
+   */
+  const t1Blocked = PRODUCT.features.ui1022 && !!child && !isInT1Range(child.ageMonth);
+  const startT1Screening = () => setCurrentView('t1_screening');
+  const outOfRangeCard = t1Blocked && child ? (
+    <OutOfRangeCard
+      childName={child.name}
+      onBook={type => goToExpertBooking(type)}
+      onOpenTraining={PRODUCT.features.tier2And3 ? () => setCurrentView('training') : undefined}
+    />
+  ) : null;
+
   /** 評估面板（舊版 `DimensionGrid` 與 Ledo 版 `LedoDashboard` 共用）：點一個方面。 */
   const selectDashboardDimension = (dimId: string) => {
     // 去向由 productConfig 決定，不在這裡判斷模式：
@@ -1397,13 +1413,14 @@ export default function App() {
               </LazyBoundary>
             ) : currentView === 'dashboard' && PRODUCT.features.ledo ? (
               <div className="space-y-4">
-                <AgeBandDriftNotice drift={bandDrift} onStartT1Screening={() => setCurrentView('t1_screening')} />
+                <AgeBandDriftNotice drift={bandDrift} onStartT1Screening={startT1Screening} />
                 <LedoDashboard
+                  t1Blocked={outOfRangeCard}
                   childName={child.name}
                   completedScores={completedScores}
                   onSelectDimension={selectDashboardDimension}
                   onViewReport={viewDashboardReport}
-                  onStartT1Screening={() => setCurrentView('t1_screening')}
+                  onStartT1Screening={startT1Screening}
                 />
               </div>
             ) : currentView === 'dashboard' ? (
@@ -1438,17 +1455,20 @@ export default function App() {
                 */}
                 <AgeBandDriftNotice
                   drift={bandDrift}
-                  onStartT1Screening={() => setCurrentView('t1_screening')}
+                  onStartT1Screening={startT1Screening}
                 />
 
+                {outOfRangeCard}
                 <DimensionGrid
                   completedScores={completedScores}
                   onSelectDimension={selectDashboardDimension}
                   deepAssessmentLocked={deepAssessmentLocked}
                   onViewReport={viewDashboardReport}
-                  onStartT1Screening={() => setCurrentView('t1_screening')}
+                  onStartT1Screening={startT1Screening}
                 />
               </div>
+            ) : currentView === 't1_screening' && outOfRangeCard ? (
+              <div className="mx-auto w-full max-w-xl animate-fade-in">{outOfRangeCard}</div>
             ) : currentView === 't1_screening' ? (
               /* Global adaptive age-band comprehensive questionnaire T1 */
               <div className="animate-fade-in">

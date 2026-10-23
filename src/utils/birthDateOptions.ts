@@ -16,6 +16,18 @@
 import { T1_AGE_RANGE } from '../t1Data';
 import { daysInMonth, monthsBefore, parseBirthDate } from './dateUtils';
 
+/** 生日選得到的月齡範圍（兩端都含）。預設是 T1 的適用範圍。 */
+export interface AgeRange {
+  minMonths: number;
+  maxMonths: number;
+}
+
+/**
+ * 客戶 10/22（issue #82，`VITE_UI_1022`）：生日什麼年齡都能填（0–18 歲）。範圍外的孩子檔案照存，
+ * 評估面板另外說「建议寻找专业人士」（`isInT1Range`）。
+ */
+export const PROFILE_AGE_RANGE_1022: AgeRange = { minMonths: 0, maxMonths: 216 };
+
 /** 可選的生日區間，兩端都含。 */
 export interface BirthDateWindow {
   /** 最早選得到的那一天。再早一天，孩子就超過適用範圍上限。 */
@@ -87,10 +99,10 @@ function withAllowed(options: number[], extra: number | null): number[] {
  * 選不到，家長光是改個名字就會把孩子的生日弄丟，所以**額外放行那一天**。
  * 只有那一天：它與區間端點之間的日子仍然選不到。
  */
-export function birthDateWindow(today: Date = new Date(), storedBirthDate?: string | null): BirthDateWindow {
-  // `today` 來自 `useToday()` 或 `new Date()`，往回十五年不可能掉出四位數年份。
-  const latest = monthsBefore(today, T1_AGE_RANGE.minMonths)!;
-  const earliest = addDays(monthsBefore(today, T1_AGE_RANGE.maxMonths + 1)!, 1);
+export function birthDateWindow(today: Date = new Date(), storedBirthDate?: string | null, ageRange: AgeRange = T1_AGE_RANGE): BirthDateWindow {
+  // `today` 來自 `useToday()` 或 `new Date()`，往回十九年不可能掉出四位數年份。
+  const latest = monthsBefore(today, ageRange.minMonths)!;
+  const earliest = addDays(monthsBefore(today, ageRange.maxMonths + 1)!, 1);
 
   const stored = storedBirthDate ? parseBirthDate(storedBirthDate) : null;
   const outsideRange = stored !== null && (stored < earliest || stored > latest);

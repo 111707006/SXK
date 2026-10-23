@@ -4,7 +4,7 @@ import { X, User, AlertCircle, Save, Trash2, Sparkles } from 'lucide-react';
 import { calculateAgeMonth, formatAge } from '../utils/dateUtils';
 import { useToday } from '../utils/useToday';
 import { APPLICABLE_RANGE_TEXT } from '../utils/birthDateOptions';
-import { T1_AGE_RANGE } from '../t1Data';
+import { PROFILE_AGE_RANGE } from '../utils/profileAgeRange';
 import BirthDateSelect from './BirthDateSelect';
 import ChildExtraFields, { extrasOf, type ChildExtras } from './ChildExtraFields';
 import { PRODUCT } from '../productConfig';
@@ -32,7 +32,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
   const birthDateChanged = birthDate !== storedBirthDate;
   const outOfRange =
     calculatedAgeMonth !== null &&
-    (calculatedAgeMonth < T1_AGE_RANGE.minMonths || calculatedAgeMonth > T1_AGE_RANGE.maxMonths);
+    (calculatedAgeMonth < PROFILE_AGE_RANGE.minMonths || calculatedAgeMonth > PROFILE_AGE_RANGE.maxMonths);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +52,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
     // 走，孩子滿 15 歲的那天就會越過上限 —— 若連沒改生日的存檔都一起擋掉，家長
     // 從此連改個名字都做不到，只剩下「重置檔案與所有測評成績」這條毀滅性的路。
     if (outOfRange && birthDateChanged) {
-      setError(`系统评估适用范围为${APPLICABLE_RANGE_TEXT}`);
+      setError(PRODUCT.features.ui1022 ? '请选择正确的出生日期' : `系统评估适用范围为${APPLICABLE_RANGE_TEXT}`);
       return;
     }
     setError('');
@@ -161,7 +161,9 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
                 目前的实足月龄已超出量表适用范围，档案仍可修改，但暂时无法开始新的筛查
               </p>
             )}
-            <p className="text-xs text-brand-charcoal/80 leading-relaxed mt-1">系统适用范围为 {APPLICABLE_RANGE_TEXT}</p>
+            {!PRODUCT.features.ui1022 && (
+              <p className="text-xs text-brand-charcoal/80 leading-relaxed mt-1">系统适用范围为 {APPLICABLE_RANGE_TEXT}</p>
+            )}
           </div>
 
           {/* Gender selection */}

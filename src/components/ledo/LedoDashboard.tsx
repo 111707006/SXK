@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { DimensionScore } from '../../types';
 import { DIMENSIONS_DATA } from '../../data';
 import { PRODUCT } from '../../productConfig';
@@ -17,6 +18,8 @@ interface Props {
   onSelectDimension: (dimensionId: string) => void;
   onViewReport: () => void;
   onStartT1Screening: () => void;
+  /** 1022：孩子不在 T1 範圍內時，T1 那張卡換成這張紅燈卡（issue #82）。 */
+  t1Blocked?: ReactNode;
 }
 
 function doneDate(scores: DimensionScore[]): string | null {
@@ -26,7 +29,7 @@ function doneDate(scores: DimensionScore[]): string | null {
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
-export default function LedoDashboard({ childName, completedScores, onSelectDimension, onViewReport, onStartT1Screening }: Props) {
+export default function LedoDashboard({ childName, completedScores, onSelectDimension, onViewReport, onStartT1Screening, t1Blocked }: Props) {
   const t1 = completedScores.filter(s => s.tierId === 'T1');
   const done = t1.length > 0;
   const byId = new Map(t1.map(s => [s.dimensionId, s]));
@@ -46,6 +49,7 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
         title={done ? `${childName}的 ${DIMENSIONS_DATA.length} 个方面` : '先做一次 T1 综合评估'}
       />
 
+      {t1Blocked ?? (
       <div className="grid grid-cols-2 gap-2.5">
         <div className={`flex flex-col gap-2 rounded-3xl bg-ledo-accent-soft p-3.5 text-ledo-accent-soft-ink ${done ? 'row-span-2' : 'col-span-2'}`}>
           <div className={`overflow-hidden rounded-2xl bg-white ${done ? 'aspect-square' : 'aspect-[3/2]'}`}>
@@ -74,6 +78,7 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
           </>
         )}
       </div>
+      )}
 
       {done && flagged.length > 0 && (
         <>
@@ -118,7 +123,7 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
         </button>
       )}
 
-      {!done && (
+      {!done && !t1Blocked && (
         <>
           <SectionHead title="会看哪些方面" action={`${DIMENSIONS_DATA.length} 项`} />
           <div className="space-y-2.5">

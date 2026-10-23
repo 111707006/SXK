@@ -63,5 +63,7 @@ export const WORDING_1022 = {
   /** 12–180 個月以外的孩子：評估面板不給 T1，改畫這張紅燈卡。 */
   outOfRange: {
     title: '建议寻找专业人士',
+    body: (childName: string) =>
+      `${childName}目前的年龄不在 T1 儿少综合发展评估的题目范围内，建议请专业人士当面了解孩子的发展情况。`,
   },
 } as const;

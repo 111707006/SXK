@@ -116,6 +116,8 @@ describe('每一處列服務的畫面都走 serviceChoices', () => {
       ['src/components/training/ReportEntry.tsx', 1],
       ['src/components/training/PlanScreen.tsx', 1],
       ['src/components/training/ExpertSheet.tsx', 1],
+      // 2026-10-23（客戶 10/22，issue #82）：T1 範圍外的紅燈卡。
+      ['src/components/OutOfRangeCard.tsx', 1],
     ];
     for (const [file, count] of uses) {
       const source = stripComments(read(file));
@@ -133,9 +135,9 @@ describe('每一處列服務的畫面都走 serviceChoices', () => {
     const report = stripComments(read('src/components/AnalysisReport.tsx'));
     expect(report).toContain('openTraining: onOpenTraining');
     expect(report).toContain('onOpenTraining={onOpenTraining}');
-    // App：即時報告與歸檔報告兩處都給（B 沒有那一頁，不給）
+    // App：即時報告與歸檔報告兩處、T1 範圍外的紅燈卡（1022）都給（B 沒有那一頁，不給）
     const app = stripComments(read('src/App.tsx'));
-    expect(app.split("onOpenTraining={PRODUCT.features.tier2And3 ? () => setCurrentView('training') : undefined}").length - 1).toBe(2);
+    expect(app.split("onOpenTraining={PRODUCT.features.tier2And3 ? () => setCurrentView('training') : undefined}").length - 1).toBe(3);
     expect(app).toContain("onOpenTraining={() => setCurrentView('training')}");
   });
 

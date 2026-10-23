@@ -149,6 +149,9 @@ const PARENT_FACING_FILES = [
   'src/home/LedoHomePage.tsx',
   // 2026-10-23（客戶 10/22，issue #78）：1022 的家長端用字表。之後幾張票的畫面都從這裡取字。
   'src/wording1022.ts',
+  'src/components/OutOfRangeCard.tsx',
+  'src/components/T1SupplementStep.tsx',
+  'src/utils/t1Supplement.ts',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/ledo'))
     .filter(f => /\.tsx?$/.test(f))

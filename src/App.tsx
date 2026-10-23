@@ -1362,12 +1362,19 @@ export default function App() {
             <h2 className="text-2xl md:text-3xl font-black text-brand-forest tracking-tight max-w-lg mx-auto leading-tight mb-4">
               {/* 專案 B 的 welcomeName 是 null —— 整個強調 span 不渲染，不是留一個空的。1022 只寫平台名稱。 */}
               {PRODUCT.features.ui1022
-                ? WORDING_1022.welcome
+                ? WORDING_1022.profile.title
                 : <>欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span> </>}儿童综合发展评估</>}
             </h2>
+            {/* 1022：建檔頁標題是「T1 儿少综合发展评估」、說明一句（issue #83）；歡迎語放在標題上面一行。 */}
+            {PRODUCT.features.ui1022 ? (
+              <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
+                {WORDING_1022.welcome}。{WORDING_1022.profile.intro}
+              </p>
+            ) : (
             <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
               您的账户 (<span className="font-bold text-brand-forest">{userIdentity}</span>) 已成功连线。为了开启全方位脑功能评估，请填写您孩子的基本信息，登记创建成长档案。
             </p>
+            )}
             <ChildProfileForm currentChild={child} onSave={handleSaveChild} />
           </div>
         ) : (
@@ -1474,8 +1481,9 @@ export default function App() {
               <div className="animate-fade-in">
                 <T1Screening
                   child={child}
+                  answeredBefore={completedScores.some(s => s.tierId === 'T1')}
                   onBack={() => setCurrentView('dashboard')}
-                  onSaveT1Results={(t1Scores) => {
+                  onSaveT1Results={(t1Scores, childWithSupplement) => {
                     // Overwrite state and save
                     const updated = completedScores.filter(s => s.tierId !== 'T1');
                     const finalScores = [...updated, ...t1Scores];
@@ -1484,7 +1492,13 @@ export default function App() {
                     setViewingLiveT1(true);
                     if (PRODUCT.features.ui1022) {
                       // 1022（ADR-0014）：交卷那一下就存成績（中途關掉也不白做）、到報告頁就生成新的一份。
-                      syncToCloud(child, finalScores, orders, reportHistory);
+                      // 補充資料（issue #83）一起寫回孩子檔案。
+                      const savedChild = childWithSupplement ?? child;
+                      if (childWithSupplement) {
+                        setChildProfile(childWithSupplement);
+                        localStorage.setItem('senxinkang_child', JSON.stringify(childWithSupplement));
+                      }
+                      syncToCloud(savedChild, finalScores, orders, reportHistory);
                       setT1ReportGenerate(true); setFreshT1Report(true);
                     } else {
                       // Go straight to the live AI report instead of bouncing off the

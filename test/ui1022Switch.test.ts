@@ -111,7 +111,7 @@ describe('頁首與頁尾', () => {
     expect(footer).toContain('<BeianFooter />');
   });
 
-  it('歡迎語在 1022 只寫平台名稱', () => {
-    expect(app).toMatch(/PRODUCT\.features\.ui1022\s*\?\s*WORDING_1022\.welcome/);
+  it('歡迎語在 1022 只寫平台名稱（建檔頁標題下那一行，#83）', () => {
+    expect(app).toContain('{WORDING_1022.welcome}。{WORDING_1022.profile.intro}');
   });
 });

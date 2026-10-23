@@ -195,7 +195,8 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
             </div>
           </div>
 
-          {PRODUCT.features.tier2And3 && <ChildExtraFields value={extras} onChange={setExtras} />}
+          {/* 1022：補充資料移到 T1 最後一步（issue #83），這裡不再問。 */}
+        {PRODUCT.features.tier2And3 && !PRODUCT.features.ui1022 && <ChildExtraFields value={extras} onChange={setExtras} />}
 
           {/* Buttons Footer */}
           <div className="pt-3 flex flex-col gap-2">

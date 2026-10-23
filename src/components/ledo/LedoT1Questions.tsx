@@ -19,8 +19,11 @@ export default function LedoT1Questions({ questions, answers, ageBandName, onSel
   /** 最後一題那顆按鈕的字（1022 開著時是「生成报告」：按下去就到報告頁）。 */
   submitLabel?: string;
 }) {
-  // 從第一題還沒答的開始（中途離開再回來不從頭）
-  const [at, setAt] = useState(() => Math.max(0, questions.findIndex(q => answers[q.id] === undefined)));
+  // 從第一題還沒答的開始（中途離開再回來不從頭）；全答完了（從「补充资料」按上一题回來）停在最後一題
+  const [at, setAt] = useState(() => {
+    const first = questions.findIndex(q => answers[q.id] === undefined);
+    return first < 0 ? questions.length - 1 : first;
+  });
   const q = questions[at];
   if (!q) return null;
   const total = questions.length;

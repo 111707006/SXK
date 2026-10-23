@@ -3,6 +3,8 @@ import { Child, DimensionScore, AssessmentStatus } from '../types';
 import { getT1QuestionsForAge, getT1AgeBandName, T1Question } from '../t1Data';
 import { PRODUCT } from '../productConfig';
 import { WORDING_1022 } from '../wording1022';
+import T1SupplementStep from './T1SupplementStep';
+import { applySupplement, supplementFromChild, supplementMissing, type SupplementAnswers } from '../utils/t1Supplement';
 import LedoT1Questions from './ledo/LedoT1Questions';
 import { ALL_CLEAR_SUMMARY, SCREENING_DISCLAIMER, STATUS_WORDING, flaggedSummary } from '../utils/statusWording';
 import { 
@@ -14,7 +16,12 @@ import {
 interface T1ScreeningProps {
   child: Child;
   onBack: () => void;
-  onSaveT1Results: (scores: DimensionScore[]) => void;
+  /**
+   * 交卷。1022 開著時第二個參數是寫好補充資料的孩子檔案（issue #83），上層一起存；關著時不給。
+   */
+  onSaveT1Results: (scores: DimensionScore[], childWithSupplement?: Child) => void;
+  /** 之前交過 T1（重做）：補充資料帶入上次的值（見 `supplementFromChild`）。 */
+  answeredBefore?: boolean;
 }
 
 const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => {
@@ -68,7 +75,7 @@ const dimensionDescs: Record<string, string> = {
   learning_ability: '评估绘本阅读兴趣、模仿能力、日常流程记忆与新玩法学成效率。',
 };
 
-export default function T1Screening({ child, onBack, onSaveT1Results }: T1ScreeningProps) {
+export default function T1Screening({ child, onBack, onSaveT1Results, answeredBefore = false }: T1ScreeningProps) {
   const ageBandName = getT1AgeBandName(child.ageMonth);
   const questions = getT1QuestionsForAge(child.ageMonth);
 
@@ -79,6 +86,9 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [isCompleted, setIsCompleted] = useState(false);
   const [calculatedScores, setCalculatedScores] = useState<DimensionScore[]>([]);
+  /** 1022：九個方面答完之後的「补充资料」那一步（issue #83）。 */
+  const [atSupplement, setAtSupplement] = useState(false);
+  const [supplement, setSupplement] = useState<SupplementAnswers>(() => supplementFromChild(child, answeredBefore));
 
   const activeDimId = dimensionsList[currentStep];
   const activeQuestions = questions.filter(q => q.dimensionId === activeDimId);
@@ -128,55 +138,63 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
     return () => clearTimeout(timer);
   }, [currentStep, questions, dimensionsList]);
 
-  const handleSubmitT1 = () => {
-    const scores: DimensionScore[] = dimensionsList.map(dimId => {
-      const dimQuestions = questions.filter(q => q.dimensionId === dimId);
-      let earned = 0;
-      let hasRedFlagIssue = false;
+  const scoreAnswers = (): DimensionScore[] => dimensionsList.map(dimId => {
+    const dimQuestions = questions.filter(q => q.dimensionId === dimId);
+    let earned = 0;
+    let hasRedFlagIssue = false;
 
-      dimQuestions.forEach(q => {
-        const val = answers[q.id];
-        earned += val !== undefined ? val : 0;
-        if (q.isRedFlag && val !== undefined && val < 2) {
-          hasRedFlagIssue = true;
-        }
-      });
-
-      const max = 8; // 4 questions * 2
-      let status: AssessmentStatus = 'normal';
-      
-      if (earned <= 5) {
-        status = 'delay';
-      } else if (earned < 8) {
-        status = 'borderline';
-      } else if (hasRedFlagIssue) {
-        status = 'borderline';
+    dimQuestions.forEach(q => {
+      const val = answers[q.id];
+      earned += val !== undefined ? val : 0;
+      if (q.isRedFlag && val !== undefined && val < 2) {
+        hasRedFlagIssue = true;
       }
-
-      return {
-        dimensionId: dimId,
-        dimensionName: dimensionNames[dimId] || dimId,
-        tierId: 'T1',
-        score: earned,
-        maxScore: max,
-        status,
-        completedAt: new Date().toISOString(),
-        // 測評月齡 —— 這一次用的是哪一段題目，只有這裡知道。孩子的實足月齡
-        // 之後會自己往前走，屆時就再也回推不出這個數字（見 `ageBandDrift.ts`）。
-        assessedAgeMonth: child.ageMonth,
-        // 逐題作答（照題目順序，2 可以做到／1 有时／0 还不能）：T2 量表推薦的關鍵題要看（T2 v3 推薦規格 §2.3）
-        items: dimQuestions.map(q => answers[q.id] ?? 0)
-      };
     });
 
-    // 1022（ADR-0014）：交卷就交給上層存成績、到報告頁生成，結論頁不再出現。
+    const max = 8; // 4 questions * 2
+    let status: AssessmentStatus = 'normal';
+    
+    if (earned <= 5) {
+      status = 'delay';
+    } else if (earned < 8) {
+      status = 'borderline';
+    } else if (hasRedFlagIssue) {
+      status = 'borderline';
+    }
+
+    return {
+      dimensionId: dimId,
+      dimensionName: dimensionNames[dimId] || dimId,
+      tierId: 'T1',
+      score: earned,
+      maxScore: max,
+      status,
+      completedAt: new Date().toISOString(),
+      // 測評月齡 —— 這一次用的是哪一段題目，只有這裡知道。孩子的實足月齡
+      // 之後會自己往前走，屆時就再也回推不出這個數字（見 `ageBandDrift.ts`）。
+      assessedAgeMonth: child.ageMonth,
+      // 逐題作答（照題目順序，2 可以做到／1 有时／0 还不能）：T2 量表推薦的關鍵題要看（T2 v3 推薦規格 §2.3）
+      items: dimQuestions.map(q => answers[q.id] ?? 0)
+    };
+  });
+
+  const handleSubmitT1 = () => {
+    // 1022：九個方面答完先到「补充资料」（issue #83），那一步按「生成报告」才交卷。
     if (PRODUCT.features.ui1022) {
-      onSaveT1Results(scores);
+      setAtSupplement(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    const scores = scoreAnswers();
     setCalculatedScores(scores);
     setIsCompleted(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  /** 1022（ADR-0014）：交卷就交給上層存成績與補充資料、到報告頁生成，結論頁不再出現。 */
+  const handleSubmitWithSupplement = () => {
+    if (supplementMissing(supplement).length > 0) return;
+    onSaveT1Results(scoreAnswers(), applySupplement(child, supplement));
   };
 
   const handleActivateDeepAssessment = () => {
@@ -334,6 +352,17 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
 
   const activeTheme = dimensionColors[activeDimId] || { bg: 'bg-emerald-50 text-emerald-700', text: 'text-emerald-800', border: 'border-emerald-200' };
 
+  if (PRODUCT.features.ui1022 && atSupplement) {
+    return (
+      <T1SupplementStep
+        value={supplement}
+        onChange={setSupplement}
+        onBack={() => setAtSupplement(false)}
+        onSubmit={handleSubmitWithSupplement}
+      />
+    );
+  }
+
   // Ledo 版：一屏一題（題目、作答、計分、交卷同一份，只換畫法）
   if (PRODUCT.features.ledo) {
     return (
@@ -344,7 +373,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
         onSelect={handleSelectOption}
         onSubmit={handleSubmitT1}
         onExit={onBack}
-        {...(PRODUCT.features.ui1022 ? { submitLabel: WORDING_1022.buttons.generateReport } : {})}
+        {...(PRODUCT.features.ui1022 ? { submitLabel: '下一步' } : {})}
       />
     );
   }
@@ -483,7 +512,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                   : 'bg-brand-cream border border-brand-stone text-brand-charcoal/80 cursor-not-allowed shadow-none'
               }`}
             >
-              {PRODUCT.features.ui1022 ? WORDING_1022.buttons.generateReport : '提交 T1 综合评估'}
+              {PRODUCT.features.ui1022 ? '下一步' : '提交 T1 综合评估'}
               <ChevronRight size={14} />
             </button>
           ) : (

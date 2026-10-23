@@ -69,7 +69,8 @@ describe('兩張表單', () => {
   ])('%s：存檔先攤開既有檔案、补充资料只在專案 A', (file, prop) => {
     const src = read(file);
     expect(src).toMatch(new RegExp(String.raw`onSave\(\{\s*\.\.\.${prop},\s*\.\.\.\(PRODUCT\.features\.tier2And3 \? extras : \{\}\)`));
-    expect(src).toContain('{PRODUCT.features.tier2And3 && <ChildExtraFields');
+    // 1022 開著時移到 T1 最後一步（issue #83）
+    expect(src).toContain('{PRODUCT.features.tier2And3 && !PRODUCT.features.ui1022 && <ChildExtraFields');
   });
 });
 

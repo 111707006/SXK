@@ -60,6 +60,16 @@ export const WORDING_1022 = {
     deepAssess: '深度评估',
   },
 
+  /** T1 最後一步「补充资料」（issue #83）。題目本身沿用 `src/t2/recommend/childFieldsCopy.ts`。 */
+  supplement: {
+    title: '补充资料',
+    sub: '最后几题会影响为孩子推荐的深度评估与训练，请按实际情况选择；不确定就选「不清楚」。',
+    required: '必填',
+    optional: '选填',
+    unknown: '不清楚',
+    missing: '还有必填的题目没有选',
+  },
+
   /** 12–180 個月以外的孩子：評估面板不給 T1，改畫這張紅燈卡。 */
   outOfRange: {
     title: '建议寻找专业人士',

@@ -54,28 +54,30 @@ describe('報告頁生成前', () => {
 describe('結論頁在 1022 走不到', () => {
   const src = readFileSync('src/components/T1Screening.tsx', 'utf8');
 
-  it('交卷：開著就交給上層、不設 isCompleted', () => {
+  it('交卷：開著先到补充资料、那一步才交給上層（#83），不設 isCompleted', () => {
     const submit = src.slice(src.indexOf('const handleSubmitT1'), src.indexOf('const handleActivateDeepAssessment'));
-    expect(submit).toMatch(/if \(PRODUCT\.features\.ui1022\) \{\s*onSaveT1Results\(scores\);\s*return;\s*\}\s*setCalculatedScores\(scores\);\s*setIsCompleted\(true\);/);
+    expect(submit).toMatch(/if \(PRODUCT\.features\.ui1022\) \{\s*setAtSupplement\(true\);[\s\S]*?return;\s*\}\s*const scores = scoreAnswers\(\);\s*setCalculatedScores\(scores\);\s*setIsCompleted\(true\);/);
+    expect(submit).toContain('onSaveT1Results(scoreAnswers(), applySupplement(child, supplement));');
+    expect(submit).not.toMatch(/handleSubmitWithSupplement[\s\S]*setIsCompleted/);
   });
 
   it('結論頁那一段本身也擋著開關', () => {
     expect(src).toContain('if (isCompleted && !PRODUCT.features.ui1022) {');
   });
 
-  it('最後一題的按鈕是「生成报告」', () => {
-    expect(src).toContain('submitLabel: WORDING_1022.buttons.generateReport');
-    expect(src).toContain("PRODUCT.features.ui1022 ? WORDING_1022.buttons.generateReport : '提交 T1 综合评估'");
+  it('最後一題的按鈕是「下一步」，补充资料那一步是「生成报告」', () => {
+    expect(src).toContain("submitLabel: '下一步'");
+    expect(readFileSync('src/components/T1SupplementStep.tsx', 'utf8')).toContain('{WORDING_1022.buttons.generateReport}');
   });
 });
 
 describe('上層：交卷當下就存、生成新的一份', () => {
   const app = readFileSync('src/App.tsx', 'utf8');
-  const start = app.indexOf('onSaveT1Results={(t1Scores) => {');
+  const start = app.indexOf('onSaveT1Results={(t1Scores, childWithSupplement) => {');
   const onSave = app.slice(start, app.indexOf('</div>', start));
 
   it('開著：存到雲端、到報告頁就生成、不接舊報告', () => {
-    expect(onSave).toMatch(/if \(PRODUCT\.features\.ui1022\) \{[\s\S]*syncToCloud\(child, finalScores, orders, reportHistory\);[\s\S]*setT1ReportGenerate\(true\); setFreshT1Report\(true\);/);
+    expect(onSave).toMatch(/if \(PRODUCT\.features\.ui1022\) \{[\s\S]*syncToCloud\(savedChild, finalScores, orders, reportHistory\);[\s\S]*setT1ReportGenerate\(true\); setFreshT1Report\(true\);/);
     expect(app).toContain('resumeFrom={freshT1Report ? null : liveReportResume}');
   });
 

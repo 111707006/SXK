@@ -68,8 +68,9 @@ describe('schema.sql：付款也要記得買的是什麼', () => {
    * 只拿得到訂單號）。少了它，T2 的付款只能結算成一筆 t3 權益 ——
    * 家長付了錢卻打不開 T2。
    */
-  it('payments 有 scope，dimension_id 可以是 NULL', () => {
-    expect(payments).toMatch(/`scope` ENUM\('t2','t3'\) NOT NULL/);
+  it('payments 有 scope（2026-10-24 起多 plan，#111），dimension_id 可以是 NULL', () => {
+    expect(payments).toMatch(/`scope` ENUM\('t2','t3','plan'\) NOT NULL/);
+    expect(payments).toMatch(/`months` TINYINT UNSIGNED NULL/);
     expect(payments).toMatch(/`dimension_id` VARCHAR\(64\) DEFAULT NULL/);
   });
 });

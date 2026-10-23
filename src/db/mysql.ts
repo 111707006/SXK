@@ -496,7 +496,9 @@ export interface PaymentInput {
   userId: number;
   outTradeNo: string;
   amountFen: number;
-  scope: UnlockScope;
+  /** `plan`＝訓練計劃（#111，月數在 `months`）。權益表（`unlocks`）不收它 —— 訓練計劃發的是使用權（`training_passes`）。 */
+  scope: UnlockScope | 'plan';
+  months?: number | null;
   /** Null for `scope: 't2'` — the whole T2 is one purchase, it has no dimension. */
   dimensionId: string | null;
 }
@@ -505,9 +507,14 @@ export async function createPayment(input: PaymentInput): Promise<number | null>
   const p = getPool();
   if (!p) return null;
   const [result] = await p.execute(
-    `INSERT INTO payments (user_id, out_trade_no, amount_fen, status, scope, dimension_id)
-     VALUES (?, ?, ?, 'pending', ?, ?)`,
-    [input.userId, input.outTradeNo, input.amountFen, input.scope, input.dimensionId]
+    input.scope === 'plan'
+      ? `INSERT INTO payments (user_id, out_trade_no, amount_fen, status, scope, dimension_id, months)
+         VALUES (?, ?, ?, 'pending', ?, ?, ?)`
+      : `INSERT INTO payments (user_id, out_trade_no, amount_fen, status, scope, dimension_id)
+         VALUES (?, ?, ?, 'pending', ?, ?)`,
+    input.scope === 'plan'
+      ? [input.userId, input.outTradeNo, input.amountFen, input.scope, input.dimensionId, input.months ?? null]
+      : [input.userId, input.outTradeNo, input.amountFen, input.scope, input.dimensionId]
   );
   return (result as mysql.ResultSetHeader).insertId;
 }

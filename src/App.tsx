@@ -1850,6 +1850,17 @@ export default function App() {
                   loggedIn={Boolean(userIdentity)}
                   onActivated={() => setUnlocksNonce(n => n + 1)}
                   onGoTraining={() => setCurrentView('training')}
+                  onPay={async months => {
+                    // 訓練計劃付款（#111）：伺服器照設定的價錢開單，拿到 H5 網址就跳過去；回來時 `/api/unlocks` 會重讀。
+                    try {
+                      const resp = await authFetch('/api/payment/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope: 'plan', months }) });
+                      const body = await resp.json().catch(() => ({}));
+                      if (resp.ok && typeof body.h5Url === 'string') window.location.href = body.h5Url;
+                      else alert(body.error || '暂时无法付款，请稍后再试。');
+                    } catch {
+                      alert('网络连接异常，请稍后再试。');
+                    }
+                  }}
                 />
               </LazyBoundary>
             ) : currentView === 'training' && PRODUCT.features.tier2And3 ? (

@@ -1,11 +1,12 @@
 import { createRedeemLimiter } from './src/redeem/rateLimit';
 import { normalizeCode } from './src/redeem/codes';
 import { redeemCodeForUser } from './src/db/redeemCodes';
-import { PASS_MONTHS } from './src/t2/trainingPass';
+import { isPassMonths, PASS_MONTHS } from './src/t2/trainingPass';
+import { resolvePlanPrices } from './src/t2/trainingPlanPrices';
 import { PLAN_BLURBS } from './src/t2/trainingPlanCopy';
 import { t1OnlyFindings } from './src/t2/t1OnlySnapshot';
 import { listTrainingPasses, insertTrainingPass, hasScaleT2Findings } from './src/db/trainingPasses';
-import { trainingPassState, type TrainingPassDeps, type TrainingPassState } from './src/t2/trainingPassService';
+import { grantTrainingPass, trainingPassState, type TrainingPassDeps, type TrainingPassState } from './src/t2/trainingPassService';
 import { NON_SCALE_TOOLKITS } from './src/t2/snapshotKinds';
 import { loadPublicHomeMedia } from './src/db/homeMedia';
 import { EMPTY_HOME_MEDIA } from './src/homeMedia/shape';
@@ -261,6 +262,8 @@ if (TRAINING_PLAN_REQUESTED && APP_MODE === 'full' && !TRAINING_PUSH_V3) {
   throw new Error('TRAINING_PLAN=1 需要同時設 TRAINING_PUSH_V3=1（使用權的長度對齊 v3 推送規則的一期 12 週）');
 }
 const TRAINING_PLAN = TRAINING_PLAN_REQUESTED && APP_MODE === 'full';
+// 訓練計劃的價錢（#111，`src/t2/trainingPlanPrices.ts`）：`1:…,3:…,6:…`（分），三個都要；認不得起不來。沒設＝價格待定、只能兌換。
+const TRAINING_PLAN_PRICES = resolvePlanPrices(process.env.TRAINING_PLAN_PRICES_FEN);
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -2807,6 +2810,39 @@ paidOnly.get('/api/unlocks', async (req, res) => {
  * compensation path; exposing anything else would hand out paid content for
  * free to whoever found the URL.
  */
+/** 訓練計劃能不能付款（#111）：開關、價錢、微信支付設齊、H5。 */
+function trainingPlanPayAvailable(): boolean {
+  return TRAINING_PLAN && TRAINING_PLAN_PRICES !== null && Boolean(wechatPayStatus.config) && PAY_TRADE_TYPE === 'h5';
+}
+
+/**
+ * 訓練計劃的訂單（`scope: 'plan'`，#111）。沒有「已經買過」這回事（續買接在後面）。金額只照伺服器設定的價錢，
+ * 不收前端送的。微信支付沒設齊、價錢沒設：不開單（409），方案卡那顆本來就按不下去。
+ */
+async function createPlanPayment(req: express.Request, res: express.Response, userId: UserId): Promise<void> {
+  const months = req.body?.months;
+  if (!TRAINING_PLAN) return void res.status(400).json({ error: '购买范围不正确。' });
+  if (!isPassMonths(months)) return void res.status(400).json({ error: '方案只有 1、3、6 个月。' });
+  if (!mysqlDb.isConfigured()) return void res.status(503).json({ error: '支付服务暂未开放，请稍后再试。' });
+  if (!trainingPlanPayAvailable() || !TRAINING_PLAN_PRICES) {
+    return void res.status(409).json({ error: '暂未开放付款，可以使用兑换码。', code: 'PAY_UNAVAILABLE' });
+  }
+  const user = await findSessionUser(userId);
+  if (!user) return void res.status(401).json({ error: '登录状态已失效，请重新登录。' });
+  const amountFen = TRAINING_PLAN_PRICES[months];
+  const outTradeNo = generateOutTradeNo();
+  if (!isValidOutTradeNo(outTradeNo)) throw new Error(`generated out_trade_no violates the official contract: ${outTradeNo}`);
+  const paymentId = await mysqlDb.createPayment({ userId: user.id, outTradeNo, amountFen, scope: 'plan', dimensionId: null, months });
+  const payerClientIp = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  const order = await wechatPay.placeOrder(wechatPayStatus.config!, 'h5', {
+    description: `居家训练 ${months} 个月`,
+    outTradeNo,
+    amountFen,
+    payerClientIp,
+  });
+  res.json({ outTradeNo, paymentId, amountFen, scope: 'plan', months, wechatReady: true, tradeType: 'h5', h5Url: order.h5Url });
+}
+
 paidOnly.post('/api/payment/create', async (req, res) => {
   try {
     const userId = currentUserId(req);
@@ -2819,6 +2855,11 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     // the conservative side: a request that forgets to say what it wants must not
     // end up buying the bigger product.
     const { scope: rawScope, dimensionId } = req.body || {};
+    // 訓練計劃（#111）另一條：月數照設定的價錢收，成功回調發一段使用權。
+    if (rawScope === 'plan') {
+      await createPlanPayment(req, res, userId);
+      return;
+    }
     if (rawScope !== undefined && rawScope !== 't2' && rawScope !== 't3') {
       res.status(400).json({ error: '购买范围不正确。' });
       return;
@@ -2959,6 +3000,20 @@ async function settlePayment(outTradeNo: string, transactionId: string | null): 
   }
   const moved = await mysqlDb.markPaymentSuccess(outTradeNo, transactionId);
   if (!moved) return 'already';
+
+  // 訓練計劃（#111）：發一段 `payment` 使用權（接在既有的後面）。`unique_key` 再擋一次重送。
+  if (payment.scope === 'plan') {
+    const months = Number(payment.months);
+    if (!isPassMonths(months)) {
+      console.error(`[Payment] plan payment ${outTradeNo} has no valid months (${payment.months}); nothing granted`);
+      return 'granted';
+    }
+    await grantTrainingPass(TRAINING_PASS_DEPS, Number(payment.user_id), calendarDateOf(new Date()), {
+      months, source: 'payment', refId: Number(payment.id), uniqueKey: `payment:${Number(payment.id)}`,
+    });
+    console.log(`[Payment] Training pass ${months} months for user ${payment.user_id} (${outTradeNo})`);
+    return 'granted';
+  }
 
   // Anything that is not literally 't2' settles as a dimension purchase — the
   // shape every row had before #45, and the one that grants less.
@@ -3966,8 +4021,9 @@ tier2Only.get('/api/home/config', (_req, res) => {
  */
 (TRAINING_PLAN ? app : express.Router()).get('/api/training/plans', (_req, res) => {
   res.json({
-    plans: PASS_MONTHS.map(months => ({ months, priceFen: null as number | null, ...PLAN_BLURBS[months] })),
-    payAvailable: false,
+    plans: PASS_MONTHS.map(months => ({ months, priceFen: TRAINING_PLAN_PRICES?.[months] ?? null, ...PLAN_BLURBS[months] })),
+    // 能不能付款（#111）：價錢設了、微信支付設齊、走 H5（JSAPI 還沒實裝）。
+    payAvailable: trainingPlanPayAvailable(),
   });
 });
 

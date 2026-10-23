@@ -138,7 +138,8 @@ CREATE TABLE IF NOT EXISTS `payments` (
   `user_id` INT UNSIGNED NOT NULL,
   -- 这笔付款买的是整份 T2，还是单一维度的 T3。结算时唯一知道「买了什么」的地方
   -- 就是这一列 —— settlePayment 只拿得到订单号。
-  `scope` ENUM('t2','t3') NOT NULL DEFAULT 't3',
+  -- 'plan'＝训练计划（客户 10/22，#111），买几个月记在 months。
+  `scope` ENUM('t2','t3','plan') NOT NULL DEFAULT 't3',
   -- 商户订单号，由我方产生，微信以此对帐
   `out_trade_no` VARCHAR(64) NOT NULL UNIQUE,
   -- 微信支付订单号，付款成功后由回调回填
@@ -149,6 +150,8 @@ CREATE TABLE IF NOT EXISTS `payments` (
   -- 此次付款要解锁的维度。scope='t2' 时为 NULL —— T2 是整份买一次，没有维度，
   -- 硬塞一个假维度进去会在对帐时变成查不出来的脏资料。
   `dimension_id` VARCHAR(64) DEFAULT NULL,
+  -- 训练计划买几个月（1／3／6）；T2／T3 是 NULL。
+  `months` TINYINT UNSIGNED NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `paid_at` DATETIME DEFAULT NULL,
   INDEX `idx_user` (`user_id`),

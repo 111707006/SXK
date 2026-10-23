@@ -152,6 +152,7 @@ const PARENT_FACING_FILES = [
   'src/components/OutOfRangeCard.tsx',
   'src/components/T1SupplementStep.tsx',
   'src/utils/t1Supplement.ts',
+  'src/t2/trainingPlanCopy.ts',
   ...fs
     .readdirSync(path.join(ROOT, 'src/components/ledo'))
     .filter(f => /\.tsx?$/.test(f))

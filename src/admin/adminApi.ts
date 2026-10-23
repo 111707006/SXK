@@ -25,6 +25,19 @@ export interface AdminIdentityView {
   selection: { kind: 'company'; companyId: number } | { kind: 'unassigned' } | null;
 }
 
+/** 一組兌換碼（`src/admin/adminStore.ts` 的 `RedeemCodeRecord`）。 */
+export interface AdminRedeemCode {
+  id: number;
+  batchId: number;
+  referrerId: number;
+  code: string;
+  months: number;
+  status: 'unused' | 'used' | 'void';
+  usedBy: number | null;
+  usedAt: string | null;
+  createdAt: string | null;
+}
+
 /** 一位推薦人（`src/admin/adminStore.ts` 的 `ReferrerRecord`）。 */
 export interface AdminReferrer {
   id: number;
@@ -439,6 +452,16 @@ export const adminApi = {
     request<{ referrer: AdminReferrer }>('/referrers', { method: 'POST', body: JSON.stringify(input) }),
   setReferrerActive: (id: number, active: boolean) =>
     request<{ ok: true }>(`/referrers/${id}/active`, { method: 'POST', body: JSON.stringify({ active }) }),
+
+  // ── 兌換碼（客戶 10/22，#110；伺服器開關 TRAINING_PLAN 關著時這幾支是 404）──
+  referrerCodes: (referrerId: number) => request<{ codes: AdminRedeemCode[] }>(`/referrers/${referrerId}/codes`),
+  createCodes: (referrerId: number, months: 1 | 3 | 6, quantity: number) =>
+    request<{ codes: AdminRedeemCode[] }>(`/referrers/${referrerId}/codes`, { method: 'POST', body: JSON.stringify({ months, quantity }) }),
+  voidCode: (codeId: number) => request<{ ok: true }>(`/redeem-codes/${codeId}/void`, { method: 'POST', body: '{}' }),
+  myCodes: () => request<{ codes: AdminRedeemCode[] }>('/referrer/codes'),
+  /** 未用碼的 CSV：全域管理員給推薦人編號，推薦人自己不給。 */
+  codesCsv: (referrerId: number | null) =>
+    download(referrerId === null ? '/referrer/codes.csv' : `/referrers/${referrerId}/codes.csv`, { method: 'GET' }, '未用兑换码.csv'),
 
   // ── 首頁素材（客戶 10/22，#87；伺服器開關 HOME_MEDIA 關著時這幾支是 404）──
   homeMedia: () => request<{ items: HomeMediaItem[] }>('/home-media'),

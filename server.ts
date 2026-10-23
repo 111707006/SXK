@@ -1,3 +1,8 @@
+import { createRedeemLimiter } from './src/redeem/rateLimit';
+import { normalizeCode } from './src/redeem/codes';
+import { redeemCodeForUser } from './src/db/redeemCodes';
+import { PASS_MONTHS } from './src/t2/trainingPass';
+import { PLAN_BLURBS } from './src/t2/trainingPlanCopy';
 import { t1OnlyFindings } from './src/t2/t1OnlySnapshot';
 import { listTrainingPasses, insertTrainingPass, hasScaleT2Findings } from './src/db/trainingPasses';
 import { trainingPassState, type TrainingPassDeps, type TrainingPassState } from './src/t2/trainingPassService';
@@ -3955,6 +3960,52 @@ tier2Only.get('/api/home/config', (_req, res) => {
 });
 
 /**
+ * 訓練計劃的方案（`TRAINING_PLAN`，#110）：一個月、三個月、六個月，價錢（#111 由 `TRAINING_PLAN_PRICES_FEN` 給，
+ * 沒設是 null＝價格待定）與一句說明（暫採字，`src/t2/trainingPlanCopy.ts`）。`payAvailable`：微信支付設齊才 true。
+ * **公開**（未登入也看得到方案頁）。開關關著、或 B，不註冊（404）。
+ */
+(TRAINING_PLAN ? app : express.Router()).get('/api/training/plans', (_req, res) => {
+  res.json({
+    plans: PASS_MONTHS.map(months => ({ months, priceFen: null as number | null, ...PLAN_BLURBS[months] })),
+    payAvailable: false,
+  });
+});
+
+/** 兌換碼的限流（#110，暫採：每位家長每小時 10 次、每個來源每小時 30 次）。 */
+const redeemLimiter = createRedeemLimiter();
+
+/**
+ * 家長兌換一組碼（`TRAINING_PLAN`，#110）：要登入；碼大小寫與分隔符不拘（`normalizeCode`）；一個交易裡改已用、
+ * 發一段使用權、第一次綁推薦人（`src/db/redeemCodes.ts`）。已用／作廢／不存在／形狀不對都是同一句話（不告訴試碼的人
+ * 哪一種）。成功回 `{months, endsOn}`（`endsOn` 是接得上的最後一天）。
+ */
+(TRAINING_PLAN ? app : express.Router()).post('/api/training/redeem', async (req, res) => {
+  try {
+    const userId = currentUserId(req);
+    const dbUserId = toDbUserId(userId);
+    if (!userId || dbUserId === null || !mysqlDb.isConfigured() || (await sessionAccountMissing(userId))) {
+      res.status(401).json({ error: '请先登录，再输入兑换码。', code: 'UNAUTHENTICATED' });
+      return;
+    }
+    if (!redeemLimiter.take(String(dbUserId), normalizeRequestIp(req.ip) || 'unknown')) {
+      res.status(429).json({ error: '试得太多次了，请过一小时再试。', code: 'RATE_LIMITED' });
+      return;
+    }
+    const code = normalizeCode(req.body?.code);
+    const outcome = code ? await withTimeout(redeemCodeForUser(dbUserId, code, calendarDateOf(new Date())), 5000) : { ok: false as const };
+    if (!outcome.ok) {
+      res.status(400).json({ error: '兑换码不正确或已使用', code: 'REDEEM_INVALID' });
+      return;
+    }
+    const state = await trainingPassOf(dbUserId);
+    res.json({ months: outcome.months, endsOn: state.endsOn ?? outcome.endsOn });
+  } catch (err: any) {
+    console.error('[Redeem] failed:', err.message);
+    res.status(500).json({ error: '暂时无法兑换，请稍后再试。' });
+  }
+});
+
+/**
  * 首頁素材（開關 `HOME_MEDIA`，#87／#88）：啟用中的開屏（排序最前的一張）與輪播。**公開，不需要登入**（同首頁設定）。
  * 開關關著、沒有資料庫、讀失敗一律回沒有素材 —— 首頁照舊是固定示範片，不擋家長。只在專案 A。
  */
@@ -4165,6 +4216,8 @@ app.use(
       activityMediaDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
       // 首頁素材（#87）：只在專案 A、`HOME_MEDIA` 開著。
       homeMediaDir: HOME_MEDIA ? MEDIA_DIR : undefined,
+      // 兌換碼（#110）：只在專案 A、`TRAINING_PLAN` 開著。
+      redeemCodes: TRAINING_PLAN,
       // 家長詳情與列印帶出最新的 T2 報告（#67）。只有專案 A（B 沒有 T2）。
       t2Reports: APP_MODE === 'full',
       // 發育指數的算法（`DEV_INDEX_BASIS`）。

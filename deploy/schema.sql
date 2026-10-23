@@ -770,6 +770,35 @@ CREATE TABLE IF NOT EXISTS `referrer_bindings` (
   CONSTRAINT `fk_referrer_bindings_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `referrers` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 兑换码（客户 10/22，#110；迁移 deploy/migrations/2026-10-24-redeem-codes.sql）。
+CREATE TABLE IF NOT EXISTS `redeem_batches` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `referrer_id` INT UNSIGNED NOT NULL,
+  `months` TINYINT UNSIGNED NOT NULL,
+  `quantity` INT UNSIGNED NOT NULL,
+  -- 谁产的（后台帐号）；帐号删掉留 NULL，纪录还在。
+  `created_by` INT UNSIGNED NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_redeem_batches_referrer` (`referrer_id`),
+  CONSTRAINT `fk_redeem_batches_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `referrers` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_redeem_batches_admin` FOREIGN KEY (`created_by`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `redeem_codes` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `batch_id` INT UNSIGNED NOT NULL,
+  `code` CHAR(10) NOT NULL,
+  `status` ENUM('unused','used','void') NOT NULL DEFAULT 'unused',
+  -- 用掉它的家长；家长帐号删掉留 NULL（对帐时仍看得到这组码用过了）。
+  `used_by` INT UNSIGNED NULL,
+  `used_at` DATETIME NULL,
+  `voided_at` DATETIME NULL,
+  UNIQUE KEY `uk_redeem_codes_code` (`code`),
+  INDEX `idx_redeem_codes_batch` (`batch_id`, `status`),
+  CONSTRAINT `fk_redeem_codes_batch` FOREIGN KEY (`batch_id`) REFERENCES `redeem_batches` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_redeem_codes_user` FOREIGN KEY (`used_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- 既有数据库的迁移（sxk_db 已建过旧版 users 时执行）
 -- ============================================================

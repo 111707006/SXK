@@ -72,6 +72,11 @@ const GLOBAL_TABLES: Record<string, string> = {
   referrers:
     '推薦人（渠道商、治療師；客戶 10/22，#93）的名冊本身，不是家長資料。只有全域管理員建與看（requireGlobal）；' +
     '推薦人看家長走公司條件的 referrer 那一種（referrer_bindings 的 EXISTS，由 companyWhereSql 產生）。',
+  redeem_batches:
+    '兌換碼的批次（客戶 10/22，#110）：森心康發給推薦人的碼，不是家長資料。全域管理員看全部（requireGlobal），' +
+    '推薦人只看自己的（referrerId 取自工作階段）。',
+  redeem_codes:
+    '兌換碼本身（#110）。同上；用過的碼只帶家長編號與時間，不 JOIN users（家長的手機號另由對帳匯出那一支、只給全域管理員）。',
   home_media:
     '首頁素材（客戶 10/22，#87）：全站一套的開屏與輪播，不屬於任何一家合作公司，' +
     '也不含任何一位家長的資料；路由層限定全域管理員。',

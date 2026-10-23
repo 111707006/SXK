@@ -1257,3 +1257,105 @@ export async function setReferrerActive(id: number, active: boolean): Promise<nu
   );
   return (result as ResultSetHeader).affectedRows;
 }
+
+// ── 兌換碼（客戶 10/22，#110）──
+//
+// `redeem_batches`、`redeem_codes` 是森心康發給推薦人的碼，不是家長資料：全域管理員看全部（requireGlobal），
+// 推薦人只看自己的（`referrerId` 取自工作階段，不收請求參數）。列在 `test/adminScope.structure.test.ts` 的 `GLOBAL_TABLES`。
+// 這裡**不 JOIN users**（家長的手機號是家長資料）；用過的碼只帶家長編號與時間，對帳匯出（#113）另外一支。
+
+export interface RedeemCodeRecord {
+  id: number;
+  batchId: number;
+  referrerId: number;
+  code: string;
+  months: number;
+  status: 'unused' | 'used' | 'void';
+  usedBy: number | null;
+  usedAt: string | null;
+  createdAt: string | null;
+}
+
+function rowToRedeemCode(row: any): RedeemCodeRecord {
+  return {
+    id: Number(row.id),
+    batchId: Number(row.batch_id),
+    referrerId: Number(row.referrer_id),
+    code: row.code,
+    months: Number(row.months),
+    status: row.status === 'used' ? 'used' : row.status === 'void' ? 'void' : 'unused',
+    usedBy: row.used_by === null || row.used_by === undefined ? null : Number(row.used_by),
+    usedAt: toIso(row.used_at),
+    createdAt: toIso(row.created_at),
+  };
+}
+
+/** 一位推薦人的全部碼（新的在前）。 */
+export async function listRedeemCodes(referrerId: number): Promise<RedeemCodeRecord[]> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT c.id, c.batch_id, c.code, c.status, c.used_by, c.used_at, b.referrer_id, b.months, b.created_at
+       FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id
+      WHERE b.referrer_id = ?
+      ORDER BY c.id DESC`,
+    [referrerId]
+  );
+  return (rows as any[]).map(rowToRedeemCode);
+}
+
+/**
+ * 替一位推薦人產一批碼。碼由 `generate` 給（伺服器用 crypto）；撞到既有的碼（UNIQUE）換一組再試，最多 5 次。
+ * 一批在同一個交易裡：要嘛整批都在，要嘛一組都沒有。
+ */
+export async function createRedeemBatch(input: {
+  referrerId: number;
+  months: number;
+  quantity: number;
+  createdBy: number;
+  generate: () => string;
+}): Promise<RedeemCodeRecord[]> {
+  const p = requirePool();
+  const conn = await p.getConnection();
+  let batchId: number;
+  try {
+    await conn.beginTransaction();
+    const [batch] = await conn.execute(
+      'INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, ?, ?)',
+      [input.referrerId, input.months, input.quantity, input.createdBy]
+    );
+    batchId = (batch as ResultSetHeader).insertId;
+    for (let i = 0; i < input.quantity; i++) {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await conn.execute('INSERT INTO redeem_codes (batch_id, code) VALUES (?, ?)', [batchId, input.generate()]);
+          break;
+        } catch (err: any) {
+          if (err?.code !== 'ER_DUP_ENTRY' || attempt >= 5) throw err;
+        }
+      }
+    }
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+  const [rows] = await p.execute(
+    `SELECT c.id, c.batch_id, c.code, c.status, c.used_by, c.used_at, b.referrer_id, b.months, b.created_at
+       FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id
+      WHERE c.batch_id = ? ORDER BY c.id ASC`,
+    [batchId]
+  );
+  return (rows as any[]).map(rowToRedeemCode);
+}
+
+/** 作廢一組**還沒用**的碼。回影響的列數（用過的、已作廢的、不存在的都是 0）。 */
+export async function voidRedeemCode(id: number): Promise<number> {
+  const p = requirePool();
+  const [result] = await p.execute(
+    "UPDATE redeem_codes SET status = 'void', voided_at = NOW() WHERE id = ? AND status = 'unused'",
+    [id]
+  );
+  return (result as ResultSetHeader).affectedRows;
+}

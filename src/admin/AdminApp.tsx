@@ -46,6 +46,7 @@ import ActivitiesPanel from './panels/ActivitiesPanel';
 import VideoTaggingPanel from './panels/VideoTaggingPanel';
 import HomeMediaPanel from './panels/HomeMediaPanel';
 import ReferrersPanel from './panels/ReferrersPanel';
+import RedeemCodesBlock from './panels/RedeemCodesBlock';
 
 /**
  * 列印頁連同整份報告本體（雷達圖、儀表、軌跡圖）另外切一包。
@@ -354,7 +355,10 @@ function AdminCenter() {
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}
           {activeTab === 'videos' && <VideoTaggingPanel onError={handleError} />}
           {activeTab === 'homeMedia' && <HomeMediaPanel onError={handleError} />}
-          {activeTab === 'referrers' && <ReferrersPanel onError={handleError} companies={companies} />}
+          {activeTab === 'referrers' && (
+            <ReferrersPanel onError={handleError} companies={companies} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
+          )}
+          {activeTab === 'myCodes' && <RedeemCodesBlock referrerId={null} onError={handleError} />}
         </div>
       )}
     </Shell>

@@ -30,6 +30,8 @@ import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { referrerMayCall } from './referrerAccess';
+import { formatCode, generateCode, MAX_BATCH } from '../redeem/codes';
+import { isPassMonths } from '../t2/trainingPass';
 import { looksLike, MAX_POSTER_BYTES, mediaUrlOf, readSeconds, saveActivityMedia, saveUpload, stepImageStem, type MediaKind, type UploadSpec } from './activityMedia';
 import { isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
 import path from 'path';
@@ -117,6 +119,8 @@ export interface AdminRouterHooks {
    * 只有專案 A、開關 `HOME_MEDIA` 開著才傳；沒有就是關閉 —— 那幾支不註冊（404）。
    */
   homeMediaDir?: string;
+  /** 兌換碼（#110）：只有專案 A、`TRAINING_PLAN` 開著才傳 `true`；沒有就那幾支不註冊。 */
+  redeemCodes?: boolean;
   /**
    * 家長詳情帶不帶最新的 T2 報告快照（#67）。只有專案 A 傳 `true`；B 沒有 T2，
    * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
@@ -837,6 +841,114 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       res.status(500).json({ error: '更新推荐人失败。' });
     }
   });
+
+  // ── 兌換碼（客戶 10/22，#110；只在 A、`TRAINING_PLAN` 開著才註冊）──
+  // 全域管理員替推薦人產碼、看、匯出、作廢；推薦人只看與匯出自己的（推薦人編號取自工作階段）。
+  if (hooks.redeemCodes) {
+    const sendCodesCsv = (res: express.Response, codes: store.RedeemCodeRecord[], name: string) => {
+      const lines = ['兑换码,方案月数', ...codes.filter(c => c.status === 'unused').map(c => `${formatCode(c.code)},${c.months}`)];
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send('﻿' + lines.join('\r\n') + '\r\n');
+    };
+    const referrerIdParam = (req: AuthedRequest): number | null =>
+      /^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : null;
+
+    router.get('/referrers/:id/codes', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = referrerIdParam(req);
+      if (id === null) return void res.status(404).json({ error: '找不到该推荐人。' });
+      try {
+        res.json({ codes: await store.listRedeemCodes(id) });
+      } catch (err: any) {
+        console.error('[Admin] listRedeemCodes failed:', err.message);
+        res.status(500).json({ error: '读取兑换码失败。' });
+      }
+    });
+
+    router.get('/referrers/:id/codes.csv', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = referrerIdParam(req);
+      if (id === null) return void res.status(404).json({ error: '找不到该推荐人。' });
+      try {
+        sendCodesCsv(res, await store.listRedeemCodes(id), `未用兑换码-推荐人${id}.csv`);
+      } catch (err: any) {
+        console.error('[Admin] export codes failed:', err.message);
+        res.status(500).json({ error: '导出兑换码失败。' });
+      }
+    });
+
+    router.post('/referrers/:id/codes', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = referrerIdParam(req);
+      const months = req.body?.months;
+      const quantity = req.body?.quantity;
+      if (!isPassMonths(months)) return void res.status(400).json({ error: '方案只有 1、3、6 个月。' });
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_BATCH) {
+        return void res.status(400).json({ error: `一次产 1 到 ${MAX_BATCH} 组。` });
+      }
+      try {
+        const referrer = id === null ? null : await store.findReferrer(id);
+        if (!referrer) return void res.status(404).json({ error: '找不到该推荐人。' });
+        const codes = await store.createRedeemBatch({
+          referrerId: referrer.id,
+          months,
+          quantity,
+          createdBy: req.admin!.adminUserId,
+          generate: () => generateCode(max => crypto.randomInt(max)),
+        });
+        res.json({ codes });
+      } catch (err: any) {
+        console.error('[Admin] createRedeemBatch failed:', err.message);
+        res.status(500).json({ error: '产生兑换码失败。' });
+      }
+    });
+
+    router.post('/redeem-codes/:id/void', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = /^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : NaN;
+      try {
+        const affected = Number.isInteger(id) ? await store.voidRedeemCode(id) : 0;
+        if (affected === 0) return void res.status(409).json({ error: '这组码不存在、已经用过，或已经作废。' });
+        res.json({ ok: true });
+      } catch (err: any) {
+        console.error('[Admin] voidRedeemCode failed:', err.message);
+        res.status(500).json({ error: '作废兑换码失败。' });
+      }
+    });
+
+    const myReferrerId = (req: AuthedRequest, res: express.Response): number | null => {
+      const identity = req.admin!;
+      if (identity.role !== 'referrer') {
+        res.status(403).json({ error: '只有推荐人帐号有「我的兑换码」。', code: 'FORBIDDEN' });
+        return null;
+      }
+      return identity.referrerId;
+    };
+
+    router.get('/referrer/codes', async (req: AuthedRequest, res) => {
+      const id = myReferrerId(req, res);
+      if (id === null) return;
+      try {
+        res.json({ codes: await store.listRedeemCodes(id) });
+      } catch (err: any) {
+        console.error('[Admin] list my codes failed:', err.message);
+        res.status(500).json({ error: '读取兑换码失败。' });
+      }
+    });
+
+    router.get('/referrer/codes.csv', async (req: AuthedRequest, res) => {
+      const id = myReferrerId(req, res);
+      if (id === null) return;
+      try {
+        sendCodesCsv(res, await store.listRedeemCodes(id), '我的未用兑换码.csv');
+      } catch (err: any) {
+        console.error('[Admin] export my codes failed:', err.message);
+        res.status(500).json({ error: '导出兑换码失败。' });
+      }
+    });
+  }
 
   router.post('/admin-users/:id/active', async (req: AuthedRequest, res) => {
     if (!requireGlobal(req, res)) return;

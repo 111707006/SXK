@@ -41,6 +41,7 @@ import OutOfRangeCard from './components/OutOfRangeCard';
 import { useViewHistory } from './utils/viewHistory';
 import SplashScreen from './home/SplashScreen';
 import CompanyBadge from './components/CompanyBadge';
+import TrainingPlanPage from './components/training/TrainingPlanPage';
 import { isInT1Range } from './t1Data';
 import LedoReportLibrary from './components/ledo/LedoReportLibrary';
 
@@ -72,7 +73,7 @@ import { readHandoffLink } from './handoff/fragment';
 import { HANDOFF_INVITE, HANDOFF_LANDING } from './handoff/handoffCopy';
 
 /** App 的主畫面（`currentView`）。返回鍵的歷史記的就是這幾個名字（`useViewHistory`）。 */
-const APP_VIEWS = ['home', 'offline_service', 'dashboard', 't1_screening', 'assessment', 'report', 'mall', 'language_special', 'specialized_report', 'paywall', 't2_assessment', 't2_report', 'training'] as const;
+const APP_VIEWS = ['home', 'offline_service', 'dashboard', 't1_screening', 'assessment', 'report', 'mall', 'language_special', 'specialized_report', 'paywall', 't2_assessment', 't2_report', 'training', 'training_plan'] as const;
 type AppView = typeof APP_VIEWS[number];
 function isAppView(v: string): v is AppView {
   return (APP_VIEWS as readonly string[]).includes(v);
@@ -181,6 +182,8 @@ export default function App() {
   // 免費期間（伺服器 `PAYWALL_FREE`，`/api/unlocks` 回 `free: true`）：權益照開，但 T1 報告上的 T2 卡仍畫價錢當參考（使用者 2026-10-11）
   const [t2FreePeriod, setT2FreePeriod] = useState(false);
   /** 居家訓練使用權（伺服器 `TRAINING_PLAN`，#91）：`null`＝這個部署沒有這回事（或還沒查到）。 */
+  /** 兌換或付款成功之後重讀一次 `/api/unlocks`（#110）。 */
+  const [unlocksNonce, setUnlocksNonce] = useState(0);
   const [trainingPass, setTrainingPass] = useState<{ active: boolean; endsOn: string | null; lastEndsOn: string | null } | null>(null);
   /** 單價（分）。以後端回傳為準，前端不自己寫死金額。 */
   const [unlockPriceFen, setUnlockPriceFen] = useState<number>(DEFAULT_UNLOCK_PRICE_FEN);
@@ -376,7 +379,8 @@ export default function App() {
       setHomeLoginOpen(true);
       return;
     }
-    setCurrentView(step.view);
+    // 訓練計劃（`TRAINING_PLAN`，#110）：沒有有效使用權的家長點「线上家庭个性化训练」先到方案頁。
+    setCurrentView(step.view === 'training' && trainingPass !== null && !trainingPass.active ? 'training_plan' : step.view);
     setSelectedDimensionId(null);
   };
 
@@ -555,7 +559,7 @@ export default function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, [userIdentity, authToken]);
+  }, [userIdentity, authToken, unlocksNonce]);
 
   /**
    * 進入某維度的深度評估，未解鎖則先過付費牆。
@@ -1840,6 +1844,14 @@ export default function App() {
                   />
                 </LazyBoundary>
               </div>
+            ) : currentView === 'training_plan' && PRODUCT.features.tier2And3 && trainingPass !== null ? (
+              <LazyBoundary>
+                <TrainingPlanPage
+                  loggedIn={Boolean(userIdentity)}
+                  onActivated={() => setUnlocksNonce(n => n + 1)}
+                  onGoTraining={() => setCurrentView('training')}
+                />
+              </LazyBoundary>
             ) : currentView === 'training' && PRODUCT.features.tier2And3 ? (
               /*
                 线上干预（2026-09-28 起從導覽列開，不在報告裡）。要先買過 T2，再在 T2 報告裡另外買（ADR-0012；
@@ -1849,6 +1861,7 @@ export default function App() {
                 <LazyBoundary>
                   <TrainingPage
                     trainingPass={trainingPass}
+                    onOpenPlans={() => setCurrentView('training_plan')}
                     childName={child?.name}
                     onBookService={type => goToExpertBooking(type)}
                     onGoToT2={goToT2Entrance}

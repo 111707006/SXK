@@ -47,6 +47,14 @@ export const WORDING_1022 = {
     generating: '正在生成报告',
   },
 
+  /** 報告與面板上「第二层评估」「第二层『量表评估中心』」的新叫法（`PRODUCT.nextStep`）。 */
+  nextStep: {
+    actionLabel: 'T2 深度评估',
+    alertText: '建议近期进入「T2 深度评估」。',
+    legendAttentionHint: '进入 T2 深度评估',
+    legendConcernHint: '建议进入 T2 深度评估',
+  },
+
   buttons: {
     generateReport: '生成报告',
     deepAssess: '深度评估',

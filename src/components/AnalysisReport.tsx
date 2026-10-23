@@ -545,7 +545,10 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const t2Slot = t2 && !historicalRecord ? (
     // scroll-margin：頂上有固定的導覽列，捲到 start 時卡片標題會被它蓋住
     // 頁首在手機是三列（約 169px）、平板兩列（約 127px）、電腦一列（約 73px），捲到的位置要讓開它。
-    <div ref={t2SlotRef} className="scroll-mt-44 lg:scroll-mt-24">
+    // 1022（issue #80）：入口卡醒目 —— 跳色邊框加光暈，家長一眼知道下一步點哪裡。
+    <div ref={t2SlotRef} id="t2-entrance-slot" className={PRODUCT.features.ui1022
+      ? 'scroll-mt-44 lg:scroll-mt-24 rounded-[28px] p-1 bg-gradient-to-r from-ledo-coral via-ledo-accent to-ledo-coral shadow-[0_0_28px_rgba(217,130,111,0.55)]'
+      : 'scroll-mt-44 lg:scroll-mt-24'}>
       <T2Entrance
         access={t2.access}
         freePeriod={t2.freePeriod === true}

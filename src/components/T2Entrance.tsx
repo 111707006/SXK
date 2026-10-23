@@ -1,3 +1,5 @@
+import { PRODUCT } from '../productConfig';
+import { WORDING_1022 } from '../wording1022';
 import React, { useEffect, useState } from 'react';
 import { Layers, Loader2, UserRound } from 'lucide-react';
 import { authFetch } from '../utils/api';
@@ -160,7 +162,7 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
     return (
       <div className="bg-white rounded-2xl border border-brand-moss/30 ring-1 ring-brand-moss/10 p-5 shadow-sm text-left space-y-3">
         <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
-          <Layers size={10} /> 第二层 · 深度评估
+          <Layers size={10} /> {PRODUCT.features.ui1022 ? WORDING_1022.t2Name : '第二层 · 深度评估'}
         </span>
         <h3 className="text-sm font-extrabold text-brand-forest">{copy.headline}</h3>
         <p className="text-xs text-brand-charcoal/80 leading-relaxed max-w-2xl">

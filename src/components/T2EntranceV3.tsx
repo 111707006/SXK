@@ -1,3 +1,5 @@
+import { PRODUCT } from '../productConfig';
+import { WORDING_1022 } from '../wording1022';
 import React from 'react';
 import { Info, Layers } from 'lucide-react';
 import type { ParentPlanV3 } from '../t2/recommend/parentPlan';
@@ -48,7 +50,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
 
   const badge = (
     <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
-      <Layers size={10} /> 第二层 · 深度评估
+      <Layers size={10} /> {PRODUCT.features.ui1022 ? WORDING_1022.t2Name : '第二层 · 深度评估'}
     </span>
   );
 

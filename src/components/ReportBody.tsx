@@ -7,6 +7,7 @@ import { DIMENSIONS_DATA } from '../data';
 import { PRODUCT } from '../productConfig';
 import LedoReportSummary from './ledo/LedoReportSummary';
 import { ALL_CLEAR_SUMMARY, SCREENING_DISCLAIMER, STATUS_WORDING } from '../utils/statusWording';
+import { WORDING_1022 } from '../wording1022';
 import { reportSourceLabel } from '../utils/reportSource';
 import { reportNumber } from '../utils/reportNumber';
 import type { RenderableReport } from '../utils/reportHistory';
@@ -190,6 +191,12 @@ export default function ReportBody({
   const yellowNames = scores.filter(s => s.status === 'borderline').map(s => s.dimensionName);
 
   const sourceLabel = reportSourceLabel(isAiGenerated);
+  /**
+   * 客戶 10/22（issue #80，`VITE_UI_1022`）：報告只留重點 —— 拿掉 Ledo 摘要（三個數字＋先看这几项）與
+   * 「9 维度评估结果明细」，標題與免責句換新字。家長端、掃碼頁、後台詳情與列印同一個元件，所以一起變；
+   * 看建置開關，不看快照：舊快照照樣畫得出來，只是少那兩塊。
+   */
+  const ui1022 = PRODUCT.features.ui1022;
 
   return (
     <div className={ledoSummary
@@ -203,9 +210,9 @@ export default function ReportBody({
             <Award size={14} />
             {sourceLabel}
           </div>
-          <h2 className="text-xl font-bold text-brand-forest mt-1">儿童综合发展评估报告</h2>
-          {/* 對照表要求固定放在報告最上方的定位句，原句照抄（見 statusWording.ts）。 */}
-          <p className="text-xs text-brand-charcoal/80 mt-1.5">{SCREENING_DISCLAIMER}</p>
+          <h2 className="text-xl font-bold text-brand-forest mt-1">{ui1022 ? WORDING_1022.report.title : '儿童综合发展评估报告'}</h2>
+          {/* 對照表要求固定放在報告最上方的定位句，原句照抄（見 statusWording.ts）；1022 換客戶指定的那一句。 */}
+          <p id="report-disclaimer" className="text-xs text-brand-charcoal/80 mt-1.5">{ui1022 ? WORDING_1022.report.disclaimer : SCREENING_DISCLAIMER}</p>
         </div>
         {/*
           編號由報告 id 算出，同一份報告永遠同一號（ADR-0007）。先前這裡取的是
@@ -219,12 +226,12 @@ export default function ReportBody({
         )}
       </div>
 
-      {ledoSummary && <LedoReportSummary scores={scores} notes={aiReport.perDimension} />}
+      {ledoSummary && !ui1022 && <LedoReportSummary scores={scores} notes={aiReport.perDimension} />}
 
       {/* AI One-Sentence Summary */}
       <div className="bg-brand-sage/35 p-4.5 rounded-2xl border border-brand-stone/40">
         <h4 className="text-xs font-bold text-brand-forest flex items-center gap-1.5 mb-1.5">
-          <Compass size={14} /> 首席专家建议:
+          <Compass size={14} /> {ui1022 ? '首席专家结论' : '首席专家建议:'}
         </h4>
         <p className="text-xs text-brand-charcoal leading-relaxed font-semibold">
           {aiReport.summary}
@@ -267,7 +274,8 @@ export default function ReportBody({
         </div>
       )}
 
-      {/* SECTION 2: 9宫格明细 */}
+      {/* SECTION 2: 9宫格明细（1022 拿掉：雷達圖已經一眼看九個方面） */}
+      {!ui1022 && (
       <div className="space-y-4">
         <div>
           <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
@@ -325,6 +333,7 @@ export default function ReportBody({
           </span>
         </div>
       </div>
+      )}
 
       {/* SECTION 3: 重点问题标注 KEY FINDINGS - 雷达图 */}
       <RadarSection scores={scores} />

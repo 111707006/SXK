@@ -1,4 +1,5 @@
 import { ClipboardList, History, ShoppingBag, Sprout } from 'lucide-react';
+import { PRODUCT } from '../productConfig';
 import type { DimensionScore } from '../types';
 import { STATUS_WORDING } from '../utils/statusWording';
 import {
@@ -107,7 +108,8 @@ export function AnswersOverview({ scores, notes }: { scores: DimensionScore[]; n
                   </span>
                 </div>
                 {note && <p className="text-xs text-brand-charcoal leading-relaxed">{note}</p>}
-                {(notYet.length > 0 || partly.length > 0) && (
+                {/* 1022：每個方面只畫那一段說明，不畫逐題清單（規格「接下来可以多练的」）。 */}
+                {!PRODUCT.features.ui1022 && (notYet.length > 0 || partly.length > 0) && (
                   <ul className="space-y-1">
                     {notYet.map(i => (
                       <li key={i.questionId} className="flex items-start gap-1.5 text-xs text-brand-charcoal">

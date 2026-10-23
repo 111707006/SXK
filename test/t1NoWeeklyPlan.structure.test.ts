@@ -53,7 +53,8 @@ describe('捲到 T2 卡等版面定了才捲', () => {
   });
 
   it('捲的仍是 T2 插槽外那一層（帶 scroll-mt，標題不被頁首蓋住）', () => {
-    expect(report).toMatch(/<div ref=\{t2SlotRef\} className="scroll-mt-44 lg:scroll-mt-24">/);
+    // 1022（#80）開著時多跳色邊框與光暈，scroll-mt 兩種都在。
+    expect(report).toMatch(/<div ref=\{t2SlotRef\} id="t2-entrance-slot" className=\{PRODUCT\.features\.ui1022\s*\? 'scroll-mt-44 lg:scroll-mt-24[^']*'\s*: 'scroll-mt-44 lg:scroll-mt-24'\}>/);
     expect(effect).toContain('t2SlotRef.current?.scrollIntoView');
   });
 });

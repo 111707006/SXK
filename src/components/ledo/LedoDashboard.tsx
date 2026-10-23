@@ -102,9 +102,9 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
                   className={`flex min-w-0 flex-col items-start gap-1 rounded-2xl p-2.5 text-left cursor-pointer ${tone.bg}`}
                 >
                   <b className="break-words text-[13px] font-black leading-snug text-ledo-ink">{d.name}</b>
-                  <span className={`text-[11px] font-bold leading-snug ${tone.ink}`}>{s ? STATUS_WORDING[s.status].label : '还没评估'}</span>
+                  <span className={`text-xs font-bold leading-snug ${tone.ink}`}>{s ? STATUS_WORDING[s.status].label : '还没评估'}</span>
                   {s && s.status !== 'normal' && (
-                    <span className="mt-auto rounded-full bg-white px-2 py-0.5 text-[11px] font-black text-ledo-ink">{PRODUCT.dashboard.dimensionCardCta}</span>
+                    <span className="mt-auto rounded-full bg-white px-2 py-0.5 text-xs font-black text-ledo-ink">{PRODUCT.dashboard.dimensionCardCta}</span>
                   )}
                 </button>
               );

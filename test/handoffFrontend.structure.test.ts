@@ -115,7 +115,8 @@ describe('B 的卡（HandoffCard／AnalysisReport）', () => {
 describe('A 後台的「来源」欄', () => {
   it('只有接收端（A）列這一欄', () => {
     const adminApp = stripComments(read('src/admin/AdminApp.tsx'));
-    expect(adminApp).toContain("showSource={PRODUCT.features.handoff === 'receive'}");
+    // 推薦人（#93）的「我的家长」不列來源。
+    expect(adminApp).toContain("showSource={PRODUCT.features.handoff === 'receive' && current.role !== 'referrer'}");
     const panel = stripComments(read('src/admin/panels/ParentsPanel.tsx'));
     expect(panel).toMatch(/\{showSource && <th[^>]*>来源<\/th>\}/);
     expect(panel).toContain('<SourceCell source={parent.handoffSource} />');

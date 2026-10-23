@@ -41,7 +41,8 @@ describe('維度卡片的文案（p.9）', () => {
   const CARD_COPY_FIELDS = ['dimensionCardHint', 'dimensionCardCta'];
 
   function valuesOf(field: string): string[] {
-    const re = new RegExp(`${field}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|(null))`, 'g');
+    // 1022（#85）起 A 的值寫成 `UI_1022_A ? WORDING_1022.… : '原本的字'`：取冒號後面那一個（關著時家長看到的）。
+    const re = new RegExp(`${field}\\s*:\\s*(?:UI_1022_A \\? [\\w.]+ : )?(?:'([^']*)'|"([^"]*)"|(null))`, 'g');
     return [...productConfig.matchAll(re)].map(m => m[1] ?? m[2] ?? m[3]);
   }
 

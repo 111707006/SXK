@@ -27,6 +27,7 @@ describe('HOME_V2=1（專案 A）', () => {
   it('未登入也讀得到：{enabled: true}', async () => {
     const resp = await client.get('/api/home/config');
     expect(resp.status).toBe(200);
-    expect(await resp.json()).toEqual({ enabled: true });
+    // 2026-10-23 起多帶 homeMedia（#87）與 companies（#90）。
+    expect(await resp.json()).toMatchObject({ enabled: true });
   });
 });

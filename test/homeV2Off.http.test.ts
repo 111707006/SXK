@@ -18,6 +18,6 @@ describe('HOME_V2 沒設（專案 A）', () => {
   it('{enabled: false}', async () => {
     const resp = await client.get('/api/home/config');
     expect(resp.status).toBe(200);
-    expect(await resp.json()).toEqual({ enabled: false });
+    expect(await resp.json()).toMatchObject({ enabled: false });
   });
 });

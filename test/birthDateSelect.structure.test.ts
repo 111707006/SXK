@@ -86,7 +86,8 @@ describe('適用範圍只有一個來源', () => {
       const source = stripComments(read(file));
       expect(source, `${file} 的驗證式裡寫死了適用範圍`).not.toMatch(/[<>]=?\s*(12|180)\b/);
       expect(source, `${file} 的文案裡寫死了適用範圍`).not.toMatch(/12\s*[-–~至]\s*180/);
-      expect(source, `${file} 沒有引用 T1_AGE_RANGE`).toMatch(/T1_AGE_RANGE/);
+      // 1022（#82）起兩張表單讀 `PROFILE_AGE_RANGE`（`src/utils/profileAgeRange.ts`，關著時就是 T1_AGE_RANGE）。
+      expect(source, `${file} 沒有引用 T1_AGE_RANGE／PROFILE_AGE_RANGE`).toMatch(/T1_AGE_RANGE|PROFILE_AGE_RANGE/);
       expect(source, `${file} 的說明文字沒有同源`).toMatch(/APPLICABLE_RANGE_TEXT/);
     }
   });

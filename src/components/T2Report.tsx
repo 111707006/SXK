@@ -368,7 +368,7 @@ function NonScaleReport({ entry, onReady }: { entry: T2ReportEntry & { findings:
         <p className="text-xs font-bold text-brand-moss mt-1">{proxy ? NON_SCALE_COPY.proxy : NON_SCALE_COPY.t1Only}</p>
         <p className="text-xs text-brand-charcoal/80 mt-1">{formatDay(entry.createdAt) && `${formatDay(entry.createdAt)} · `}{NON_SCALE_COPY.note}</p>
       </div>
-      <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2" id="t2-dimension-grid">
+      <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2" id="t2-non-scale-grid">
         {gridDimensions(findings).map(d => {
           const s = dimensionStatus(d, findings.child.assessedAgeMonth);
           const cls = STATUS_CLASS[s.kind === 'band' ? s.status : s.tone];

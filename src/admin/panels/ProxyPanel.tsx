@@ -20,6 +20,14 @@ const COLOR_CLASS: Record<ProxyColor, string> = {
   green: 'border-emerald-300 bg-emerald-50 text-emerald-800',
 };
 
+/** 生日選得到的範圍：今天往回 18 歲（伺服器照樣再擋一次，`readProxyInput`）。 */
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const BIRTH_MIN = () => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 18);
+  return d.toISOString().slice(0, 10);
+};
+
 const tagsOf = (d: DimensionCode) => ACTIVITY_TAGS.filter(t => tagDimension(t) === TAG_PREFIX_OF[d]);
 
 export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView) => void }) {
@@ -96,7 +104,9 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
           {lookupNote && <p className="text-[11px] text-brand-charcoal/70">{lookupNote}</p>}
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="孩子姓名"><TextInput value={child.name} onChange={e => setChild({ ...child, name: e.target.value })} maxLength={20} /></Field>
-            <Field label="出生日期"><TextInput type="date" value={child.birthDate} onChange={e => setChild({ ...child, birthDate: e.target.value })} /></Field>
+            <Field label="出生日期">
+              <TextInput type="date" value={child.birthDate} min={BIRTH_MIN()} max={todayIso()} onChange={e => setChild({ ...child, birthDate: e.target.value })} />
+            </Field>
             <Field label="性别">
               <Select value={child.gender} onChange={e => setChild({ ...child, gender: e.target.value as 'boy' | 'girl' })}>
                 <option value="boy">男</option>

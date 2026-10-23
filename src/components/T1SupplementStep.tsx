@@ -29,7 +29,7 @@ function Question({ title, required, children }: { title: string; required: bool
     <div className="space-y-2">
       <p className="text-sm font-bold leading-relaxed text-ledo-ink">
         {title}
-        <span className={`ml-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold ${required ? 'bg-ledo-more text-ledo-more-ink' : 'bg-ledo-field text-ledo-ink-2'}`}>
+        <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${required ? 'bg-ledo-more text-ledo-more-ink' : 'bg-ledo-field text-ledo-ink-2'}`}>
           {required ? WORDING_1022.supplement.required : WORDING_1022.supplement.optional}
         </span>
       </p>

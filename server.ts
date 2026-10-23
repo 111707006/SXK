@@ -69,7 +69,7 @@ import * as wechatPay from './src/wechatPay';
 import { DIMENSIONS_DATA } from './src/data';
 import type { UnlockScope } from './src/types';
 import { PARENT_WORDING_CLAUSE } from './src/utils/parentWording';
-import { generateT1Report, t1ReportInputOf } from './src/t1report/report';
+import { assertT1ReportSwitches, generateT1Report, t1ReportInputOf } from './src/t1report/report';
 import { generateLegacyFallbackReport } from './src/t1report/legacy';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
@@ -189,6 +189,14 @@ assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3, T2_SCALE_DETAIL);
 // **只在專案 A**：B 設了也不生效（啟動時印一行），B 的報告一個字都不變。同一套 fail-closed 解析。
 const T1_REPORT_REAL_REQUESTED = resolvePaywallSwitch('T1_REPORT_REAL', process.env.T1_REPORT_REAL);
 const T1_REPORT_REAL = APP_MODE === 'full' && T1_REPORT_REAL_REQUESTED;
+
+// T1 報告客戶 10/22 的新寫法（#81，規格 docs/specs/client-changes-2026-10-22-1-ui.md「伺服器那一半的開關」）：開著時
+// 新版報告的模板與提示改寫首席專家結論（三句、不寫題數）與「接下来可以多练的」每段（「这次看到的是：」開頭接練法、
+// 沒有統計句），驗證器擋統計句、不過退模板。快照形狀不變，畫面不必知道。關著＝一字不差（`test/t1Report1022.test.ts` 的基準）。
+// **只在專案 A**、要同時開 `T1_REPORT_REAL`（否則起不來）；B 設了不生效（啟動印一行）。同一套 fail-closed 解析。
+const T1_REPORT_1022_REQUESTED = resolvePaywallSwitch('T1_REPORT_1022', process.env.T1_REPORT_1022);
+assertT1ReportSwitches(T1_REPORT_REAL_REQUESTED, T1_REPORT_1022_REQUESTED);
+const T1_REPORT_1022 = T1_REPORT_REAL && T1_REPORT_1022_REQUESTED;
 
 // 掃碼頁改走 SPA（客戶 10/17 第 1 項，規格 docs/specs/client-changes-2026-10-17.md §2）：開著時 `/r/:token` 交給 SPA，
 // 前端打 `GET /api/r/:token` 拿那一筆報告快照、畫與 App 同一個 `ReportBody`。關著＝那支端點不註冊、`/r/:token`
@@ -755,7 +763,7 @@ app.post('/api/report', async (req: express.Request, res: express.Response) => {
     }
 
     if (T1_REPORT_REAL) {
-      const outcome = await generateT1Report(t1ReportInputOf(child, scores), t1ReportEngine);
+      const outcome = await generateT1Report(t1ReportInputOf(child, scores), t1ReportEngine, T1_REPORT_1022 ? { writing: '1022' } : {});
       if (!outcome.isAiGenerated) {
         console.warn(`[T1 report] template (${outcome.aiEngine}):`, outcome.errors.slice(0, 8).join(' | '));
       }
@@ -4101,6 +4109,11 @@ export async function startServer() {
       console.log('[SenXinKang Server] T1_REPORT_REAL=1: T1 reports use per-item answers, validated AI text or the per-child template; no gauge numbers.');
     } else if (T1_REPORT_REAL_REQUESTED) {
       console.warn('[SenXinKang Server] T1_REPORT_REAL is set but ignored: project B keeps the old T1 report (A only).');
+    }
+    if (T1_REPORT_1022) {
+      console.log('[SenXinKang Server] T1_REPORT_1022=1: T1 report summary in three sentences, per-dimension notes open with 这次看到的是 (no item tallies).');
+    } else if (T1_REPORT_1022_REQUESTED) {
+      console.warn('[SenXinKang Server] T1_REPORT_1022 is set but ignored: project B keeps the old T1 report (A only).');
     }
     if (HOME_V2_REQUESTED) {
       console.log(

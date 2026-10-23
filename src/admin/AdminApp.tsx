@@ -45,6 +45,7 @@ import SummaryPanel from './panels/SummaryPanel';
 import ActivitiesPanel from './panels/ActivitiesPanel';
 import VideoTaggingPanel from './panels/VideoTaggingPanel';
 import HomeMediaPanel from './panels/HomeMediaPanel';
+import ReferrersPanel from './panels/ReferrersPanel';
 
 /**
  * 列印頁連同整份報告本體（雷達圖、儀表、軌跡圖）另外切一包。
@@ -341,7 +342,8 @@ function AdminCenter() {
             <ParentsPanel
               onError={handleError}
               canInvite={current.role === 'global_admin' && PRODUCT.features.handoff === 'send'}
-              showSource={PRODUCT.features.handoff === 'receive'}
+              showSource={PRODUCT.features.handoff === 'receive' && current.role !== 'referrer'}
+              readOnly={current.role === 'referrer'}
             />
           )}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
@@ -352,6 +354,7 @@ function AdminCenter() {
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}
           {activeTab === 'videos' && <VideoTaggingPanel onError={handleError} />}
           {activeTab === 'homeMedia' && <HomeMediaPanel onError={handleError} />}
+          {activeTab === 'referrers' && <ReferrersPanel onError={handleError} companies={companies} />}
         </div>
       )}
     </Shell>

@@ -23,7 +23,7 @@
  */
 
 /** 後台成員的兩種角色。合作公司無法自行增刪帳號，由森心康代為處理。 */
-export type AdminRole = 'global_admin' | 'company_member';
+export type AdminRole = 'global_admin' | 'company_member' | 'referrer';
 
 /**
  * 全域管理員當下選定的視野。
@@ -52,6 +52,16 @@ export type AdminIdentity =
       email: string;
       /** `null` = 尚未選定任何公司，此時取不到任何個別家長資料。 */
       selection: CompanySelection | null;
+    }
+  | {
+      /**
+       * 推薦人（渠道商、治療師；客戶 10/22，#93）：只看得到**綁在自己名下**的家長（`referrer_bindings`），
+       * 不看公司。帳號由全域管理員開。
+       */
+      role: 'referrer';
+      adminUserId: number;
+      email: string;
+      referrerId: number;
     };
 
 /**
@@ -61,7 +71,9 @@ export type AdminIdentity =
  */
 export type CompanyCondition =
   | { kind: 'company'; companyId: number }
-  | { kind: 'unassigned' };
+  | { kind: 'unassigned' }
+  /** 推薦人（#93）：綁在他名下的家長。不是「不過濾」——一樣是一個收窄的條件。 */
+  | { kind: 'referrer'; referrerId: number };
 
 export type ScopeDenialReason = 'NO_COMPANY_SELECTED';
 
@@ -124,6 +136,10 @@ export function resolveCompanyCondition(
   if (identity.role === 'company_member') {
     return { ok: true, condition: { kind: 'company', companyId: identity.companyId } };
   }
+  // 推薦人的視野由帳號決定（綁在他名下的家長），兩種模式都一樣。
+  if (identity.role === 'referrer') {
+    return { ok: true, condition: { kind: 'referrer', referrerId: identity.referrerId } };
+  }
 
   if (!shape.multiCompany) {
     // 連 token 裡殘留的 `selection` 也不採用 —— 見上方「固定」二字。
@@ -154,6 +170,14 @@ export function companyWhereSql(
       // 未歸屬用 `IS NULL` 而非 `= NULL`。後者在 SQL 裡永遠不成立，
       // 會安靜地回傳零筆，看起來像「這家公司沒有家長」。
       return { sql: `${column} IS NULL`, params: [] };
+    case 'referrer':
+      // 推薦人看的是**家長**（綁定掛在家長身上）。只有以 `users u` 為主的查詢接得上；
+      // 別的表（例如專家名單 `s.company_id`）一律一筆都不給 —— 推薦人沒有那些東西。
+      if (column !== 'u.company_id') return { sql: '1 = 0', params: [] };
+      return {
+        sql: 'EXISTS (SELECT 1 FROM referrer_bindings rb WHERE rb.user_id = u.id AND rb.referrer_id = ?)',
+        params: [condition.referrerId],
+      };
   }
 }
 
@@ -166,17 +190,23 @@ export function companyWhereSql(
  */
 export function matchesCompanyCondition(
   condition: CompanyCondition,
-  row: { companyId: number | null }
+  row: { companyId: number | null; referrerId?: number | null }
 ): boolean {
   switch (condition.kind) {
     case 'company':
       return row.companyId === condition.companyId;
     case 'unassigned':
       return row.companyId === null;
+    case 'referrer':
+      return row.referrerId === condition.referrerId;
   }
 }
 
 /** 給日誌與畫面用的簡短說法。不參與任何授權判斷。 */
 export function describeCondition(condition: CompanyCondition): string {
-  return condition.kind === 'company' ? `company#${condition.companyId}` : 'unassigned';
+  return condition.kind === 'company'
+    ? `company#${condition.companyId}`
+    : condition.kind === 'referrer'
+      ? `referrer#${condition.referrerId}`
+      : 'unassigned';
 }

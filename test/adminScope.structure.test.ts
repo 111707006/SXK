@@ -69,6 +69,9 @@ const GLOBAL_TABLES: Record<string, string> = {
   activities:
     '活動庫（#44，ADR-0005）。取代素材庫的一庫多支；是森心康的內容，' +
     '不屬於任何一家合作公司，也不含任何一位家長的資料；路由層限定全域管理員。',
+  referrers:
+    '推薦人（渠道商、治療師；客戶 10/22，#93）的名冊本身，不是家長資料。只有全域管理員建與看（requireGlobal）；' +
+    '推薦人看家長走公司條件的 referrer 那一種（referrer_bindings 的 EXISTS，由 companyWhereSql 產生）。',
   home_media:
     '首頁素材（客戶 10/22，#87）：全站一套的開屏與輪播，不屬於任何一家合作公司，' +
     '也不含任何一位家長的資料；路由層限定全域管理員。',

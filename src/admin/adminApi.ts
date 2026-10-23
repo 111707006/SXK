@@ -18,10 +18,25 @@ import type { SummaryOptions, SummaryPage } from './parentSummary';
 const TOKEN_KEY = 'sxk_admin_token';
 
 export interface AdminIdentityView {
-  role: 'global_admin' | 'company_member';
+  /** `referrer`：推薦人（渠道商、治療師，#93），只看綁在自己名下的家長。 */
+  role: 'global_admin' | 'company_member' | 'referrer';
   email: string;
   companyId: number | null;
   selection: { kind: 'company'; companyId: number } | { kind: 'unassigned' } | null;
+}
+
+/** 一位推薦人（`src/admin/adminStore.ts` 的 `ReferrerRecord`）。 */
+export interface AdminReferrer {
+  id: number;
+  adminUserId: number;
+  email: string;
+  name: string;
+  phone: string;
+  kind: 'channel' | 'therapist';
+  companyId: number | null;
+  companyName: string | null;
+  active: boolean;
+  createdAt: string | null;
 }
 
 export interface AdminCompany {
@@ -417,6 +432,13 @@ export const adminApi = {
     if (!resp.ok) throw new AdminApiError(parsed.error || `上传失败（HTTP ${resp.status}）`, (parsed.code as AdminErrorCode) || 'UNKNOWN', resp.status);
     return parsed as { activity: Activity };
   },
+
+  // ── 推薦人（客戶 10/22，#93；只有全域管理員）──
+  referrers: () => request<{ referrers: AdminReferrer[] }>('/referrers'),
+  createReferrer: (input: { email: string; password: string; name: string; phone: string; kind: 'channel' | 'therapist'; companyId: number | null }) =>
+    request<{ referrer: AdminReferrer }>('/referrers', { method: 'POST', body: JSON.stringify(input) }),
+  setReferrerActive: (id: number, active: boolean) =>
+    request<{ ok: true }>(`/referrers/${id}/active`, { method: 'POST', body: JSON.stringify({ active }) }),
 
   // ── 首頁素材（客戶 10/22，#87；伺服器開關 HOME_MEDIA 關著時這幾支是 404）──
   homeMedia: () => request<{ items: HomeMediaItem[] }>('/home-media'),

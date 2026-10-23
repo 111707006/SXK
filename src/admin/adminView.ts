@@ -78,6 +78,7 @@ export function resolveScreen(input: {
  */
 export function scopeKey(identity: AdminIdentityView, shape: AdminCenterShape): string {
   if (identity.role === 'company_member') return `company:${identity.companyId}`;
+  if (identity.role === 'referrer') return 'referrer';
   // 單一機構的視野固定在未歸屬，與後端 `resolveCompanyCondition` 同一句話。
   // 照著 token 裡殘留的 `selection` 走的話，畫面上的 key 會說一家公司，
   // 而後端撈的是未歸屬 —— 兩邊講不同的事，錯的時候看起來完全正常。
@@ -100,7 +101,10 @@ export type AdminTabId =
   | 'summary'
   | 'activities'
   | 'videos'
-  | 'homeMedia';
+  | 'homeMedia'
+  | 'referrers'
+  | 'myCodes'
+  | 'proxy';
 
 export interface AdminTab {
   id: AdminTabId;
@@ -125,10 +129,22 @@ const GLOBAL_TABS: AdminTab[] = [
   { id: 'videos', label: '示范片与标签' },
   // 首頁素材（客戶 10/22，#87）：開屏與首頁輪播，全站一套。
   { id: 'homeMedia', label: '首页素材' },
+  // 推薦人（客戶 10/22，#93）：渠道商、治療師的帳號；兌換碼（#110）也在這一頁產。
+  { id: 'referrers', label: '推荐人与兑换码' },
+];
+
+/**
+ * 推薦人（#93）看到的分頁：只有這幾個（伺服器那邊是白名單，`src/admin/referrerAccess.ts`）。
+ * 「我的兑换码」「代填」由 #110、#112 接上；分頁先列出來，端點不在時畫面說一句。
+ */
+const REFERRER_TABS: AdminTab[] = [
+  { id: 'parents', label: '我的家长' },
+  { id: 'myCodes', label: '我的兑换码' },
+  { id: 'proxy', label: '代填' },
 ];
 
 /** 只有專案 A（單一機構）才有的分頁：上傳示範片的端點只在 A 註冊（`activityMediaDir`）。 */
-const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia'];
+const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia', 'referrers'];
 
 /**
  * 只有多合作公司才有意義的分頁 —— 專案 A 上這三個永遠是空的。
@@ -143,6 +159,7 @@ const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia'];
 const MULTI_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['company', 'companies', 'summary'];
 
 export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape): AdminTab[] {
+  if (identity.role === 'referrer') return REFERRER_TABS;
   const all = identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
   // 2026-10-23（#89）：A 也可以有合作公司 —— 「A 才有的分頁」看是不是 A，「多公司才有的分頁」看有沒有合作公司。
   return all
@@ -223,6 +240,7 @@ export function selectionLabel(
 ): string {
   const nameOf = (id: number) => companies.find(c => c.id === id)?.name;
 
+  if (identity.role === 'referrer') return '我名下的家长';
   if (identity.role === 'company_member') {
     // 公司成員的 `/me` 不含公司清單（他不該知道還有別家公司），
     // 因此這裡查不到名字是正常狀況，不是錯誤。

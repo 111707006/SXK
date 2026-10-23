@@ -82,7 +82,7 @@ export function verifyAdminToken(token: string | null | undefined): AdminTokenPa
     if (data.typ !== 'admin') return null;
     if (typeof data.exp !== 'number' || Date.now() > data.exp) return null;
     if (typeof data.aid !== 'number') return null;
-    if (data.role !== 'global_admin' && data.role !== 'company_member') return null;
+    if (data.role !== 'global_admin' && data.role !== 'company_member' && data.role !== 'referrer') return null;
     return data;
   } catch {
     return null;
@@ -97,9 +97,26 @@ export function verifyAdminToken(token: string | null | undefined): AdminTokenPa
  */
 export function buildIdentity(
   payload: AdminTokenPayload,
-  account: { id: number; email: string; role: AdminRole; companyId: number | null; active: boolean }
+  account: {
+    id: number;
+    email: string;
+    role: AdminRole;
+    companyId: number | null;
+    active: boolean;
+    /** 推薦人帳號對到的 `referrers.id` 與那一列啟用沒（#93）；別的角色沒有。 */
+    referrerId?: number | null;
+    referrerActive?: boolean;
+  }
 ): AdminIdentity | null {
   if (!account.active) return null;
+
+  if (account.role === 'referrer') {
+    // 推薦人帳號卻對不到一位啟用中的推薦人：資料錯誤或已停用，一律擋下（同公司成員沒有所屬公司）。
+    if (typeof account.referrerId !== 'number' || account.referrerActive !== true) return null;
+    return { role: 'referrer', adminUserId: account.id, email: account.email, referrerId: account.referrerId };
+  }
+  // token 說的角色與資料庫不同（帳號被改過角色）：以資料庫為準，但推薦人的 token 不能變成別的角色。
+  if (payload.role === 'referrer') return null;
 
   if (account.role === 'company_member') {
     // 公司成員卻沒有所屬公司是資料錯誤。放行會讓他變成一個沒有邊界的檢視者，

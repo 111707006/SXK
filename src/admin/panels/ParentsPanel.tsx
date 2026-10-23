@@ -81,10 +81,13 @@ export default function ParentsPanel({
   onError,
   canInvite = false,
   showSource = false,
+  readOnly = false,
 }: {
   onError: (view: AdminErrorView) => void;
   canInvite?: boolean;
   showSource?: boolean;
+  /** 推薦人（#93）的「我的家长」：只看，沒有汇总／导出、列印、删除（伺服器那幾支也不給推薦人打）。 */
+  readOnly?: boolean;
 }) {
   const [sort, setSort] = useState<Sort>('newest');
   const [booked, setBooked] = useState<Booked>('all');
@@ -144,10 +147,13 @@ export default function ParentsPanel({
   return (
     <>
       <Panel
-        title={view === 'summary' ? '家长汇总' : '家长列表'}
-        description="只包含当前视野内的家长。月龄、筛查总分与被标记的维度（附该维度得分）直接列出，让电话打得出去之前就知道该先联系谁。"
+        title={readOnly ? '我的家长' : view === 'summary' ? '家长汇总' : '家长列表'}
+        description={readOnly
+          ? '用了你的兑换码、或由你代填的家长（第一次就固定，之后不换）。'
+          : '只包含当前视野内的家长。月龄、筛查总分与被标记的维度（附该维度得分）直接列出，让电话打得出去之前就知道该先联系谁。'}
         action={
           <div className="flex flex-wrap gap-2">
+            {!readOnly && (
             <div className="flex gap-1" role="group" aria-label="检视">
               <Button variant={view === 'list' ? 'primary' : 'ghost'} onClick={() => setView('list')} aria-pressed={view === 'list'}>
                 列表
@@ -156,6 +162,7 @@ export default function ParentsPanel({
                 汇总
               </Button>
             </div>
+            )}
             <Select value={sort} onChange={e => setSort(e.target.value as Sort)} className="w-auto">
               <option value="newest">最近筛查在前</option>
               <option value="oldest">最早筛查在前</option>
@@ -250,6 +257,7 @@ export default function ParentsPanel({
       {openId !== null && (
         <ParentDetailModal
           id={openId}
+          readOnly={readOnly}
           onClose={() => setOpenId(null)}
           onError={onError}
           onDeleted={() => {
@@ -465,11 +473,13 @@ function SourceCell({ source }: { source: AdminParentListItem['handoffSource'] }
 
 function ParentDetailModal({
   id,
+  readOnly = false,
   onClose,
   onError,
   onDeleted,
 }: {
   id: number;
+  readOnly?: boolean;
   onClose: () => void;
   onError: (view: AdminErrorView) => void;
   onDeleted: () => void;
@@ -508,7 +518,7 @@ function ParentDetailModal({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {data && (
+              {data && !readOnly && (
                 <>
                   {/*
                     列印開的是同一份報告本體的另一個分頁（ADR-0007）。做成**連結**而不是

@@ -149,10 +149,13 @@ export interface CompanyRecord {
 export interface AdminUserRecord {
   id: number;
   email: string;
-  role: 'global_admin' | 'company_member';
+  role: 'global_admin' | 'company_member' | 'referrer';
   companyId: number | null;
   active: boolean;
   createdAt: string | null;
+  /** 推薦人帳號對到的 `referrers.id` 與那一列啟用沒（#93）；別的角色是 null／false。 */
+  referrerId?: number | null;
+  referrerActive?: boolean;
 }
 
 export interface CompanySummaryRow {
@@ -290,6 +293,8 @@ function rowToAdminUser(row: any): AdminUserRecord {
     companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
     active: Number(row.active) === 1,
     createdAt: toIso(row.created_at),
+    referrerId: row.referrer_id === null || row.referrer_id === undefined ? null : Number(row.referrer_id),
+    referrerActive: Number(row.referrer_active) === 1,
   };
 }
 
@@ -931,7 +936,12 @@ export async function findAdminUserByEmail(
   email: string
 ): Promise<(AdminUserRecord & { passwordHash: string }) | null> {
   const p = requirePool();
-  const [rows] = await p.execute('SELECT * FROM admin_users WHERE email = ? LIMIT 1', [email]);
+  const [rows] = await p.execute(
+    `SELECT a.*, r.id AS referrer_id, r.active AS referrer_active
+       FROM admin_users a LEFT JOIN referrers r ON r.admin_user_id = a.id
+      WHERE a.email = ? LIMIT 1`,
+    [email]
+  );
   const row = (rows as any[])[0];
   return row ? { ...rowToAdminUser(row), passwordHash: row.password } : null;
 }
@@ -939,7 +949,9 @@ export async function findAdminUserByEmail(
 export async function findAdminUserById(id: number): Promise<AdminUserRecord | null> {
   const p = requirePool();
   const [rows] = await p.execute(
-    'SELECT id, email, role, company_id, active, created_at FROM admin_users WHERE id = ? LIMIT 1',
+    `SELECT a.id, a.email, a.role, a.company_id, a.active, a.created_at, r.id AS referrer_id, r.active AS referrer_active
+       FROM admin_users a LEFT JOIN referrers r ON r.admin_user_id = a.id
+      WHERE a.id = ? LIMIT 1`,
     [id]
   );
   const row = (rows as any[])[0];
@@ -1136,4 +1148,112 @@ export async function updateHomeMedia(
     await p.execute(`UPDATE home_media SET ${sets.join(', ')} WHERE id = ?`, [...args, id]);
   }
   return findHomeMedia(id);
+}
+
+// ── 推薦人（客戶 10/22，#93）──
+//
+// `referrers` 是推薦人本身的名冊（渠道商、治療師），不是家長資料：只有全域管理員建、看全部（路由層 requireGlobal），
+// 列在 `test/adminScope.structure.test.ts` 的 `GLOBAL_TABLES`。推薦人看家長走的是公司條件那一套（`kind: 'referrer'`，
+// `companyWhereSql` 產生 `referrer_bindings` 的 EXISTS），不在這裡另開一條路。
+
+export type ReferrerKind = 'channel' | 'therapist';
+
+export interface ReferrerRecord {
+  id: number;
+  adminUserId: number;
+  email: string;
+  name: string;
+  phone: string;
+  kind: ReferrerKind;
+  companyId: number | null;
+  companyName: string | null;
+  active: boolean;
+  createdAt: string | null;
+}
+
+function rowToReferrer(row: any): ReferrerRecord {
+  return {
+    id: Number(row.id),
+    adminUserId: Number(row.admin_user_id),
+    email: row.email,
+    name: row.name,
+    phone: row.phone,
+    kind: row.kind === 'therapist' ? 'therapist' : 'channel',
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
+    active: Number(row.active) === 1,
+    createdAt: toIso(row.created_at),
+  };
+}
+
+export async function listReferrers(): Promise<ReferrerRecord[]> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT r.*, a.email, c.name AS company_name
+       FROM referrers r
+       JOIN admin_users a ON a.id = r.admin_user_id
+       LEFT JOIN companies c ON c.id = r.company_id
+      ORDER BY r.id ASC`,
+    []
+  );
+  return (rows as any[]).map(rowToReferrer);
+}
+
+export async function findReferrer(id: number): Promise<ReferrerRecord | null> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT r.*, a.email, c.name AS company_name
+       FROM referrers r
+       JOIN admin_users a ON a.id = r.admin_user_id
+       LEFT JOIN companies c ON c.id = r.company_id
+      WHERE r.id = ? LIMIT 1`,
+    [id]
+  );
+  const row = (rows as any[])[0];
+  return row ? rowToReferrer(row) : null;
+}
+
+/** 開一位推薦人：後台帳號（角色 `referrer`）與 `referrers` 那一列在同一個交易裡。信箱撞到丟 `ER_DUP_ENTRY`。 */
+export async function createReferrer(input: {
+  email: string;
+  passwordHash: string;
+  name: string;
+  phone: string;
+  kind: ReferrerKind;
+  companyId: number | null;
+}): Promise<ReferrerRecord> {
+  const p = requirePool();
+  const conn = await p.getConnection();
+  let referrerId: number;
+  try {
+    await conn.beginTransaction();
+    const [account] = await conn.execute(
+      "INSERT INTO admin_users (email, password, role, company_id) VALUES (?, ?, 'referrer', NULL)",
+      [input.email, input.passwordHash]
+    );
+    const [ref] = await conn.execute(
+      'INSERT INTO referrers (admin_user_id, name, phone, kind, company_id) VALUES (?, ?, ?, ?, ?)',
+      [(account as ResultSetHeader).insertId, input.name, input.phone, input.kind, input.companyId]
+    );
+    referrerId = (ref as ResultSetHeader).insertId;
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+  const created = await findReferrer(referrerId);
+  if (!created) throw new Error('建立推荐人后读不回来');
+  return created;
+}
+
+/** 停用／重新啟用一位推薦人（他的後台帳號一起）。回影響的列數。 */
+export async function setReferrerActive(id: number, active: boolean): Promise<number> {
+  const p = requirePool();
+  const [result] = await p.execute(
+    'UPDATE referrers r JOIN admin_users a ON a.id = r.admin_user_id SET r.active = ?, a.active = ? WHERE r.id = ?',
+    [active ? 1 : 0, active ? 1 : 0, id]
+  );
+  return (result as ResultSetHeader).affectedRows;
 }

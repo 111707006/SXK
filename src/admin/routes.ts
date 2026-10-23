@@ -29,6 +29,7 @@ import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
+import { referrerMayCall } from './referrerAccess';
 import { looksLike, MAX_POSTER_BYTES, mediaUrlOf, readSeconds, saveActivityMedia, saveUpload, stepImageStem, type MediaKind, type UploadSpec } from './activityMedia';
 import { isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
 import path from 'path';
@@ -50,12 +51,19 @@ function bearer(req: express.Request): string | null {
 }
 
 function identityView(identity: AdminIdentity) {
-  return identity.role === 'company_member'
-    ? { role: identity.role, email: identity.email, companyId: identity.companyId, selection: null }
-    : { role: identity.role, email: identity.email, companyId: null, selection: identity.selection };
+  if (identity.role === 'company_member') {
+    return { role: identity.role, email: identity.email, companyId: identity.companyId, selection: null };
+  }
+  // 推薦人（#93）：沒有公司、沒有選擇；畫面只畫他那幾個分頁。
+  if (identity.role === 'referrer') return { role: identity.role, email: identity.email, companyId: null, selection: null };
+  return { role: identity.role, email: identity.email, companyId: null, selection: identity.selection };
 }
 
 function issueToken(identity: AdminIdentity): string {
+  if (identity.role === 'referrer') {
+    // 推薦人是誰由資料庫決定（每次請求都回查 `referrers`），token 裡不帶推薦人編號。
+    return signAdminToken({ aid: identity.adminUserId, email: identity.email, role: 'referrer', companyId: null, sel: null });
+  }
   return signAdminToken(
     identity.role === 'company_member'
       ? {
@@ -225,6 +233,11 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         return;
       }
       req.admin = identity;
+      // 推薦人（#93）只打得到白名單上的那幾支（`src/admin/referrerAccess.ts`）。
+      if (identity.role === 'referrer' && !referrerMayCall(req.method, req.path)) {
+        res.status(403).json({ error: '推荐人帐号没有这个功能。', code: 'FORBIDDEN' });
+        return;
+      }
       next();
     } catch (err: any) {
       console.error('[Admin] Session check failed:', err.message);
@@ -729,6 +742,99 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       }
       console.error('[Admin] createAdminUser failed:', err.message);
       res.status(500).json({ error: '开设后台帐号失败。' });
+    }
+  });
+
+  // ── 推薦人（客戶 10/22，#93）──
+  // 只有全域管理員建、看、停用。推薦人帳號是後台帳號（角色 `referrer`）加一列 `referrers`，同一個交易建。
+  router.get('/referrers', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    try {
+      res.json({ referrers: await store.listReferrers() });
+    } catch (err: any) {
+      console.error('[Admin] listReferrers failed:', err.message);
+      res.status(500).json({ error: '读取推荐人失败。' });
+    }
+  });
+
+  router.post('/referrers', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+    const kind = body.kind === 'therapist' ? 'therapist' : body.kind === 'channel' ? 'channel' : null;
+    if (!email || !/^[^@\s]+@[^@\s]+$/.test(email)) {
+      res.status(400).json({ error: '请填写有效的信箱（推荐人用它登入后台）。' });
+      return;
+    }
+    if (password.length < 8) {
+      res.status(400).json({ error: '密码至少 8 个字元。' });
+      return;
+    }
+    if (!name || name.length > 50) {
+      res.status(400).json({ error: '请填写推荐人名称（50 字以内）。' });
+      return;
+    }
+    if (!/^1\d{10}$/.test(phone)) {
+      res.status(400).json({ error: '请填写 11 位手机号。' });
+      return;
+    }
+    if (!kind) {
+      res.status(400).json({ error: '请选择渠道商或治疗师。' });
+      return;
+    }
+    let companyId: number | null = null;
+    if (body.companyId !== undefined && body.companyId !== null) {
+      if (!Number.isInteger(body.companyId)) {
+        res.status(400).json({ error: '合作公司不对。' });
+        return;
+      }
+      const company = await store.findCompanyById(Number(body.companyId));
+      if (!company) {
+        res.status(404).json({ error: '找不到该合作公司。' });
+        return;
+      }
+      companyId = company.id;
+    }
+    try {
+      const referrer = await store.createReferrer({
+        email,
+        passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
+        name,
+        phone,
+        kind,
+        companyId,
+      });
+      res.json({ referrer });
+    } catch (err: any) {
+      if (err?.code === 'ER_DUP_ENTRY') {
+        res.status(409).json({ error: '这个信箱已经有后台帐号。' });
+        return;
+      }
+      console.error('[Admin] createReferrer failed:', err.message);
+      res.status(500).json({ error: '开设推荐人失败。' });
+    }
+  });
+
+  router.post('/referrers/:id/active', async (req: AuthedRequest, res) => {
+    if (!requireGlobal(req, res)) return;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(404).json({ error: '找不到该推荐人。' });
+      return;
+    }
+    try {
+      const affected = await store.setReferrerActive(id, req.body?.active === true);
+      if (affected === 0) {
+        res.status(404).json({ error: '找不到该推荐人。' });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error('[Admin] setReferrerActive failed:', err.message);
+      res.status(500).json({ error: '更新推荐人失败。' });
     }
   });
 

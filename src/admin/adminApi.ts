@@ -463,6 +463,13 @@ export const adminApi = {
   codesCsv: (referrerId: number | null) =>
     download(referrerId === null ? '/referrer/codes.csv' : `/referrers/${referrerId}/codes.csv`, { method: 'GET' }, '未用兑换码.csv'),
 
+  // ── 代填（客戶 10/22，#112；只有推薦人）──
+  proxyLookup: (phone: string) =>
+    request<{ status: 'new' } | { status: 'mine' | 'unbound'; child: { name: string; birthDate: string; gender: string } | null }>(
+      '/referrer/proxy/lookup', { method: 'POST', body: JSON.stringify({ phone }) }),
+  proxyFill: (input: { phone: string; child: { name: string; birthDate: string; gender: 'boy' | 'girl' }; colors: Record<string, string>; tags: string[]; months: 1 | 3 | 6 }) =>
+    request<{ ok: true; consumedCode: boolean }>('/referrer/proxy', { method: 'POST', body: JSON.stringify(input) }),
+
   // ── 首頁素材（客戶 10/22，#87；伺服器開關 HOME_MEDIA 關著時這幾支是 404）──
   homeMedia: () => request<{ items: HomeMediaItem[] }>('/home-media'),
 

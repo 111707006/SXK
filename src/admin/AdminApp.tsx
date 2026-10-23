@@ -47,6 +47,7 @@ import VideoTaggingPanel from './panels/VideoTaggingPanel';
 import HomeMediaPanel from './panels/HomeMediaPanel';
 import ReferrersPanel from './panels/ReferrersPanel';
 import RedeemCodesBlock from './panels/RedeemCodesBlock';
+import ProxyPanel from './panels/ProxyPanel';
 
 /**
  * 列印頁連同整份報告本體（雷達圖、儀表、軌跡圖）另外切一包。
@@ -359,6 +360,7 @@ function AdminCenter() {
             <ReferrersPanel onError={handleError} companies={companies} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
           )}
           {activeTab === 'myCodes' && <RedeemCodesBlock referrerId={null} onError={handleError} />}
+          {activeTab === 'proxy' && <ProxyPanel onError={handleError} />}
         </div>
       )}
     </Shell>

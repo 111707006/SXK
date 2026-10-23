@@ -47,6 +47,8 @@ function stripComments(source: string): string {
 const SCOPED_TABLES = [
   'users', 'user_data', 'expert_bookings', 'specialists', 'payments', 'handoff_codes', 'handoff_invites', 'handoff_imports',
   't2_findings',
+  // 2026-10-24（#112 代填）：居家訓練使用權與推薦綁定都是家長資料。目前只有代填那兩支碰（見例外清單）。
+  'training_passes', 'referrer_bindings',
 ];
 
 /**
@@ -92,6 +94,12 @@ const CROSS_SCOPE_ALLOWLIST: Record<string, string> = {
   summaryByCompany:
     '跨公司彙總。合法地跨越公司邊界，但只回統計數字，不回任何個別家長；' +
     '路由層限定全域管理員。',
+  proxyLookup:
+    '推薦人代填前找家長（#112）：對象是還不在推薦人名下的家長，公司條件表達不了。以（推薦人的合作公司，手機號）' +
+    '找（與登入同一個鍵），別人名下的回 other、不回任何資料；只回孩子姓名、生日、性別。路由限推薦人。',
+  proxyFill:
+    '推薦人代填（#112）：同上，一個交易裡找或建家長、擋掉別人名下的（一個字都不寫）、寫孩子資料與代填快照、' +
+    '第一次代填才扣碼與綁定。路由限推薦人，推薦人編號取自工作階段。',
   createSpecialist:
     'INSERT 的 company_id 直接取自條件本身（函式開頭已把 kind !== "company" 擋掉），' +
     '寫不進別家公司。',

@@ -14,6 +14,7 @@
  * 【改過的地方】樣品寫 4 週的全改 12 週；「难度 入门」換成「从做得到的开始」；STEP 3 第三條不再說
  * 「下周安排会参考」（配對不看心情）；頭圖、常見問題的人像不上（來源與授權不明，§9 第 4 題）。
  */
+import { PROXY_TOOLKIT, T1_ONLY_TOOLKIT } from '../../t2/snapshotKinds';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronRight, CircleCheck, Clock, Crown, MessagesSquare, Play, UserRound } from 'lucide-react';
 import { STATUS_WORDING } from '../../utils/statusWording';
@@ -567,6 +568,14 @@ export default function PlanScreen() {
         </section>
 
           </>
+        )}
+
+        {/* 評估結果從哪裡來（#92、#112）：代填的寫「由治疗师填写」，只有 T1 的寫「按 T1…推定」。 */}
+        {findings.toolkitVersion === PROXY_TOOLKIT && (
+          <p id="plan-source-note" data-kind="proxy" className="mx-4 my-2 rounded-full bg-ledo-accent-soft px-3.5 py-1.5 text-xs font-bold text-ledo-accent-soft-ink">{PLAN_PAGE.sourceProxy}</p>
+        )}
+        {findings.toolkitVersion === T1_ONLY_TOOLKIT && (
+          <p id="plan-source-note" data-kind="t1-only" className="mx-4 my-2 rounded-full bg-ledo-accent-soft px-3.5 py-1.5 text-xs font-bold text-ledo-accent-soft-ink">{PLAN_PAGE.sourceT1Only}</p>
         )}
 
         {/* v3：这一期练哪几块（能力表、约专家那一句、怎么带最有效） */}

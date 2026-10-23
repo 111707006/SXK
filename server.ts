@@ -7,7 +7,7 @@ import { PLAN_BLURBS } from './src/t2/trainingPlanCopy';
 import { t1OnlyFindings } from './src/t2/t1OnlySnapshot';
 import { listTrainingPasses, insertTrainingPass, hasScaleT2Findings } from './src/db/trainingPasses';
 import { grantTrainingPass, trainingPassState, type TrainingPassDeps, type TrainingPassState } from './src/t2/trainingPassService';
-import { NON_SCALE_TOOLKITS } from './src/t2/snapshotKinds';
+import { NON_SCALE_TOOLKITS, PROXY_TOOLKIT } from './src/t2/snapshotKinds';
 import { loadPublicHomeMedia } from './src/db/homeMedia';
 import { EMPTY_HOME_MEDIA } from './src/homeMedia/shape';
 import express from 'express';
@@ -2775,8 +2775,12 @@ paidOnly.get('/api/unlocks', async (req, res) => {
     // 這不是一筆購買，不寫進任何地方；開關一拿掉，沒買的家長照舊看到付費牆。
     // 居家訓練使用權（`TRAINING_PLAN`，#91）：有效與否、到哪天。免費期間也照實回（免費只管 T2）。
     const trainingPass = TRAINING_PLAN ? await trainingPassOf(user.id) : undefined;
+    // 代填過的家長（#112）：最新那份快照是治療師給的 —— 登入就直接到居家訓練，不必作答。
+    const proxyFilled = TRAINING_PLAN
+      ? (await withTimeout(t2FindingsStore.latestFindings(user.id), 2000).catch(() => null))?.findings.toolkitVersion === PROXY_TOOLKIT
+      : undefined;
     if (PAYWALL_FREE) {
-      res.json({ dimensionIds: [], t2: true, available: true, free: true, priceFen: UNLOCK_PRICE_FEN, ...(trainingPass ? { trainingPass } : {}) });
+      res.json({ dimensionIds: [], t2: true, available: true, free: true, priceFen: UNLOCK_PRICE_FEN, ...(trainingPass ? { trainingPass, proxyFilled } : {}) });
       return;
     }
     // The price ships with the list so the paywall never hardcodes its own copy
@@ -2792,7 +2796,7 @@ paidOnly.get('/api/unlocks', async (req, res) => {
       t2: (await mysqlDb.hasT2Unlock(user.id)) || trainingPass?.active === true,
       available: true,
       priceFen: UNLOCK_PRICE_FEN,
-      ...(trainingPass ? { trainingPass } : {}),
+      ...(trainingPass ? { trainingPass, proxyFilled } : {}),
     });
   } catch (err: any) {
     console.error('[Payment] Failed to list unlocks:', err.message);

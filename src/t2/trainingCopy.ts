@@ -192,6 +192,9 @@ export const PLAN_PAGE = {
   sharesTitle: '这周练哪几块',
 
   resultsTitle: '我的评估结果',
+  /** 評估結果從哪裡來（#92、#112）。 */
+  sourceProxy: '评估结果由治疗师填写',
+  sourceT1Only: '按 T1 儿少综合发展评估推定；做了 T2 深度评估，下一期会更准',
   fullReport: '看完整报告',
   preparingNote: '活动准备中，可以先约专家',
 

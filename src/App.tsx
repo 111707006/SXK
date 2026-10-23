@@ -182,6 +182,9 @@ export default function App() {
   // 免費期間（伺服器 `PAYWALL_FREE`，`/api/unlocks` 回 `free: true`）：權益照開，但 T1 報告上的 T2 卡仍畫價錢當參考（使用者 2026-10-11）
   const [t2FreePeriod, setT2FreePeriod] = useState(false);
   /** 居家訓練使用權（伺服器 `TRAINING_PLAN`，#91）：`null`＝這個部署沒有這回事（或還沒查到）。 */
+  /** 最新的評估結果是治療師代填的（#112）：登入後直接到居家訓練。 */
+  const [proxyFilled, setProxyFilled] = useState(false);
+  const proxyLandedRef = useRef(false);
   /** 兌換或付款成功之後重讀一次 `/api/unlocks`（#110）。 */
   const [unlocksNonce, setUnlocksNonce] = useState(0);
   const [trainingPass, setTrainingPass] = useState<{ active: boolean; endsOn: string | null; lastEndsOn: string | null } | null>(null);
@@ -543,6 +546,7 @@ export default function App() {
         setT2Unlocked(data.t2 === true);
         setUnlocksAvailable(data.available === true);
         setT2FreePeriod(data.free === true);
+        setProxyFilled(data.proxyFilled === true);
         setTrainingPass(
           data.trainingPass && typeof data.trainingPass.active === 'boolean'
             ? {
@@ -923,6 +927,14 @@ export default function App() {
    * 所以不能拿上面那個含 `demo` 的旗標來擋。
    */
   const isRouteBlocked = t2Access === 'locked';
+
+  // 代填過的家長（#112）：有效使用權、沒做過 T1、還停在首頁或評估面板 —— 直接帶到居家訓練（只帶一次）。
+  useEffect(() => {
+    if (proxyLandedRef.current || !proxyFilled || !trainingPass?.active) return;
+    if (completedScores.some(s => s.tierId === 'T1')) return;
+    proxyLandedRef.current = true;
+    setCurrentView(v => (v === 'home' || v === 'dashboard' ? 'training' : v));
+  }, [proxyFilled, trainingPass, completedScores]);
 
   /**
    * 1022（issue #82）：12–180 個月以外的孩子不給 T1 —— 評估面板與 T1 那一頁都改畫紅燈卡「建议寻找专业人士」。

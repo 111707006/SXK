@@ -32,6 +32,9 @@ import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/in
 import { referrerMayCall } from './referrerAccess';
 import { formatCode, generateCode, MAX_BATCH } from '../redeem/codes';
 import { isPassMonths } from '../t2/trainingPass';
+import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
+import { calculateAgeMonth } from '../utils/dateUtils';
+import { calendarDateOf } from '../t2/weeks';
 import { looksLike, MAX_POSTER_BYTES, mediaUrlOf, readSeconds, saveActivityMedia, saveUpload, stepImageStem, type MediaKind, type UploadSpec } from './activityMedia';
 import { isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
 import path from 'path';
@@ -935,6 +938,61 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       } catch (err: any) {
         console.error('[Admin] list my codes failed:', err.message);
         res.status(500).json({ error: '读取兑换码失败。' });
+      }
+    });
+
+    // ── 代填（#112）：只有推薦人；推薦人編號與合作公司取自工作階段與資料庫，不收請求參數 ──
+    const myReferrer = async (req: AuthedRequest, res: express.Response) => {
+      const id = myReferrerId(req, res);
+      if (id === null) return null;
+      const referrer = await store.findReferrer(id);
+      if (!referrer || !referrer.active) {
+        res.status(403).json({ error: '推荐人帐号已停用。', code: 'FORBIDDEN' });
+        return null;
+      }
+      return referrer;
+    };
+
+    router.post('/referrer/proxy/lookup', async (req: AuthedRequest, res) => {
+      try {
+        const referrer = await myReferrer(req, res);
+        if (!referrer) return;
+        const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+        if (!/^1\d{10}$/.test(phone)) return void res.status(400).json({ error: '请填写 11 位手机号。' });
+        const found = await store.proxyLookup(referrer, phone);
+        if (found.status === 'other') return void res.status(409).json({ error: '这位家长已由其他推荐人服务', code: 'OTHER_REFERRER' });
+        res.json(found);
+      } catch (err: any) {
+        console.error('[Admin] proxy lookup failed:', err.message);
+        res.status(500).json({ error: '查询家长失败。' });
+      }
+    });
+
+    router.post('/referrer/proxy', async (req: AuthedRequest, res) => {
+      try {
+        const referrer = await myReferrer(req, res);
+        if (!referrer) return;
+        const now = new Date();
+        const input = readProxyInput(req.body, now);
+        if ('error' in input) return void res.status(400).json({ error: input.error });
+        const ageMonth = calculateAgeMonth(input.child.birthDate, now)!;
+        const findings = proxyFindings({ colors: input.colors, tags: input.tags, ageMonth, sex: input.child.gender, now });
+        const result = await store.proxyFill(
+          { id: referrer.id, companyId: referrer.companyId, adminUserId: referrer.adminUserId },
+          {
+            phone: input.phone,
+            child: { ...input.child, ageMonth },
+            findings: findings as unknown as { rulesVersion: string; toolkitVersion: string } & Record<string, unknown>,
+            months: input.months,
+            today: calendarDateOf(now),
+            generateCode: () => generateCode(max => crypto.randomInt(max)),
+          }
+        );
+        if (!result.ok) return void res.status(409).json({ error: '这位家长已由其他推荐人服务', code: 'OTHER_REFERRER' });
+        res.json({ ok: true, consumedCode: result.consumedCodeId !== null });
+      } catch (err: any) {
+        console.error('[Admin] proxy fill failed:', err.message);
+        res.status(500).json({ error: '代填失败，请再试一次。' });
       }
     });
 

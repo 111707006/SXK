@@ -5,7 +5,6 @@ import {
   DX_OPTIONS,
   DX_QUESTION,
   GESTATION_FULL_TERM,
-  GESTATION_QUESTION,
   HEARING_QUESTION,
   NO,
   SCHOOL_QUESTION,
@@ -55,10 +54,10 @@ export default function T1SupplementStep({ value, onChange, onBack, onSubmit }: 
         <p className="text-xs leading-relaxed text-ledo-ink-2">{WORDING_1022.supplement.sub}</p>
       </div>
 
-      <Question title={GESTATION_QUESTION} required>
+      <Question title={WORDING_1022.supplement.gestationQuestion} required>
         <select
           id="t1-supplement-gestation"
-          aria-label={GESTATION_QUESTION}
+          aria-label={WORDING_1022.supplement.gestationQuestion}
           value={value.gestation === undefined ? '' : String(value.gestation)}
           onChange={e => onChange({ ...value, gestation: e.target.value === '' ? undefined : e.target.value === 'term' ? 'term' : Number(e.target.value) })}
           className="w-full rounded-[18px] border-[1.5px] border-ledo-line bg-white px-3.5 py-2.5 text-[14px] font-bold text-ledo-ink"

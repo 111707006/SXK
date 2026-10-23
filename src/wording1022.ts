@@ -75,6 +75,8 @@ export const WORDING_1022 = {
     required: '必填',
     optional: '选填',
     unknown: '不清楚',
+    /** 原題寫「（早产才需要选）」，在這裡是必填，括號那句拿掉。 */
+    gestationQuestion: '出生时怀孕几周？',
     missing: '还有必填的题目没有选',
   },
 

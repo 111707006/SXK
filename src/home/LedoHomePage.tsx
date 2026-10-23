@@ -6,7 +6,9 @@ import { calendarDateOf, weekEndOf, weekStartOf } from '../t2/weeks';
 import type { Checkin } from '../t2/practice';
 import { Avatar, Chip, Greeting, ListRow, SectionHead, Tile, greetingFor } from '../components/ledo/ui';
 import { BANNER, HOSPITAL_PHOTO } from './HomePage';
-import { HOME_CARDS, HOME_COPY, type HomeTarget } from './homeNav';
+import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, type HomeTarget } from './homeNav';
+import { PRODUCT } from '../productConfig';
+import { WORDING_1022 } from '../wording1022';
 
 /**
  * Ledo 版首頁（設計稿第 2 頁）：打招呼、示範片大卡、孩子的概況、三個去處改成清單行。
@@ -99,7 +101,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
     <div id="home-page" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
       <Greeting
         small={childName ? `${childName}的家长，${greetingFor(new Date())}` : `${greetingFor(new Date())}，欢迎来看看`}
-        title="今天也陪孩子玩一下"
+        title={PRODUCT.features.ui1022 ? WORDING_1022.home.heroTitle : '今天也陪孩子玩一下'}
       />
 
       <button
@@ -124,7 +126,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
         />
         <span className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
           <Chip tone="white">示范片：小推车</Chip>
-          <Chip on>去线上干预</Chip>
+          <Chip on>{PRODUCT.features.ui1022 ? WORDING_1022.home.heroButton : '去线上干预'}</Chip>
         </span>
       </button>
 
@@ -164,6 +166,22 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
         </>
       )}
 
+      {/* 1022（issue #84）：兩張卡、T1 在前、有底框，副標是客戶的固定句；沒有線下服務點。 */}
+      {PRODUCT.features.ui1022 ? (
+        <div className="space-y-2.5">
+          {HOME_CARDS_1022.map(card => (
+            <div key={card.id} className="rounded-3xl border-[1.5px] border-ledo-line bg-white p-3 shadow-sm">
+              <ListRow
+                id={`home-card-${card.id}`}
+                avatar={<Avatar img={CARD_IMG[card.id]} />}
+                title={card.title}
+                sub={card.sub}
+                onClick={() => onOpen(card.target)}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="space-y-2.5">
         {HOME_CARDS.map(card => (
           <ListRow
@@ -176,6 +194,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
           />
         ))}
       </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,8 @@
  * 這裡是純函式，`App.tsx` 只照著切 `currentView`。
  */
 
+import { WORDING_1022 } from '../wording1022';
+
 /** 首頁的卡片會帶去的那幾頁（`App.tsx` 的 `currentView` 的一部分）。 */
 export type HomeTarget = 'training' | 'dashboard' | 'offline_service';
 
@@ -20,6 +22,15 @@ export const HOME_CARDS: ReadonlyArray<HomeCard> = [
   { id: 'training', title: '线上家庭干预练习', target: 'training', more: '了解更多' },
   { id: 't1', title: 'T1综合评估', target: 'dashboard', more: '了解更多' },
   { id: 'offline', title: '线下服务点', target: 'offline_service', more: '了解更多' },
+];
+
+/**
+ * 客戶 10/22（issue #84，`VITE_UI_1022`）：兩張卡，T1 在前、居家訓練在後；線下服務點不放（那一頁的路由留著）。
+ * 副標是客戶給的固定句。去處不變（居家訓練卡改去訓練計劃頁在規格三）。
+ */
+export const HOME_CARDS_1022: ReadonlyArray<HomeCard & { sub: string }> = [
+  { id: 't1', title: WORDING_1022.home.t1Card.title, sub: WORDING_1022.home.t1Card.subtitle, target: 'dashboard', more: '了解更多' },
+  { id: 'training', title: WORDING_1022.home.trainingCard.title, sub: WORDING_1022.home.trainingCard.subtitle, target: 'training', more: '了解更多' },
 ];
 
 export const HOME_COPY = {

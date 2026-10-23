@@ -1252,7 +1252,18 @@ export default function App() {
               </div>
             </div>
           ) : homeV2 && !userIdentity ? (
-            /* 新版首頁、未登入：右上「登录、注册」（規格 §5.1）。純驗證碼登入沒有另外的註冊，兩顆到同一個登入頁。 */
+            /* 新版首頁、未登入：右上「登录、注册」（規格 §5.1）。純驗證碼登入沒有另外的註冊，兩顆到同一個登入頁。
+               1022（issue #84）合成一顆「登录／注册」；從頁首登入完回首頁（viewAfterLogin）。 */
+            PRODUCT.features.ui1022 ? (
+              <button
+                type="button"
+                id="header-login-btn"
+                onClick={openHomeLogin}
+                className="shrink-0 px-3.5 py-1.5 rounded-xl bg-brand-moss hover:bg-brand-moss/90 text-white text-xs font-extrabold transition shadow-sm cursor-pointer"
+              >
+                {WORDING_1022.home.login}
+              </button>
+            ) : (
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
@@ -1271,6 +1282,7 @@ export default function App() {
                 {HOME_COPY.register}
               </button>
             </div>
+            )
           ) : userIdentity ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-brand-charcoal/80 font-medium">

@@ -9,6 +9,8 @@ import { BANNER, HOSPITAL_PHOTO } from './HomePage';
 import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, type HomeTarget } from './homeNav';
 import { PRODUCT } from '../productConfig';
 import { WORDING_1022 } from '../wording1022';
+import HomeCarousel from './HomeCarousel';
+import { useHomeMedia } from './homeMediaClient';
 
 /**
  * Ledo 版首頁（設計稿第 2 頁）：打招呼、示範片大卡、孩子的概況、三個去處改成清單行。
@@ -87,6 +89,10 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
     v.play()?.catch(() => {});
   }, []);
 
+  // 首頁素材（`HOME_MEDIA`，#87）：後台有啟用中的輪播就畫輪播，沒有（或還沒讀到、讀失敗）照舊是固定示範片。
+  const media = useHomeMedia();
+  const banners = media?.banners ?? [];
+
   const t1 = scores.filter(s => s.tierId === 'T1');
   const count = (st: DimensionScore['status']) => t1.filter(s => s.status === st).length;
   const date = doneDate(t1);
@@ -104,6 +110,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
         title={PRODUCT.features.ui1022 ? WORDING_1022.home.heroTitle : '今天也陪孩子玩一下'}
       />
 
+      {banners.length > 0 ? <HomeCarousel items={banners} /> : (
       <button
         type="button"
         onClick={() => onOpen('training')}
@@ -129,6 +136,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
           <Chip on>{PRODUCT.features.ui1022 ? WORDING_1022.home.heroButton : '去线上干预'}</Chip>
         </span>
       </button>
+      )}
 
       {t1.length > 0 && (
         <>

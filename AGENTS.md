@@ -305,6 +305,10 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `/api/t2/practice-prefs.ics` | GET | 依提醒产生每周重复的 `.ics`（`RRULE:FREQ=WEEKLY`、`TZID=Asia/Shanghai`、标题「陪孩子做家庭活动」）；没设提醒 404。**两种身分**：Bearer，或 `?t=` 带下一支发的短时效连结（带了 `t` 就只看连结，坏的／过期的 401，不退回 Bearer） | `Authorization: Bearer <token>` 或 `t` (query) |
 | `/api/t2/practice-prefs/ics-link` | POST | 换一条上面那一支的短时效连结（Keep 票 7）：回 `{url: "/api/t2/practice-prefs.ics?t=…"}`，10 分钟内有效、`Cache-Control: no-store`；没设提醒 404 `REMINDER_NOT_SET`。前端拿到用 `location.href` 开（手机「加入日历」那一次请求带不了 Bearer） | `Authorization: Bearer <token>` |
 | `/api/home/config` | GET | 专案 A：新版首页开了没（开关 `HOME_V2`，issue #72），回 `{enabled}`；**公开，不需登入**。B 是 404 | 无 |
+| `/api/home/media` | GET | 专案 A：首页素材（`HOME_MEDIA`，#87）：回 `{splash, banners}`（启用中的开屏一张、轮播依排序；`src/homeMedia/shape.ts`）。开关关着、没有资料库、读失败一律回空。**公开，不需登入**。B 是 404 | 无 |
+| `/api/admin/home-media` | GET／POST | 后台首页素材（全域管理员，`HOME_MEDIA` 开着才注册）：GET 回全部（含停用）；POST `?slot=splash｜banner&kind=image｜video`，本体就是档案（jpg／png ≤2 MB、mp4 ≤30 MB，看档头），存成 `MEDIA_DIR/home/<槽位>-<时间>-<乱数>.<副档名>`、网址带 `?v=`。不对的 415、太大 413，都不写档 | `Authorization: Bearer <后台 token>` |
+| `/api/admin/home-media/:id` | PATCH | 改连结（只收站内路径或 https，`isSafeMediaLink`；`null` 清掉）、排序、启用（带了才改）；没有删除 | 同上 |
+| `/api/admin/home-media/:id/poster` | PUT | 短片的封面（jpg ≤2 MB，后台浏览器抽的一格）；图片 404 | 同上 |
 | `/api/handoff/config` | GET | 专案 B：交接开了没（`{enabled, targetName}`／`{enabled: false}`）；B 报告页据此画不画那张卡 | 无 |
 | `/api/handoff/start` | POST | 专案 B：家长按「到森心康做深度评估」。回 `{url: "<A>/handoff#code=…", expiresInSec: 120}`（`no-store`）。没同意 400 `CONSENT_REQUIRED`、没手机号或没做 T1 409、没开 404 | `consent: true`；`Authorization: Bearer <token>` |
 | `/internal/handoff/redeem` | POST | 专案 B，**只给 A 的伺服器**：兑换交接码（**不过期、可重复**，每次记一次使用），交出手机、来源公司、孩子、T1 成绩、对得上的那份 T1 报告。任何失败都是同一个 404 | `code`；`Authorization: Bearer <HANDOFF_SECRET>` |
@@ -478,6 +482,7 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `DEV_INDEX_BASIS` | 后台汇总与导出的「发育指数」怎么算（使用者 2026-10-18：「两个都做，用开关来调整」，规格 `docs/specs/client-changes-2026-10-17.md` D21、§3.2b，A、B 都适用）：不设／`peer` ＝ 同龄估算（#68，`src/developmentIndex/developmentIndex.ts`）；`attainment` ＝ 达成率（客户 SXK-ASQ3 HTML 的 85／70／55 参考带，55 以下以 40 切成 75／70 是暂采，`src/developmentIndex/attainment.ts`；不要逐题作答，旧成绩也有数字）。两种都只出 100／90／80／75／70，栏位不变。只收 `peer`/`attainment`，认不得的值起不来 | 否 |
 | `VITE_UI_1022` | **建置期**（客戶 10/22 修改，#78，規格 `docs/specs/client-changes-2026-10-22-1-ui.md`，**只在專案 A**）：`1` ＝ 家長端改叫「家庭评估与训练平台」（網頁標題、頁首、歡迎語、頁尾版權；頁首不畫「森」字方塊；頁尾只留版權、兩個條款、備案號），靜態頁寫新的 title／description 與視覺隱藏的歡迎句（給微信分享卡）；家長端的字從 `src/wording1022.ts` 取。法律文字不改。B 的建置不讀（開不開逐位元相同）。不設或 `0` ＝ 一行不動。只收 `1`/`0`，認不得的值建置失敗 | 否 |
 | `VITE_MALL_OPEN` | **建置期**（#85，只在專案 A、只在 `VITE_UI_1022` 開著時有作用）：1022 開著時商城預設藏（導覽列「商城」、個人中心「商城订单明细」、商城頁、報告底下的相关产品）；`1` 才出現。只收 `1`/`0`，認不得的值建置失敗 | 否 |
+| `HOME_MEDIA` | 首页素材（客户 10/22，#87／#88，规格 `docs/specs/client-changes-2026-10-22-2-media.md`，**只在专案 A**）：`1` ＝ 后台「首页素材」（全域管理员）上传开屏与首页轮播（`home_media` 表，档案在 `MEDIA_DIR/home/`），家长端读公开端点 `GET /api/home/media`（Ledo 首页大图换成轮播）；`GET /api/home/config` 多带 `homeMedia`。不设或 `0` ＝ 后台那几支不注册、公开端点回空、首页照旧。B 设了不生效（启动印一行）。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-10-23-home-media.sql`**，nginx 要放宽那两支的上传上限（`deploy/nginx.conf`） | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

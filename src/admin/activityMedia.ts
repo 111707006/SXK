@@ -70,27 +70,41 @@ export function readSeconds(raw: unknown): number | null | undefined {
 
 export type SaveResult = { ok: true; bytes: number } | { ok: false; status: number; error: string };
 
+/** 一種上傳收什麼：`Content-Type` → 副檔名、上限、看檔頭的規則、錯誤訊息裡怎麼叫它。 */
+export interface UploadSpec {
+  types: Record<string, string>;
+  max: number;
+  looksRight: (head: Buffer, ext: string) => boolean;
+  /** 「示范片」「封面」…… */
+  what: string;
+  /** Content-Type 不對時說什麼。 */
+  wrongType: string;
+  /** 檔頭不對時說什麼。 */
+  wrongContent: string;
+}
+
+export type UploadResult = { ok: true; bytes: number; ext: string } | { ok: false; status: number; error: string };
+
 /**
- * 把請求本體存成 `<dir>/activities/<id>.<ext>`。`contentType` 是請求的標頭（不認得的直接 415，一個位元組都不收）。
- * 檔名只由 `activityId` 決定，呼叫端要先確認它符合 `A\d{3}` 且活動庫裡有。
+ * 把請求本體存成 `<folder>/<stem>.<ext>`（理由見檔頭：串流寫暫存檔、超過上限立刻停、看檔頭、原子改名）。
+ * `stem` 由呼叫端決定（不收前端的檔名），`ext` 由 `Content-Type` 決定。
  */
-export async function saveActivityMedia(
+export async function saveUpload(
   body: Readable,
   contentType: string | undefined,
-  dir: string,
-  activityId: string,
-  kind: MediaKind,
-  max: number = MAX_BYTES[kind],
-): Promise<SaveResult> {
+  folder: string,
+  stem: string,
+  spec: UploadSpec,
+): Promise<UploadResult> {
   const type = (contentType ?? '').split(';')[0].trim().toLowerCase();
-  if (!CONTENT_TYPES[kind].includes(type)) {
+  const ext = spec.types[type];
+  if (!ext) {
     body.resume();
-    return { ok: false, status: 415, error: kind === 'video' ? '示范片只收 mp4 档。' : `${WHAT[kind]}只收 jpg 图。` };
+    return { ok: false, status: 415, error: spec.wrongType };
   }
-  const folder = path.join(dir, 'activities');
   await fs.promises.mkdir(folder, { recursive: true });
-  const finalPath = path.join(folder, `${activityId}.${EXT[kind]}`);
-  const tmpPath = path.join(folder, `.upload-${activityId}-${crypto.randomBytes(6).toString('hex')}`);
+  const finalPath = path.join(folder, `${stem}.${ext}`);
+  const tmpPath = path.join(folder, `.upload-${stem}-${crypto.randomBytes(6).toString('hex')}`);
 
   let bytes = 0;
   let head = Buffer.alloc(0);
@@ -101,7 +115,7 @@ export async function saveActivityMedia(
       body.on('data', (chunk: Buffer) => {
         bytes += chunk.length;
         if (head.length < 16) head = Buffer.concat([head, chunk.subarray(0, 16 - head.length)]);
-        if (bytes > max) {
+        if (bytes > spec.max) {
           tooBig = true;
           body.unpipe(out);
           body.resume();
@@ -119,14 +133,37 @@ export async function saveActivityMedia(
     throw err;
   }
 
-  const refuse = async (status: number, error: string): Promise<SaveResult> => {
+  const refuse = async (status: number, error: string): Promise<UploadResult> => {
     await fs.promises.rm(tmpPath, { force: true });
     return { ok: false, status, error };
   };
-  if (tooBig) return refuse(413, `${WHAT[kind]}太大了（上限 ${Math.round(max / 1024 / 1024)} MB）。`);
-  if (bytes === 0) return refuse(400, `没有收到${WHAT[kind]}的内容。`);
-  if (!looksLike(kind, head)) return refuse(415, kind === 'video' ? '这个档案不是 mp4 影片。' : '这个档案不是 jpg 图。');
+  if (tooBig) return refuse(413, `${spec.what}太大了（上限 ${Math.round(spec.max / 1024 / 1024)} MB）。`);
+  if (bytes === 0) return refuse(400, `没有收到${spec.what}的内容。`);
+  if (!spec.looksRight(head, ext)) return refuse(415, spec.wrongContent);
 
   await fs.promises.rename(tmpPath, finalPath);
-  return { ok: true, bytes };
+  return { ok: true, bytes, ext };
+}
+
+/**
+ * 把請求本體存成 `<dir>/activities/<id>.<ext>`。`contentType` 是請求的標頭（不認得的直接 415，一個位元組都不收）。
+ * 檔名只由 `activityId` 決定，呼叫端要先確認它符合 `A\d{3}` 且活動庫裡有。
+ */
+export async function saveActivityMedia(
+  body: Readable,
+  contentType: string | undefined,
+  dir: string,
+  activityId: string,
+  kind: MediaKind,
+  max: number = MAX_BYTES[kind],
+): Promise<SaveResult> {
+  const saved = await saveUpload(body, contentType, path.join(dir, 'activities'), activityId, {
+    types: Object.fromEntries(CONTENT_TYPES[kind].map(t => [t, EXT[kind]])),
+    max,
+    looksRight: head => looksLike(kind, head),
+    what: WHAT[kind],
+    wrongType: kind === 'video' ? '示范片只收 mp4 档。' : `${WHAT[kind]}只收 jpg 图。`,
+    wrongContent: kind === 'video' ? '这个档案不是 mp4 影片。' : '这个档案不是 jpg 图。',
+  });
+  return saved.ok ? { ok: true, bytes: saved.bytes } : saved;
 }

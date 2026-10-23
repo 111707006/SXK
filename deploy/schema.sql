@@ -707,6 +707,22 @@ CREATE TABLE IF NOT EXISTS `handoff_invites` (
   CONSTRAINT `fk_handoff_invites_admin` FOREIGN KEY (`admin_user_id`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 首页素材（客户 10/22，#87；迁移 deploy/migrations/2026-10-23-home-media.sql，只有专案 A 用）。
+CREATE TABLE IF NOT EXISTS `home_media` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `slot` ENUM('splash','banner') NOT NULL,
+  `kind` ENUM('image','video') NOT NULL,
+  `url` VARCHAR(255) NOT NULL,
+  -- 短片的封面（后台浏览器抽的一格）；图片是 NULL。
+  `poster_url` VARCHAR(255) NULL,
+  -- 点下去去哪里：站内路径或 https 网址（src/homeMedia/shape.ts 的 isSafeMediaLink）；NULL＝不连。
+  `link` VARCHAR(500) NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_home_media_slot` (`slot`, `active`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- 既有数据库的迁移（sxk_db 已建过旧版 users 时执行）
 -- ============================================================

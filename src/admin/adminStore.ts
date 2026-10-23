@@ -24,6 +24,7 @@ import { activityFromRow } from '../db/activities';
 import { findingsFromRow, type FindingsRecord } from '../db/t2Findings';
 import type { ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
+import { homeMediaFromRow, type HomeMediaItem, type HomeMediaKind, type HomeMediaSlot } from '../homeMedia/shape';
 import type { SummarySource } from './parentSummary';
 
 // ── 對外型別 ──
@@ -1085,4 +1086,54 @@ export async function recordCompanySwitch(
     'INSERT INTO admin_company_switches (admin_user_id, company_id, selection, request_ip) VALUES (?, ?, ?, ?)',
     [adminUserId, companyId, selection, requestIp]
   );
+}
+
+// ── 首頁素材（客戶 10/22，#87）──
+//
+// `home_media` 是全站一套的開屏與輪播，不屬於任何一家合作公司，也不含任何一位家長的資料 —— 同活動庫，
+// 刻意不帶 `${scope.sql}`，列在 `test/adminScope.structure.test.ts` 的 `GLOBAL_TABLES`；路由層限定全域管理員。
+
+/** 全部素材（含停用的），依槽位、排序。 */
+export async function listHomeMedia(): Promise<HomeMediaItem[]> {
+  const p = requirePool();
+  const [rows] = await p.execute('SELECT * FROM home_media ORDER BY slot ASC, sort_order ASC, id ASC', []);
+  return (rows as Record<string, unknown>[]).map(homeMediaFromRow).filter((i): i is HomeMediaItem => i !== null);
+}
+
+/** 新增一張素材，排在同槽位最後面。回整張。 */
+export async function createHomeMedia(input: { slot: HomeMediaSlot; kind: HomeMediaKind; url: string; link: string | null }): Promise<HomeMediaItem | null> {
+  const p = requirePool();
+  const [maxRows] = await p.execute('SELECT COALESCE(MAX(sort_order), 0) AS m FROM home_media WHERE slot = ?', [input.slot]);
+  const next = Number((maxRows as any[])[0]?.m ?? 0) + 1;
+  const [result] = await p.execute(
+    'INSERT INTO home_media (slot, kind, url, link, sort_order, active) VALUES (?, ?, ?, ?, ?, 1)',
+    [input.slot, input.kind, input.url, input.link, next],
+  );
+  return findHomeMedia((result as ResultSetHeader).insertId);
+}
+
+export async function findHomeMedia(id: number): Promise<HomeMediaItem | null> {
+  const p = requirePool();
+  const [rows] = await p.execute('SELECT * FROM home_media WHERE id = ? LIMIT 1', [id]);
+  const row = (rows as Record<string, unknown>[])[0];
+  return row ? homeMediaFromRow(row) : null;
+}
+
+/** 局部更新：帶了才改（連結、排序、啟用、封面、檔案網址）。回整張；不存在回 null。 */
+export async function updateHomeMedia(
+  id: number,
+  patch: { link?: string | null; sortOrder?: number; active?: boolean; posterUrl?: string; url?: string },
+): Promise<HomeMediaItem | null> {
+  const p = requirePool();
+  const sets: string[] = [];
+  const args: Array<string | number | null> = [];
+  if (patch.link !== undefined) { sets.push('link = ?'); args.push(patch.link); }
+  if (patch.sortOrder !== undefined) { sets.push('sort_order = ?'); args.push(patch.sortOrder); }
+  if (patch.active !== undefined) { sets.push('active = ?'); args.push(patch.active ? 1 : 0); }
+  if (patch.posterUrl !== undefined) { sets.push('poster_url = ?'); args.push(patch.posterUrl); }
+  if (patch.url !== undefined) { sets.push('url = ?'); args.push(patch.url); }
+  if (sets.length > 0) {
+    await p.execute(`UPDATE home_media SET ${sets.join(', ')} WHERE id = ?`, [...args, id]);
+  }
+  return findHomeMedia(id);
 }

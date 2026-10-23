@@ -1,3 +1,5 @@
+import { loadPublicHomeMedia } from './src/db/homeMedia';
+import { EMPTY_HOME_MEDIA } from './src/homeMedia/shape';
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
@@ -223,6 +225,13 @@ const DEV_INDEX_BASIS = resolveDevIndexBasis(process.env.DEV_INDEX_BASIS);
 // 登入前後都先停在首頁（banner＋三張卡），導覽列最前面多「首页」。前端讀 `GET /api/home/config` 知道開了沒；
 // 關著＝畫面一行不動。**只在專案 A**：那支端點掛在 `tier2Only`，B 設了也是 404。同一套 fail-closed 解析。
 const HOME_V2_REQUESTED = resolvePaywallSwitch('HOME_V2', process.env.HOME_V2);
+
+// 首頁素材（客戶 10/22，issue #87／#88，規格 docs/specs/client-changes-2026-10-22-2-media.md）：開著時後台「首页素材」
+// 上傳開屏與輪播（`home_media` 表、檔案在 `MEDIA_DIR/home/`），家長端讀公開端點 `GET /api/home/media`。關著＝後台那幾支
+// 不註冊、公開端點回空、首頁照舊是固定示範片。**只在專案 A**（B 設了不生效，啟動印一行）。同一套 fail-closed 解析。
+// ⚠️ 要先跑 `deploy/migrations/2026-10-23-home-media.sql`。
+const HOME_MEDIA_REQUESTED = resolvePaywallSwitch('HOME_MEDIA', process.env.HOME_MEDIA);
+const HOME_MEDIA = HOME_MEDIA_REQUESTED && APP_MODE === 'full';
 
 /** 後端閘門放行的兩個開關。哪一個開著都一樣不查權益；畫面上的差別只在 `/api/unlocks`。 */
 const PAYWALL_OFF = PAYWALL_DEMO_OPEN || PAYWALL_FREE;
@@ -3828,7 +3837,26 @@ app.post('/api/report-link', async (req, res) => {
  * 只在專案 A（`tier2Only`）：B 沒有這支，前端也不問（`PRODUCT.features.home`）。
  */
 tier2Only.get('/api/home/config', (_req, res) => {
-  res.json({ enabled: HOME_V2_REQUESTED });
+  // `homeMedia`（#87）：開屏與輪播讀後台素材。
+  res.json({ enabled: HOME_V2_REQUESTED, homeMedia: HOME_MEDIA });
+});
+
+/**
+ * 首頁素材（開關 `HOME_MEDIA`，#87／#88）：啟用中的開屏（排序最前的一張）與輪播。**公開，不需要登入**（同首頁設定）。
+ * 開關關著、沒有資料庫、讀失敗一律回沒有素材 —— 首頁照舊是固定示範片，不擋家長。只在專案 A。
+ */
+tier2Only.get('/api/home/media', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  if (!HOME_MEDIA) {
+    res.json(EMPTY_HOME_MEDIA);
+    return;
+  }
+  try {
+    res.json(await loadPublicHomeMedia());
+  } catch (err: any) {
+    console.error('[HomeMedia] load failed:', err.message);
+    res.json(EMPTY_HOME_MEDIA);
+  }
 });
 
 /**
@@ -4022,6 +4050,8 @@ app.use(
         : undefined,
       // 後台上傳示範片與封面（使用者 2026-10-08）：寫進同一個 `/media` 目錄。只有專案 A（B 沒有活動）。
       activityMediaDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
+      // 首頁素材（#87）：只在專案 A、`HOME_MEDIA` 開著。
+      homeMediaDir: HOME_MEDIA ? MEDIA_DIR : undefined,
       // 家長詳情與列印帶出最新的 T2 報告（#67）。只有專案 A（B 沒有 T2）。
       t2Reports: APP_MODE === 'full',
       // 發育指數的算法（`DEV_INDEX_BASIS`）。
@@ -4120,6 +4150,13 @@ export async function startServer() {
         APP_MODE === 'full'
           ? '[SenXinKang Server] HOME_V2=1: parents land on the new home page (banner + three cards).'
           : '[SenXinKang Server] HOME_V2 is set but ignored: project B has no new home page (A only).'
+      );
+    }
+    if (HOME_MEDIA_REQUESTED) {
+      console.log(
+        HOME_MEDIA
+          ? '[SenXinKang Server] HOME_MEDIA=1: splash and home carousel come from the admin uploads (home_media).'
+          : '[SenXinKang Server] HOME_MEDIA is set but ignored: project B has no home page (A only).'
       );
     }
     if (DEMO_LOGIN_CODE) {

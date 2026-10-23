@@ -6,6 +6,7 @@
  * 對方登入狀態的 bug，而那種 bug 在後台最不該出現。
  */
 
+import type { HomeMediaItem, HomeMediaKind, HomeMediaSlot } from '../homeMedia/shape';
 import type { AssessmentRecord } from '../types';
 import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
 import type { Activity } from '../t2/types';
@@ -415,6 +416,49 @@ export const adminApi = {
     if (!resp.ok) throw new AdminApiError(parsed.error || `上传失败（HTTP ${resp.status}）`, (parsed.code as AdminErrorCode) || 'UNKNOWN', resp.status);
     return parsed as { activity: Activity };
   },
+
+  // ── 首頁素材（客戶 10/22，#87；伺服器開關 HOME_MEDIA 關著時這幾支是 404）──
+  homeMedia: () => request<{ items: HomeMediaItem[] }>('/home-media'),
+
+  uploadHomeMedia: async (slot: HomeMediaSlot, kind: HomeMediaKind, file: Blob) => {
+    const token = getAdminToken();
+    const resp = await fetch(`/api/admin/home-media?slot=${slot}&kind=${kind}`, {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg'), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: file,
+    });
+    let parsed: any = {};
+    try {
+      parsed = await resp.json();
+    } catch {
+      // 反向代理回的 HTML
+    }
+    if (!resp.ok) {
+      if (resp.status === 413 && !parsed.error) throw new AdminApiError('档案太大，主机拒收（请联系技术人员调高上传上限）。', 'UNKNOWN', 413);
+      throw new AdminApiError(parsed.error || `上传失败（HTTP ${resp.status}）`, (parsed.code as AdminErrorCode) || 'UNKNOWN', resp.status);
+    }
+    return parsed as { item: HomeMediaItem };
+  },
+
+  uploadHomeMediaPoster: async (id: number, poster: Blob) => {
+    const token = getAdminToken();
+    const resp = await fetch(`/api/admin/home-media/${id}/poster`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: poster,
+    });
+    let parsed: any = {};
+    try {
+      parsed = await resp.json();
+    } catch {
+      // 反向代理回的 HTML
+    }
+    if (!resp.ok) throw new AdminApiError(parsed.error || `上传失败（HTTP ${resp.status}）`, (parsed.code as AdminErrorCode) || 'UNKNOWN', resp.status);
+    return parsed as { item: HomeMediaItem };
+  },
+
+  updateHomeMedia: (id: number, patch: { link?: string | null; sortOrder?: number; active?: boolean }) =>
+    request<{ item: HomeMediaItem }>(`/home-media/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 
   // 批量匯入（v2.1 S25）：先 dryRun 試跑、給人看過，再同一份 rows 正式匯入。
   importActivities: (rows: unknown[], dryRun: boolean) =>

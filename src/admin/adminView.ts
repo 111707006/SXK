@@ -96,7 +96,8 @@ export type AdminTabId =
   | 'adminUsers'
   | 'summary'
   | 'activities'
-  | 'videos';
+  | 'videos'
+  | 'homeMedia';
 
 export interface AdminTab {
   id: AdminTabId;
@@ -119,10 +120,12 @@ const GLOBAL_TABS: AdminTab[] = [
   { id: 'activities', label: '活动库' },
   // 示範片上傳與標籤（2026-10-08）：給非技術人員的那一頁，存的是同一組欄位。
   { id: 'videos', label: '示范片与标签' },
+  // 首頁素材（客戶 10/22，#87）：開屏與首頁輪播，全站一套。
+  { id: 'homeMedia', label: '首页素材' },
 ];
 
 /** 只有專案 A（單一機構）才有的分頁：上傳示範片的端點只在 A 註冊（`activityMediaDir`）。 */
-const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos'];
+const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia'];
 
 /**
  * 只有多合作公司才有意義的分頁 —— 專案 A 上這三個永遠是空的。

@@ -43,6 +43,7 @@ import AdminUsersPanel from './panels/AdminUsersPanel';
 import SummaryPanel from './panels/SummaryPanel';
 import ActivitiesPanel from './panels/ActivitiesPanel';
 import VideoTaggingPanel from './panels/VideoTaggingPanel';
+import HomeMediaPanel from './panels/HomeMediaPanel';
 
 /**
  * 列印頁連同整份報告本體（雷達圖、儀表、軌跡圖）另外切一包。
@@ -336,6 +337,7 @@ function AdminCenter() {
           {activeTab === 'summary' && <SummaryPanel onError={handleError} />}
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}
           {activeTab === 'videos' && <VideoTaggingPanel onError={handleError} />}
+          {activeTab === 'homeMedia' && <HomeMediaPanel onError={handleError} />}
         </div>
       )}
     </Shell>

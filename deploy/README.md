@@ -192,6 +192,11 @@ scp -r media/activities root@你的IP:/var/www/sxk/media/
 
 传上去的网址带版本（`?v=…`），换片后家长不会看到快取里的旧片。备份：这个目录不在 git 里，要另外备份。
 
+**首页素材（客户 10/22，#87／#88，开关 `HOME_MEDIA`，只有 A）**：后台「首页素材」上传开屏与首页轮播，档案写进
+`/var/www/sxk/media/home/`。打开开关之前：① 跑 `deploy/migrations/2026-10-23-home-media.sql`；② 把 `deploy/nginx.conf` 里
+「后台上传首页素材」那一段 `location`（30 MB）加进 `/etc/nginx/sites-enabled/sxk` 并 reload；③ 跑 Node 的使用者要能写
+`/var/www/sxk/media/home/`（目录会自己建，上一层要可写）。开关关着时程式码不碰那张表与那个目录。
+
 ### B→A 交接（ADR-0009；规格 `docs/specs/b-to-a-handoff.md`）
 
 B 的家长在报告页按「到森心康做深度评估」，不用再登入就到 A、带着孩子档案与 T1 成绩停在 T2 入口。

@@ -29,7 +29,10 @@ import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
-import { mediaUrlOf, readSeconds, saveActivityMedia, stepImageStem, type MediaKind } from './activityMedia';
+import { looksLike, MAX_POSTER_BYTES, mediaUrlOf, readSeconds, saveActivityMedia, saveUpload, stepImageStem, type MediaKind, type UploadSpec } from './activityMedia';
+import { isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
+import path from 'path';
+import crypto from 'crypto';
 import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf } from './parentSummary';
 import { developmentIndex } from '../developmentIndex/developmentIndex';
 import type { DevelopmentIndexOf } from './parentSummary';
@@ -101,6 +104,11 @@ export interface AdminRouterHooks {
    * 沒有就是關閉 —— 上傳那兩支不註冊（B 沒有活動與片子）。
    */
   activityMediaDir?: string;
+  /**
+   * 首頁素材（開屏與輪播，客戶 10/22，#87）要寫進的目錄（同一個 `MEDIA_DIR`，檔案在 `home/` 底下）。
+   * 只有專案 A、開關 `HOME_MEDIA` 開著才傳；沒有就是關閉 —— 那幾支不註冊（404）。
+   */
+  homeMediaDir?: string;
   /**
    * 家長詳情帶不帶最新的 T2 報告快照（#67）。只有專案 A 傳 `true`；B 沒有 T2，
    * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
@@ -980,6 +988,111 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     router.put('/activities/:id/video', uploadActivityMedia('video'));
     router.put('/activities/:id/poster', uploadActivityMedia('poster'));
     router.put('/activities/:id/steps/:n/image', uploadStepImage);
+  }
+
+  // ── 首頁素材（客戶 10/22，#87／#88；`src/homeMedia/shape.ts`）──
+  //
+  // 全域管理員才碰得到（全站一套，不屬於任何一家合作公司）。新增＝上傳一個檔（請求本體就是檔案，同示範片），
+  // 檔名由伺服器決定；連結、排序、啟用走 PATCH；短片的封面另一支（後台瀏覽器抽一格）。沒有刪除：停用就好。
+  const homeDir = hooks.homeMediaDir;
+  if (homeDir) {
+    const homeFolder = path.join(homeDir, 'home');
+    const isJpg = (h: Buffer) => h.length >= 3 && h[0] === 0xff && h[1] === 0xd8 && h[2] === 0xff;
+    const isPng = (h: Buffer) => h.length >= 4 && h[0] === 0x89 && h.subarray(1, 4).toString('latin1') === 'PNG';
+    const homeSpec = (kind: HomeMediaKind): UploadSpec => kind === 'video'
+      ? { types: { 'video/mp4': 'mp4' }, max: MAX_HOME_VIDEO_BYTES, looksRight: h => looksLike('video', h), what: '短片', wrongType: '短片只收 mp4 档。', wrongContent: '这个档案不是 mp4 影片。' }
+      : { types: { 'image/jpeg': 'jpg', 'image/png': 'png' }, max: MAX_HOME_IMAGE_BYTES, looksRight: (h, ext) => (ext === 'png' ? isPng(h) : isJpg(h)), what: '图片', wrongType: '图片只收 jpg 或 png。', wrongContent: '这个档案不是 jpg／png 图。' };
+    const homeUrl = (file: string) => `/media/home/${file}?v=${Date.now()}`;
+
+    router.get('/home-media', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      try {
+        res.json({ items: await store.listHomeMedia() });
+      } catch (err: any) {
+        console.error('[Admin] listHomeMedia failed:', err.message);
+        res.status(500).json({ error: '读取首页素材失败。' });
+      }
+    });
+
+    // `POST /home-media?slot=banner|splash&kind=image|video`，本體是檔案。
+    router.post('/home-media', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) { req.resume(); return; }
+      const slot = req.query.slot;
+      const kind = req.query.kind;
+      if ((slot !== 'splash' && slot !== 'banner') || (kind !== 'image' && kind !== 'video')) {
+        req.resume();
+        res.status(400).json({ error: '要指定位置（开屏／轮播）与种类（图片／短片）。' });
+        return;
+      }
+      try {
+        const stem = `${slot}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+        const saved = await saveUpload(req, req.headers['content-type'], homeFolder, stem, homeSpec(kind));
+        if (!saved.ok) {
+          res.status(saved.status).json({ error: saved.error });
+          return;
+        }
+        const item = await store.createHomeMedia({ slot, kind, url: homeUrl(`${stem}.${saved.ext}`), link: null });
+        res.json({ item });
+      } catch (err: any) {
+        console.error('[Admin] upload home media failed:', err.message);
+        res.status(500).json({ error: '上传素材失败，请再试一次。' });
+      }
+    });
+
+    // 短片的封面（jpg，同示範片封面的規則）。
+    router.put('/home-media/:id/poster', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) { req.resume(); return; }
+      const id = /^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : NaN;
+      try {
+        const item = Number.isInteger(id) ? await store.findHomeMedia(id) : null;
+        if (!item || item.kind !== 'video') {
+          req.resume();
+          res.status(404).json({ error: '找不到这一支短片。' });
+          return;
+        }
+        const stem = `poster-${id}-${crypto.randomBytes(4).toString('hex')}`;
+        const saved = await saveUpload(req, req.headers['content-type'], homeFolder, stem, {
+          types: { 'image/jpeg': 'jpg' }, max: MAX_POSTER_BYTES, looksRight: isJpg, what: '封面', wrongType: '封面只收 jpg 图。', wrongContent: '这个档案不是 jpg 图。',
+        });
+        if (!saved.ok) {
+          res.status(saved.status).json({ error: saved.error });
+          return;
+        }
+        res.json({ item: await store.updateHomeMedia(id, { posterUrl: homeUrl(`${stem}.${saved.ext}`) }) });
+      } catch (err: any) {
+        console.error('[Admin] upload home media poster failed:', err.message);
+        res.status(500).json({ error: '上传封面失败，请再试一次。' });
+      }
+    });
+
+    // 連結、排序、啟用（帶了才改）。連結只收站內路徑或 https（`isSafeMediaLink`），`null` 清掉。
+    router.patch('/home-media/:id', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = /^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : NaN;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const patch: { link?: string | null; sortOrder?: number; active?: boolean } = {};
+      if ('link' in body) {
+        if (body.link === null || body.link === '') patch.link = null;
+        else if (isSafeMediaLink(body.link)) patch.link = body.link;
+        else { res.status(400).json({ error: '连结只能填站内路径（/ 开头）或 https:// 网址。' }); return; }
+      }
+      if ('sortOrder' in body) {
+        if (!Number.isInteger(body.sortOrder) || Math.abs(body.sortOrder as number) > 100000) { res.status(400).json({ error: '排序要是整数。' }); return; }
+        patch.sortOrder = body.sortOrder as number;
+      }
+      if ('active' in body) {
+        if (typeof body.active !== 'boolean') { res.status(400).json({ error: 'active 要是 true 或 false。' }); return; }
+        patch.active = body.active;
+      }
+      try {
+        const item = Number.isInteger(id) ? await store.updateHomeMedia(id, patch) : null;
+        if (!item) { res.status(404).json({ error: '找不到这一张素材。' }); return; }
+        res.json({ item });
+      } catch (err: any) {
+        console.error('[Admin] updateHomeMedia failed:', err.message);
+        res.status(500).json({ error: '更新素材失败。' });
+      }
+    });
   }
 
   // ── 批量匯入（v2.1 S25，客戶 9/21 工作單 #14）──

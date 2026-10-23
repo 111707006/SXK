@@ -3,7 +3,7 @@
  * 推薦人用信箱與密碼登入同一個管理中心，只看得到「我的家长」「我的兑换码」「代填」。
  */
 import { useCallback, useState } from 'react';
-import { UserPlus } from 'lucide-react';
+import { Download, UserPlus } from 'lucide-react';
 import { adminApi, type AdminCompany, type AdminReferrer } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { Button, EmptyState, ErrorNote, Field, Panel, Select, Spinner, StatusBadge, TextInput, useAsyncData } from '../ui';
@@ -49,6 +49,21 @@ export default function ReferrersPanel({
     }
   }
 
+  // 對帳匯出（#113）：推薦人、碼、方案、狀態、使用家長手機號、使用時間、使用權到期日。每次都記一筆。
+  async function exportLedger() {
+    try {
+      const { blob, fileName } = await adminApi.exportRedeemLedger();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '导出失败。');
+    }
+  }
+
   async function toggle(r: AdminReferrer) {
     try {
       await adminApi.setReferrerActive(r.id, !r.active);
@@ -85,7 +100,14 @@ export default function ReferrersPanel({
         </form>
       </Panel>
 
-      <Panel title="推荐人">
+      <Panel
+        title="推荐人"
+        action={
+          <Button variant="ghost" onClick={() => void exportLedger()}>
+            <Download size={12} />导出兑换码对帐
+          </Button>
+        }
+      >
         {loading ? <Spinner /> : failure ? <ErrorNote message={failure} onRetry={reload} /> : (data?.referrers.length ?? 0) === 0 ? (
           <EmptyState title="还没有推荐人" />
         ) : (

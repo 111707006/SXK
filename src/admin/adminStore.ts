@@ -519,9 +519,10 @@ export async function listSummarySources(condition: CompanyCondition): Promise<S
 /** 一次導出（#69）：誰、哪個視野、哪一種、幾筆、用了哪組篩選。 */
 export interface AdminExportEntry {
   adminUserId: number;
-  condition: CompanyCondition;
-  /** `parent_summary` 是導出 .xlsx；`parent_summary_view` 是看了畫面上的彙總（一樣是整批電話）。 */
-  kind: 'parent_summary' | 'parent_summary_view';
+  /** `all`：兌換碼對帳匯出（#113），跨所有推薦人、只有全域管理員。 */
+  condition: CompanyCondition | { kind: 'all' };
+  /** `parent_summary` 是導出 .xlsx；`parent_summary_view` 是看了畫面上的彙總（一樣是整批電話）；`redeem_codes` 是兌換碼對帳（#113）。 */
+  kind: 'parent_summary' | 'parent_summary_view' | 'redeem_codes';
   rowCount: number;
   filters: string;
   requestIp: string | null;
@@ -1502,4 +1503,46 @@ export async function proxyFill(
   } finally {
     conn.release();
   }
+}
+
+// ── 兌換碼對帳（客戶 10/22，#113）──
+//
+// 唯一一支跨所有推薦人、帶出家長手機號的查詢 —— 列在 `CROSS_SCOPE_ALLOWLIST`：路由限全域管理員，每次匯出都記一筆
+// `admin_exports`（範圍 `all`），記不下就不給檔。
+
+export interface RedeemLedgerRow {
+  referrerName: string;
+  referrerKind: 'channel' | 'therapist';
+  code: string;
+  months: number;
+  status: 'unused' | 'used' | 'void';
+  usedByPhone: string | null;
+  usedAt: string | null;
+  /** 這一組發出的那段使用權的迄日（兌換或代填；`code:<編號>`／`proxy:<編號>`）。 */
+  passEndsOn: string | null;
+}
+
+export async function listRedeemLedger(): Promise<RedeemLedgerRow[]> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT r.name AS referrer_name, r.kind AS referrer_kind, c.code, b.months, c.status, u.phone AS used_by_phone, c.used_at,
+            (SELECT DATE_FORMAT(MAX(tp.ends_on), '%Y-%m-%d') FROM training_passes tp
+              WHERE tp.unique_key IN (CONCAT('code:', c.id), CONCAT('proxy:', c.id))) AS pass_ends_on
+       FROM redeem_codes c
+       JOIN redeem_batches b ON b.id = c.batch_id
+       JOIN referrers r ON r.id = b.referrer_id
+       LEFT JOIN users u ON u.id = c.used_by
+      ORDER BY r.id ASC, c.id ASC`,
+    []
+  );
+  return (rows as any[]).map(row => ({
+    referrerName: row.referrer_name,
+    referrerKind: row.referrer_kind === 'therapist' ? 'therapist' : 'channel',
+    code: row.code,
+    months: Number(row.months),
+    status: row.status === 'used' ? 'used' : row.status === 'void' ? 'void' : 'unused',
+    usedByPhone: row.used_by_phone ?? null,
+    usedAt: toIso(row.used_at),
+    passEndsOn: row.pass_ends_on ?? null,
+  }));
 }

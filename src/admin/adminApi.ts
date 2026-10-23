@@ -459,6 +459,8 @@ export const adminApi = {
     request<{ codes: AdminRedeemCode[] }>(`/referrers/${referrerId}/codes`, { method: 'POST', body: JSON.stringify({ months, quantity }) }),
   voidCode: (codeId: number) => request<{ ok: true }>(`/redeem-codes/${codeId}/void`, { method: 'POST', body: '{}' }),
   myCodes: () => request<{ codes: AdminRedeemCode[] }>('/referrer/codes'),
+  /** 兌換碼對帳匯出（#113，只有全域管理員）。 */
+  exportRedeemLedger: () => download('/redeem-codes/export', { method: 'POST', body: '{}' }, '兑换码对帐.xlsx'),
   /** 未用碼的 CSV：全域管理員給推薦人編號，推薦人自己不給。 */
   codesCsv: (referrerId: number | null) =>
     download(referrerId === null ? '/referrer/codes.csv' : `/referrers/${referrerId}/codes.csv`, { method: 'GET' }, '未用兑换码.csv'),

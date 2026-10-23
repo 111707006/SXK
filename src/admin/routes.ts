@@ -31,6 +31,7 @@ import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { referrerMayCall } from './referrerAccess';
 import { formatCode, generateCode, MAX_BATCH } from '../redeem/codes';
+import { redeemLedgerFileName, redeemLedgerWorkbook } from './redeemXlsx';
 import { isPassMonths } from '../t2/trainingPass';
 import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
 import { calculateAgeMonth } from '../utils/dateUtils';
@@ -905,6 +906,31 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       } catch (err: any) {
         console.error('[Admin] createRedeemBatch failed:', err.message);
         res.status(500).json({ error: '产生兑换码失败。' });
+      }
+    });
+
+    // 對帳匯出（#113）：只有全域管理員；每次都在 `admin_exports` 記一筆（範圍 all），**記不下就 500、不給檔**。
+    router.post('/redeem-codes/export', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      try {
+        const rows = await store.listRedeemLedger();
+        const file = await redeemLedgerWorkbook(rows);
+        await store.recordExport({
+          adminUserId: req.admin!.adminUserId,
+          condition: { kind: 'all' },
+          kind: 'redeem_codes',
+          rowCount: rows.length,
+          filters: '{}',
+          requestIp: req.ip ?? null,
+        });
+        const name = redeemLedgerFileName(new Date());
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="redeem-codes.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(file);
+      } catch (err: any) {
+        console.error('[Admin] redeem ledger export failed:', err.message);
+        res.status(500).json({ error: '导出失败，请稍后再试。' });
       }
     });
 

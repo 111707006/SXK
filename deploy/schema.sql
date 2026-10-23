@@ -280,7 +280,8 @@ CREATE TABLE IF NOT EXISTS `admin_company_switches` (
 CREATE TABLE IF NOT EXISTS `admin_exports` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `admin_user_id` INT UNSIGNED NOT NULL,
-  `scope_kind` ENUM('company','unassigned') NOT NULL,
+  -- 'all'：兑换码对帐汇出（#113），跨所有推荐人、只有全域管理员（迁移 2026-10-24-admin-exports-all.sql）。
+  `scope_kind` ENUM('company','unassigned','all') NOT NULL,
   `company_id` INT UNSIGNED DEFAULT NULL,
   `kind` VARCHAR(32) NOT NULL,
   `row_count` INT UNSIGNED NOT NULL,

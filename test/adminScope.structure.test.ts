@@ -94,6 +94,9 @@ const CROSS_SCOPE_ALLOWLIST: Record<string, string> = {
   summaryByCompany:
     '跨公司彙總。合法地跨越公司邊界，但只回統計數字，不回任何個別家長；' +
     '路由層限定全域管理員。',
+  listRedeemLedger:
+    '兌換碼對帳匯出（#113）：跨所有推薦人、帶出用掉碼的家長手機號。路由限全域管理員（requireGlobal），' +
+    '每次匯出都在 admin_exports 記一筆（範圍 all），記不下就不給檔。',
   proxyLookup:
     '推薦人代填前找家長（#112）：對象是還不在推薦人名下的家長，公司條件表達不了。以（推薦人的合作公司，手機號）' +
     '找（與登入同一個鍵），別人名下的回 other、不回任何資料；只回孩子姓名、生日、性別。路由限推薦人。',

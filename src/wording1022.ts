@@ -55,6 +55,14 @@ export const WORDING_1022 = {
     legendConcernHint: '建议进入 T2 深度评估',
   },
 
+  /** 評估面板（`PRODUCT.dashboard`，issue #85）：不提 T3、不叫「深测」。 */
+  dashboard: {
+    startTitle: '先做一次 T1 儿少综合发展评估',
+    screeningIntro: 'T1 儿少综合发展评估共 36 题，完成后直接生成 AI 发展报告；标黄、标红的方面可以再做「T2 深度评估」。',
+    gridHintCompleted: '以下是这次 T1 儿少综合发展评估的 9 个方面。',
+    dimensionCardHint: '点击查看这个方面',
+  },
+
   buttons: {
     generateReport: '生成报告',
     deepAssess: '深度评估',

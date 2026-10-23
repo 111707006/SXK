@@ -983,6 +983,71 @@ export default function App() {
       : []),
   ];
 
+  /** 個人中心的商城訂單（商城開著才有）。1022 排在「已完成的评估成绩」後面（issue #85）。 */
+  const mallOrdersSection = PRODUCT.features.mall ? (
+                      <div className="pt-3.5 pb-3.5 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
+                            <Package size={13} className="text-brand-moss" />
+                            商城订单明细
+                          </h4>
+                          <button 
+                            onClick={() => {
+                              setCurrentView('mall');
+                              setSelectedDimensionId(null);
+                              setIsCustomerDropdownOpen(false);
+                            }}
+                            className="text-xs text-brand-moss hover:text-brand-forest font-bold flex items-center gap-0.5 cursor-pointer"
+                          >
+                            去商城
+                            <ArrowRight size={10} />
+                          </button>
+                        </div>
+
+                        {orders.length === 0 ? (
+                          <div className="text-center py-5 bg-brand-cream/30 rounded-xl border border-dashed border-brand-stone/40 text-xs text-brand-charcoal/80">
+                            暂无辅助康复设备订单
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-1">
+                            {orders.map((order) => (
+                              <div key={order.id} className="p-2.5 bg-brand-cream/20 rounded-xl border border-brand-stone/30 space-y-2">
+                                <div className="flex justify-between items-start gap-2">
+                                  <div className="font-bold text-brand-forest leading-snug">
+                                    {order.product.name}
+                                  </div>
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-black shrink-0 ${
+                                    order.status === 'delivered' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                    order.status === 'shipped' || order.status === 'delivering' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
+                                    'bg-amber-100 text-amber-800 border border-amber-200'
+                                  }`}>
+                                    {order.status === 'pending_payment' ? '待付款' :
+                                     order.status === 'paid' ? '已付款' :
+                                     order.status === 'shipped' ? '已发货' :
+                                     order.status === 'delivering' ? '派送中' : '已签收'}
+                                  </span>
+                                </div>
+
+                                <div className="flex justify-between text-xs text-brand-charcoal/80">
+                                  <span>单价 ¥{order.product.price} · 数量 x{order.quantity}</span>
+                                  <span className="font-bold text-brand-forest">总计: ¥{order.totalPrice}</span>
+                                </div>
+
+                                {order.logisticsTimeline && order.logisticsTimeline.length > 0 && (
+                                  <div className="bg-white/80 p-1.5 rounded border border-brand-stone/20 text-xs text-brand-charcoal/80 flex items-start gap-1">
+                                    <Truck size={10} className="text-indigo-600 mt-0.5 shrink-0" />
+                                    <div className="line-clamp-2 leading-relaxed">
+                                      <span className="font-bold text-indigo-700">最新物流:</span> {order.logisticsTimeline[0].content} ({order.logisticsTimeline[0].time})
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-brand-cream text-brand-charcoal font-sans flex flex-col justify-between">
       
@@ -1122,7 +1187,7 @@ export default function App() {
                         {/* Screening progress */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between text-xs text-brand-charcoal/80 font-semibold">
-                            <span>脑功能评估进度 ({completedScores.length}/9 维度)</span>
+                            <span>{PRODUCT.features.ui1022 ? 'T1 评估进度' : '脑功能评估进度'} ({completedScores.length}/9 维度)</span>
                             <span>{Math.round((completedScores.length / 9) * 100)}%</span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -1134,70 +1199,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* 2. Device Order Details & Shipping (專案 A only) */}
-                      {PRODUCT.features.mall && (
-                      <div className="pt-3.5 pb-3.5 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
-                            <Package size={13} className="text-brand-moss" />
-                            商城订单明细
-                          </h4>
-                          <button 
-                            onClick={() => {
-                              setCurrentView('mall');
-                              setSelectedDimensionId(null);
-                              setIsCustomerDropdownOpen(false);
-                            }}
-                            className="text-xs text-brand-moss hover:text-brand-forest font-bold flex items-center gap-0.5 cursor-pointer"
-                          >
-                            去商城
-                            <ArrowRight size={10} />
-                          </button>
-                        </div>
-
-                        {orders.length === 0 ? (
-                          <div className="text-center py-5 bg-brand-cream/30 rounded-xl border border-dashed border-brand-stone/40 text-xs text-brand-charcoal/80">
-                            暂无辅助康复设备订单
-                          </div>
-                        ) : (
-                          <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-1">
-                            {orders.map((order) => (
-                              <div key={order.id} className="p-2.5 bg-brand-cream/20 rounded-xl border border-brand-stone/30 space-y-2">
-                                <div className="flex justify-between items-start gap-2">
-                                  <div className="font-bold text-brand-forest leading-snug">
-                                    {order.product.name}
-                                  </div>
-                                  <span className={`px-1.5 py-0.5 rounded text-xs font-black shrink-0 ${
-                                    order.status === 'delivered' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                                    order.status === 'shipped' || order.status === 'delivering' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
-                                    'bg-amber-100 text-amber-800 border border-amber-200'
-                                  }`}>
-                                    {order.status === 'pending_payment' ? '待付款' :
-                                     order.status === 'paid' ? '已付款' :
-                                     order.status === 'shipped' ? '已发货' :
-                                     order.status === 'delivering' ? '派送中' : '已签收'}
-                                  </span>
-                                </div>
-
-                                <div className="flex justify-between text-xs text-brand-charcoal/80">
-                                  <span>单价 ¥{order.product.price} · 数量 x{order.quantity}</span>
-                                  <span className="font-bold text-brand-forest">总计: ¥{order.totalPrice}</span>
-                                </div>
-
-                                {order.logisticsTimeline && order.logisticsTimeline.length > 0 && (
-                                  <div className="bg-white/80 p-1.5 rounded border border-brand-stone/20 text-xs text-brand-charcoal/80 flex items-start gap-1">
-                                    <Truck size={10} className="text-indigo-600 mt-0.5 shrink-0" />
-                                    <div className="line-clamp-2 leading-relaxed">
-                                      <span className="font-bold text-indigo-700">最新物流:</span> {order.logisticsTimeline[0].content} ({order.logisticsTimeline[0].time})
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      )}
+                      {!PRODUCT.features.ui1022 && mallOrdersSection}
 
                       {/* 3. Completed Screening Scores */}
                       <div className="pt-3.5 space-y-2.5">
@@ -1232,6 +1234,8 @@ export default function App() {
                           </div>
                         )}
                       </div>
+
+                      {PRODUCT.features.ui1022 && mallOrdersSection}
 
                       {/* 5. Logout Profile Button */}
                       <div className="pt-3.5 pb-0.5">

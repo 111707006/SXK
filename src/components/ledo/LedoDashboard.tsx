@@ -3,7 +3,8 @@ import type { DimensionScore } from '../../types';
 import { DIMENSIONS_DATA } from '../../data';
 import { PRODUCT } from '../../productConfig';
 import { STATUS_WORDING } from '../../utils/statusWording';
-import { Avatar, Chip, Greeting, LEDO_ART, ListRow, SectionHead, STATUS_TONE, Tile, greetingFor } from './ui';
+import { Avatar, Chip, Greeting, LEDO_ART, ListRow, SectionHead, STATUS_TONE, TONE, Tile, greetingFor } from './ui';
+import { WORDING_1022 } from '../../wording1022';
 
 /**
  * Ledo 版評估面板（設計稿第 3 頁）：打招呼、大小不一的色塊（插畫卡＋兩個數字）、
@@ -41,12 +42,13 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
   const stable = dims.filter(x => x.s?.status === 'normal');
   const count = (st: DimensionScore['status']) => t1.filter(s => s.status === st).length;
   const date = doneDate(t1);
+  const ui1022 = PRODUCT.features.ui1022;
 
   return (
     <div id="ledo-dashboard" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
       <Greeting
         small={`${childName}的家长，${greetingFor(new Date())}`}
-        title={done ? `${childName}的 ${DIMENSIONS_DATA.length} 个方面` : '先做一次 T1 综合评估'}
+        title={done ? `${childName}的 ${DIMENSIONS_DATA.length} 个方面` : ui1022 ? WORDING_1022.dashboard.startTitle : '先做一次 T1 综合评估'}
       />
 
       {t1Blocked ?? (
@@ -55,8 +57,10 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
           <div className={`overflow-hidden rounded-2xl bg-white ${done ? 'aspect-square' : 'aspect-[3/2]'}`}>
             <img src={LEDO_ART.panel} alt="" className="h-full w-full object-cover" />
           </div>
-          <b className="text-sm font-black text-ledo-ink">T1 综合评估</b>
-          <span className="text-xs">{done ? `${date ?? ''}完成 · ${t1.length}/${DIMENSIONS_DATA.length}` : PRODUCT.dashboard.stepTwoHint}</span>
+          <b className="text-sm font-black text-ledo-ink">{ui1022 ? WORDING_1022.t1Name : 'T1 综合评估'}</b>
+          {(done || PRODUCT.dashboard.stepTwoHint) && (
+            <span className="text-xs">{done ? `${date ?? ''}完成 · ${t1.length}/${DIMENSIONS_DATA.length}` : PRODUCT.dashboard.stepTwoHint}</span>
+          )}
           <button
             type="button"
             id="ledo-start-t1"
@@ -80,7 +84,39 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
       </div>
       )}
 
-      {done && flagged.length > 0 && (
+      {/*
+        1022（issue #85）：做完 T1 後九個方面排成三欄、一屏看得完；需要支持的那幾格有「深度评估」。
+        不畫兩段清單（「先看这几项」那一段就是報告上拿掉的那個名字）。
+      */}
+      {done && ui1022 && (
+        <>
+          <div id="ledo-dim-grid" className="grid grid-cols-3 gap-2">
+            {dims.map(({ d, s }) => {
+              const tone = s ? TONE[STATUS_TONE[s.status] ?? 'ok'] : TONE.field;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  id={`ledo-dim-${d.id}`}
+                  onClick={() => onSelectDimension(d.id)}
+                  className={`flex min-w-0 flex-col items-start gap-1 rounded-2xl p-2.5 text-left cursor-pointer ${tone.bg}`}
+                >
+                  <b className="break-words text-[13px] font-black leading-snug text-ledo-ink">{d.name}</b>
+                  <span className={`text-[11px] font-bold leading-snug ${tone.ink}`}>{s ? STATUS_WORDING[s.status].label : '还没评估'}</span>
+                  {s && s.status !== 'normal' && (
+                    <span className="mt-auto rounded-full bg-white px-2 py-0.5 text-[11px] font-black text-ledo-ink">{PRODUCT.dashboard.dimensionCardCta}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" id="ledo-view-report" onClick={onViewReport} className="w-full rounded-full bg-ledo-accent-soft py-3 text-sm font-black text-ledo-accent-soft-ink cursor-pointer">
+            查看报告
+          </button>
+        </>
+      )}
+
+      {done && !ui1022 && flagged.length > 0 && (
         <>
           <SectionHead title="先看这几项" action="生成 AI 报告" onAction={onViewReport} />
           <div className="space-y-2.5">
@@ -99,7 +135,7 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
         </>
       )}
 
-      {done && stable.length > 0 && (
+      {done && !ui1022 && stable.length > 0 && (
         <>
           <SectionHead title={STATUS_WORDING.normal.label} action={`${stable.length} 项`} />
           <div className="space-y-2.5">
@@ -117,13 +153,14 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
         </>
       )}
 
-      {done && flagged.length === 0 && (
+      {done && !ui1022 && flagged.length === 0 && (
         <button type="button" onClick={onViewReport} className="w-full rounded-full bg-ledo-accent-soft py-3 text-sm font-black text-ledo-accent-soft-ink cursor-pointer">
           生成 AI 报告
         </button>
       )}
 
-      {!done && !t1Blocked && (
+      {/* 1022（issue #85）：「会看哪些方面」那一長串不放。 */}
+      {!done && !t1Blocked && !ui1022 && (
         <>
           <SectionHead title="会看哪些方面" action={`${DIMENSIONS_DATA.length} 项`} />
           <div className="space-y-2.5">

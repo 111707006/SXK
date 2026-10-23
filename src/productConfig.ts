@@ -314,15 +314,16 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       screeningResultAllClear: '各维度发展稳定。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，您亦可点击下方一键对接 AI 判读建档并视情探索 T2/T3 检测。',
       action: 'goto_tier2',
     },
+    // 1022（issue #85）：拿掉「点击亮的黄色／红色维度卡片…」那一句與「T2 自评量表 + T3 专项上传」，按鈕叫「深度评估」。
     dashboard: {
-      stepTwoHint: '点击高亮的黄色 / 红色维度卡片，进入 T2、T3 深度测评',
+      stepTwoHint: UI_1022_A ? '' : '点击高亮的黄色 / 红色维度卡片，进入 T2、T3 深度测评',
       stepTwoIsPaid: true,
-      screeningIntro: 'T1 评估 36 题依据 HELP、儿童发展学、神经科学、语言科学综合而来。完成基本评估后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。',
-      gridHintCompleted: '以下为 9 维 T1 评估结果。点击标有黄色/红色标记的维度卡片，直接推进 T2 问卷 与 T3 专项检测！',
-      dimensionCardSubLabel: 'T2 自评量表 + T3 专项上传',
-      dimensionCardHint: '点击进入本维度测定',
+      screeningIntro: UI_1022_A ? WORDING_1022.dashboard.screeningIntro : 'T1 评估 36 题依据 HELP、儿童发展学、神经科学、语言科学综合而来。完成基本评估后，系统方能根据得分高低，自动解锁并推荐您进行 T2 言语/感统专项问卷与 T3 互动实测。',
+      gridHintCompleted: UI_1022_A ? WORDING_1022.dashboard.gridHintCompleted : '以下为 9 维 T1 评估结果。点击标有黄色/红色标记的维度卡片，直接推进 T2 问卷 与 T3 专项检测！',
+      dimensionCardSubLabel: UI_1022_A ? null : 'T2 自评量表 + T3 专项上传',
+      dimensionCardHint: UI_1022_A ? WORDING_1022.dashboard.dimensionCardHint : '点击进入本维度测定',
       // 2026-09-11 起不再寫「立即」—— 對照表把「立即／马上」列為要改的字（去除緊迫壓迫感）。
-      dimensionCardCta: '进入深测',
+      dimensionCardCta: UI_1022_A ? WORDING_1022.buttons.deepAssess : '进入深测',
     },
     // 轉接真人走企業微信二維碼。不列微信號 —— 企業微信客服掃碼即進，
     // 手打帳號那條路在企業微信上並不通，寫出來只會讓家長白試一次。
@@ -336,7 +337,9 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     features: {
       tier2And3: true,
       paywall: true,
-      mall: true,
+      // 1022（issue #85）：商城預設藏起來（導覽列、個人中心的訂單、商城頁、報告底下的相关产品），
+      // 建置期 `VITE_MALL_OPEN=1` 才出現。1022 關著照舊開。
+      mall: UI_1022_A ? import.meta.env.VITE_MALL_OPEN === '1' : true,
       handoff: 'receive',
       home: true,
       ledo: import.meta.env.VITE_UI_LEDO !== '0',

@@ -38,6 +38,7 @@ const OfflineServicePage = lazy(() => import('./home/OfflineServicePage'));
 const LedoHomePage = lazy(() => import('./home/LedoHomePage'));
 import LedoDashboard from './components/ledo/LedoDashboard';
 import OutOfRangeCard from './components/OutOfRangeCard';
+import { useViewHistory } from './utils/viewHistory';
 import { isInT1Range } from './t1Data';
 import LedoReportLibrary from './components/ledo/LedoReportLibrary';
 
@@ -67,6 +68,13 @@ import { TRAINING_PAGE } from './t2/trainingCopy';
 import { latestT1ReportFor } from './utils/reportResume';
 import { readHandoffLink } from './handoff/fragment';
 import { HANDOFF_INVITE, HANDOFF_LANDING } from './handoff/handoffCopy';
+
+/** App 的主畫面（`currentView`）。返回鍵的歷史記的就是這幾個名字（`useViewHistory`）。 */
+const APP_VIEWS = ['home', 'offline_service', 'dashboard', 't1_screening', 'assessment', 'report', 'mall', 'language_special', 'specialized_report', 'paywall', 't2_assessment', 't2_report', 'training'] as const;
+type AppView = typeof APP_VIEWS[number];
+function isAppView(v: string): v is AppView {
+  return (APP_VIEWS as readonly string[]).includes(v);
+}
 
 export default function App() {
   /** 孩子檔案，**照存下來的樣子**。上面的 `ageMonth` 是寫入當下的值，會過期。 */
@@ -100,7 +108,9 @@ export default function App() {
   const [homeLoginOpen, setHomeLoginOpen] = useState(false);
   /** 未登入點的那張卡：登入後帶過去（`viewAfterLogin`）。 */
   const [pendingHomeTarget, setPendingHomeTarget] = useState<HomeTarget | null>(null);
-  const [currentView, setCurrentView] = useState<'home' | 'offline_service' | 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report' | 'training'>(() => (homeV2 ? 'home' : 'dashboard'));
+  const [currentView, setCurrentView] = useState<AppView>(() => (homeV2 ? 'home' : 'dashboard'));
+  // 1022（issue #86）：換主畫面推一格歷史，返回鍵（含微信左上角）回上一個主畫面。
+  useViewHistory(currentView, setCurrentView, isAppView, PRODUCT.features.ui1022);
   // T2 報告頁（票 #61）是從作答清單的「生成报告」還是「查看上次的报告」進來的：前者一進去就打 POST。
   const [t2ReportGenerate, setT2ReportGenerate] = useState(false);
   

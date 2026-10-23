@@ -8,7 +8,7 @@ import type { T1Question } from '../../t1Data';
  * 只換畫法：題目、作答值（2／1／0）與交卷都是 `T1Screening` 那一份 —— 這裡讀 `answers`、
  * 選了呼叫 `onSelect`、最後一題按「完成」呼叫 `onSubmit`，計分一行都不在這裡。
  */
-export default function LedoT1Questions({ questions, answers, ageBandName, onSelect, onSubmit, onExit }: {
+export default function LedoT1Questions({ questions, answers, ageBandName, onSelect, onSubmit, onExit, submitLabel = '完成评估' }: {
   /** 照作答順序（同一個方面的題目排在一起） */
   questions: T1Question[];
   answers: Record<string, number>;
@@ -16,6 +16,8 @@ export default function LedoT1Questions({ questions, answers, ageBandName, onSel
   onSelect: (questionId: string, score: number) => void;
   onSubmit: () => void;
   onExit: () => void;
+  /** 最後一題那顆按鈕的字（1022 開著時是「生成报告」：按下去就到報告頁）。 */
+  submitLabel?: string;
 }) {
   // 從第一題還沒答的開始（中途離開再回來不從頭）
   const [at, setAt] = useState(() => Math.max(0, questions.findIndex(q => answers[q.id] === undefined)));
@@ -84,7 +86,7 @@ export default function LedoT1Questions({ questions, answers, ageBandName, onSel
         {last ? (
           <button type="button" id="ledo-t1-submit" disabled={!allAnswered} onClick={onSubmit}
             className="rounded-full bg-ledo-bar py-3.5 text-sm font-black text-white disabled:opacity-40 cursor-pointer disabled:cursor-default">
-            完成评估
+            {submitLabel}
           </button>
         ) : (
           <button type="button" id="ledo-t1-next" disabled={!answered} onClick={() => setAt(i => i + 1)}

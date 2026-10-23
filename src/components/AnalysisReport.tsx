@@ -27,6 +27,8 @@ import { BUILTIN_SPECIALISTS } from '../builtinSpecialists';
 import { STATUS_WORDING } from '../utils/statusWording';
 import LedoReportSummary from './ledo/LedoReportSummary';
 import ReportBody from './ReportBody';
+import PrintButton from './PrintButton';
+import { WORDING_1022 } from '../wording1022';
 import { useReportLayout } from '../utils/reportLayout';
 import T2Entrance from './T2Entrance';
 import HandoffCard from './HandoffCard';
@@ -669,7 +671,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         Ledo 版：三個數字＋「先看这几项」由 LedoReportSummary 畫（報告生成後在報告本體最上面，生成前放這裡），
         這三張大卡不再畫第二次。
       */}
-      {PRODUCT.features.ledo ? (
+      {/* 1022（ADR-0014）：報告頁生成前不畫摘要與生成器卡，只畫「正在生成」（見下面）。 */}
+      {PRODUCT.features.ui1022 ? null : PRODUCT.features.ledo ? (
         !aiReport && (
           <div className="rounded-[32px] bg-white p-4 shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6">
             <LedoReportSummary scores={completedScores} />
@@ -712,7 +715,43 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       </div>
       )}
 
+      {PRODUCT.features.ui1022 && !aiReport && (
+        error ? (
+          <div id="report-generate-error" className="rounded-[28px] bg-white p-5 text-left shadow-sm space-y-3">
+            <p className="flex items-center gap-2 text-sm font-bold text-rose-700"><AlertCircle size={15} />{error}</p>
+            <button
+              id="ai-report-retry-btn"
+              type="button"
+              onClick={handleGenerateReport}
+              className="w-full rounded-full bg-ledo-bar py-3 text-sm font-black text-white cursor-pointer"
+            >
+              {WORDING_1022.buttons.generateReport}
+            </button>
+          </div>
+        ) : (
+          // 交卷就到這一頁、一進來就生成：生成完之前只有這一個狀態，不必按任何按鈕。
+          <div id="report-generating" role="status" aria-live="polite" className="rounded-[28px] bg-white p-5 text-left shadow-sm space-y-4">
+            <p className="flex items-center gap-2 text-sm font-bold text-ledo-ink">
+              <RefreshCw size={15} className="animate-spin" />
+              {WORDING_1022.report.generating}…
+            </p>
+            <div className="space-y-2.5 animate-pulse" aria-hidden="true">
+              <div className="h-4 w-2/3 rounded-full bg-ledo-field" />
+              <div className="h-3 w-full rounded-full bg-ledo-field" />
+              <div className="h-3 w-5/6 rounded-full bg-ledo-field" />
+              <div className="h-40 w-full rounded-3xl bg-ledo-field" />
+            </div>
+          </div>
+        )
+      )}
+      {PRODUCT.features.ui1022 && aiReport && (
+        <div className="flex justify-end">
+          <PrintButton id="print-report-btn" />
+        </div>
+      )}
+
       {/* AI neural network generator gate (Brain/Synapse animation) - Moved above detail table & compacted */}
+      {!PRODUCT.features.ui1022 && (
       <div className={PRODUCT.features.ledo
         ? 'bg-ledo-accent-soft text-ledo-ink rounded-[28px] p-4 md:p-5 relative overflow-hidden text-left [&_p]:!text-ledo-accent-soft-ink'
         : 'bg-brand-forest text-white rounded-2xl p-4 md:p-5 shadow-lg relative overflow-hidden text-left'}>
@@ -780,9 +819,10 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           </div>
         )}
       </div>
+      )}
 
       {/* Dimensions Detail - 3x3 Grid (九宫格) */}
-      {!aiReport && (
+      {!aiReport && !PRODUCT.features.ui1022 && (
         <div className="bg-white rounded-3xl border border-brand-stone p-6 md:p-8 shadow-sm text-left">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>

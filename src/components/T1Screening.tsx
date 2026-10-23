@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Child, DimensionScore, AssessmentStatus } from '../types';
 import { getT1QuestionsForAge, getT1AgeBandName, T1Question } from '../t1Data';
 import { PRODUCT } from '../productConfig';
+import { WORDING_1022 } from '../wording1022';
 import LedoT1Questions from './ledo/LedoT1Questions';
 import { ALL_CLEAR_SUMMARY, SCREENING_DISCLAIMER, STATUS_WORDING, flaggedSummary } from '../utils/statusWording';
 import { 
@@ -168,6 +169,11 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
       };
     });
 
+    // 1022（ADR-0014）：交卷就交給上層存成績、到報告頁生成，結論頁不再出現。
+    if (PRODUCT.features.ui1022) {
+      onSaveT1Results(scores);
+      return;
+    }
     setCalculatedScores(scores);
     setIsCompleted(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -179,7 +185,8 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
 
   const progressPercent = Math.round(((currentStep + 1) / 9) * 100);
 
-  if (isCompleted) {
+  // 結論頁：1022 開著時走不到（交卷直接交給上層，見 handleSubmitT1）。
+  if (isCompleted && !PRODUCT.features.ui1022) {
     const lowDimensions = calculatedScores.filter(s => s.status === 'borderline' || s.status === 'delay');
 
     return (
@@ -337,6 +344,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
         onSelect={handleSelectOption}
         onSubmit={handleSubmitT1}
         onExit={onBack}
+        {...(PRODUCT.features.ui1022 ? { submitLabel: WORDING_1022.buttons.generateReport } : {})}
       />
     );
   }
@@ -475,7 +483,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results }: T1Screen
                   : 'bg-brand-cream border border-brand-stone text-brand-charcoal/80 cursor-not-allowed shadow-none'
               }`}
             >
-              提交 T1 综合评估
+              {PRODUCT.features.ui1022 ? WORDING_1022.buttons.generateReport : '提交 T1 综合评估'}
               <ChevronRight size={14} />
             </button>
           ) : (

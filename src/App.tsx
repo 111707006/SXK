@@ -119,6 +119,11 @@ export default function App() {
   const [viewingLiveT1, setViewingLiveT1] = useState(false);
   /** 即時 T1 報告一開就生成 —— 只有面板的「生成全维 AI 深度评估报告」會設成 true，其他入口一律 false。 */
   const [t1ReportGenerate, setT1ReportGenerate] = useState(false);
+  /**
+   * 1022（ADR-0014）：剛交卷、要生成**新的一份**。重做 T1 答得跟上次一模一樣時，`liveReportResume` 會接上舊的那一份
+   * 而不生成 —— 交卷即生成的意思是每交一次就多一份，所以這一次不接舊的。其他進報告頁的路都會把它清掉。
+   */
+  const [freshT1Report, setFreshT1Report] = useState(false);
   /** 付費（或跳過付費）回到即時 T1 報告時捲到 T2 入口卡；其他入口一律 false。 */
   const [focusT2, setFocusT2] = useState(false);
   // 專案 B 從維度卡片進報告時，要求報告頁捲到專家預約區塊。
@@ -760,7 +765,7 @@ export default function App() {
     // 接不上（分數變過、還沒生成過）才退回歸檔那一份。
     const useLive = liveReportResume !== null;
     setViewingLiveT1(useLive || !archived);
-    setT1ReportGenerate(false);
+    setT1ReportGenerate(false); setFreshT1Report(false);
     setActiveT1Record(useLive ? null : archived);
     setFocusBooking(true);
     setFocusBookingService(service);
@@ -775,7 +780,7 @@ export default function App() {
    */
   const goToT2Entrance = () => {
     setViewingLiveT1(true);
-    setT1ReportGenerate(false);
+    setT1ReportGenerate(false); setFreshT1Report(false);
     setActiveT1Record(null);
     setFocusBooking(false);
     setFocusT2(true);
@@ -806,7 +811,7 @@ export default function App() {
           Array.isArray(data.reportHistory) ? data.reportHistory : [],
         );
         goToT2Entrance();
-        setT1ReportGenerate(true);
+        setT1ReportGenerate(true); setFreshT1Report(false);
         setHandoffStage(null);
         return true;
       }
@@ -893,7 +898,7 @@ export default function App() {
     // 入口只掛在即時報告上，卡片再導去 T3 會讓家長在兩條互不相通的深測路之間迷路。
     // T3 面板與 `enterDimension` 都留著，語言專項仍走它；T3 何時回來、怎麼接 T2，另議。
     setViewingLiveT1(true);
-    setT1ReportGenerate(false);
+    setT1ReportGenerate(false); setFreshT1Report(false);
     setActiveT1Record(null);
     setActiveSpecializedRecordId(null);
     setFocusBooking(PRODUCT.nextStep.action === 'contact_expert');
@@ -908,7 +913,7 @@ export default function App() {
     setActiveT1Record(null);
     setActiveSpecializedRecordId(null);
     setFocusBooking(false); setFocusT2(false);
-    setT1ReportGenerate(true);
+    setT1ReportGenerate(true); setFreshT1Report(false);
     setCurrentView('report');
   };
 
@@ -1456,11 +1461,17 @@ export default function App() {
                     const finalScores = [...updated, ...t1Scores];
                     setCompletedScores(finalScores);
                     localStorage.setItem('senxinkang_scores', JSON.stringify(finalScores));
-                    // Go straight to the live AI report instead of bouncing off the
-                    // dashboard. The user still taps "一键启动 AI 突触分析" there, so
-                    // finishing T1 never spends AI quota on its own.
                     setViewingLiveT1(true);
-                    setT1ReportGenerate(false);
+                    if (PRODUCT.features.ui1022) {
+                      // 1022（ADR-0014）：交卷那一下就存成績（中途關掉也不白做）、到報告頁就生成新的一份。
+                      syncToCloud(child, finalScores, orders, reportHistory);
+                      setT1ReportGenerate(true); setFreshT1Report(true);
+                    } else {
+                      // Go straight to the live AI report instead of bouncing off the
+                      // dashboard. The user still taps "一键启动 AI 突触分析" there, so
+                      // finishing T1 never spends AI quota on its own.
+                      setT1ReportGenerate(false); setFreshT1Report(false);
+                    }
                     setActiveT1Record(null);
                     setActiveSpecializedRecordId(null);
                     setCurrentView('report');
@@ -1501,7 +1512,7 @@ export default function App() {
                     handoff={PRODUCT.features.handoff === 'send' ? { onShowPrivacy: () => setShowPrivacyModal(true) } : undefined}
                     historicalRecord={null}
                     reportHistory={reportHistory}
-                    resumeFrom={liveReportResume}
+                    resumeFrom={freshT1Report ? null : liveReportResume}
                     generateOnOpen={t1ReportGenerate}
                     focusT2={focusT2}
                     focusBooking={focusBooking}
@@ -1537,7 +1548,7 @@ export default function App() {
                   childName={child?.name ?? ''}
                   t1Count={completedScores.filter(s => s.tierId === 'T1').length}
                   history={reportHistory.filter(r => r.type === 'T1_SCREENING')}
-                  onOpenLive={() => { setT1ReportGenerate(false); setViewingLiveT1(true); }}
+                  onOpenLive={() => { setT1ReportGenerate(false); setFreshT1Report(false); setViewingLiveT1(true); }}
                   onOpenRecord={rec => {
                     setActiveT1Record(rec);
                     // 同舊版：從歸檔清單點進來的報告要從頭看起，清掉上一次「联系专家」留下的捲動旗標。
@@ -1593,7 +1604,7 @@ export default function App() {
                           <span className="text-xs font-extrabold text-brand-forest">{completedScores.filter(s => s.tierId === 'T1').length}/9 维度</span>
                         </div>
                         <button
-                          onClick={() => { setT1ReportGenerate(false); setViewingLiveT1(true); }}
+                          onClick={() => { setT1ReportGenerate(false); setFreshT1Report(false); setViewingLiveT1(true); }}
                           className="w-full py-2 bg-brand-forest hover:bg-brand-forest-dark text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-brand-forest/10"
                         >
                           <Sparkles size={12} />
@@ -1703,7 +1714,7 @@ export default function App() {
                       if (paywallReturn?.target === 't2') {
                         // 從 T1 報告的 T2 入口過來的：送回那份報告，入口會以已解鎖的樣子重畫，並捲到那張卡。
                         setViewingLiveT1(true);
-                        setT1ReportGenerate(false);
+                        setT1ReportGenerate(false); setFreshT1Report(false);
                         setActiveT1Record(null);
                         setFocusT2(true);
                         setCurrentView('report');
@@ -1722,7 +1733,7 @@ export default function App() {
                   <T2Assessment
                     onBack={() => {
                       setViewingLiveT1(true);
-                      setT1ReportGenerate(false);
+                      setT1ReportGenerate(false); setFreshT1Report(false);
                       setActiveT1Record(null);
                       setCurrentView('report');
                     }}

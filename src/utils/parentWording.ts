@@ -45,6 +45,8 @@ export const BANNED_WORDS: ReadonlyArray<string> = [
 export const ALLOWED_PHRASES: ReadonlyArray<string> = [
   // 對照表指定的定位句：「不是诊断」是在否定它，不是在用它。
   '本报告为发展筛查，用于发现需要进一步了解的方面，不是诊断。',
+  // 客戶 10/22 指定的報告免責句（`src/wording1022.ts`）：同樣是在否定「诊断」。
+  '本筛查仅作参考，不是医疗诊断，不能替代医院专业诊疗',
   // 網路錯誤訊息，說的是連線。
   '网络应答异常',
   '网络连接异常',

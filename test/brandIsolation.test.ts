@@ -107,3 +107,21 @@ describe('交接卡與它的字', () => {
     expect(read('src/components/HandoffCard.tsx')).toContain('data.targetName');
   });
 });
+
+/**
+ * 客戶 10/22 修改（issue #78）：開關 `VITE_UI_1022` 開著時，A 的家長端改叫「家庭评估与训练平台」、不露出森心康。
+ * 用字表與 A 的四個系統名欄位在開著時都要走用字表，不准有一處寫死品牌名。
+ */
+describe('1022 開著時 A 不含森心康', () => {
+  it.each(BRAND_WORDS)('用字表（src/wording1022.ts）沒有「%s」', word => {
+    expect(stripComments(read('src/wording1022.ts'))).not.toContain(word);
+  });
+
+  it('A 的網頁標題、頁首、歡迎語、版權在開著時都取用字表', () => {
+    const source = read('src/productConfig.ts');
+    const full = source.slice(source.indexOf('full: {'), source.indexOf('t1only: {'));
+    for (const field of ['documentTitle', 'headerTitle', 'welcomeName', 'copyright']) {
+      expect(full).toMatch(new RegExp(`${field}: UI_1022_A \\? WORDING_1022\\.\\w+ :`));
+    }
+  });
+});

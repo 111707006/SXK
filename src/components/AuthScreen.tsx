@@ -165,9 +165,12 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
         {/* Header Title */}
         {!ledo && (<>
         <div className="text-center space-y-2">
+          {/* 1022：不畫「森」字方塊（規格「品牌」）。 */}
+          {!PRODUCT.features.ui1022 && (
           <div className="inline-flex w-12 h-12 bg-brand-forest text-white rounded-2xl items-center justify-center font-extrabold shadow-lg shadow-brand-forest/15 text-lg mb-1">
             <BrandMark />
           </div>
+          )}
           <h2 className="text-xl font-black text-brand-forest tracking-tight">
             {PRODUCT.brand.headerTitle}
           </h2>

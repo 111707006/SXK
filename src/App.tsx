@@ -51,6 +51,7 @@ import { DEFAULT_UNLOCK_PRICE_FEN } from './utils/price';
 import { BeianFooter } from './components/BeianFooter';
 import { BrandMark } from './components/BrandMark';
 import LedoTabBar, { type NavItem } from './components/ledo/LedoTabBar';
+import { WORDING_1022 } from './wording1022';
 import { HOME_COPY, openHomeCard, viewAfterLogin, readHomeV2Hint, writeHomeV2Hint, type HomeTarget } from './home/homeNav';
 // 條款內文的唯一來源。登入頁（AuthScreen）渲染的是同一份 —— 見該檔說明。
 import { ServiceTerms, PrivacyTerms, LegalFooterLine } from './components/LegalTerms';
@@ -973,13 +974,16 @@ export default function App() {
         {/* 新版首頁、未登入：標題與「登录、注册」手機上也同一列（客戶示意圖）；Ledo 版手機的導覽在底欄，頁首只剩標題與孩子，也一列。其他情況照舊。 */}
         <div className={(homeV2 && !userIdentity) || PRODUCT.features.ledo ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-row items-center justify-between gap-3' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4'}>
           <div className="flex items-center gap-2.5">
+            {/* 1022：頁首不畫「森」字方塊，只留平台名稱（規格「品牌」）。 */}
+            {!PRODUCT.features.ui1022 && (
             <div className="w-10 h-10 bg-brand-moss rounded-xl flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-moss/10 scale-105">
               <BrandMark />
             </div>
+            )}
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
                 {/* 新版首頁開著時頁首寫客戶示意圖上那一行（規格 §5.1）；關著照舊是系統名。 */}
-                <h1 className={`text-base font-extrabold font-sans text-brand-forest tracking-tight${PRODUCT.features.ledo && child ? ' max-sm:sr-only' : ''}`}>{homeV2 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}</h1>
+                <h1 className={`text-base font-extrabold font-sans text-brand-forest tracking-tight${PRODUCT.features.ledo && child ? ' max-sm:sr-only' : ''}`}>{homeV2 && !PRODUCT.features.ui1022 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}</h1>
                 {/*
                   建置模式標記 —— 2026-09-10 起**不顯示在畫面上**。
 
@@ -1335,8 +1339,10 @@ export default function App() {
           /* Profile Registry form shown when child is unconfigured */
           <div className="py-12 animate-fade-in text-center w-full">
             <h2 className="text-2xl md:text-3xl font-black text-brand-forest tracking-tight max-w-lg mx-auto leading-tight mb-4">
-              {/* 專案 B 的 welcomeName 是 null —— 整個強調 span 不渲染，不是留一個空的 */}
-              欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span> </>}儿童综合发展评估
+              {/* 專案 B 的 welcomeName 是 null —— 整個強調 span 不渲染，不是留一個空的。1022 只寫平台名稱。 */}
+              {PRODUCT.features.ui1022
+                ? WORDING_1022.welcome
+                : <>欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span> </>}儿童综合发展评估</>}
             </h2>
             <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
               您的账户 (<span className="font-bold text-brand-forest">{userIdentity}</span>) 已成功连线。为了开启全方位脑功能评估，请填写您孩子的基本信息，登记创建成长档案。
@@ -1796,8 +1802,11 @@ export default function App() {
             <button onClick={() => setShowServiceModal(true)} className="whitespace-nowrap hover:text-brand-forest transition-colors cursor-pointer">服务及免责条款</button>
             <span>•</span>
             <button onClick={() => setShowPrivacyModal(true)} className="whitespace-nowrap hover:text-brand-forest transition-colors cursor-pointer">隐私保护条款</button>
+            {/* 1022：頁尾只留版權、兩個條款、備案號（暫採：歸檔聲明從頁尾拿掉；它連的 `#specs` 站上本來就沒有這個錨點）。 */}
+            {!PRODUCT.features.ui1022 && (<>
             <span>•</span>
             <a href="#specs" className="whitespace-nowrap hover:text-brand-forest transition-colors">发育评估量表归档声明</a>
+            </>)}
           </div>
           {/* 備案號。未設定時整段不渲染 —— 見 BeianFooter 的說明。 */}
           <BeianFooter />

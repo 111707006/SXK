@@ -5,6 +5,7 @@ import {createRequire} from 'module';
 import path from 'path';
 import {defineConfig, type Plugin} from 'vite';
 import {BRAND_FONT_CSS_HREF, BRAND_FONT_DIR, BRAND_FONT_VERSION} from './src/brandFont';
+import {WORDING_1022} from './src/wording1022';
 
 /**
  * 在建置開始前就擋下無法辨識的 VITE_APP_MODE。
@@ -31,6 +32,36 @@ function assertValidUiLedo() {
   const raw = process.env.VITE_UI_LEDO;
   if (raw === undefined || raw === '' || raw === '1' || raw === '0') return;
   throw new Error(`VITE_UI_LEDO 的值無法辨識: ${JSON.stringify(raw)}。只接受 '1'（Ledo 版）或 '0'（舊版）；不設＝A 開、B 關。`);
+}
+
+/**
+ * 客戶 10/22 修改的建置期開關（`VITE_UI_1022`，見 `src/productConfig.ts` 的 `features.ui1022`）。
+ * 不設＝關；只收 `1`／`0`，打錯字的建置起不來。B 的建置不讀它，但打錯字一樣擋 —— 同一份部署腳本兩邊共用。
+ */
+function assertValidUi1022() {
+  const raw = process.env.VITE_UI_1022;
+  if (raw === undefined || raw === '' || raw === '1' || raw === '0') return;
+  throw new Error(`VITE_UI_1022 的值無法辨識: ${JSON.stringify(raw)}。只接受 '1'（10/22 版）或 '0'（現行）；不設＝關。只在專案 A 有效。`);
+}
+
+/**
+ * 1022 開著（而且是專案 A）時，靜態頁寫新的 title、description，body 第一段放一行視覺隱藏、讀屏可讀的歡迎句。
+ * 專案 A 沒有微信公眾號 JS-SDK，微信的分享卡標題取網頁標題、說明取頁面第一段文字（規格「分享卡」，暫採）——
+ * 執行期才設的 `document.title` 微信不一定等得到，所以寫進靜態檔。關著時 `index.html` 原封不動。
+ */
+export function shareCardHtml1022(html: string): string {
+  const hidden = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
+  return html
+    .replace(/<title>[^<]*<\/title>/, `<title>${WORDING_1022.documentTitle}</title>\n    <meta name="description" content="${WORDING_1022.shareDescription}" />`)
+    .replace('<body>', `<body>\n    <p style="${hidden}">${WORDING_1022.shareDescription}</p>`);
+}
+
+function shareCard1022(): Plugin {
+  const on = process.env.VITE_UI_1022 === '1' && process.env.VITE_APP_MODE !== 't1only';
+  return {
+    name: 'sxk-share-card-1022',
+    transformIndexHtml: html => (on ? shareCardHtml1022(html) : html),
+  };
 }
 
 /**
@@ -92,9 +123,10 @@ function brandFont(): Plugin {
 export default defineConfig(() => {
   assertValidAppMode();
   assertValidUiLedo();
+  assertValidUi1022();
 
   return {
-    plugins: [react(), tailwindcss(), brandFont()],
+    plugins: [react(), tailwindcss(), brandFont(), shareCard1022()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

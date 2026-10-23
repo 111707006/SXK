@@ -13,6 +13,7 @@
  */
 
 import type { AdminCenterShape } from './admin/companyScope';
+import { WORDING_1022 } from './wording1022';
 
 export type ProductMode = 'full' | 't1only';
 
@@ -262,23 +263,33 @@ export interface ProductProfile {
      * （B 要換＝帶 `1` 重建 B）。只換畫法：資料、文字、判定與舊版同一份。後台不吃這個開關。
      */
     ledo: boolean;
+    /**
+     * 客戶 10/22 修改（規格 `docs/specs/client-changes-2026-10-22-1-ui.md`，issue #78）：**建置期**開關
+     * `VITE_UI_1022`，只在專案 A、預設關、只有明講 `1` 才開。開著時品牌改「家庭评估与训练平台」、
+     * 家長端的字從 `src/wording1022.ts` 取。B 的建置不讀它（永遠 false）。後台不吃這個開關。
+     */
+    ui1022: boolean;
   };
 }
+
+/** 1022 開著時專案 A 的品牌（只在 A 用；B 的 profile 不讀這個開關）。 */
+const UI_1022_A = import.meta.env.VITE_UI_1022 === '1';
 
 const PROFILES: Record<ProductMode, ProductProfile> = {
   full: {
     mode: 'full',
     brand: {
-      documentTitle: '森心康 - 儿童综合发展评估系统',
-      headerTitle: '森心康儿童综合发展评估系统',
-      welcomeName: '森心康',
+      // 系統名三處（documentTitle、headerTitle、copyright）在 1022 開著時一起換成平台名稱。
+      documentTitle: UI_1022_A ? WORDING_1022.documentTitle : '森心康 - 儿童综合发展评估系统',
+      headerTitle: UI_1022_A ? WORDING_1022.platformName : '森心康儿童综合发展评估系统',
+      welcomeName: UI_1022_A ? WORDING_1022.platformName : '森心康',
       reportTitle: '森心康 AI 神经网络分层评估报告生成器',
       systemName: '森心康（SenXinKang）儿童数字测听与康复分层评估系统',
       legalEntity: '森心康（SenXinKang）技术实验室',
       // 兩句都照抄客戶 2026-09-04 修訂版的原文。
       operatorClause: '由森心康品牌运营（以下简称“运营方”），',
       ipHolder: '森跃诺动健康科技有限公司',
-      copyright: '© 2026 森心康儿童综合发展评估系统',
+      copyright: UI_1022_A ? WORDING_1022.copyright : '© 2026 森心康儿童综合发展评估系统',
       // A 一家合作公司都沒有，沒有人可以問。
       logoSource: 'builtin',
       logoMark: '森',
@@ -328,6 +339,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       handoff: 'receive',
       home: true,
       ledo: import.meta.env.VITE_UI_LEDO !== '0',
+      ui1022: UI_1022_A,
     },
   },
 
@@ -404,6 +416,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       handoff: 'send',
       home: false,
       ledo: import.meta.env.VITE_UI_LEDO === '1',
+      ui1022: false,
     },
   },
 };

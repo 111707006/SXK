@@ -39,6 +39,7 @@ const LedoHomePage = lazy(() => import('./home/LedoHomePage'));
 import LedoDashboard from './components/ledo/LedoDashboard';
 import OutOfRangeCard from './components/OutOfRangeCard';
 import { useViewHistory } from './utils/viewHistory';
+import SplashScreen from './home/SplashScreen';
 import { isInT1Range } from './t1Data';
 import LedoReportLibrary from './components/ledo/LedoReportLibrary';
 
@@ -1060,6 +1061,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-brand-cream text-brand-charcoal font-sans flex flex-col justify-between">
+      {/* 開屏（#88，`HOME_MEDIA`）：有啟用中的開屏素材才出現，同一分頁一次；掃碼頁與後台不經過 App。 */}
+      {PRODUCT.features.home && <SplashScreen />}
       
       {/* Top Professional Master Header Navbar */}
       <header className="sticky top-0 z-40 w-full bg-white border-b border-brand-stone/60 shadow-sm backdrop-blur-md">

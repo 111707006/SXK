@@ -248,7 +248,11 @@ export interface DimensionFinding {
  */
 export interface T2Findings {
   version: 3;
-  toolkitVersion: 'kit-20260908';
+  /**
+   * 9/08 題庫；2026-10-23 起另有兩種不是量表交卷生成的快照用同一個形狀（`src/t2/snapshotKinds.ts`，#92、#112）：
+   * 「只有 T1」（九個方面都 `not_assessed`，推送規則走 T1 推定）與「代填」（推薦人給的紅黃綠當作 T2 分級）。
+   */
+  toolkitVersion: 'kit-20260908' | 't1-only-20261023' | 'proxy-20261023';
   rulesVersion: string;
   child: { assessedAgeMonth: number; sex?: 'boy' | 'girl' };
   t1: Record<DimensionCode, T1Flag>;

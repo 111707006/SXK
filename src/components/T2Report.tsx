@@ -42,6 +42,7 @@ import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
 import { isLedoPage } from './ledo/ui';
 import { STATUS_CLASS } from './reportStatusClass';
 import { isFindingsV3, type T2FindingsV3 } from '../t2/findingsV3';
+import { isNonScaleSnapshot, PROXY_TOOLKIT } from '../t2/snapshotKinds';
 import T2ReportV3 from './T2ReportV3';
 
 /**
@@ -345,8 +346,51 @@ export function T2ReportSnapshot({
       />
     );
   }
+  // 不是量表交卷生成的快照（「只有 T1」#92、「代填」#112）：只畫九宮格，沒有作答回顧與 AI 敘述。
+  if (isNonScaleSnapshot(entry.findings.toolkitVersion)) {
+    return <NonScaleReport entry={entry as T2ReportEntry & { findings: T2Findings }} onReady={onReady} />;
+  }
   return <LegacyReport entry={entry as T2ReportEntry & { findings: T2Findings }} childName={childName} actions={actions} onReady={onReady} />;
 }
+
+/** 「只有 T1」與「代填」的快照（`src/t2/snapshotKinds.ts`）：九宮格與一句它從哪裡來。 */
+function NonScaleReport({ entry, onReady }: { entry: T2ReportEntry & { findings: T2Findings }; onReady?: () => void }) {
+  useEffect(() => {
+    onReady?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const { findings } = entry;
+  const proxy = findings.toolkitVersion === PROXY_TOOLKIT;
+  return (
+    <div className="space-y-4" id="t2-non-scale-report" data-kind={proxy ? 'proxy' : 't1-only'}>
+      <div>
+        <h2 className="text-lg font-bold text-brand-forest">评估结果</h2>
+        <p className="text-xs font-bold text-brand-moss mt-1">{proxy ? NON_SCALE_COPY.proxy : NON_SCALE_COPY.t1Only}</p>
+        <p className="text-xs text-brand-charcoal/80 mt-1">{formatDay(entry.createdAt) && `${formatDay(entry.createdAt)} · `}{NON_SCALE_COPY.note}</p>
+      </div>
+      <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2" id="t2-dimension-grid">
+        {gridDimensions(findings).map(d => {
+          const s = dimensionStatus(d, findings.child.assessedAgeMonth);
+          const cls = STATUS_CLASS[s.kind === 'band' ? s.status : s.tone];
+          return (
+            <li key={d.dimensionId} data-band={d.band} className={`rounded-xl border px-3 py-2 ${cls}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold">{SITE_DIMENSION_NAME[d.dimensionId]}</span>
+                <span className="text-xs font-bold shrink-0">{s.label}</span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+const NON_SCALE_COPY = {
+  proxy: '由治疗师填写',
+  t1Only: '按 T1 儿少综合发展评估推定',
+  note: '每周的家庭活动照这份结果安排；做了 T2 深度评估之后，下一期改照深度评估的结果。',
+} as const;
 
 function LegacyReport({
   entry,

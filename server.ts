@@ -1,3 +1,4 @@
+import { t1OnlyFindings } from './src/t2/t1OnlySnapshot';
 import { listTrainingPasses, insertTrainingPass, hasScaleT2Findings } from './src/db/trainingPasses';
 import { trainingPassState, type TrainingPassDeps, type TrainingPassState } from './src/t2/trainingPassService';
 import { NON_SCALE_TOOLKITS } from './src/t2/snapshotKinds';
@@ -1643,7 +1644,28 @@ async function loadLatestT2Findings(userId: UserId): Promise<FindingsRecord | nu
     latest = list.length === 0 ? null : list[list.length - 1];
   }
   // 最新那一份早於建檔時間，就是前一個孩子的（之後的不會比它舊）
-  return latest && sinceFilter<FindingsRecord>(await t2SinceOf(userId))(latest) ? latest : null;
+  const found = latest && sinceFilter<FindingsRecord>(await t2SinceOf(userId))(latest) ? latest : null;
+  if (found || !TRAINING_PLAN) return found;
+  return ensureT1OnlySnapshot(userId);
+}
+
+/**
+ * 「只有 T1」的快照（`TRAINING_PLAN`，#92）：有一段還沒到期的使用權、做過 T1、還沒有任何快照的家長，
+ * 第一次要快照（進居家訓練）時產生一份 —— 九個方面 T1 推定，推送規則一行不動（`src/t2/t1OnlySnapshot.ts`）。
+ * 沒有使用權不產生。之後做了 T2，生成的報告是更新的一份，下一期照它排。
+ */
+async function ensureT1OnlySnapshot(userId: UserId): Promise<FindingsRecord | null> {
+  const dbUserId = toDbUserId(userId);
+  if (!mysqlDb.isConfigured() || dbUserId === null) return null;
+  if (!(await trainingPassOf(dbUserId)).active) return null;
+  const data = await loadParentData(userId);
+  const t1Scores = (data?.completedScores ?? []).filter((s: any) => s && typeof s === 'object' && s.tierId === 'T1');
+  if (!data?.child || t1Scores.length === 0) return null;
+  const assessedAgeMonth = latestAssessedAgeMonth(t1Scores, []) ?? liveAgeMonthOf(data.child);
+  if (assessedAgeMonth === null) return null;
+  const sex = data.child.gender === 'boy' || data.child.gender === 'girl' ? data.child.gender : undefined;
+  const findings = t1OnlyFindings({ t1Flags: t1FlagsFromScores(t1Scores), assessedAgeMonth, sex, now: new Date() });
+  return storeT2Findings(userId, { findings, prose: null, isAiGenerated: false, aiEngine: 't1-only' });
 }
 
 /**

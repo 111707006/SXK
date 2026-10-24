@@ -69,6 +69,7 @@ import { ageFit, clipClock, detailSeries, hasClip, type DetailSeries, type PlanP
 import { useActivity, useLibraryList } from './useActivity';
 import { LightNav, StepImage } from './ui';
 import { PRODUCT } from '../../productConfig';
+import { WORDING_1022 } from '../../wording1022';
 
 /** 在畫面裡沒有（捲到外面、或瀏覽器沒有 IntersectionObserver 時一律當作在畫面裡）。 */
 function useInView(ref: RefObject<HTMLElement | null>): boolean {
@@ -374,9 +375,12 @@ function DetailBody({ activity: a, place, from, active, series }: {
           </div>
         </div>
 
+        {/* 1022（#78）不露出森心康：出處改寫平台名，不畫「森」字圓標。 */}
         <div className="px-4 mt-5 flex items-center gap-2.5">
-          <span className="w-8 h-8 rounded-full bg-brand-forest text-white grid place-items-center text-[13px] font-bold">{DETAIL.sourceMark}</span>
-          <span className="text-[16px] text-brand-charcoal/80">{DETAIL.source}</span>
+          {!PRODUCT.features.ui1022 && (
+            <span className="w-8 h-8 rounded-full bg-brand-forest text-white grid place-items-center text-[13px] font-bold">{DETAIL.sourceMark}</span>
+          )}
+          <span className="text-[16px] text-brand-charcoal/80">{PRODUCT.features.ui1022 ? WORDING_1022.platformName : DETAIL.source}</span>
         </div>
         {guide?.intro && <p className="px-4 mt-3 text-[14px] leading-relaxed text-brand-charcoal/80">{guide.intro}</p>}
 

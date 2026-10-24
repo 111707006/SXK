@@ -53,6 +53,8 @@ export const WORDING_1022 = {
     alertText: '建议近期进入「T2 深度评估」。',
     legendAttentionHint: '进入 T2 深度评估',
     legendConcernHint: '建议进入 T2 深度评估',
+    screeningResultWithFindings: '标黄、标红的方面建议再做「T2 深度评估」，了解得更清楚。',
+    screeningResultAllClear: '各方面发展稳定，可以把这次结果留作成长记录。',
   },
 
   /** 評估面板（`PRODUCT.dashboard`，issue #85）：不提 T3、不叫「深测」。 */

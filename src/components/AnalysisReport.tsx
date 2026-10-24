@@ -866,7 +866,9 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                         <div>
                           <h4 className="text-sm font-extrabold text-brand-forest leading-tight">{dim.name}</h4>
                           <span className="text-xs text-brand-charcoal/80 font-medium">
-                            {score.tierId === 'T1' ? 'T1 评估层' : score.tierId === 'T2' ? 'T2 问卷层' : 'T3 评估层'}
+                            {PRODUCT.features.ui1022
+                              ? (score.tierId === 'T1' ? WORDING_1022.t1Name : WORDING_1022.t2Name)
+                              : score.tierId === 'T1' ? 'T1 评估层' : score.tierId === 'T2' ? 'T2 问卷层' : 'T3 评估层'}
                           </span>
                         </div>
                       </div>

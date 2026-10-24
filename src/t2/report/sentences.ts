@@ -143,7 +143,7 @@ function counted(caveat: 'incomplete' | 'age_out_of_window' | 'few_items'): stri
 export const CAVEAT_SENTENCES: Readonly<Record<Caveat, string | null>> = {
   incomplete: counted('incomplete'),
   age_out_of_window: counted('age_out_of_window'),
-  unsourced_threshold: '这份工具的分段是森心康依临床经验订定的参考带，还没有建立常模。',
+  unsourced_threshold: '这份工具的分段是依临床经验订定的参考带，还没有建立常模。',
   parent_report: null,
   parent_administered_task: '这份是家长依孩子平常的表现勾选的，不是专业人员现场测出来的。',
   rater_not_credentialed: '协助程度由家长自己拿捏，不同的人来评分会有一些差异。',

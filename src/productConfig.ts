@@ -298,7 +298,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     },
     buildBadge: {
       label: '完整版',
-      title: '当前为完整版（项目 A）：包含 T2/T3 深度评估、付费解锁与穿戴设备商城。',
+      title: UI_1022_A ? '当前为完整版（项目 A）：包含 T2 深度评估、付费解锁与居家训练。' : '当前为完整版（项目 A）：包含 T2/T3 深度评估、付费解锁与穿戴设备商城。',
       // 低調的品牌色 —— 專案 A 是常態，徽章只需可辨識，不必搶眼。
       className: 'bg-brand-sage/40 text-brand-forest border-brand-stone/50',
     },
@@ -309,9 +309,10 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       alertText: UI_1022_A ? WORDING_1022.nextStep.alertText : '建议近期进入第二层「量表评估中心」。',
       legendAttentionHint: UI_1022_A ? WORDING_1022.nextStep.legendAttentionHint : '进入第二层评估',
       legendConcernHint: UI_1022_A ? WORDING_1022.nextStep.legendConcernHint : '建议进入第二层评估',
-      finishButtonLabel: '一键对接 AI 判读并启动 T2/T3 深度专项评估',
-      screeningResultWithFindings: '为了更清楚了解孩子在大脑突触环路与功能上的发展状况并建立成长引导方案，建议方便时进入相应维度的 T2 能力评估层 与 T3 专项深入评估。',
-      screeningResultAllClear: '各维度发展稳定。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，您亦可点击下方一键对接 AI 判读建档并视情探索 T2/T3 检测。',
+      // 1022 開著時這一頁不畫（交卷直接生成報告，#79），仍換掉 T3 與腦神經的字，免得哪天又接回來。
+      finishButtonLabel: UI_1022_A ? WORDING_1022.buttons.generateReport : '一键对接 AI 判读并启动 T2/T3 深度专项评估',
+      screeningResultWithFindings: UI_1022_A ? WORDING_1022.nextStep.screeningResultWithFindings : '为了更清楚了解孩子在大脑突触环路与功能上的发展状况并建立成长引导方案，建议方便时进入相应维度的 T2 能力评估层 与 T3 专项深入评估。',
+      screeningResultAllClear: UI_1022_A ? WORDING_1022.nextStep.screeningResultAllClear : '各维度发展稳定。如需作为成长记录归档并获得脑神经网络的高清动力学分析图谱，您亦可点击下方一键对接 AI 判读建档并视情探索 T2/T3 检测。',
       action: 'goto_tier2',
     },
     // 1022（issue #85）：拿掉「点击亮的黄色／红色维度卡片…」那一句與「T2 自评量表 + T3 专项上传」，按鈕叫「深度评估」。

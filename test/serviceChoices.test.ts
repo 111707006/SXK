@@ -143,8 +143,9 @@ describe('每一處列服務的畫面都走 serviceChoices', () => {
 
   it('報告的預約卡：A 四顆並列，B 照舊一顆「预约专家」與原本的字', () => {
     const report = stripComments(read('src/components/AnalysisReport.tsx'));
-    const a = report.indexOf('{PRODUCT.features.tier2And3 ? (');
-    const b = report.indexOf(') : (', a);
+    // 1022 開著時最前面多一支企業微信二維碼（`wecomQrBooking.structure.test.ts`），A、B 兩支照舊排在它後面。
+    const a = report.indexOf(') : PRODUCT.features.tier2And3 ? (');
+    const b = report.indexOf(') : (', a + 1);
     expect(a).toBeGreaterThan(-1);
     expect(report.slice(a, b)).toContain('serviceChoices({ book: openBookingModal, openTraining: onOpenTraining })');
     const bBranch = report.slice(b, report.indexOf('\n  );', b));

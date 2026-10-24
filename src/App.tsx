@@ -61,6 +61,7 @@ import { WORDING_1022 } from './wording1022';
 import { HOME_COPY, openHomeCard, viewAfterLogin, readHomeV2Hint, writeHomeV2Hint, type HomeTarget } from './home/homeNav';
 // 條款內文的唯一來源。登入頁（AuthScreen）渲染的是同一份 —— 見該檔說明。
 import { ServiceTerms, PrivacyTerms, LegalFooterLine } from './components/LegalTerms';
+import { WecomQrModal, expertBookingIsQr } from './components/WecomQr';
 import {
   Activity, ShoppingBag, BarChart3, User, RefreshCw, 
   Heart, HeartHandshake, FileText, CheckCircle2, ListFilter,
@@ -214,6 +215,8 @@ export default function App() {
    */
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  /** 1022：「预约专家」改成企業微信二維碼，在哪一頁按就在哪一頁出（`expertBookingIsQr`）。 */
+  const [showWecomQr, setShowWecomQr] = useState(false);
 
   /**
    * B→A 交接的落地（ADR-0009、docs/specs/b-to-a-handoff.md §5）：B 的家長按了「到 A 做深度評估」
@@ -788,6 +791,11 @@ export default function App() {
    * 一份都沒有時退回即時報告 —— 那時本來就沒有報告可看，這是誠實的去向。
    */
   const goToExpertBooking = (service: ServiceType | null = null) => {
+    // 1022：不帶去報告頁開預約表，原地出企業微信二維碼。
+    if (expertBookingIsQr()) {
+      setShowWecomQr(true);
+      return;
+    }
     // 時間讀不出來的當成空字串再比 —— 任何正常的時間都比空字串大，所以一筆
     // `createdAt` 壞掉的紀錄不會只因為排在前面就贏過所有正常的紀錄（同
     // `ageBandDrift.ts` 的 `latestBy`；雲端同步回來的歷史紀錄真的會缺這個欄位）。
@@ -1954,6 +1962,8 @@ export default function App() {
       )}
 
       {/* 隐私保护条款弹窗 */}
+      {showWecomQr && <WecomQrModal onClose={() => setShowWecomQr(false)} />}
+
       {showPrivacyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowPrivacyModal(false)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />

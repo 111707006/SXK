@@ -31,6 +31,7 @@ import PrintButton from './PrintButton';
 import { WORDING_1022 } from '../wording1022';
 import { useReportLayout } from '../utils/reportLayout';
 import T2Entrance from './T2Entrance';
+import { WecomQrBlock, WecomQrModal, expertBookingIsQr } from './WecomQr';
 import HandoffCard from './HandoffCard';
 import type { DimensionAccess } from '../utils/access';
 
@@ -284,6 +285,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   }, [historicalRecord]);
 
   const [showBookingModal, setShowBookingModal] = useState(false);
+  /** 1022：預約改成企業微信二維碼（`expertBookingIsQr`）。 */
+  const [showWecomQr, setShowWecomQr] = useState(false);
   /** `focusBookingService` 已經自動開過一次表；`focusBooking` 回到 false 時重置。 */
   const bookingAutoOpenedRef = useRef(false);
   /**
@@ -531,6 +534,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
    * 不在一張把它灰掉的表上預選它。
    */
   const openBookingModal = (requested: ServiceType = DEFAULT_SERVICE_TYPE) => {
+    // 1022：不開預約表，直接出企業微信二維碼（不選專家、不選時段）。
+    if (expertBookingIsQr()) {
+      setShowWecomQr(true);
+      return;
+    }
     const type = serviceAvailability(requested, PRODUCT.features.tier2And3) === 'book' ? requested : DEFAULT_SERVICE_TYPE;
     // 滚动到预约模块并居中
     bookingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -576,7 +584,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
    * 沒有可預約的專家時，這裡**不出現空白的預約區塊**，而是說清楚為什麼。
    * 一顆按不出東西的「立即預約」比沒有按鈕更糟：家長會以為是自己操作錯了。
    */
-  const bookingSlot = specialists.length === 0 ? (
+  // 1022 的二維碼不需要專家名單：名單讀不到也照樣出二維碼。
+  const bookingSlot = specialists.length === 0 && !expertBookingIsQr() ? (
     <div ref={bookingSectionRef} className="bg-brand-cream/30 border border-brand-stone rounded-3xl p-6 mt-6 text-left space-y-2">
       <h3 className="text-sm font-bold text-brand-forest">
         {emptySpecialistsMessage(specialistsReason).title}
@@ -593,7 +602,22 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
       <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-brand-sage/20 rounded-full blur-2xl" />
 
-      {PRODUCT.features.tier2And3 ? (
+      {expertBookingIsQr() ? (
+      /* 1022（使用者 2026-10-24）：預約改成企業微信二維碼，掃碼加客服，不選專家與時段。 */
+      <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+        <div className="space-y-2">
+          <h3 className="text-lg font-bold">{WORDING_1022.expertQr.title}</h3>
+          <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">{WORDING_1022.expertQr.sub}</p>
+        </div>
+        <WecomQrBlock tone="dark" />
+        {onOpenTraining && (
+          <button type="button" id="booking-cta-online_training" onClick={onOpenTraining}
+            className="px-4 py-2.5 rounded-xl bg-brand-sage text-brand-forest font-bold text-xs hover:bg-white transition cursor-pointer">
+            去线上干预训练 →
+          </button>
+        )}
+      </div>
+      ) : PRODUCT.features.tier2And3 ? (
       <>
       <div className="relative z-10">
         <div className="space-y-2">
@@ -939,6 +963,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         />
       )}
 
+
+      {showWecomQr && <WecomQrModal onClose={() => setShowWecomQr(false)} />}
 
       {/* Specialist Booking Modal Dialog */}
       {showBookingModal && (

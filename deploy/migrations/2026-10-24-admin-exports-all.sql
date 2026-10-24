@@ -10,3 +10,6 @@
 -- 【什么时候跑】**打开开关 TRAINING_PLAN 之前**（只有专案 A）。表不认 'all' 的话，对帐汇出会因为记不下纪录而 500、不给档。
 
 ALTER TABLE `admin_exports` MODIFY COLUMN `scope_kind` ENUM('company','unassigned','all') NOT NULL;
+
+-- 驗證（deploy/migrate.mjs 跑這幾句，_ok 必須回 1）
+SELECT COUNT(*) AS admin_exports_scope_all_ok FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_exports' AND COLUMN_NAME = 'scope_kind' AND COLUMN_TYPE LIKE '%''all''%';

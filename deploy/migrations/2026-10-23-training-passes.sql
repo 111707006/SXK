@@ -32,3 +32,6 @@ CREATE TABLE IF NOT EXISTS `training_passes` (
   INDEX `idx_training_passes_user` (`user_id`, `ends_on`),
   CONSTRAINT `fk_training_passes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 驗證（deploy/migrate.mjs 跑這幾句，_ok 必須回 1）
+SELECT COUNT(*) AS training_passes_table_ok FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'training_passes';

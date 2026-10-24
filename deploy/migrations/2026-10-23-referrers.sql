@@ -45,3 +45,8 @@ CREATE TABLE IF NOT EXISTS `referrer_bindings` (
   CONSTRAINT `fk_referrer_bindings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_referrer_bindings_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `referrers` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 驗證（deploy/migrate.mjs 跑這幾句，_ok 必須回 1）
+SELECT COUNT(*) AS referrers_table_ok FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'referrers';
+SELECT COUNT(*) AS referrer_bindings_table_ok FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'referrer_bindings';
+SELECT COUNT(*) AS admin_users_referrer_role_ok FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_users' AND COLUMN_NAME = 'role' AND COLUMN_TYPE LIKE '%referrer%';

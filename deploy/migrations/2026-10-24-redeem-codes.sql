@@ -41,3 +41,7 @@ CREATE TABLE IF NOT EXISTS `redeem_codes` (
   CONSTRAINT `fk_redeem_codes_batch` FOREIGN KEY (`batch_id`) REFERENCES `redeem_batches` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_redeem_codes_user` FOREIGN KEY (`used_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 驗證（deploy/migrate.mjs 跑這幾句，_ok 必須回 1）
+SELECT COUNT(*) AS redeem_batches_table_ok FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'redeem_batches';
+SELECT COUNT(*) AS redeem_codes_table_ok FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'redeem_codes';

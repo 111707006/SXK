@@ -30,3 +30,6 @@ CREATE TABLE IF NOT EXISTS `home_media` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_home_media_slot` (`slot`, `active`, `sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 驗證（deploy/migrate.mjs 跑這幾句，_ok 必須回 1）
+SELECT COUNT(*) AS home_media_table_ok FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'home_media';

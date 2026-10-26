@@ -1125,14 +1125,23 @@ const TRAINING_PASS_DEPS: TrainingPassDeps = {
   hasScaleT2Report: userId => hasScaleT2Findings(userId, NON_SCALE_TOOLKITS),
 };
 
+/**
+ * 免費期間（`PAYWALL_FREE`）的居家訓練：登入的家長一律當成有一段沒有迄日的使用權（使用者 2026-10-27：
+ * 「目前都是 demo 階段，不用實際要求價格跟兌換碼也可以進入」）。不寫進 `training_passes`、不發附送 ——
+ * 開關一拿掉，沒買、沒兌換的家長照舊被帶到訓練計劃頁。
+ */
+const FREE_PERIOD_PASS: TrainingPassState = { active: true, endsOn: null, lastEndsOn: null };
+
 /** 這位家長今天的使用權（`TRAINING_PLAN`，#91）。順手發 T2 附送的一個月。 */
 function trainingPassOf(dbUserId: number): Promise<TrainingPassState> {
+  if (PAYWALL_FREE) return Promise.resolve(FREE_PERIOD_PASS);
   return trainingPassState(TRAINING_PASS_DEPS, dbUserId, calendarDateOf(new Date()));
 }
 
 /**
  * 線上干預那幾支在 `TRAINING_PLAN` 開著時的閘門：只看使用權（取代 T2 閘門＋線上干預收費站）。
- * 免費期間（`PAYWALL_FREE`）與展示開關只管 T2，不讓居家訓練變免費（規格三）。記憶體模式照其他閘門放行。
+ * 展示開關（`PAYWALL_DEMO_OPEN`）只管 T2；免費期間（`PAYWALL_FREE`）連居家訓練也放行（`trainingPassOf`，使用者 2026-10-27
+ * 推翻規格三「免費期間不讓居家訓練變免費」）。記憶體模式照其他閘門放行。
  */
 async function denyIfNoTrainingPass(userId: UserId | null): Promise<UnlockDenial | null> {
   if (!mysqlDb.isConfigured()) return null;
@@ -2773,7 +2782,7 @@ paidOnly.get('/api/unlocks', async (req, res) => {
     }
     // 免費期間：登入的家長一律當成已經買了 T2，前端直接進深度評估、不畫付費牆。權益表一次都不查 ——
     // 這不是一筆購買，不寫進任何地方；開關一拿掉，沒買的家長照舊看到付費牆。
-    // 居家訓練使用權（`TRAINING_PLAN`，#91）：有效與否、到哪天。免費期間也照實回（免費只管 T2）。
+    // 居家訓練使用權（`TRAINING_PLAN`，#91）：有效與否、到哪天。免費期間一律有效、沒有迄日（`trainingPassOf`）。
     const trainingPass = TRAINING_PLAN ? await trainingPassOf(user.id) : undefined;
     // 代填過的家長（#112）：最新那份快照是治療師給的 —— 登入就直接到居家訓練，不必作答。
     const proxyFilled = TRAINING_PLAN

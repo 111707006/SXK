@@ -1620,7 +1620,7 @@ export default function App() {
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
                     // T2 入口只掛在即時報告上（票 #56）；B 沒有 T2。
-                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, freePeriod: t2FreePeriod, onUnlock: enterT2, onStart: enterT2, bonusMonth: trainingPass !== null } : undefined}
+                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, freePeriod: t2FreePeriod, onUnlock: enterT2, onStart: enterT2, bonusMonth: trainingPass !== null && !t2FreePeriod } : undefined}
                     // B 在同一個位置放「到 A 做深度評估」（ADR-0009）；卡自己問伺服器交接開了沒。
                     handoff={PRODUCT.features.handoff === 'send' ? { onShowPrivacy: () => setShowPrivacyModal(true) } : undefined}
                     historicalRecord={null}

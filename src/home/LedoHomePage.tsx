@@ -4,7 +4,7 @@ import { STATUS_WORDING } from '../utils/statusWording';
 import { authFetch } from '../utils/api';
 import { calendarDateOf, weekEndOf, weekStartOf } from '../t2/weeks';
 import type { Checkin } from '../t2/practice';
-import { Avatar, Chip, Greeting, ListRow, SectionHead, Tile, greetingFor } from '../components/ledo/ui';
+import { Avatar, Chip, Greeting, LEDO_ART, ListRow, SectionHead, Tile, greetingFor } from '../components/ledo/ui';
 import { BANNER, HOSPITAL_PHOTO } from './HomePage';
 import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, type HomeTarget } from './homeNav';
 import { PRODUCT } from '../productConfig';
@@ -45,6 +45,12 @@ const CARD_IMG: Record<string, string> = {
   training: '/home/home-training.jpg',
   t1: '/home/home-t1.jpg',
   offline: HOSPITAL_PHOTO.jpg,
+};
+
+/** 1022 的兩張卡用 Ledo 插畫（使用者 2026-10-27：「用比較符合我們風格的 AI 畫」），不用照片。 */
+const CARD_ART_1022: Record<string, string> = {
+  t1: LEDO_ART.report,
+  training: LEDO_ART.training,
 };
 
 function doneDate(scores: DimensionScore[]): string | null {
@@ -185,8 +191,8 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
               onClick={() => onOpen(card.target)}
               className="group flex min-w-0 flex-col overflow-hidden rounded-3xl border-[1.5px] border-ledo-line bg-white text-left shadow-sm transition active:scale-[0.99] cursor-pointer"
             >
-              <span className="relative block aspect-[4/5] w-full overflow-hidden bg-ledo-accent-soft">
-                <img src={CARD_IMG[card.id]} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+              <span className="relative block aspect-[4/3] w-full overflow-hidden bg-ledo-accent-soft">
+                <img src={CARD_ART_1022[card.id]} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
                 <span className="absolute inset-x-2 bottom-2 flex">
                   <Chip on>{card.title}</Chip>
                 </span>

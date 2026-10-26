@@ -193,6 +193,8 @@ export function ScreeningHistory({ history, current }: {
   const now = series[series.length - 1];
   const dims = t1AnswersOf(current.scores).dimensions;
   if (dims.length === 0) return null;
+  // 1022（簡報第 21 頁，使用者 2026-10-27）：只做過一次就沒有東西可對照，整塊不畫。
+  if (PRODUCT.features.ui1022 && series.length < 2) return null;
   const bands = new Set(series.map(p => p.bandName).filter(Boolean));
 
   return (

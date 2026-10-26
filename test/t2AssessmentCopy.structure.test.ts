@@ -166,7 +166,11 @@ describe('完整版作答畫面（T2 v3，T2AssessmentV3）', () => {
     expect(v3).toMatch(/assessedAgeMonth: plan\.answerAgeMonth/);
     expect(v3).toMatch(/missingV3\(/);
     expect(v3).toMatch(/还有 \$\{missing\.length\} 题未作答/);
-    expect(v3).toMatch(/disabled=\{!ready \|\| submitting\}/);
+    // 1022 開著（簡報第 27 頁）交卷不停用：沒答完時按下去捲到第一題沒答的；關著照舊停用。
+    expect(v3).toMatch(/disabled=\{\(!ready && !jumpTo1022\) \|\| submitting\}/);
+    expect(v3).toMatch(/onClick=\{ready \? submit : jumpToMissing\}/);
+    expect(v3).toContain('const jumpTo1022 = PRODUCT.features.ui1022;');
+    expect(v3).toMatch(/document\.getElementById\(key === 'rater' \? 't2v3-rater-section' : `t2v3-item-\$\{key\}`\)/);
   });
 
   it('舊畫面讀到 v3 的 plan 才換過去；新檔案在用字掃描與 authFetch 的清單上', () => {

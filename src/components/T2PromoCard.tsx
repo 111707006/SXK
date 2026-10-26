@@ -2,6 +2,9 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { formatFen } from '../utils/price';
 import {
+  PROMO_BENEFITS_1022,
+  PROMO_BONUS_1022,
+  PROMO_BENEFITS_TITLE_1022,
   PROMO_FREE_NOTE,
   PROMO_GUIDE_LABEL,
   PROMO_PRICE_LABEL,
@@ -15,6 +18,7 @@ import {
   type EntrancePromo,
 } from '../t2/entrancePromo';
 import type { T2Pricing } from '../t2/pricing';
+import { PRODUCT } from '../productConfig';
 
 interface T2PromoCardProps {
   promo: EntrancePromo;
@@ -22,6 +26,8 @@ interface T2PromoCardProps {
   locked: boolean;
   /** 免費期間（`PAYWALL_FREE`）：已解鎖，但價錢照畫當參考，旁邊註明現在免費（使用者 2026-10-11）。 */
   freePeriod?: boolean;
+  /** 做完附送一個月居家訓練（伺服器開著 `TRAINING_PLAN`）；1022 的「做完可以得到」才多列那一句。 */
+  bonusMonth?: boolean;
   /** 這次的價錢（照幾項分檔，伺服器 plan 的 `pricing`）；`null` 不出價錢。 */
   pricing: T2Pricing | null;
   onUnlock: () => void;
@@ -37,7 +43,7 @@ interface T2PromoCardProps {
  * 逐份問卷的清單不在這裡 —— 按下去之後的作答頁才列（理由見 `src/t2/entrancePromo.ts` 檔頭）。
  * 字都在 `entrancePromo.ts`；這一檔只排版。
  */
-export default function T2PromoCard({ promo, locked, freePeriod = false, pricing, onUnlock, onStart, allDone = false, children }: T2PromoCardProps) {
+export default function T2PromoCard({ promo, locked, freePeriod = false, bonusMonth = false, pricing, onUnlock, onStart, allDone = false, children }: T2PromoCardProps) {
   const sentence = promoSentence(promo.dimensions);
   const [lead, tail] = PROMO_TITLE.split('T2');
   const done = allDone && !locked;
@@ -53,6 +59,19 @@ export default function T2PromoCard({ promo, locked, freePeriod = false, pricing
           {sentence.highlight && <strong className="font-extrabold text-brand-clay">{sentence.highlight}</strong>}
           {sentence.after}
         </p>
+        {PRODUCT.features.ui1022 && !done && (
+          <div id="t2-promo-benefits" className="rounded-xl bg-brand-cream/50 px-3.5 py-3 space-y-1.5">
+            <div className="text-xs font-extrabold text-brand-forest">{PROMO_BENEFITS_TITLE_1022}</div>
+            <ul className="space-y-1">
+              {[...PROMO_BENEFITS_1022, ...(bonusMonth ? [PROMO_BONUS_1022] : [])].map(b => (
+                <li key={b} className="flex gap-1.5 text-xs md:text-sm text-brand-charcoal/90 leading-relaxed">
+                  <span className="text-brand-clay font-black">✓</span>
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pt-3 border-t border-brand-cream/80">

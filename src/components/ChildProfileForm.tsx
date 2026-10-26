@@ -8,6 +8,7 @@ import { PROFILE_AGE_RANGE } from '../utils/profileAgeRange';
 import BirthDateSelect from './BirthDateSelect';
 import ChildExtraFields, { extrasOf, type ChildExtras } from './ChildExtraFields';
 import { PRODUCT } from '../productConfig';
+import { WORDING_1022 } from '../wording1022';
 
 interface ChildProfileFormProps {
   currentChild: Child | null;
@@ -72,8 +73,11 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
           <User size={24} />
         </div>
         <div className="text-left">
-          <h2 className="text-xl font-bold font-sans text-brand-forest">快捷登记受测儿童信息</h2>
-          <p className="text-xs text-brand-charcoal/80 mt-0.5">登记出生日期，系统将自动换算实足月龄，匹配最佳神经发育评估量表</p>
+          {/* 1022（使用者 2026-10-27）：標題改「待评估孩子的基本信息」，副標拿掉。 */}
+          <h2 className="text-xl font-bold font-sans text-brand-forest">{PRODUCT.features.ui1022 ? WORDING_1022.profile.formTitle : '快捷登记受测儿童信息'}</h2>
+          {!PRODUCT.features.ui1022 && (
+            <p className="text-xs text-brand-charcoal/80 mt-0.5">登记出生日期，系统将自动换算实足月龄，匹配最佳神经发育评估量表</p>
+          )}
         </div>
       </div>
 

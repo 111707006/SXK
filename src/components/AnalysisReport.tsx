@@ -176,7 +176,7 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
         {/* 只留這一句（客戶 10/17，規格 client-changes-2026-10-17 §2.2 第 4 點）：網址與提醒句拿掉了。 */}
         {state.kind === 'ready' && (
           <p className="text-xs text-brand-charcoal/80 leading-relaxed max-w-md">
-            用手机相机扫一下，这份报告就会在您自己的手机上打开，之后随时都能再看。
+            {PRODUCT.features.ui1022 ? WORDING_1022.report.qrHint : '用手机相机扫一下，这份报告就会在您自己的手机上打开，之后随时都能再看。'}
           </p>
         )}
       </div>
@@ -194,7 +194,7 @@ interface AnalysisReportProps {
    * 只在**即時**報告上出現（`historicalRecord` 為 null）—— plan 是伺服器依最新篩查算的，
    * 掛在一份舊報告底下會對不上那份報告的判定。
    */
-  t2?: { access: DimensionAccess; freePeriod?: boolean; onUnlock: () => void; onStart: () => void };
+  t2?: { access: DimensionAccess; freePeriod?: boolean; onUnlock: () => void; onStart: () => void; /** 伺服器開著訓練計劃（`TRAINING_PLAN`）：做完 T2 附送一個月，卡上才寫。 */ bonusMonth?: boolean };
   /**
    * B→A 交接（ADR-0009）：專案 B 在 T2 插槽的位置放「到 A 做深度評估」那張卡。A 不會收到（A 有 `t2`）。
    * 同 `t2`，只掛在即時報告上 —— 帶過去的是**現在**的篩查。卡自己問伺服器交接開了沒，沒開就不出現。
@@ -568,6 +568,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
       <T2Entrance
         access={t2.access}
         freePeriod={t2.freePeriod === true}
+        bonusMonth={t2.bonusMonth === true}
         onUnlock={t2.onUnlock}
         onStart={t2.onStart}
         onBookService={openBookingModal}

@@ -33,11 +33,14 @@ describe('1022 開著', () => {
     expect(html).toContain('跟着练！科学助力孩子能力提升');
   });
 
-  it('沒有線下服務點；卡片有底框', async () => {
+  it('沒有線下服務點；兩張一樣大的照片卡並排、有底框，T1 在前', async () => {
     const html = await renderHome('1');
     expect(html).not.toContain('home-card-offline');
     expect(html).not.toContain('线下服务点');
-    expect(html).toMatch(/<div class="rounded-3xl border-\[1\.5px\] border-ledo-line[^"]*"><button type="button" id="home-card-t1"/);
+    // 使用者 2026-10-27：照片卡（舊版首頁的樣式）、兩張同大小
+    expect(html).toMatch(/<div class="grid grid-cols-2 gap-3"><button type="button" id="home-card-t1" class="[^"]*border-\[1\.5px\] border-ledo-line[^"]*">/);
+    expect(html.indexOf('home-card-t1')).toBeLessThan(html.indexOf('home-card-training'));
+    expect(html.match(/aspect-\[4\/5\]/g)).toHaveLength(2);
   });
 
   it('大圖標題與按鈕', async () => {

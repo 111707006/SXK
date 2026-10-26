@@ -21,7 +21,7 @@ export default function OutOfRangeCard({ childName, onBook, onOpenTraining }: {
       <p className="text-sm leading-relaxed text-rose-950">
         {WORDING_1022.outOfRange.body(childName)}
       </p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2">
         {serviceChoices({ book: onBook, openTraining: onOpenTraining }).map(c => (
           <button
             key={c.descriptor.type}

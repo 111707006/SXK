@@ -54,7 +54,7 @@ export function serviceChoices(on: {
   openTraining?: () => void;
   inTraining?: boolean;
 }): ServiceChoice[] {
-  return serviceTypeDescriptors().map(descriptor => {
+  const all = serviceTypeDescriptors().map((descriptor): ServiceChoice => {
     const availability = serviceAvailability(descriptor.type, PRODUCT.features.tier2And3);
     const description = availability === 'training' ? TRAINING_PAGE_DESCRIPTION : descriptor.description;
     if (availability === 'book') {
@@ -66,7 +66,17 @@ export function serviceChoices(on: {
     }
     return { descriptor, description, state: 'soon', onSelect: null };
   });
+  // 1022（簡報第 24 頁，使用者 2026-10-27）：預約改成企業微信二維碼，灰掉的線下兩種與「就是这一页」不再列，
+  // 只剩「加企业微信咨询」（按了出二維碼，`expertBookingIsQr`）與去线上干预。
+  if (!PRODUCT.features.ui1022) return all;
+  return all
+    .filter(c => c.state === 'book' || c.state === 'training')
+    .map(c => (c.state === 'book' ? { ...c, descriptor: { ...c.descriptor, label: WECOM_CONSULT_LABEL }, description: WECOM_CONSULT_DESCRIPTION } : c));
 }
+
+/** 1022：開預約表的那一種改叫這個（按了出企業微信二維碼）。 */
+export const WECOM_CONSULT_LABEL = '加企业微信咨询专家';
+export const WECOM_CONSULT_DESCRIPTION = '扫码添加企业微信，由儿童发展评估专家为您说明报告与接下来怎么做。';
 
 /** 按鈕上的小字（「去线上干预 →」「就是这一页」「暂未开放」）；開預約表的那一種不畫。 */
 export function ServiceNote({ state, className = '' }: { state: ServiceChoiceState; className?: string }) {

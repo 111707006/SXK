@@ -1,6 +1,8 @@
 import type { AssessmentRecord } from '../../types';
 import { STATUS_WORDING } from '../../utils/statusWording';
 import { Avatar, Chip, Greeting, LEDO_ART, ListRow, PlayButton, SectionHead } from './ui';
+import { PRODUCT } from '../../productConfig';
+import { WORDING_1022 } from '../../wording1022';
 
 /**
  * Ledo 版報告庫（設計稿第 5 頁）：「这次的报告」插畫大卡（打開即時報告），下面一行一份歸檔報告。
@@ -57,7 +59,7 @@ export default function LedoReportLibrary({ childName, t1Count, history, onOpenL
               <ListRow
                 key={rec.id}
                 avatar={<Avatar tone={delay > 0 ? 'more' : mild > 0 ? 'mild' : 'ok'} text={md(rec.createdAt)} />}
-                title="儿童综合发展评估报告"
+                title={PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿童综合发展评估报告'}
                 sub={parts.length > 0 ? parts.join(' · ') : STATUS_WORDING.normal.label}
                 onClick={() => onOpenRecord(rec)}
               />

@@ -62,10 +62,12 @@ describe('畫面', () => {
     expect(render(full)).toContain('生成报告');
   });
 
-  it('三題必填、兩題選填，各有「不清楚」或「足月」', () => {
+  it('三題必填、一題選填（診斷那一題拿掉了），各有「不清楚」或「足月」', () => {
     const html = render(full);
     expect(html.match(/必填/g)).toHaveLength(3);
-    expect(html.match(/选填/g)).toHaveLength(2);
+    // 使用者 2026-10-27：診斷不影響推薦（ADR-0011），那一題刪了
+    expect(html.match(/选填/g)).toHaveLength(1);
+    expect(html).not.toContain('诊断');
     expect(html).toContain('足月（37 周以上）');
     expect(html.match(/>不清楚</g)).toHaveLength(2);
   });

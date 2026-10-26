@@ -27,6 +27,18 @@ export const PROMO_ALL_DONE = '查看并生成报告';
 /** 免費期間（`PAYWALL_FREE`）價錢底下那一行：價錢只是參考，現在不收費。 */
 export const PROMO_FREE_NOTE = '目前免费开放，直接开始即可';
 
+/**
+ * 1022（簡報第 23 頁「购买动机不强，需要修改」，使用者 2026-10-27）：卡上多列「做完可以得到什么」。
+ * 客戶沒給文案，這是暫採的寫法；每一句都要是做完真的拿得到的東西。
+ */
+export const PROMO_BENEFITS_TITLE_1022 = '做完可以得到';
+export const PROMO_BENEFITS_1022: ReadonlyArray<string> = [
+  '每个方面更细的结果：哪些已经稳定、哪些还要多练',
+  '照结果排好的居家训练计划，每周几个活动，附示范片跟着做',
+];
+/** 伺服器開著訓練計劃（`TRAINING_PLAN`）時才列：做完 T2 附送一個月（ADR-0013）。 */
+export const PROMO_BONUS_1022 = '附送一个月居家训练';
+
 export interface EntrancePromo {
   /** 幾項深度評估（＝要填幾份）。 */
   count: number;

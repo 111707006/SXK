@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { WORDING_1022 } from '../wording1022';
 import { ArrowLeft, Check, ChevronRight, FileText, Layers, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react';
 import { PRODUCT } from '../productConfig';
 import { Avatar, Chip, LEDO_ART, ListRow, PlayButton } from './ledo/ui';
@@ -154,6 +155,21 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
 
   const ready = rater !== null && missing.length === 0;
 
+  /**
+   * 1022（簡報第 27 頁「未答题，跳到题目处」，使用者 2026-10-27）：按「还有 N 题未作答」或還不能交的「交卷」，
+   * 捲到第一題沒答的（沒選填表人就捲到填表人那一格），那一格閃一下框。
+   */
+  const jumpTo1022 = PRODUCT.features.ui1022;
+  const [flashKey, setFlashKey] = useState<string | null>(null);
+  const jumpToMissing = () => {
+    const key = rater === null ? 'rater' : missing[0];
+    if (!key) return;
+    document.getElementById(key === 'rater' ? 't2v3-rater-section' : `t2v3-item-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setFlashKey(key);
+    window.setTimeout(() => setFlashKey(k => (k === key ? null : k)), 2000);
+  };
+  const flashRing = (key: string) => (flashKey === key ? ' ring-2 ring-brand-clay ring-offset-2' : '');
+
   const submit = async () => {
     if (!selected || !form || !ready || submitting) return;
     setSubmitting(true);
@@ -209,7 +225,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
         {back}
         <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
-          <Layers size={10} /> 第二层 · 深度评估
+          <Layers size={10} /> {PRODUCT.features.ui1022 ? WORDING_1022.t2Name : '第二层 · 深度评估'}
         </span>
       </div>
       {children}
@@ -254,7 +270,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           )}
         </div>
 
-        <section className="space-y-2">
+        <section id="t2v3-rater-section" className={`space-y-2 rounded-2xl transition${flashRing('rater')}`}>
           <h3 className="text-xs font-bold text-brand-forest">这份问卷由谁填写？</h3>
           <div className="flex flex-wrap gap-2">
             {raterOptions(raterV2).map(o => (
@@ -319,7 +335,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
                   const chosen = answers[item.key];
                   const wide = !!item.anchors || section.options.some(o => o.hint) || section.options.length > 4;
                   return (
-                    <div key={item.key} className={ledo ? 'p-4 bg-ledo-accent-soft rounded-3xl space-y-3' : 'p-4 bg-white border border-brand-stone rounded-2xl space-y-3 hover:border-brand-moss/40 transition'}>
+                    <div key={item.key} id={`t2v3-item-${item.key}`} className={(ledo ? 'p-4 bg-ledo-accent-soft rounded-3xl space-y-3' : 'p-4 bg-white border border-brand-stone rounded-2xl space-y-3 hover:border-brand-moss/40 transition') + flashRing(item.key)}>
                       <div className="flex gap-2.5">
                         <span className="text-xs font-bold text-brand-charcoal/80 bg-brand-cream border border-brand-stone/30 w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                           {no}
@@ -360,12 +376,18 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
         {error && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{error}</p>}
 
         <div className="pt-6 border-t border-brand-stone/60 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className={`text-xs font-semibold ${ready ? 'text-brand-moss' : 'text-brand-charcoal/80'}`}>{gateText}</span>
+          {jumpTo1022 && !ready ? (
+            <button type="button" id="t2v3-jump-missing" onClick={jumpToMissing} className="text-xs font-bold text-brand-clay underline underline-offset-4 cursor-pointer">
+              {gateText}，点这里跳过去
+            </button>
+          ) : (
+            <span className={`text-xs font-semibold ${ready ? 'text-brand-moss' : 'text-brand-charcoal/80'}`}>{gateText}</span>
+          )}
           <button
             type="button"
             id="t2v3-submit-btn"
-            disabled={!ready || submitting}
-            onClick={submit}
+            disabled={(!ready && !jumpTo1022) || submitting}
+            onClick={ready ? submit : jumpToMissing}
             className={`px-6 py-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
               ready && !submitting
                 ? 'bg-brand-forest hover:bg-brand-forest/90 text-white shadow-brand-forest/20 active:scale-[0.98] cursor-pointer'

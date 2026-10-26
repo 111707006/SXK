@@ -174,19 +174,25 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
         </>
       )}
 
-      {/* 1022（issue #84）：兩張卡、T1 在前、有底框，副標是客戶的固定句；沒有線下服務點。 */}
+      {/* 1022（issue #84；使用者 2026-10-27 改成照片卡）：兩張一樣大的照片卡並排、T1 在前，副標是客戶的固定句；沒有線下服務點。 */}
       {PRODUCT.features.ui1022 ? (
-        <div className="space-y-2.5">
+        <div className="grid grid-cols-2 gap-3">
           {HOME_CARDS_1022.map(card => (
-            <div key={card.id} className="rounded-3xl border-[1.5px] border-ledo-line bg-white p-3 shadow-sm">
-              <ListRow
-                id={`home-card-${card.id}`}
-                avatar={<Avatar img={CARD_IMG[card.id]} />}
-                title={card.title}
-                sub={card.sub}
-                onClick={() => onOpen(card.target)}
-              />
-            </div>
+            <button
+              key={card.id}
+              type="button"
+              id={`home-card-${card.id}`}
+              onClick={() => onOpen(card.target)}
+              className="group flex min-w-0 flex-col overflow-hidden rounded-3xl border-[1.5px] border-ledo-line bg-white text-left shadow-sm transition active:scale-[0.99] cursor-pointer"
+            >
+              <span className="relative block aspect-[4/5] w-full overflow-hidden bg-ledo-accent-soft">
+                <img src={CARD_IMG[card.id]} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                <span className="absolute inset-x-2 bottom-2 flex">
+                  <Chip on>{card.title}</Chip>
+                </span>
+              </span>
+              <span className="px-3 py-2.5 text-xs leading-relaxed text-ledo-ink-2">{card.sub}</span>
+            </button>
           ))}
         </div>
       ) : (

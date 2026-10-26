@@ -39,6 +39,8 @@ interface T2EntranceProps {
   onBookService: (type: ServiceType) => void;
   /** 「线上干预训练指导」那一顆 → 導覽列那一頁「线上干预」（2026-09-29：四種並列，它就是那一頁）。 */
   onOpenTraining?: () => void;
+  /** 做完 T2 附送一個月居家訓練（伺服器開著 `TRAINING_PLAN`）。 */
+  bonusMonth?: boolean;
 }
 
 /**
@@ -61,7 +63,7 @@ interface T2EntranceProps {
  * 已解鎖的家長在這裡看到同一份清單，CTA 是「開始作答」→ 逐支作答畫面（`T2Assessment.tsx`，票 #58），
  * 那邊的工具清單就是這份 plan。
  */
-export default function T2Entrance({ access, freePeriod = false, onUnlock, onStart, onBookService, onOpenTraining }: T2EntranceProps) {
+export default function T2Entrance({ access, freePeriod = false, onUnlock, onStart, onBookService, onOpenTraining, bonusMonth = false }: T2EntranceProps) {
   const [plan, setPlan] = useState<PlanResponse | PlanV3WithPricing | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
 
@@ -122,7 +124,7 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
   }
 
   const serviceButtons = (
-    <div className="grid grid-cols-2 gap-2">
+    <div className={PRODUCT.features.ui1022 ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-2 gap-2'}>
       {serviceChoices({ book: onBookService, openTraining: onOpenTraining }).map(c => (
         <button
           key={c.descriptor.type}
@@ -147,6 +149,7 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
         locked={access === 'locked' || access === 'demo'}
         pricing={plan.pricing ?? null}
         freePeriod={freePeriod}
+        bonusMonth={bonusMonth}
         onUnlock={onUnlock}
         onStart={onStart}
         serviceButtons={serviceButtons}
@@ -179,7 +182,7 @@ export default function T2Entrance({ access, freePeriod = false, onUnlock, onSta
 
   // 報告上只出一張短卡（使用者 2026-10-11）；逐份清單在作答頁（T2Assessment）。沒工具的維度照舊在卡底下說清楚、導四種服務（§4.5）。
   return (
-    <T2PromoCard promo={promoFromV2(planV2)} locked={locked} freePeriod={freePeriod} pricing={planV2.pricing ?? null} onUnlock={onUnlock} onStart={onStart}>
+    <T2PromoCard promo={promoFromV2(planV2)} locked={locked} freePeriod={freePeriod} bonusMonth={bonusMonth} pricing={planV2.pricing ?? null} onUnlock={onUnlock} onStart={onStart}>
       {planV2.noTool.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           {noToolNotes(planV2).map(note => (

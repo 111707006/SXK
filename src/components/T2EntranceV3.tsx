@@ -16,6 +16,8 @@ interface T2EntranceV3Props {
   pricing: T2Pricing | null;
   /** 免費期間：卡上照樣畫價錢當參考（見 `T2Entrance`）。 */
   freePeriod?: boolean;
+  /** 見 `T2Entrance`。 */
+  bonusMonth?: boolean;
   onUnlock: () => void;
   onStart: () => void;
   /** 四種服務的按鈕（`T2Entrance` 走 `serviceChoices` 組好傳進來，這裡不重抄）。 */
@@ -31,7 +33,7 @@ interface T2EntranceV3Props {
  * `NO_T2`：入口不出現，只留那一句「目前不需要第二层检查……」（規格 §5，取代舊入口 `none` 的整塊不出）。
  * 量表名稱是客戶給的專有名詞，照用（規格 §5）。
  */
-export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false, onUnlock, onStart, serviceButtons }: T2EntranceV3Props) {
+export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false, bonusMonth = false, onUnlock, onStart, serviceButtons }: T2EntranceV3Props) {
   // 規則觸發改成的提示（社交溝通警訊、抽動、情緒那一題，ADR-0011）底下附預約按鈕；有了這一組，缺口那一格就不再重複一組按鈕
   const bookAtNotices = plan.notices.some(n => n.book);
   const notices = plan.notices.length > 0 && (
@@ -58,7 +60,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
     return (
       <div className="bg-white rounded-2xl border border-brand-stone/60 p-5 shadow-sm text-left space-y-3">
         {badge}
-        <p className="text-xs text-brand-charcoal/80 leading-relaxed">{plan.noT2Text}</p>
+        <p className="text-xs text-brand-charcoal/80 leading-relaxed">{PRODUCT.features.ui1022 ? WORDING_1022.noT2Text : plan.noT2Text}</p>
         {notices}
       </div>
     );
@@ -84,6 +86,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
       promo={promoFromV3(plan)}
       locked={locked}
       freePeriod={freePeriod}
+      bonusMonth={bonusMonth}
       pricing={pricing}
       onUnlock={onUnlock}
       onStart={onStart}

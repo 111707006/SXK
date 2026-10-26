@@ -36,6 +36,12 @@ const HomePage = lazy(() => import('./home/HomePage'));
 const OfflineServicePage = lazy(() => import('./home/OfflineServicePage'));
 // Ledo 版首頁（`PRODUCT.features.ledo`）：B 沒有首頁，A 的建置才會載入它。
 const LedoHomePage = lazy(() => import('./home/LedoHomePage'));
+
+/**
+ * 手機上的導覽放在底部黑色那一條（Ledo 版），還是頁首的分頁（之前那一版）。
+ * 1022 開著改回頁首分頁（使用者 2026-10-27：「黑色導覽鈕改為前版本再上面的那種」）；其他 Ledo 樣式照舊。
+ */
+const LEDO_TAB_BAR = PRODUCT.features.ledo && !PRODUCT.features.ui1022;
 import LedoDashboard from './components/ledo/LedoDashboard';
 import OutOfRangeCard from './components/OutOfRangeCard';
 import { useViewHistory } from './utils/viewHistory';
@@ -1113,7 +1119,7 @@ export default function App() {
           孩子的選單掉到導覽底下（2026-09-29 三種寬度截圖時看到的）。
         */}
         {/* 新版首頁、未登入：標題與「登录、注册」手機上也同一列（客戶示意圖）；Ledo 版手機的導覽在底欄，頁首只剩標題與孩子，也一列。其他情況照舊。 */}
-        <div className={(homeV2 && !userIdentity) || PRODUCT.features.ledo ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-row items-center justify-between gap-3' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4'}>
+        <div className={(homeV2 && !userIdentity) || LEDO_TAB_BAR ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-row items-center justify-between gap-3' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4'}>
           <div className="flex items-center gap-2.5">
             {/* 1022：頁首不畫「森」字方塊，只留平台名稱（規格「品牌」）。 */}
             {!PRODUCT.features.ui1022 && (
@@ -1124,7 +1130,7 @@ export default function App() {
             <div className="text-left">
               <div className="flex flex-wrap items-center gap-2">
                 {/* 新版首頁開著時頁首寫客戶示意圖上那一行（規格 §5.1）；關著照舊是系統名。 */}
-                <h1 className={`text-base font-extrabold font-sans text-brand-forest tracking-tight${PRODUCT.features.ledo && child ? ' max-sm:sr-only' : ''}`}>{homeV2 && !PRODUCT.features.ui1022 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}</h1>
+                <h1 className={`text-base font-extrabold font-sans text-brand-forest tracking-tight${LEDO_TAB_BAR && child ? ' max-sm:sr-only' : ''}`}>{homeV2 && !PRODUCT.features.ui1022 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}</h1>
                 {/* A 的合作公司（#90）：家長歸屬某家醫院時，平台名稱旁畫那家的 LOGO 與名稱。 */}
                 {PRODUCT.mode === 'full' && <CompanyBadge enabled={companiesOn} identity={userIdentity} />}
                 {/*
@@ -1163,7 +1169,7 @@ export default function App() {
                 新版首頁開著時多一顆「首页」（五顆）：375px 一行放不下就橫捲（`overflow-x-auto`），不換行、不縮字。
                 關著照舊（class 一字不差）。
               */}
-              <nav className={`${homeV2 ? 'flex max-w-full overflow-x-auto bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40' : 'flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40'}${PRODUCT.features.ledo ? ' max-lg:hidden' : ''}`}>
+              <nav className={`${homeV2 ? 'flex max-w-full overflow-x-auto bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40' : 'flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40'}${LEDO_TAB_BAR ? ' max-lg:hidden' : ''}`}>
                 {navItems.map(item => (
                   <button
                     key={item.key}
@@ -1614,7 +1620,7 @@ export default function App() {
                     }}
                     onSaveReportToHistory={handleSaveReportToHistory}
                     // T2 入口只掛在即時報告上（票 #56）；B 沒有 T2。
-                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, freePeriod: t2FreePeriod, onUnlock: enterT2, onStart: enterT2 } : undefined}
+                    t2={PRODUCT.features.tier2And3 ? { access: t2Access, freePeriod: t2FreePeriod, onUnlock: enterT2, onStart: enterT2, bonusMonth: trainingPass !== null } : undefined}
                     // B 在同一個位置放「到 A 做深度評估」（ADR-0009）；卡自己問伺服器交接開了沒。
                     handoff={PRODUCT.features.handoff === 'send' ? { onShowPrivacy: () => setShowPrivacyModal(true) } : undefined}
                     historicalRecord={null}
@@ -1693,7 +1699,7 @@ export default function App() {
                             <Layers size={16} />
                           </div>
                           <div>
-                            <h3 className="text-sm font-black text-brand-charcoal">儿童综合发展评估报告</h3>
+                            <h3 className="text-sm font-black text-brand-charcoal">{PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿童综合发展评估报告'}</h3>
                             <p className="text-xs text-brand-charcoal/80">9维度多感官神经网络基础评估</p>
                           </div>
                         </div>
@@ -1752,7 +1758,7 @@ export default function App() {
                                         查看报告 <ChevronRight size={10} />
                                       </span>
                                     </div>
-                                    <h5 className="text-xs font-bold text-brand-charcoal mt-1">儿童综合发展评估报告</h5>
+                                    <h5 className="text-xs font-bold text-brand-charcoal mt-1">{PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿童综合发展评估报告'}</h5>
                                     <div className="flex items-center gap-2 mt-2">
                                       <span className="text-xs bg-red-50 text-red-600 border border-red-100 rounded px-1.5 font-medium">
                                         {STATUS_WORDING.delay.label}: {delayCount}
@@ -1932,9 +1938,9 @@ export default function App() {
       </main>
 
       {/* Aesthetic footer */}
-      {PRODUCT.features.ledo && child && <LedoTabBar items={navItems} />}
+      {LEDO_TAB_BAR && child && <LedoTabBar items={navItems} />}
 
-      <footer className={`bg-white border-t border-brand-stone/60 py-6 mt-16${PRODUCT.features.ledo && child ? ' max-lg:pb-28' : ''} text-center text-xs text-brand-charcoal/80 font-medium relative z-10`}>
+      <footer className={`bg-white border-t border-brand-stone/60 py-6 mt-16${LEDO_TAB_BAR && child ? ' max-lg:pb-28' : ''} text-center text-xs text-brand-charcoal/80 font-medium relative z-10`}>
         <div className="max-w-7xl mx-auto px-4 space-y-2">
           <p>{PRODUCT.brand.copyright}</p>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">

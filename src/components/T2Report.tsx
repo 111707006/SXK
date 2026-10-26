@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { WORDING_1022 } from '../wording1022';
+import { PRODUCT } from '../productConfig';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -234,7 +236,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
         {backButton}
         <span className="px-2.5 py-0.5 rounded-full bg-brand-sage/20 border border-brand-moss/20 text-xs font-bold text-brand-moss inline-flex items-center gap-1 uppercase tracking-wider">
-          <Layers size={10} /> 第二层 · 深度评估
+          <Layers size={10} /> {PRODUCT.features.ui1022 ? WORDING_1022.t2Name : '第二层 · 深度评估'}
         </span>
       </div>
       {children}

@@ -1,9 +1,6 @@
 import type { ReactNode } from 'react';
 import { WORDING_1022 } from '../wording1022';
 import {
-  DX_NONE,
-  DX_OPTIONS,
-  DX_QUESTION,
   GESTATION_FULL_TERM,
   HEARING_QUESTION,
   NO,
@@ -11,7 +8,6 @@ import {
   TIC_QUESTION,
   YES,
 } from '../t2/recommend/childFieldsCopy';
-import { toggleDiagnosis } from './ChildExtraFields';
 import { supplementMissing, type SupplementAnswers } from '../utils/t1Supplement';
 
 /**
@@ -88,12 +84,7 @@ export default function T1SupplementStep({ value, onChange, onBack, onSubmit }: 
         ))}
       </Question>
 
-      <Question title={DX_QUESTION} required={false}>
-        {DX_OPTIONS.map(o => (
-          <button key={o.value} type="button" className={pill(value.diagnoses.includes(o.value))} onClick={() => onChange({ ...value, diagnoses: toggleDiagnosis(value.diagnoses, o.value) })}>{o.label}</button>
-        ))}
-        <button type="button" className={pill(value.diagnoses.length === 0)} onClick={() => onChange({ ...value, diagnoses: [] })}>{DX_NONE}</button>
-      </Question>
+      {/* 診斷那一題拿掉（使用者 2026-10-27：「不影響的話就刪了」）：推薦每個方面只出一份、不看診斷（ADR-0011），答了也不改任何結果。 */}
 
       {missing.length > 0 && <p className="text-xs font-bold text-ledo-more-ink">{WORDING_1022.supplement.missing}</p>}
 

@@ -17,6 +17,8 @@ export const TRAINING_PLAN_PAGE = {
   payUnavailable: '暂未开放',
   priceTbd: '价格待定',
   redeemEntry: '兑换码',
+  /** 個人中心那一格的按鈕（2026-11-03）。 */
+  profileRedeemHint: '有兑换码？点这里输入，开通居家训练',
   redeemPlaceholder: 'XXXX-XXXX-XX',
   redeemSubmit: '兑换',
   redeemInvalid: '兑换码不正确或已使用',

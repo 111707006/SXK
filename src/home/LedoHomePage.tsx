@@ -198,7 +198,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
                   <Chip on>{card.title}</Chip>
                 </span>
               </span>
-              <span className="px-3 py-2.5 text-xs leading-relaxed text-ledo-ink-2">{card.sub}</span>
+              <span className="px-3 py-2.5 text-xs leading-relaxed text-ledo-ink-2">{card.id === 't1' && t1.length > 0 ? WORDING_1022.home.t1CardDoneSub : card.sub}</span>
             </button>
           ))}
         </div>

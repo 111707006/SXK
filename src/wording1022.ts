@@ -35,6 +35,8 @@ export const WORDING_1022 = {
     login: '登录／注册',
     /** 首頁兩張卡，T1 在前。 */
     t1Card: { title: 'T1 儿少综合发展评估', subtitle: '读懂成长信号，定制适合孩子的成长支持方案' },
+    /** 做完 T1 之後 T1 卡的副標：點了帶到報告上的 T2 入口（簡報 11/03 第 8 頁）。 */
+    t1CardDoneSub: '已完成 T1，下一步做「T2 深度评估」，看得更细',
     trainingCard: { title: '线上家庭个性化训练', subtitle: '跟着练！科学助力孩子能力提升' },
   },
 

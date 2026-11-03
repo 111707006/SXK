@@ -396,6 +396,12 @@ export default function App() {
       setHomeLoginOpen(true);
       return;
     }
+    // 1022（簡報 11/03 第 8 頁「点进去还是 T1 重新评估，没有 T2 了」）：做完 T1 的家長點 T1 卡，
+    // 帶到即時報告上的「T2 深度评估」那張卡；還沒做的照舊到評估面板開始 T1。
+    if (PRODUCT.features.ui1022 && step.view === 'dashboard' && completedScores.some(s => s.tierId === 'T1')) {
+      goToT2Entrance();
+      return;
+    }
     // 訓練計劃（`TRAINING_PLAN`，#110）：沒有有效使用權的家長點「线上家庭个性化训练」先到方案頁。
     setCurrentView(step.view === 'training' && trainingPass !== null && !trainingPass.active ? 'training_plan' : step.view);
     setSelectedDimensionId(null);

@@ -8,9 +8,21 @@ import { ServiceNote, serviceChoices } from '../serviceChoices';
 import { EXPERT_SHEET } from '../../t2/trainingCopy';
 import { useTraining } from './TrainingContext';
 import { Sheet } from './ui';
+import { WecomQrBlock, expertBookingIsQr } from '../WecomQr';
+import { WORDING_1022 } from '../../wording1022';
 
 export default function ExpertSheet() {
   const { nav, onBookService } = useTraining();
+  // 1022（簡報 10/22 第 24 頁、11/03 第 21 頁「中间这个部分可以删除，直接二维码」）：抽屜裡直接是二維碼。
+  if (expertBookingIsQr()) {
+    return (
+      <Sheet onClose={nav.back}>
+        <h2 className="text-[22px] font-black text-brand-forest">{WORDING_1022.expertQr.title}</h2>
+        <p className="mt-1.5 mb-4 text-[14px] text-brand-charcoal/80">{WORDING_1022.expertQr.sub}</p>
+        <WecomQrBlock />
+      </Sheet>
+    );
+  }
   return (
     <Sheet onClose={nav.back}>
       <h2 className="text-[22px] font-black text-brand-forest">{EXPERT_SHEET.title}</h2>

@@ -6,6 +6,7 @@
  * 這一檔只換畫法。舊版的照片大卡壓白字（深色漸層）在這一版拿掉：字一律放在白底或粉彩底上。
  */
 import { useState } from 'react';
+import { PRODUCT } from '../../productConfig';
 import { CalendarDays, Loader2, MessageCircle, UserRound } from 'lucide-react';
 import { ServiceNote, serviceChoices } from '../serviceChoices';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
@@ -78,7 +79,7 @@ export default function LedoEntry() {
       )}
 
       {dims.length > 0 && (
-        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 training-no-scrollbar">
+        <div className={PRODUCT.features.ui1022 ? 'flex flex-wrap gap-1.5' : '-mx-1 flex gap-1.5 overflow-x-auto px-1 training-no-scrollbar'}>
           <button type="button" onClick={() => setChip('all')} className="shrink-0 cursor-pointer">
             <Chip on={chip === 'all'}>{ENTRY.chipAll}</Chip>
           </button>

@@ -52,7 +52,8 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
       />
 
       {t1Blocked ?? (
-      <div className="grid grid-cols-2 gap-2.5">
+      // 1022（簡報 11/03 第 11 頁）：做完 T1 後，上面這塊（T1 卡＋兩個數字）自己一塊底色。
+      <div id="ledo-dash-summary" className={done && ui1022 ? 'grid grid-cols-2 gap-2.5 rounded-[28px] bg-ledo-field p-3' : 'grid grid-cols-2 gap-2.5'}>
         <div className={`flex flex-col gap-2 rounded-3xl bg-ledo-accent-soft p-3.5 text-ledo-accent-soft-ink ${done ? 'row-span-2' : 'col-span-2'}`}>
           <div className={`overflow-hidden rounded-2xl bg-white ${done ? 'aspect-square' : 'aspect-[3/2]'}`}>
             <img src={LEDO_ART.panel} alt="" className="h-full w-full object-cover" />
@@ -90,6 +91,9 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
       */}
       {done && ui1022 && (
         <>
+          {/* 1022（簡報 11/03 第 11 頁）：九宮格另一塊、另一個底色，加標題「评估细项概要」。 */}
+          <section id="ledo-detail-block" className="space-y-2.5 rounded-[28px] bg-ledo-stage p-3">
+          <h3 className="px-1 text-sm font-black text-ledo-ink">{WORDING_1022.dashboard.gridTitle}</h3>
           <div id="ledo-dim-grid" className="grid grid-cols-3 gap-2">
             {dims.map(({ d, s }) => {
               const tone = s ? TONE[STATUS_TONE[s.status] ?? 'ok'] : TONE.field;
@@ -110,6 +114,7 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
               );
             })}
           </div>
+          </section>
           <button type="button" id="ledo-view-report" onClick={onViewReport} className="w-full rounded-full bg-ledo-accent-soft py-3 text-sm font-black text-ledo-accent-soft-ink cursor-pointer">
             查看报告
           </button>

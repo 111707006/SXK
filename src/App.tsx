@@ -74,7 +74,7 @@ import {
   ChevronDown, Truck, Package, LogOut, ArrowRight, UserCheck,
   BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck, Loader2, Home,
 } from 'lucide-react';
-import { TRAINING_PAGE } from './t2/trainingCopy';
+import { TRAINING_NAME, TRAINING_PAGE } from './t2/trainingCopy';
 import { latestT1ReportFor } from './utils/reportResume';
 import { readHandoffLink } from './handoff/fragment';
 import { HANDOFF_INVITE, HANDOFF_LANDING } from './handoff/handoffCopy';
@@ -693,7 +693,7 @@ export default function App() {
   };
 
   const handleClearProfile = () => {
-    if (confirm('确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位，深度评估与线上干预也会从头开始！')) {
+    if (confirm(`确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位，深度评估与${TRAINING_NAME}也会从头开始！`)) {
       setChildProfile(null);
       setCompletedScores([]);
       setOrders([]);
@@ -1205,7 +1205,8 @@ export default function App() {
                   <>
                     {/* Dark/Translucent background overlay to detect clicks outside */}
                     <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]" onClick={() => setIsCustomerDropdownOpen(false)} />
-                    <div className="absolute right-0 mt-3 w-88 bg-white rounded-2xl shadow-xl border border-brand-stone/50 z-50 p-4.5 space-y-4 text-xs divide-y divide-brand-stone/40 animate-fade-in text-left max-h-[85vh] overflow-y-auto">
+                    {/* 1022（簡報 11/03 第 7 頁）：手機上頁首分頁在上、孩子按鈕靠左，面板改對齊左邊、寬度不超過螢幕（原本對齊右邊會跑出畫面左側）。 */}
+                    <div className={`${PRODUCT.features.ui1022 ? 'absolute left-0 lg:left-auto lg:right-0 w-[min(22rem,calc(100vw-2rem))]' : 'absolute right-0 w-88'} mt-3 bg-white rounded-2xl shadow-xl border border-brand-stone/50 z-50 p-4.5 space-y-4 text-xs divide-y divide-brand-stone/40 animate-fade-in text-left max-h-[85vh] overflow-y-auto`}>
                       
                       {/* 1. Customer Basic Profile */}
                       <div className="pb-3.5 space-y-2.5">
@@ -1940,8 +1941,9 @@ export default function App() {
       {/* Aesthetic footer */}
       {LEDO_TAB_BAR && child && <LedoTabBar items={navItems} />}
 
-      <footer className={`bg-white border-t border-brand-stone/60 py-6 mt-16${LEDO_TAB_BAR && child ? ' max-lg:pb-28' : ''} text-center text-xs text-brand-charcoal/80 font-medium relative z-10`}>
-        <div className="max-w-7xl mx-auto px-4 space-y-2">
+      {/* 1022（簡報 10/22 第 3、6 頁、11/03 第 4 頁「缩小 1/2」）：字已是最小的 12px，改縮留白與行距、版權與條款併成一行。 */}
+      <footer className={`bg-white border-t border-brand-stone/60 ${PRODUCT.features.ui1022 ? 'py-2.5 mt-8 leading-snug' : 'py-6 mt-16'}${LEDO_TAB_BAR && child ? ' max-lg:pb-28' : ''} text-center text-xs text-brand-charcoal/80 font-medium relative z-10`}>
+        <div className={PRODUCT.features.ui1022 ? 'max-w-7xl mx-auto px-4 flex flex-wrap justify-center items-center gap-x-3 gap-y-0.5 [&>div]:contents [&_div]:pt-0' : 'max-w-7xl mx-auto px-4 space-y-2'}>
           <p>{PRODUCT.brand.copyright}</p>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
             <button onClick={() => setShowServiceModal(true)} className="whitespace-nowrap hover:text-brand-forest transition-colors cursor-pointer">服务及免责条款</button>

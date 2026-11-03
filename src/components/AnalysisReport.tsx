@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
 import { PRODUCT } from '../productConfig';
+import { TRAINING_NAME } from '../t2/trainingCopy';
 import { peekDeviceId } from '../utils/deviceId';
 import {
   DEFAULT_SERVICE_TYPE,
@@ -614,7 +615,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
         {onOpenTraining && (
           <button type="button" id="booking-cta-online_training" onClick={onOpenTraining}
             className="px-4 py-2.5 rounded-xl bg-brand-sage text-brand-forest font-bold text-xs hover:bg-white transition cursor-pointer">
-            去线上干预训练 →
+            去{TRAINING_NAME} →
           </button>
         )}
       </div>
@@ -699,7 +700,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           返回评估面板
         </button>
         <span className="text-xs bg-brand-sage px-3 py-1 text-brand-forest border border-brand-stone/40 rounded-full font-bold">
-          受测儿档案：{reportChild.name} ({reportChild.gender === 'boy' ? '男' : '女'}) | {formatAge(reportChild.ageMonth)}
+          {PRODUCT.features.ui1022 ? WORDING_1022.report.profileChip : '受测儿档案'}：{reportChild.name} ({reportChild.gender === 'boy' ? '男' : '女'}) | {formatAge(reportChild.ageMonth)}
         </span>
       </div>
 

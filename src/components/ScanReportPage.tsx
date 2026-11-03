@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { PRODUCT } from '../productConfig';
+import { WORDING_1022 } from '../wording1022';
 import ReportBody from './ReportBody';
 import { BeianFooter } from './BeianFooter';
 import { formatAge } from '../utils/dateUtils';
@@ -96,7 +97,7 @@ export default function ScanReportPage({ token }: { token: string }) {
             </span>
           </div>
         ) : (
-          <p className="text-xs font-semibold text-brand-forest">受测儿档案：{childLine}</p>
+          <p className="text-xs font-semibold text-brand-forest">{PRODUCT.features.ui1022 ? WORDING_1022.report.profileChip : '受测儿档案'}：{childLine}</p>
         )}
         <ReportBody
           ledoSummary={PRODUCT.features.ledo}

@@ -145,7 +145,8 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
       )}
 
       {t1.length > 0 && (
-        <>
+        // 1022（簡報 11/03 第 8 頁）：概況（評估結果＋本週練習天數）自己一塊底色，跟下面兩張卡分開。
+        <div id="home-overview-block" className={PRODUCT.features.ui1022 ? 'space-y-3 rounded-[28px] bg-ledo-field p-3' : 'contents'}>
           <SectionHead title={childName ? `${childName}的概况` : '孩子的概况'} action={onOpenReport ? '看报告' : undefined} onAction={onOpenReport} />
           <div id="home-overview" className="grid grid-cols-2 gap-2">
             <div className="flex min-w-0 flex-col gap-2">
@@ -177,7 +178,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
               </span>
             </button>
           </div>
-        </>
+        </div>
       )}
 
       {/* 1022（issue #84；使用者 2026-10-27 改成照片卡）：兩張一樣大的照片卡並排、T1 在前，副標是客戶的固定句；沒有線下服務點。 */}

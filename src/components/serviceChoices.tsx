@@ -7,6 +7,7 @@
  */
 import { ArrowRight } from 'lucide-react';
 import { PRODUCT } from '../productConfig';
+import { TRAINING_NAME } from '../t2/trainingCopy';
 import {
   SERVICE_SOON_NOTE,
   serviceAvailability,
@@ -38,7 +39,7 @@ export const TRAINING_PAGE_DESCRIPTION = '每周几个在家陪孩子做的活�
 /** 按鈕上那一個小字；開預約表的那一種不用多說。 */
 export const SERVICE_NOTES: Record<ServiceChoiceState, string | null> = {
   book: null,
-  training: '去线上干预',
+  training: `去${TRAINING_NAME}`,
   here: '就是这一页',
   soon: SERVICE_SOON_NOTE,
 };
@@ -71,7 +72,9 @@ export function serviceChoices(on: {
   if (!PRODUCT.features.ui1022) return all;
   return all
     .filter(c => c.state === 'book' || c.state === 'training')
-    .map(c => (c.state === 'book' ? { ...c, descriptor: { ...c.descriptor, label: WECOM_CONSULT_LABEL }, description: WECOM_CONSULT_DESCRIPTION } : c));
+    .map(c => (c.state === 'book'
+      ? { ...c, descriptor: { ...c.descriptor, label: WECOM_CONSULT_LABEL }, description: WECOM_CONSULT_DESCRIPTION }
+      : { ...c, descriptor: { ...c.descriptor, label: `${TRAINING_NAME}指导` } }));
 }
 
 /** 1022：開預約表的那一種改叫這個（按了出企業微信二維碼）。 */

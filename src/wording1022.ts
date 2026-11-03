@@ -49,6 +49,8 @@ export const WORDING_1022 = {
     disclaimer: '本筛查仅作参考，不是医疗诊断，不能替代医院专业诊疗',
     generating: '正在生成报告',
     /** 掃碼卡（簡報第 22 頁）。 */
+    /** 報告頁頂上孩子那一顆（簡報 11/03 第 13 頁）。 */
+    profileChip: '评估档案',
     qrHint: '长按二维码或扫描二维码，这份报告就会在您自己的手机上打开，之后随时都能再看。',
     /** 歷次報告清單每一筆的名字（簡報第 5 頁「后面所有名称都改」）。 */
     listItemTitle: 'T1 儿少综合发展评估报告',
@@ -70,6 +72,8 @@ export const WORDING_1022 = {
     screeningIntro: 'T1 儿少综合发展评估共 36 题，完成后直接生成 AI 发展报告；标黄、标红的方面可以再做「T2 深度评估」。',
     gridHintCompleted: '以下是这次 T1 儿少综合发展评估的 9 个方面。',
     dimensionCardHint: '点击查看这个方面',
+    /** 做完 T1 後九宮格那一塊的標題（簡報 11/03 第 11 頁）。 */
+    gridTitle: '评估细项概要',
   },
 
   buttons: {

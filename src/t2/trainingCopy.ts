@@ -19,6 +19,10 @@
  */
 
 import { AGE_SPLIT_NOTE } from './weeklyCopy';
+import { PRODUCT } from '../productConfig';
+
+/** 這一塊對家長叫什麼：1022（簡報 11/03 第 6、17、20 頁）改叫「家庭训练」。 */
+export const TRAINING_NAME = PRODUCT.features.ui1022 ? '家庭训练' : '线上干预';
 import { PLAN_TOTAL_WEEKS, type PlanPosition } from './trainingPlan';
 import type { CheckinMood } from './practice';
 import type { ModuleNo } from './types';
@@ -67,11 +71,11 @@ export const MOOD_LABEL: Readonly<Record<CheckinMood, string>> = {
 // 報告第六段只留一行連結過來（`REPORT_TRAINING_LINK`）。
 
 export const TRAINING_PAGE = {
-  navLabel: '线上干预',
+  navLabel: TRAINING_NAME,
   loading: '正在读取深度评估报告…',
   noReport: '完成深度评估、生成报告之后，这里会按结果安排每周的家庭活动，附示范片与打卡。',
   noReportAction: '去做深度评估',
-  locked: '线上干预按深度评估的报告安排活动。先解锁深度评估、生成报告，这里就会排出每周的家庭活动。',
+  locked: `${TRAINING_NAME}按深度评估的报告安排活动。先解锁深度评估、生成报告，这里就会排出每周的家庭活动。`,
   lockedAction: '去解锁深度评估',
   error: '报告暂时读不出来，请稍后再打开这一页。',
   retry: '再试一次',
@@ -86,14 +90,14 @@ export const TRAINING_PASS = {
 } as const;
 
 export const REPORT_TRAINING_LINK = {
-  text: '按这份报告安排的每周家庭活动、示范片与打卡，都在「线上干预」。',
-  action: '打开线上干预',
+  text: `按这份报告安排的每周家庭活动、示范片与打卡，都在「${TRAINING_NAME}」。`,
+  action: `打开${TRAINING_NAME}`,
 } as const;
 
 // ── 報告入口（§3.1） ───────────────────────────────────────────────────
 
 export const ENTRY = {
-  title: '线上干预',
+  title: TRAINING_NAME,
   tabs: { library: '示范片库', calendar: '打卡', expert: '问专家' },
   subtitle: '按这份报告安排，在家就能做',
   chipAll: '全部',

@@ -17,7 +17,8 @@ import {
   temperamentLinesV3,
   toolNameV3,
 } from '../t2/reportCopyV3';
-import { REPORT_TRAINING_LINK } from '../t2/trainingCopy';
+import { REPORT_TRAINING_LINK, TRAINING_NAME } from '../t2/trainingCopy';
+import { PRODUCT } from '../productConfig';
 import { STATUS_CLASS } from './reportStatusClass';
 import { STATUS_TONE, TONE, isLedoPage } from './ledo/ui';
 import PrintButton from './PrintButton';
@@ -316,7 +317,7 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
       <p className="text-xs text-brand-charcoal/80 leading-relaxed" id="t2v3-retest">{RETEST_SENTENCE}</p>
 
       {prose && (
-        <p className="text-xs text-brand-charcoal leading-relaxed border-t border-brand-cream pt-5" id="t2v3-closing">{prose.closing}</p>
+        <p className="text-xs text-brand-charcoal leading-relaxed border-t border-brand-cream pt-5" id="t2v3-closing">{PRODUCT.features.ui1022 ? prose.closing.replaceAll('「线上干预」', `「${TRAINING_NAME}」`) : prose.closing}</p>
       )}
 
       {/* 7. 作答回顧：選了最差兩檔的題，可摺疊 */}

@@ -48,6 +48,8 @@ import { useViewHistory } from './utils/viewHistory';
 import SplashScreen from './home/SplashScreen';
 import CompanyBadge from './components/CompanyBadge';
 import TrainingPlanPage from './components/training/TrainingPlanPage';
+import RedeemCodeForm from './components/training/RedeemCodeForm';
+import { TRAINING_PLAN_PAGE } from './t2/trainingPlanCopy';
 import { isInT1Range } from './t1Data';
 import LedoReportLibrary from './components/ledo/LedoReportLibrary';
 
@@ -72,7 +74,7 @@ import {
   Activity, ShoppingBag, BarChart3, User, RefreshCw, 
   Heart, HeartHandshake, FileText, CheckCircle2, ListFilter,
   ChevronDown, Truck, Package, LogOut, ArrowRight, UserCheck,
-  BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck, Loader2, Home,
+  BookOpen, Award, Layers, ShieldCheck, ChevronRight, Sparkles, CalendarCheck, Loader2, Home, Gift,
 } from 'lucide-react';
 import { TRAINING_NAME, TRAINING_PAGE } from './t2/trainingCopy';
 import { latestT1ReportFor } from './utils/reportResume';
@@ -194,6 +196,9 @@ export default function App() {
   const proxyLandedRef = useRef(false);
   /** 兌換或付款成功之後重讀一次 `/api/unlocks`（#110）。 */
   const [unlocksNonce, setUnlocksNonce] = useState(0);
+  /** 個人中心的兌換碼（2026-11-03）：展開了沒、兌換成功到哪一天。 */
+  const [profileRedeemOpen, setProfileRedeemOpen] = useState(false);
+  const [profileRedeemedTo, setProfileRedeemedTo] = useState<string | null>(null);
   const [trainingPass, setTrainingPass] = useState<{ active: boolean; endsOn: string | null; lastEndsOn: string | null } | null>(null);
   /** 單價（分）。以後端回傳為準，前端不自己寫死金額。 */
   const [unlockPriceFen, setUnlockPriceFen] = useState<number>(DEFAULT_UNLOCK_PRICE_FEN);
@@ -1264,6 +1269,40 @@ export default function App() {
                       </div>
 
                       {!PRODUCT.features.ui1022 && mallOrdersSection}
+
+                      {/*
+                        兌換碼（使用者 2026-11-03：「加入口」）：免費期間家長登入就進得了居家訓練、不會被帶到訓練計劃頁，
+                        那裡角落的兌換碼就找不到了。伺服器開著訓練計劃（`trainingPass` 不是 null）才出現；兌換成功照樣綁推薦人、記一段使用權。
+                      */}
+                      {trainingPass !== null && (
+                        <div id="profile-redeem-section" className="pt-3.5 space-y-2.5">
+                          <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
+                            <Gift size={13} className="text-brand-moss" />
+                            {TRAINING_PLAN_PAGE.redeemEntry}
+                          </h4>
+                          {profileRedeemedTo ? (
+                            <p id="profile-redeem-done" className="text-xs font-bold text-brand-forest">{TRAINING_PLAN_PAGE.activated(profileRedeemedTo)}</p>
+                          ) : profileRedeemOpen ? (
+                            <RedeemCodeForm
+                              idPrefix="profile-redeem"
+                              loggedIn={Boolean(userIdentity)}
+                              onActivated={endsOn => {
+                                setProfileRedeemedTo(endsOn);
+                                setUnlocksNonce(n => n + 1);
+                              }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              id="profile-redeem-open"
+                              onClick={() => setProfileRedeemOpen(true)}
+                              className="w-full px-3 py-2 bg-white hover:bg-brand-sage/20 border border-brand-stone/40 text-brand-forest rounded-lg text-xs font-bold transition cursor-pointer text-left"
+                            >
+                              {TRAINING_PLAN_PAGE.profileRedeemHint}
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       {/* 3. Completed Screening Scores */}
                       <div className="pt-3.5 space-y-2.5">

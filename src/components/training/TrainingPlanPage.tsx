@@ -5,8 +5,8 @@
  */
 import { useEffect, useState } from 'react';
 import { Gift, Loader2 } from 'lucide-react';
-import { authFetch } from '../../utils/api';
 import { TRAINING_PLAN_PAGE } from '../../t2/trainingPlanCopy';
+import RedeemCodeForm from './RedeemCodeForm';
 
 interface PlanCard {
   months: 1 | 3 | 6;
@@ -41,9 +41,6 @@ export default function TrainingPlanPage({
 }) {
   const [data, setData] = useState<{ plans: PlanCard[]; payAvailable: boolean } | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [activatedTo, setActivatedTo] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,27 +53,6 @@ export default function TrainingPlanPage({
       alive = false;
     };
   }, []);
-
-  async function redeem(e: React.FormEvent) {
-    e.preventDefault();
-    if (!loggedIn) return setMessage(TRAINING_PLAN_PAGE.redeemNeedLogin);
-    setBusy(true);
-    setMessage(null);
-    try {
-      const resp = await authFetch('/api/training/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
-      const body = await resp.json().catch(() => ({}));
-      if (resp.ok && typeof body.endsOn === 'string') {
-        setActivatedTo(body.endsOn);
-        onActivated();
-      } else {
-        setMessage(resp.status === 429 ? TRAINING_PLAN_PAGE.redeemTooMany : resp.status === 401 ? TRAINING_PLAN_PAGE.redeemNeedLogin : TRAINING_PLAN_PAGE.redeemInvalid);
-      }
-    } catch {
-      setMessage(TRAINING_PLAN_PAGE.redeemInvalid);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div id="training-plan-page" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
@@ -97,22 +73,7 @@ export default function TrainingPlanPage({
           <button type="button" onClick={onGoTraining} className="w-full rounded-full bg-ledo-bar py-3 text-sm font-black text-white cursor-pointer">{TRAINING_PLAN_PAGE.goTraining}</button>
         </div>
       ) : redeemOpen && (
-        <form id="training-plan-redeem" onSubmit={redeem} className="space-y-2 rounded-3xl bg-ledo-field p-4">
-          <input
-            id="training-plan-code"
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            placeholder={TRAINING_PLAN_PAGE.redeemPlaceholder}
-            autoCapitalize="characters"
-            autoComplete="off"
-            maxLength={20}
-            className="w-full rounded-[18px] border-[1.5px] border-ledo-line bg-white px-3.5 py-2.5 text-base font-bold tracking-widest text-ledo-ink"
-          />
-          {message && <p className="text-xs font-bold text-ledo-more-ink">{message}</p>}
-          <button type="submit" disabled={busy || code.trim() === ''} className="w-full rounded-full bg-ledo-bar py-3 text-sm font-black text-white disabled:opacity-40 cursor-pointer disabled:cursor-default">
-            {busy ? <Loader2 size={14} className="mx-auto animate-spin" /> : TRAINING_PLAN_PAGE.redeemSubmit}
-          </button>
-        </form>
+        <RedeemCodeForm loggedIn={loggedIn} onActivated={endsOn => { setActivatedTo(endsOn); onActivated(); }} />
       )}
 
       {data === null ? (

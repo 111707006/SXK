@@ -13,7 +13,7 @@
  * 重新生成報告是新的快照（`findingsId` 不同），從第 1 期重來，不帶調整。
  */
 
-import { BAND_OF_COLOR, adjustmentFromCompletion, monthIndexOf, periodAlternates, planActivityIds, planPeriod, replaceInactive } from './trainingPush';
+import { BAND_OF_COLOR, adjustmentFromCompletion, ageSpanOf, monthIndexOf, periodAlternates, planActivityIds, planPeriod, replaceInactive } from './trainingPush';
 import type { PeriodAdjustment, PeriodPlan, PeriodSlot, PlanPeriodInput } from './trainingPush';
 import { completionRate } from './practiceStats';
 import type { PracticeCheckin } from './practiceStats';
@@ -43,8 +43,15 @@ export function t1ScoresOf(scores: ReadonlyArray<unknown>): Partial<Record<Dimen
   return out;
 }
 
+/** 存進 `plan` 欄的那幾樣（同 `db/t2TrainingPeriods.ts` 的 `storedPlanOf`；這裡不載資料層）。`tagged` 只在 `true` 時存。 */
+function toStoredPlan(plan: Pick<PeriodPlan, 'perWeek' | 'sampleOnly' | 'tagged' | 'dimensions' | 'weeks'>): StoredPeriodPlan {
+  return { perWeek: plan.perWeek, sampleOnly: plan.sampleOnly, ...(plan.tagged ? { tagged: true as const } : {}), dimensions: plan.dimensions, weeks: plan.weeks };
+}
+
 /** 推送規則的版本：規則換了就換，存在每一期上。 */
 export const PUSH_RULES_VERSION = 'push-v3-2026-10-07';
+/** 標籤模式（`TRAINING_PUSH_TAGS`，ADR-0015）排的一期。 */
+export const PUSH_RULES_VERSION_TAGS = 'push-tags-2026-11-07';
 
 export interface PeriodDeps {
   /** 這份快照最新的一期。 */
@@ -62,6 +69,8 @@ export interface PeriodContext {
   t1Scores: PlanPeriodInput['t1Scores'];
   library: ReadonlyArray<Activity>;
   sampleOnly: boolean;
+  /** 標籤模式（ADR-0015）：只影響新開的一期；已經開了的照它存的規則走完 12 週。 */
+  tagged?: boolean;
   /** 那一週星期一的實足月齡；算不出來（那一週在出生之前）是 `null`。 */
   ageMonthAt(weekStart: string): number | null;
 }
@@ -117,6 +126,7 @@ export async function periodForWeek(weekStart: string, ctx: PeriodContext, deps:
     adjustment,
     previousIds,
     sampleOnly: ctx.sampleOnly,
+    tagged: ctx.tagged === true,
   });
   const stored = await deps.insert({
     findingsId: ctx.findingsId,
@@ -125,8 +135,8 @@ export async function periodForWeek(weekStart: string, ctx: PeriodContext, deps:
     ageMonth,
     adjustment,
     completion,
-    plan: { perWeek: plan.perWeek, sampleOnly: plan.sampleOnly, dimensions: plan.dimensions, weeks: plan.weeks },
-    rulesVersion: PUSH_RULES_VERSION,
+    plan: toStoredPlan(plan),
+    rulesVersion: plan.tagged ? PUSH_RULES_VERSION_TAGS : PUSH_RULES_VERSION,
   });
   if (!stored.plan) throw new Error('trainingPeriodService：剛存的一期讀回來 plan 是壞的');
   const week = planPosition(weekStart, stored.firstWeekStart).weekIndex;
@@ -142,13 +152,13 @@ async function withReplacements(
   const full: PeriodPlan = { ...period.plan, adjustment: period.adjustment, ageMonth: period.ageMonth };
   const next = replaceInactive(full, week, ctx.library);
   if (next === full) return { kind: 'ok', period, week };
-  const plan: StoredPeriodPlan = { perWeek: next.perWeek, sampleOnly: next.sampleOnly, dimensions: next.dimensions, weeks: next.weeks };
+  const plan: StoredPeriodPlan = toStoredPlan(next);
   await deps.updatePlan(period.id, plan);
   return { kind: 'ok', period: { ...period, plan }, week };
 }
 
 /** 格子 → 每週活動那一列的一支。`reason` 照舊形狀存一份（band 由顏色換回），v3 的東西放 `push`。 */
-function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefined): StoredPick {
+function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefined, tagged = false): StoredPick {
   const [lo, hi] = slot.reason.window;
   return {
     id: slot.activityId!,
@@ -157,7 +167,7 @@ function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefin
       band: BAND_OF_COLOR[slot.reason.color],
       window: { lo, hi },
       matchedTags: [],
-      belowWindow: slot.reason.relaxed && activity !== undefined && activity.ageMonths.max < lo,
+      belowWindow: slot.reason.relaxed && activity !== undefined && ageSpanOf(activity, tagged).max < lo,
     },
     push: {
       periodNo,
@@ -181,7 +191,8 @@ export function weeklyActivitiesOf(
 ): StoredWeeklyActivities {
   const byId = new Map(library.map(a => [a.id, a] as const));
   const slots = period.plan.weeks[week - 1] ?? [];
-  const picks = slots.filter(s => s.activityId !== null).map(s => pickOf(s, period.periodNo, byId.get(s.activityId!)));
+  const tagged = period.plan.tagged === true;
+  const picks = slots.filter(s => s.activityId !== null).map(s => pickOf(s, period.periodNo, byId.get(s.activityId!), tagged));
   const preparing = DIMENSION_CODES.filter(d => slots.some(s => s.dimension === d && s.activityId === null));
   const alternates: Partial<Record<DimensionCode, string[]>> = {};
   for (const [d, list] of Object.entries(periodAlternates(period.plan, week, library)) as Array<[DimensionCode, Activity[]]>) {
@@ -191,13 +202,13 @@ export function weeklyActivitiesOf(
 }
 
 /** 報告的提示要的形狀（`WeeklyActivities`）：這一期第 `week` 週的那幾支。查不到內容的略過。 */
-export function reportActivitiesOf(plan: Pick<PeriodPlan, 'weeks'>, week: number, library: ReadonlyArray<Activity>): WeeklyActivities {
+export function reportActivitiesOf(plan: Pick<PeriodPlan, 'weeks' | 'tagged'>, week: number, library: ReadonlyArray<Activity>): WeeklyActivities {
   const byId = new Map(library.map(a => [a.id, a] as const));
   const slots = plan.weeks[week - 1] ?? [];
   const picks = slots.flatMap(slot => {
     const activity = slot.activityId ? byId.get(slot.activityId) : undefined;
     if (!activity) return [];
-    const { reason } = pickOf(slot, 0, activity);
+    const { reason } = pickOf(slot, 0, activity, plan.tagged === true);
     return [{ activity, dimension: slot.dimension, score: 0, reason }];
   });
   const preparing = DIMENSION_CODES.filter(d => slots.some(s => s.dimension === d && s.activityId === null));
@@ -223,7 +234,7 @@ export function periodSheetOf(period: TrainingPeriodRecord & { plan: StoredPerio
       activities: slots.flatMap(slot => {
         const activity = slot.activityId ? byId.get(slot.activityId) : undefined;
         if (!activity) return [];
-        const pick = pickOf(slot, period.periodNo, activity);
+        const pick = pickOf(slot, period.periodNo, activity, period.plan.tagged === true);
         return [{ activity, dimension: slot.dimension, reason: pick.reason, push: pick.push! }];
       }),
     })),

@@ -37,6 +37,7 @@ process.env.PAYWALL_FREE = '';
 process.env.TRAINING_SAMPLE_ONLY = '';
 // v3 推送規則同理：預設關（舊配對），要驗新規則的測試自己打開（見 `t2WeeklyPlanV3.http.test.ts`）。
 process.env.TRAINING_PUSH_V3 = '';
+process.env.TRAINING_PUSH_TAGS = '';
 // 掃碼頁走 SPA（#65）同理：預設關（伺服器拼的 HTML），要驗新頁的測試自己打開（見 `reportScanSpa.http.test.ts`）。
 process.env.REPORT_SCAN_SPA = '';
 

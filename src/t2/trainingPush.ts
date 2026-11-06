@@ -13,9 +13,14 @@
  * 5. 編號：窗口內依編號由小到大（§4.5）。
  *
  * 不看 `targetMonth`、`targets`、`avoidIf`、`dimensions`（§7：欄位留著，配對不讀）。
+ *
+ * 【標籤模式】（`tagged`，伺服器開關 `TRAINING_PUSH_TAGS`，ADR-0015，客戶 11/03 簡報第 26 頁）
+ * 第四、五關換掉，其餘不動：只推有示範片的；貼過標籤（`targets` 非空）的活動看標籤歸哪個維度（不看模組），
+ * 月齡用 `targetMonth`；還沒貼標籤的照舊看模組群＋手冊適齡。同一個窗口內貼過標籤的先。見 `candidatesFor`。
  */
 
 import { DIM_MOD, OFFSET, ageKeyOf } from './activityMatch';
+import { tagDimension } from './findingTags';
 import { DIMENSION_CODES } from './types';
 import type { Activity, Band, DimensionCode, DimensionFinding, ModuleNo, T1Flag } from './types';
 
@@ -249,11 +254,46 @@ export function monthWindows([lo, hi]: MonthRange): [MonthRange, MonthRange, Mon
 // 第四、五關：從模組裡依編號挑
 // ══════════════════════════════════════════════
 
-/** 活動適齡區間與窗口的距離：有重疊是 0；活動整段在窗口下方是正的「往下」距離，上方是「往上」。 */
-function distance(a: Activity, [lo, hi]: MonthRange): { gap: number; below: boolean } {
-  if (a.ageMonths.max < lo) return { gap: lo - a.ageMonths.max, below: true };
-  if (a.ageMonths.min > hi) return { gap: a.ageMonths.min - hi, below: false };
+/** 九個維度 → 標籤前綴（`lang.comprehension` 的 `lang`）。 */
+const TAG_PREFIX: Readonly<Record<DimensionCode, string>> = {
+  LANG: 'lang', MOT: 'mot', COG: 'cog', ATT: 'att', SEN: 'sen', LEARN: 'learn', SOC: 'soc', EMO: 'emo', ADL: 'adl',
+};
+
+/** 貼過標籤沒有（標籤模式）：`targets` 非空。後台匯入一次給 `targetMonth` 與 `targets`，兩個一起算數。 */
+export function isTagged(a: Pick<Activity, 'targets'>): boolean {
+  return a.targets.length > 0;
+}
+
+/** 這支活動的標籤裡有沒有這個維度的（標籤模式下它就是這個維度的候選，不管模組）。 */
+export function tagsFit(a: Pick<Activity, 'targets'>, dimension: DimensionCode): boolean {
+  return a.targets.some(t => tagDimension(t) === TAG_PREFIX[dimension]);
+}
+
+/**
+ * 拿來對窗口的月齡區間：標籤模式下貼過標籤、有 `targetMonth` 的是那一點（`[t, t]`），其餘是手冊適齡 `ageMonths`。
+ * 還沒貼標籤的不信 `targetMonth` —— 300 支在 2026-10-06 填的是虛構值（ADR-0015）。
+ */
+export function ageSpanOf(a: Pick<Activity, 'targets' | 'targetMonth' | 'ageMonths'>, tagged: boolean): { min: number; max: number } {
+  if (tagged && isTagged(a) && a.targetMonth !== null) return { min: a.targetMonth, max: a.targetMonth };
+  return a.ageMonths;
+}
+
+/** 活動月齡區間與窗口的距離：有重疊是 0；活動整段在窗口下方是正的「往下」距離，上方是「往上」。 */
+function distance(span: { min: number; max: number }, [lo, hi]: MonthRange): { gap: number; below: boolean } {
+  if (span.max < lo) return { gap: lo - span.max, below: true };
+  if (span.min > hi) return { gap: span.min - hi, below: false };
   return { gap: 0, below: false };
+}
+
+/** 伺服器開關 `TRAINING_PUSH_TAGS` 要配 `TRAINING_PUSH_V3`：標籤模式只換 v3 推送的第四、五關。 */
+export function assertPushTagsSwitch(tags: boolean, pushV3: boolean): void {
+  if (tags && !pushV3) throw new Error('TRAINING_PUSH_TAGS=1 需要同時設 TRAINING_PUSH_V3=1（標籤模式改的是 v3 推送規則）');
+}
+
+/** 可以排的活動：啟用的；示範片模式與標籤模式只要有示範片的。 */
+export function pushPool(library: ReadonlyArray<Activity>, mode: { sampleOnly?: boolean; tagged?: boolean }): Activity[] {
+  const videoOnly = mode.sampleOnly === true || mode.tagged === true;
+  return library.filter(a => a.active && (!videoOnly || a.videoUrl !== null));
 }
 
 const byIdAsc = (a: Activity, b: Activity) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -265,27 +305,45 @@ const byIdAsc = (a: Activity, b: Activity) => (a.id < b.id ? -1 : a.id > b.id ? 
  *
  * `pool` 是已經篩過「啟用」的活動。`avoid`（上一期的 36 支，`stable` 時）在兩段裡各自排到最後：先用沒練過的，不夠再用。
  * 示範片模式（`sampleOnly`）：不看模組群、不看窗口，`pool` 全部依編號（使用者 2026-10-06「正式站先 17 支即可」）。
+ *
+ * 標籤模式（`tagged`，ADR-0015；`pool` 已經只剩有示範片的，見 `pushPool`）：
+ * - 誰是這個維度的候選：貼過標籤的看標籤（`tagsFit`，模組不管）；沒貼的照舊看模組群。貼過、但標籤不是這個維度的不算。
+ * - 月齡：貼過的用 `targetMonth`，沒貼的用手冊適齡（`ageSpanOf`）。
+ * - 順序：窗口內 → 貼過標籤的先、再避開上一期的、再編號；放寬 → 避開上一期的、距離、先往下、貼過標籤的先、編號。
  */
 export function candidatesFor(
   dimension: DimensionCode,
   window: MonthRange,
   pool: ReadonlyArray<Activity>,
-  options: { avoid?: ReadonlySet<string>; sampleOnly?: boolean } = {},
+  options: { avoid?: ReadonlySet<string>; sampleOnly?: boolean; tagged?: boolean } = {},
 ): Array<{ activity: Activity; relaxed: boolean }> {
   const avoid = options.avoid ?? new Set<string>();
   const avoided = (a: Activity) => (avoid.has(a.id) ? 1 : 0);
-  if (options.sampleOnly) {
+  const tagged = options.tagged === true;
+  if (options.sampleOnly && !tagged) {
     return [...pool].sort((a, b) => avoided(a) - avoided(b) || byIdAsc(a, b)).map(activity => ({ activity, relaxed: false }));
   }
   const modules = DIM_MOD[dimension];
-  const inGroup = pool.filter(a => modules.includes(a.moduleNo));
-  const inside = inGroup.filter(a => distance(a, window).gap === 0).sort((a, b) => avoided(a) - avoided(b) || byIdAsc(a, b));
+  const inGroup = tagged
+    ? pool.filter(a => (isTagged(a) ? tagsFit(a, dimension) : modules.includes(a.moduleNo)))
+    : pool.filter(a => modules.includes(a.moduleNo));
+  const dist = (a: Activity) => distance(ageSpanOf(a, tagged), window);
+  const untaggedFirst = (a: Activity) => (tagged && isTagged(a) ? 0 : tagged ? 1 : 0);
+  const inside = inGroup
+    .filter(a => dist(a).gap === 0)
+    .sort((a, b) => untaggedFirst(a) - untaggedFirst(b) || avoided(a) - avoided(b) || byIdAsc(a, b));
   const outside = inGroup
-    .filter(a => distance(a, window).gap > 0)
+    .filter(a => dist(a).gap > 0)
     .sort((a, b) => {
-      const da = distance(a, window);
-      const db = distance(b, window);
-      return avoided(a) - avoided(b) || da.gap - db.gap || Number(db.below) - Number(da.below) || byIdAsc(a, b);
+      const da = dist(a);
+      const db = dist(b);
+      return (
+        avoided(a) - avoided(b) ||
+        da.gap - db.gap ||
+        Number(db.below) - Number(da.below) ||
+        untaggedFirst(a) - untaggedFirst(b) ||
+        byIdAsc(a, b)
+      );
     });
   return [...inside.map(activity => ({ activity, relaxed: false })), ...outside.map(activity => ({ activity, relaxed: true }))];
 }
@@ -347,6 +405,8 @@ export interface PeriodPlan {
   ageMonth: number;
   perWeek: number;
   sampleOnly: boolean;
+  /** 標籤模式排的（ADR-0015）。只在 `true` 時出現：之前存的一期沒有這一欄，照舊規則補位與換著玩。 */
+  tagged?: true;
   /** 參加分配的能力，照 `sortByPush`（補進來的接在後面）。 */
   dimensions: PeriodDimension[];
   /** 12 週，每週 `perWeek` 格。 */
@@ -365,6 +425,8 @@ export interface PlanPeriodInput {
   /** 上一期排過的活動（`stable` 時先避開）。 */
   previousIds?: ReadonlyArray<string>;
   sampleOnly?: boolean;
+  /** 標籤模式（ADR-0015）。開著時 `sampleOnly` 不看（標籤模式本來就只推有示範片的）。 */
+  tagged?: boolean;
 }
 
 /**
@@ -373,7 +435,8 @@ export interface PlanPeriodInput {
 export function planPeriod(input: PlanPeriodInput): PeriodPlan {
   const { ageMonth, library } = input;
   const adjustment = input.adjustment ?? 'none';
-  const sampleOnly = input.sampleOnly === true;
+  const tagged = input.tagged === true;
+  const sampleOnly = input.sampleOnly === true && !tagged;
   ageKeyOf(ageMonth); // 月齡檢查（不是非負整數就丟錯）
   const seen = new Set(input.dimensions.map(d => d.dimensionId));
   if (input.dimensions.length !== DIMENSION_CODES.length || DIMENSION_CODES.some(d => !seen.has(d))) {
@@ -402,7 +465,7 @@ export function planPeriod(input: PlanPeriodInput): PeriodPlan {
     };
   });
 
-  const pool = library.filter(a => a.active && (!sampleOnly || a.videoUrl !== null));
+  const pool = pushPool(library, { sampleOnly, tagged });
   const avoid = new Set(adjustment === 'stable' ? input.previousIds ?? [] : []);
   const used = new Set<string>();
   const weeks: PeriodSlot[][] = [];
@@ -410,7 +473,7 @@ export function planPeriod(input: PlanPeriodInput): PeriodPlan {
   for (let m = 0; m < MONTHS_PER_PERIOD; m++) {
     const variant = variantFor(m, adjustment);
     const lists = new Map(
-      dimensions.map(d => [d.dimension, candidatesFor(d.dimension, d.monthWindows[m], pool, { avoid, sampleOnly })] as const),
+      dimensions.map(d => [d.dimension, candidatesFor(d.dimension, d.monthWindows[m], pool, { avoid, sampleOnly, tagged })] as const),
     );
     const byDimension = new Map(dimensions.map(d => [d.dimension, d] as const));
     const sequence = interleave(dimensions.map(d => ({ dimension: d.dimension, count: d.quota })));
@@ -438,7 +501,7 @@ export function planPeriod(input: PlanPeriodInput): PeriodPlan {
     });
   }
 
-  return { adjustment, ageMonth, perWeek, sampleOnly, dimensions, weeks };
+  return { adjustment, ageMonth, perWeek, sampleOnly, ...(tagged ? { tagged: true as const } : {}), dimensions, weeks };
 }
 
 /**
@@ -480,17 +543,18 @@ export const ALTERNATES_PER_DIMENSION = 5;
  * 只放有備選的能力；放寬來的不列（換著玩是「同一個難度換一支」，不是往外找）。示範片模式照 `candidatesFor`。
  */
 export function periodAlternates(
-  plan: Pick<PeriodPlan, 'weeks' | 'dimensions' | 'sampleOnly'>,
+  plan: Pick<PeriodPlan, 'weeks' | 'dimensions' | 'sampleOnly' | 'tagged'>,
   week: number,
   library: ReadonlyArray<Activity>,
 ): Partial<Record<DimensionCode, Activity[]>> {
   const m = monthIndexOf(week);
   const planned = new Set(planActivityIds(plan));
-  const pool = library.filter(a => a.active && (!plan.sampleOnly || a.videoUrl !== null));
+  const tagged = plan.tagged === true;
+  const pool = pushPool(library, { sampleOnly: plan.sampleOnly, tagged });
   const out: Partial<Record<DimensionCode, Activity[]>> = {};
   for (const d of plan.dimensions) {
-    const list = candidatesFor(d.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly })
-      .filter(c => !c.relaxed || plan.sampleOnly)
+    const list = candidatesFor(d.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly, tagged })
+      .filter(c => !c.relaxed || (plan.sampleOnly && !tagged))
       .map(c => c.activity)
       .filter(a => !planned.has(a.id))
       .slice(0, ALTERNATES_PER_DIMENSION);
@@ -512,12 +576,13 @@ export function replaceInactive(plan: PeriodPlan, week: number, library: Readonl
   if (slots.every(s => usable(s.activityId))) return plan;
 
   const m = monthIndexOf(week);
-  const pool = library.filter(a => a.active && (!plan.sampleOnly || a.videoUrl !== null));
+  const tagged = plan.tagged === true;
+  const pool = pushPool(library, { sampleOnly: plan.sampleOnly, tagged });
   const used = new Set(planActivityIds(plan));
   const nextSlots = slots.map(s => {
     if (usable(s.activityId)) return s;
     const d = plan.dimensions.find(x => x.dimension === s.dimension)!;
-    const next = candidatesFor(s.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly }).find(c => !used.has(c.activity.id));
+    const next = candidatesFor(s.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly, tagged }).find(c => !used.has(c.activity.id));
     if (next) used.add(next.activity.id);
     return {
       ...s,
@@ -525,7 +590,7 @@ export function replaceInactive(plan: PeriodPlan, week: number, library: Readonl
       reason: {
         ...s.reason,
         module: next ? next.activity.moduleNo : null,
-        relaxed: next ? next.relaxed || plan.sampleOnly : false,
+        relaxed: next ? next.relaxed || (plan.sampleOnly && !tagged) : false,
         replaced: true,
       },
     };

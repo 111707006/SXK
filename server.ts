@@ -60,7 +60,7 @@ import * as t2WeeklyStore from './src/db/t2WeeklyPlans';
 import * as t2PeriodStore from './src/db/t2TrainingPeriods';
 import type { TrainingPeriodRecord } from './src/db/t2TrainingPeriods';
 import { listCheckins as listT2Checkins } from './src/db/t2Checkins';
-import { planPeriod } from './src/t2/trainingPush';
+import { assertPushTagsSwitch, planPeriod } from './src/t2/trainingPush';
 import { periodForWeek, periodPosition, periodSheetOf, reportActivitiesOf, t1ScoresOf, weeklyActivitiesOf } from './src/t2/trainingPeriodService';
 import type { PeriodContext, PeriodDeps } from './src/t2/trainingPeriodService';
 import { listActivityLibrary } from './src/db/t2Activities';
@@ -195,6 +195,14 @@ const T2_SCALE_DETAIL = resolvePaywallSwitch('T2_SCALE_DETAIL', process.env.T2_S
 // 完整版的報告快照只有維度判定、沒有舊配對要的標籤：每週活動只能走 v3 推送規則。開一個沒開另一個 → 起不來。
 // 量表详解只在完整版快照裡：開了詳解沒開完整版 → 起不來。
 assertV3Switches(T2_RECOMMEND_V3, TRAINING_PUSH_V3, T2_SCALE_DETAIL);
+// 推送看標籤（客戶 11/03 簡報第 26 頁，ADR-0015）：開著時新開的一期只推有示範片的活動，貼過標籤的看 `targets` 歸哪個維度、
+// 月齡看 `targetMonth`；還沒貼的照舊看模組群＋手冊適齡（`src/t2/trainingPush.ts` 的 `candidatesFor`）。開著時
+// `TRAINING_SAMPLE_ONLY` 對 v3 推送不再有作用。已經開了的一期照它存的規則走完。要同時開 `TRAINING_PUSH_V3`，否則起不來。
+const TRAINING_PUSH_TAGS = resolvePaywallSwitch('TRAINING_PUSH_TAGS', process.env.TRAINING_PUSH_TAGS);
+assertPushTagsSwitch(TRAINING_PUSH_TAGS, TRAINING_PUSH_V3);
+if (TRAINING_PUSH_TAGS && TRAINING_SAMPLE_ONLY) {
+  console.log('[T2] TRAINING_PUSH_TAGS=1：TRAINING_SAMPLE_ONLY 對 v3 推送不生效（標籤模式本來就只推有示範片的），可以拿掉。');
+}
 
 // T1 報告改用真實資料（使用者 2026-10-08）：開著時 `/api/report` 改走 `src/t1report/`——給模型逐題作答、
 // 回來先過驗證器、不過退模板；模板也照這個孩子的作答組；不再產四個儀表數字（`criticalMetrics`）。
@@ -1786,6 +1794,7 @@ tier2Only.post('/api/t2/findings', async (req, res) => {
         ageMonth: context.liveAgeMonth,
         library,
         sampleOnly: TRAINING_SAMPLE_ONLY,
+        tagged: TRAINING_PUSH_TAGS,
       });
       activities = reportActivitiesOf(plan, 1, library);
     } else {
@@ -2201,6 +2210,7 @@ function t2PeriodContext(snapshot: FindingsRecord, data: any, library: ReadonlyA
     t1Scores: t1ScoresOf(Array.isArray(data?.completedScores) ? data.completedScores : []),
     library,
     sampleOnly: TRAINING_SAMPLE_ONLY,
+    tagged: TRAINING_PUSH_TAGS,
     ageMonthAt: weekStart => ageMonthForWeek(data?.child, weekStart, snapshot.findings.child.assessedAgeMonth),
   };
 }

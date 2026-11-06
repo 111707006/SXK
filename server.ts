@@ -1,6 +1,8 @@
 import { createRedeemLimiter } from './src/redeem/rateLimit';
-import { normalizeCode } from './src/redeem/codes';
+import { formatCode, normalizeCode } from './src/redeem/codes';
 import { redeemCodeForUser } from './src/db/redeemCodes';
+import { claimCouponForUser, couponOfUser, type StoredCoupon } from './src/db/coupons';
+import { applyCouponDiscount, couponDiscountLabel, COUPON_ALREADY_CLAIMED, COUPON_INVALID, COUPON_RATE_LIMITED, type ParentCoupon } from './src/t2/coupon';
 import { isPassMonths, PASS_MONTHS } from './src/t2/trainingPass';
 import { resolvePlanPrices } from './src/t2/trainingPlanPrices';
 import { PLAN_BLURBS } from './src/t2/trainingPlanCopy';
@@ -279,6 +281,12 @@ if (TRAINING_PLAN_REQUESTED && APP_MODE === 'full' && !TRAINING_PUSH_V3) {
   throw new Error('TRAINING_PLAN=1 需要同時設 TRAINING_PUSH_V3=1（使用權的長度對齊 v3 推送規則的一期 12 週）');
 }
 const TRAINING_PLAN = TRAINING_PLAN_REQUESTED && APP_MODE === 'full';
+// T1 → T2 優惠券（客戶 11/03 簡報第 21、29 頁，規格 docs/specs/client-changes-2026-11-03.md〈優惠券〉，`src/t2/coupon.ts`）：
+// 開著時後台「优惠券」分頁（全域管理員）批量產碼、改折法、看使用狀況，家長在 T2 卡價錢下兌一張（`/api/coupon`），
+// 之後 T2 的訂單照折後價開（`/api/payment/create`）。每位家長只能用一張、不綁渠道。關著＝那幾支不註冊（404）、價錢照舊。
+// **只在專案 A**（B 沒有 T2，設了不生效，啟動印一行）。同一套 fail-closed 解析。⚠️ 要先跑 `2026-11-07-t2-coupons.sql`。
+const T2_COUPON_REQUESTED = resolvePaywallSwitch('T2_COUPON', process.env.T2_COUPON);
+const T2_COUPON = T2_COUPON_REQUESTED && APP_MODE === 'full';
 // 訓練計劃的價錢（#111，`src/t2/trainingPlanPrices.ts`）：`1:…,3:…,6:…`（分），三個都要；認不得起不來。沒設＝價格待定、只能兌換。
 const TRAINING_PLAN_PRICES = resolvePlanPrices(process.env.TRAINING_PLAN_PRICES_FEN);
 
@@ -2934,6 +2942,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
 
     // T2 照這次要做幾項分檔（src/t2/pricing.ts，與卡上畫的同一份 plan）；T3 照舊單一價
     let amountFen = UNLOCK_PRICE_FEN;
+    let appliedCoupon: { codeId: number; listAmountFen: number } | undefined;
     if (scope === 't2') {
       const outcome = await t2PlanFor(userId);
       const pricing = outcome.ok ? t2PriceFor(outcome.items) : null;
@@ -2943,6 +2952,14 @@ paidOnly.post('/api/payment/create', async (req, res) => {
         return;
       }
       amountFen = pricing.priceFen;
+      // 用過優惠券的家長照那一批的折法收（`T2_COUPON`）；免費期（PAYWALL_FREE）走不到這裡
+      if (T2_COUPON && toDbUserId(userId) !== null) {
+        const coupon = await withTimeout(couponOfUser(toDbUserId(userId)!), 5000);
+        if (coupon) {
+          appliedCoupon = { codeId: coupon.id, listAmountFen: amountFen };
+          amountFen = applyCouponDiscount(amountFen, coupon.discount);
+        }
+      }
     }
 
     const outTradeNo = generateOutTradeNo();
@@ -2960,6 +2977,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       amountFen,
       scope,
       dimensionId: paidDimensionId,
+      ...(appliedCoupon ? { coupon: appliedCoupon } : {}),
     });
 
     // Credentials missing → the order row exists but there is nothing to pay
@@ -4099,6 +4117,59 @@ const redeemLimiter = createRedeemLimiter();
   }
 });
 
+/** 優惠券的限流（同兌換碼的暫採：每位家長每小時 10 次、每個來源每小時 30 次）；與兌換碼各算各的。 */
+const couponLimiter = createRedeemLimiter();
+
+/** 已登入、資料庫裡有這位家長 → 資料庫的使用者編號；否則 null（呼叫端回 401）。 */
+async function couponUserOf(req: express.Request): Promise<number | null> {
+  const userId = currentUserId(req);
+  const dbUserId = toDbUserId(userId);
+  if (!userId || dbUserId === null || !mysqlDb.isConfigured() || (await sessionAccountMissing(userId))) return null;
+  return dbUserId;
+}
+
+const parentCouponOf = (c: StoredCoupon): ParentCoupon => ({ code: formatCode(c.code), discount: c.discount, label: couponDiscountLabel(c.discount) });
+
+/**
+ * T2 優惠券（`T2_COUPON`，客戶 11/03）：`GET` 這位家長用了哪一張（`{coupon: null}`＝還沒用）；`POST {code}` 兌一張，兌到就算用掉、
+ * 綁在這位家長身上（`src/db/coupons.ts`）。已用／作廢／不存在／過期／形狀不對同一句 400 `COUPON_INVALID`；已經用過一張 409
+ * `COUPON_ALREADY_CLAIMED`。路徑不在 `/api/t2` 底下：付費閘門擋的是 T2 本身，還沒買的家長要先兌得到券。
+ */
+(T2_COUPON ? app : express.Router()).get('/api/coupon', async (req, res) => {
+  try {
+    const dbUserId = await couponUserOf(req);
+    if (dbUserId === null) return void res.status(401).json({ error: '请先登录。', code: 'UNAUTHENTICATED' });
+    const coupon = await withTimeout(couponOfUser(dbUserId), 5000);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ coupon: coupon ? parentCouponOf(coupon) : null });
+  } catch (err: any) {
+    console.error('[Coupon] read failed:', err.message);
+    res.status(500).json({ error: '暂时读不到优惠码，请稍后再试。' });
+  }
+});
+
+(T2_COUPON ? app : express.Router()).post('/api/coupon', async (req, res) => {
+  try {
+    const dbUserId = await couponUserOf(req);
+    if (dbUserId === null) return void res.status(401).json({ error: '请先登录，再输入优惠码。', code: 'UNAUTHENTICATED' });
+    if (!couponLimiter.take(String(dbUserId), normalizeRequestIp(req.ip) || 'unknown')) {
+      return void res.status(429).json({ error: COUPON_RATE_LIMITED, code: 'RATE_LIMITED' });
+    }
+    const code = normalizeCode(req.body?.code);
+    const outcome = code
+      ? await withTimeout(claimCouponForUser(dbUserId, code, calendarDateOf(new Date())), 5000)
+      : { ok: false as const, reason: 'invalid' as const };
+    if (!outcome.ok) {
+      if (outcome.reason === 'already_claimed') return void res.status(409).json({ error: COUPON_ALREADY_CLAIMED, code: 'COUPON_ALREADY_CLAIMED' });
+      return void res.status(400).json({ error: COUPON_INVALID, code: 'COUPON_INVALID' });
+    }
+    res.json({ coupon: parentCouponOf(outcome.coupon) });
+  } catch (err: any) {
+    console.error('[Coupon] claim failed:', err.message);
+    res.status(500).json({ error: '暂时无法兑换，请稍后再试。' });
+  }
+});
+
 /**
  * 條款（開關 `LEGAL_DOCS`，11/03 第 14 頁）：後台存過的兩份 Markdown 與存檔時間；沒存過是 null（家長端畫內建條款）。
  * **公開，不需要登入**（登入頁勾同意之前就要看得到）。關著、沒有資料庫、讀失敗一律回兩份都沒存過。只在專案 A。
@@ -4332,6 +4403,8 @@ app.use(
       redeemCodes: TRAINING_PLAN,
       // 條款（11/03 第 14 頁）：只在專案 A、`LEGAL_DOCS` 開著。
       legalDocs: LEGAL_DOCS,
+      // T2 優惠券（客戶 11/03）：只在專案 A、`T2_COUPON` 開著。
+      coupons: T2_COUPON,
       // 家長詳情與列印帶出最新的 T2 報告（#67）。只有專案 A（B 沒有 T2）。
       t2Reports: APP_MODE === 'full',
       // 發育指數的算法（`DEV_INDEX_BASIS`）。
@@ -4451,6 +4524,13 @@ export async function startServer() {
         LEGAL_DOCS
           ? '[SenXinKang Server] LEGAL_DOCS=1: terms come from the admin editor (legal_documents) once saved.'
           : '[SenXinKang Server] LEGAL_DOCS is set but ignored: project B keeps the built-in terms (A only).'
+      );
+    }
+    if (T2_COUPON_REQUESTED) {
+      console.log(
+        T2_COUPON
+          ? '[SenXinKang Server] T2_COUPON=1: parents can claim one T2 coupon (coupon_codes); T2 orders use the discounted price.'
+          : '[SenXinKang Server] T2_COUPON is set but ignored: project B has no T2 (A only).'
       );
     }
     if (HOME_MEDIA_REQUESTED) {

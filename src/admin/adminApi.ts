@@ -6,6 +6,7 @@
  * 對方登入狀態的 bug，而那種 bug 在後台最不該出現。
  */
 
+import type { CouponDiscount } from '../t2/coupon';
 import type { HomeMediaItem, HomeMediaKind, HomeMediaSlot } from '../homeMedia/shape';
 import type { LegalDoc, LegalDocKey, LegalDocs } from '../legal/shape';
 import type { AdminCenterShape } from './companyScope';
@@ -24,6 +25,29 @@ export interface AdminIdentityView {
   email: string;
   companyId: number | null;
   selection: { kind: 'company'; companyId: number } | { kind: 'unassigned' } | null;
+}
+
+/** 一批 T2 優惠券（`src/admin/adminStore.ts` 的 `CouponBatchRecord`）。 */
+export interface AdminCouponBatch {
+  id: number;
+  note: string | null;
+  discount: CouponDiscount;
+  quantity: number;
+  expiresOn: string | null;
+  createdAt: string | null;
+  unused: number;
+  used: number;
+  void: number;
+}
+
+/** 一張 T2 優惠券（`CouponCodeRecord`）。 */
+export interface AdminCouponCode {
+  id: number;
+  batchId: number;
+  code: string;
+  status: 'unused' | 'used' | 'void';
+  usedBy: number | null;
+  usedAt: string | null;
 }
 
 /** 一組兌換碼（`src/admin/adminStore.ts` 的 `RedeemCodeRecord`）。 */
@@ -461,6 +485,14 @@ export const adminApi = {
   voidCode: (codeId: number) => request<{ ok: true }>(`/redeem-codes/${codeId}/void`, { method: 'POST', body: '{}' }),
   myCodes: () => request<{ codes: AdminRedeemCode[] }>('/referrer/codes'),
   /** 兌換碼對帳匯出（#113，只有全域管理員）。 */
+  couponBatches: () => request<{ batches: AdminCouponBatch[] }>('/coupons'),
+  createCoupons: (input: { note: string | null; discountKind: CouponDiscount['kind']; discountValue: number; quantity: number; expiresOn: string | null }) =>
+    request<{ batchId: number; codes: AdminCouponCode[] }>('/coupons', { method: 'POST', body: JSON.stringify(input) }),
+  updateCouponBatch: (id: number, patch: { discountKind?: CouponDiscount['kind']; discountValue?: number; expiresOn?: string | null; note?: string | null }) =>
+    request<{ ok: true }>(`/coupons/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  couponCodes: (batchId: number) => request<{ codes: AdminCouponCode[] }>(`/coupons/${batchId}/codes`),
+  couponCodesCsv: (batchId: number) => download(`/coupons/${batchId}/codes.csv`, { method: 'GET' }, `未用优惠码-第${batchId}批.csv`),
+  voidCoupon: (codeId: number) => request<{ ok: true }>(`/coupon-codes/${codeId}/void`, { method: 'POST', body: '{}' }),
   exportRedeemLedger: () => download('/redeem-codes/export', { method: 'POST', body: '{}' }, '兑换码对帐.xlsx'),
   /** 未用碼的 CSV：全域管理員給推薦人編號，推薦人自己不給。 */
   codesCsv: (referrerId: number | null) =>

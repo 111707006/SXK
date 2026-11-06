@@ -19,6 +19,7 @@ import {
 } from '../t2/entrancePromo';
 import type { T2Pricing } from '../t2/pricing';
 import { PRODUCT } from '../productConfig';
+import T2CouponField from './T2CouponField';
 
 interface T2PromoCardProps {
   promo: EntrancePromo;
@@ -104,6 +105,9 @@ export default function T2PromoCard({ promo, locked, freePeriod = false, bonusMo
           <ChevronRight size={15} />
         </button>
       </div>
+
+      {/* 優惠碼兌換（客戶 11/03 第 21 頁，`T2_COUPON`）：獨立元件，開關關著時不出現 */}
+      {showPrice && pricing && <T2CouponField priceFen={pricing.priceFen} />}
 
       {children}
     </div>

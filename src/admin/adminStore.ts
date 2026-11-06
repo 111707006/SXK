@@ -13,6 +13,7 @@
  * 路由層（`src/admin/routes.ts`）**不得**匯入 `src/db/mysql` —— 同一支結構測試
  * 會擋住。它只能透過本模組取資料。
  */
+import type { CouponDiscount } from '../t2/coupon';
 import type { Pool, ResultSetHeader } from 'mysql2/promise';
 import { getPool, isConfigured } from '../db/mysql';
 import { companyWhereSql, type CompanyCondition } from './companyScope';
@@ -1357,6 +1358,150 @@ export async function voidRedeemCode(id: number): Promise<number> {
   const p = requirePool();
   const [result] = await p.execute(
     "UPDATE redeem_codes SET status = 'void', voided_at = NOW() WHERE id = ? AND status = 'unused'",
+    [id]
+  );
+  return (result as ResultSetHeader).affectedRows;
+}
+
+// ── T2 優惠券（客戶 11/03，開關 `T2_COUPON`，`src/t2/coupon.ts`）──
+// `coupon_batches`、`coupon_codes` 是森心康發的折扣碼，不是家長資料：只有全域管理員（requireGlobal）。
+// 同兌換碼，**不 JOIN users**：用過的碼只帶家長編號與時間。列在 `test/adminScope.structure.test.ts` 的 `GLOBAL_TABLES`。
+
+export interface CouponBatchRecord {
+  id: number;
+  note: string | null;
+  discount: CouponDiscount;
+  quantity: number;
+  expiresOn: string | null;
+  createdAt: string | null;
+  unused: number;
+  used: number;
+  void: number;
+}
+
+export interface CouponCodeRecord {
+  id: number;
+  batchId: number;
+  code: string;
+  status: 'unused' | 'used' | 'void';
+  usedBy: number | null;
+  usedAt: string | null;
+}
+
+const couponStatusOf = (raw: unknown): CouponCodeRecord['status'] => (raw === 'used' ? 'used' : raw === 'void' ? 'void' : 'unused');
+
+/** 全部批次（新的在前），附各狀態張數。 */
+export async function listCouponBatches(): Promise<CouponBatchRecord[]> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT b.id, b.note, b.discount_kind, b.discount_value, b.quantity,
+            DATE_FORMAT(b.expires_on, '%Y-%m-%d') AS expires_on, b.created_at,
+            SUM(c.status = 'unused') AS n_unused, SUM(c.status = 'used') AS n_used, SUM(c.status = 'void') AS n_void
+       FROM coupon_batches b LEFT JOIN coupon_codes c ON c.batch_id = b.id
+      GROUP BY b.id
+      ORDER BY b.id DESC`
+  );
+  return (rows as any[]).map(r => ({
+    id: Number(r.id),
+    note: r.note ?? null,
+    discount: { kind: r.discount_kind === 'amount' ? 'amount' : 'percent', value: Number(r.discount_value) },
+    quantity: Number(r.quantity),
+    expiresOn: r.expires_on ?? null,
+    createdAt: toIso(r.created_at),
+    unused: Number(r.n_unused ?? 0),
+    used: Number(r.n_used ?? 0),
+    void: Number(r.n_void ?? 0),
+  }));
+}
+
+/** 一批的每一張（依產生順序）。 */
+export async function listCouponCodes(batchId: number): Promise<CouponCodeRecord[]> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT c.id, c.batch_id, c.code, c.status, c.used_by, c.used_at
+       FROM coupon_codes c
+      WHERE c.batch_id = ?
+      ORDER BY c.id ASC`,
+    [batchId]
+  );
+  return (rows as any[]).map(r => ({
+    id: Number(r.id),
+    batchId: Number(r.batch_id),
+    code: r.code,
+    status: couponStatusOf(r.status),
+    usedBy: r.used_by === null || r.used_by === undefined ? null : Number(r.used_by),
+    usedAt: toIso(r.used_at),
+  }));
+}
+
+/** 產一批。同兌換碼：整批在同一個交易裡，撞到既有的碼換一組再試（最多 5 次）。回新批次的編號。 */
+export async function createCouponBatch(input: {
+  note: string | null;
+  discount: CouponDiscount;
+  quantity: number;
+  expiresOn: string | null;
+  createdBy: number;
+  generate: () => string;
+}): Promise<number> {
+  const p = requirePool();
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [batch] = await conn.execute(
+      'INSERT INTO coupon_batches (note, discount_kind, discount_value, quantity, expires_on, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+      [input.note, input.discount.kind, input.discount.value, input.quantity, input.expiresOn, input.createdBy]
+    );
+    const batchId = (batch as ResultSetHeader).insertId;
+    for (let i = 0; i < input.quantity; i++) {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await conn.execute('INSERT INTO coupon_codes (batch_id, code) VALUES (?, ?)', [batchId, input.generate()]);
+          break;
+        } catch (err: any) {
+          if (err?.code !== 'ER_DUP_ENTRY' || attempt >= 5) throw err;
+        }
+      }
+    }
+    await conn.commit();
+    return batchId;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+/** 改一批的折法、到期日、備註（帶了才改）。之後開的訂單照新的收；已經開好的訂單金額不變。回影響的列數。 */
+export async function updateCouponBatch(
+  id: number,
+  patch: { discount?: CouponDiscount; expiresOn?: string | null; note?: string | null }
+): Promise<number> {
+  const sets: string[] = [];
+  const args: (string | number | null)[] = [];
+  if (patch.discount) {
+    sets.push('discount_kind = ?', 'discount_value = ?');
+    args.push(patch.discount.kind, patch.discount.value);
+  }
+  if (patch.expiresOn !== undefined) {
+    sets.push('expires_on = ?');
+    args.push(patch.expiresOn);
+  }
+  if (patch.note !== undefined) {
+    sets.push('note = ?');
+    args.push(patch.note);
+  }
+  if (sets.length === 0) return 0;
+  const p = requirePool();
+  const [result] = await p.execute(`UPDATE coupon_batches SET ${sets.join(', ')} WHERE id = ?`, [...args, id]);
+  return (result as ResultSetHeader).affectedRows;
+}
+
+/** 作廢一張**還沒用**的。回影響的列數。 */
+export async function voidCouponCode(id: number): Promise<number> {
+  const p = requirePool();
+  const [result] = await p.execute(
+    "UPDATE coupon_codes SET status = 'void', voided_at = NOW() WHERE id = ? AND status = 'unused'",
     [id]
   );
   return (result as ResultSetHeader).affectedRows;

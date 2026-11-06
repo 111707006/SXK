@@ -152,6 +152,9 @@ CREATE TABLE IF NOT EXISTS `payments` (
   `dimension_id` VARCHAR(64) DEFAULT NULL,
   -- 训练计划买几个月（1／3／6）；T2／T3 是 NULL。
   `months` TINYINT UNSIGNED NULL,
+  -- T2 订单用了哪一张优惠券（coupon_codes.id）、折前多少（分）；没用券是 NULL（2026-11-07）。
+  `coupon_code_id` INT UNSIGNED NULL,
+  `list_amount_fen` INT UNSIGNED NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `paid_at` DATETIME DEFAULT NULL,
   INDEX `idx_user` (`user_id`),
@@ -811,6 +814,38 @@ CREATE TABLE IF NOT EXISTS `redeem_codes` (
   INDEX `idx_redeem_codes_batch` (`batch_id`, `status`),
   CONSTRAINT `fk_redeem_codes_batch` FOREIGN KEY (`batch_id`) REFERENCES `redeem_batches` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_redeem_codes_user` FOREIGN KEY (`used_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- T2 优惠券（客户 11/03，开关 T2_COUPON，迁移 2026-11-07-t2-coupons.sql）：与兑换码（VIP 兑换）分开的两张表。
+CREATE TABLE IF NOT EXISTS `coupon_batches` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  -- 后台自己认批次用的备注（例「11 月门诊」），不给家长看。
+  `note` VARCHAR(40) NULL,
+  -- percent：打几折，discount_value 是实付的百分比（50＝五折＝半价）；amount：减固定金额，discount_value 是分。
+  `discount_kind` ENUM('percent','amount') NOT NULL DEFAULT 'percent',
+  `discount_value` INT UNSIGNED NOT NULL DEFAULT 50,
+  `quantity` INT UNSIGNED NOT NULL,
+  -- 最后一天可以兑换（含当天）；NULL＝不过期。
+  `expires_on` DATE NULL,
+  `created_by` INT UNSIGNED NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_coupon_batches_admin` FOREIGN KEY (`created_by`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `coupon_codes` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `batch_id` INT UNSIGNED NOT NULL,
+  `code` CHAR(10) NOT NULL,
+  `status` ENUM('unused','used','void') NOT NULL DEFAULT 'unused',
+  -- 用掉它的家长。UNIQUE：每位家长只能用一张（NULL 不算重复）。家长帐号删掉留 NULL。
+  `used_by` INT UNSIGNED NULL,
+  `used_at` DATETIME NULL,
+  `voided_at` DATETIME NULL,
+  UNIQUE KEY `uk_coupon_codes_code` (`code`),
+  UNIQUE KEY `uk_coupon_codes_used_by` (`used_by`),
+  INDEX `idx_coupon_codes_batch` (`batch_id`, `status`),
+  CONSTRAINT `fk_coupon_codes_batch` FOREIGN KEY (`batch_id`) REFERENCES `coupon_batches` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_coupon_codes_user` FOREIGN KEY (`used_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================

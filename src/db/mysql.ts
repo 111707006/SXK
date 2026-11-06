@@ -501,11 +501,21 @@ export interface PaymentInput {
   months?: number | null;
   /** Null for `scope: 't2'` — the whole T2 is one purchase, it has no dimension. */
   dimensionId: string | null;
+  /** T2 用了優惠券（`T2_COUPON`，2026-11-07）：哪一張、折前多少。沒用券不帶，INSERT 也不碰那兩欄（遷移前照樣寫得進去）。 */
+  coupon?: { codeId: number; listAmountFen: number };
 }
 
 export async function createPayment(input: PaymentInput): Promise<number | null> {
   const p = getPool();
   if (!p) return null;
+  if (input.coupon) {
+    const [withCoupon] = await p.execute(
+      `INSERT INTO payments (user_id, out_trade_no, amount_fen, status, scope, dimension_id, coupon_code_id, list_amount_fen)
+       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
+      [input.userId, input.outTradeNo, input.amountFen, input.scope, input.dimensionId, input.coupon.codeId, input.coupon.listAmountFen]
+    );
+    return (withCoupon as mysql.ResultSetHeader).insertId;
+  }
   const [result] = await p.execute(
     input.scope === 'plan'
       ? `INSERT INTO payments (user_id, out_trade_no, amount_fen, status, scope, dimension_id, months)

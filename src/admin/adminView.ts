@@ -104,6 +104,7 @@ export type AdminTabId =
   | 'homeMedia'
   | 'legal'
   | 'referrers'
+  | 'coupons'
   | 'myCodes'
   | 'proxy';
 
@@ -134,6 +135,8 @@ const GLOBAL_TABS: AdminTab[] = [
   { id: 'legal', label: '条款' },
   // 推薦人（客戶 10/22，#93）：渠道商、治療師的帳號；兌換碼（#110）也在這一頁產。
   { id: 'referrers', label: '推荐人与兑换码' },
+  // T2 優惠券（客戶 11/03）：T1 轉 T2 的折扣碼，與兌換碼（VIP 兌換）分開的一頁。
+  { id: 'coupons', label: '优惠券' },
 ];
 
 /**
@@ -147,7 +150,7 @@ const REFERRER_TABS: AdminTab[] = [
 ];
 
 /** 只有專案 A（單一機構）才有的分頁：上傳示範片的端點只在 A 註冊（`activityMediaDir`）。 */
-const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia', 'legal', 'referrers'];
+const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia', 'legal', 'referrers', 'coupons'];
 
 /**
  * 只有多合作公司才有意義的分頁 —— 專案 A 上這三個永遠是空的。

@@ -35,6 +35,7 @@
 │   │   ├── T1Screening.tsx          # T1筛查
 │   │   ├── T2Entrance.tsx           # T2 入口（题量、开始作答；挂在即时 T1 报告上，#56）；诊断方向那一格 2026-09-29 拿掉
 │   │   ├── T2Assessment.tsx         # T2 逐支作答：工具清单（已完成／加测提示）＋ 作答表单（#58）；底下「生成报告／查看上次的报告」（#61）
+│   │   ├── T2CouponField.tsx        # T2 价钱下面的「优惠码兑换」（`T2_COUPON`，客户 11/03）：独立一块，T2 卡与解锁页共用；`GET /api/coupon` 404 就不画
 │   │   ├── T2EntranceV3.tsx         # T2 v3 入口（`T2_RECOMMEND_V3`）：plan 是 `version: 'v3'` 时 T2Entrance 改画它；只画 parentPlanV3 组好的字
 │   │   ├── T2AssessmentV3.tsx       # T2 v3 逐支作答：推荐清单（第一次／第二次＋近 90 天做过的）、题库打开才载、formV3、交卷带 toolkitVersion
 │   │   ├── T2ReportV3.tsx           # T2 v3 报告页：快照是 kit-20260923 时 T2Report 改画它；提示、九宫格、各方面段落（伺服器存的 prose）、生活品质、气质偏向、作答回顾；页面本身不叫模型
@@ -113,6 +114,7 @@
 │   │   ├── trainingPeriodService.ts # v3 一期的生命周期（开期、同期取周、期末开下一期、补位）、格子 → 每周活动那一列、计划页位置；server.ts 只接资料层
 │   │   ├── interimPlan.ts # 暂行题量（使用者 2026-09-29）：每个被标记的维度只列一份（星号工具）、全部必做；选做／加测／补充问卷先不出，只套在 `GET /api/t2/plan`
 │   │   ├── raterV2.ts     # T2 填表人 v2（`T2_RATER_V2`，#70）：拿掉老师、「其他」的选填说明（≤10 字）；前端与伺服器共用
+│   │   ├── coupon.ts      # T1→T2 优惠券（`T2_COUPON`，客户 11/03）：折法（打几折／减固定金额，预设半价）、折后价（至少 1 分）、到期日、家长端的字；前端与伺服器共用（资料层 `src/db/coupons.ts`，后台 `panels/CouponsPanel.tsx`）
 │   │   ├── trainingGate.ts # 「线上干预」自己的收费站（2026-09-29）：哪几支算线上干预、`TRAINING_PRICE_FEN`（现在只能 0＝免费）
 │   │   ├── entrance.ts    # T2 入口的纯函式：T1 成绩→九码、入口要不要出现、题量怎么讲（#56）、没有工具的维度怎么讲（6 岁以上认知／语言／动作用客户固定句，v2.1 S05）
 │   │   ├── answering.ts   # 逐支作答的纯函式：表单（走 askedItems）、缺答、前置题互斥、M-CHAT 简体显示、ASR 注解、加测提示（#58）
@@ -313,6 +315,11 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `/api/admin/legal` | GET | 后台读两份条款（全域管理员，`LEGAL_DOCS` 开着才注册） | `Authorization: Bearer <后台 token>` |
 | `/api/admin/legal/:doc` | PUT | 存一份条款（`service`／`privacy`）：Markdown（标题、条列、粗体、换行，`src/legal/markdown.ts`），去头尾空白、不能空、≤30000 字；最后更新日期由伺服器填（UTC 存、照 Asia/Shanghai 显示）；改了不要求家长重新勾同意。认不得的那一份 404、内容不对 400 | `markdown`；同上 |
 | `/api/company-badge` | GET | 专案 A、`A_COMPANIES` 开着才注册（#90）：头部的合作公司徽章，回 `{company: {name, logoUrl} \| null}`；带通行证看帐号上的归属，没带看 `?c=`。没归属、停用、逾时都是 `null`。**公开**。B 没有这一支（B 的家长端只拿得到 LOGO：`/api/company-brand`） | `c`（query，未登入时） |
+| `/api/coupon` | GET／POST | 专案 A、`T2_COUPON` 开着才注册：T1→T2 优惠券（客户 11/03，`src/t2/coupon.ts`、`src/db/coupons.ts`；与 VIP 兑换／兑换码是两条线）。GET 回 `{coupon: {code, discount, label} | null}`（这位家长用了哪一张）；POST 兑一张，**兑到就算用掉**、绑在这位家长身上，之后 `/api/payment/create` 的 T2 照折后价开单（`applyCouponDiscount`，至少 1 分；订单记 `coupon_code_id`／`list_amount_fen`）。已用／作废／不存在／过期／形状不对同一句 400 `COUPON_INVALID`；**每位家长只能用一张** 409 `COUPON_ALREADY_CLAIMED`；限流同兑换码（429）。路径不在 `/api/t2` 底下：还没买 T2 的家长要先兑得到。B 是 404 | POST：`code`；`Authorization: Bearer <token>` |
+| `/api/admin/coupons` | GET／POST | 后台「优惠券」（全域管理员，`T2_COUPON` 开着才注册）：GET 每一批与未用／已用／作废张数；POST 产一批（`quantity` 1–500、`discountKind` `percent`（`discountValue`＝实付百分比 1–99，50＝五折）或 `amount`（分，≤¥1000），不带＝预设半价；`expiresOn` 选填、含当天；`note` ≤40 字） | `Authorization: Bearer <后台 token>` |
+| `/api/admin/coupons/:id` | PATCH | 改一批的折法、到期日、备注（带了才改；之后开的订单照新的收） | 同上 |
+| `/api/admin/coupons/:id/codes`（`.csv`） | GET | 一批的每一张（状态、家长编号、用的时间；不 JOIN users）；`.csv` 只给未用的 | 同上 |
+| `/api/admin/coupon-codes/:id/void` | POST | 作废一张未用的（其他 409） | 同上 |
 | `/api/handoff/config` | GET | 专案 B：交接开了没（`{enabled, targetName}`／`{enabled: false}`）；B 报告页据此画不画那张卡 | 无 |
 | `/api/handoff/start` | POST | 专案 B：家长按「到森心康做深度评估」。回 `{url: "<A>/handoff#code=…", expiresInSec: 120}`（`no-store`）。没同意 400 `CONSENT_REQUIRED`、没手机号或没做 T1 409、没开 404 | `consent: true`；`Authorization: Bearer <token>` |
 | `/internal/handoff/redeem` | POST | 专案 B，**只给 A 的伺服器**：兑换交接码（**不过期、可重复**，每次记一次使用），交出手机、来源公司、孩子、T1 成绩、对得上的那份 T1 报告。任何失败都是同一个 404 | `code`；`Authorization: Bearer <HANDOFF_SECRET>` |
@@ -492,6 +499,7 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `A_COMPANIES` | A 的合作公司（客户 10/22，#89／#90，规格 `docs/specs/client-changes-2026-10-22-2-media.md`，**只在专案 A**）：`1` ＝ B 的公司机制在 A 也注册 —— 登入验证带进站代号（`?c=`）时以（归属，手机号）找或建帐号、后台公司分页／视野切换／公司成员只看自家（`/api/admin/me` 带 `shape`）、`GET /api/company-brand`；家长端头部画公司 Logo、汇总的「筛查渠道」写公司名。不设或 `0` ＝ A 照旧没有合作公司（进站代号被忽略）。B→A 交接照旧建未归属帐号。B 设了不生效（启动印一行）。只收 `1`/`true`/`0`/`false` | 否 |
 | `TRAINING_PLAN` | 训练计划与居家训练使用权（客户 10/22，#91 起，规格 `docs/specs/client-changes-2026-10-22-3-plan.md`，ADR-0013，**只在专案 A**）：`1` ＝ 线上干预那几支（`isTrainingPath`）只看「有没有一段还没到期的使用权」（`training_passes`，`src/t2/trainingPass.ts`：1／3／6 个月＝28／84／168 天，续买接在迄日后面），取代 ADR-0012 的两道闸门；有效使用权也等于 T2 已解锁；`/api/unlocks` 多回 `trainingPass: {active, endsOn, lastEndsOn}`；有 T2 报告、没拿过的家长第一次查附送一个月（只一次）。`PAYWALL_FREE` 开着时居家训练也免费（使用者 2026-10-27：demo 阶段不要求价钱与兑换码）：登入的家长一律当成有一段没有迄日的使用权，不写 `training_passes`、不发附送。**要同时开 `TRAINING_PUSH_V3`**，否则起不来；B 设了不生效。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-10-23-training-passes.sql`** | 否 |
 | `TRAINING_PLAN_PRICES_FEN` | 训练计划的价钱（#111，只在 `TRAINING_PLAN` 开着时有作用）：写成 `1:2990,3:7990,6:13990`（分），三种都要、正整数，认不得起不来（`src/t2/trainingPlanPrices.ts`）。没设＝价格待定、方案卡不能付款、只剩兑换码；设了且微信支付设齐（H5）才开单（`POST /api/payment/create` 带 `scope: 'plan', months`，金额只照这里），结算发一段 `payment` 使用权。**要先跑 `2026-10-24-payments-plan.sql`** | 否 |
+| `T2_COUPON` | T1→T2 优惠券（客户 11/03 简报第 21、29 页，规格 `docs/specs/client-changes-2026-11-03.md`〈優惠券〉，**只在专案 A**）：`1` ＝ 后台多「优惠券」分页（全域管理员批量产码，预设半价、折法与金额可调、到期日、作废、看使用状况）；T2 卡与解锁页的价钱下面多「优惠码兑换」（`src/components/T2CouponField.tsx`，读 `GET /api/coupon`，404 就不画）；兑到之后 T2 订单照折后价收。每位家长一张、不绑渠道。免费期（`PAYWALL_FREE`）照样能兑、会记下用掉，但不开单就不影响金额。不设或 `0` ＝ 那几支不注册、价钱照旧。B 设了不生效（启动印一行）。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-11-07-t2-coupons.sql`** | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**；`TRAINING_PLAN` 开着时居家训练也不要使用权（2026-10-27）（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，

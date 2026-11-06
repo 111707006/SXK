@@ -11,7 +11,7 @@ import { adminApi, AdminApiError, type AdminCouponBatch } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { formatCode } from '../../redeem/codes';
 import { couponDiscountLabel, DEFAULT_COUPON_DISCOUNT, MAX_COUPON_BATCH, type CouponDiscount, type CouponDiscountKind } from '../../t2/coupon';
-import { Button, EmptyState, ErrorNote, Field, Panel, Select, Spinner, TextInput, useAsyncData } from '../ui';
+import { Button, EmptyState, ErrorNote, Field, Panel, Select, Spinner, TextInput, dateBounds, useAsyncData } from '../ui';
 
 const STATUS_LABEL = { unused: '未用', used: '已用', void: '已作废' } as const;
 
@@ -129,7 +129,7 @@ function BatchRow({ batch, onChanged, onError }: { batch: AdminCouponBatch; onCh
         <div className="flex flex-wrap items-end gap-2">
           <DiscountInputs kind={kind} value={value} onKind={setKind} onValue={setValue} />
           <Field label="到期日（空白＝不过期）">
-            <TextInput type="date" min="2026-01-01" max="2099-12-31" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="w-40" />
+            <TextInput type="date" min={dateBounds(0, 5).min} max={dateBounds(0, 5).max} value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="w-40" />
           </Field>
           <Button busy={busy} disabled={!discount} onClick={() => void save()}>存档</Button>
         </div>
@@ -223,7 +223,7 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
             <TextInput value={quantity} onChange={e => setQuantity(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className="w-24" />
           </Field>
           <Field label="到期日（空白＝不过期）">
-            <TextInput type="date" min="2026-01-01" max="2099-12-31" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="w-40" />
+            <TextInput type="date" min={dateBounds(0, 5).min} max={dateBounds(0, 5).max} value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="w-40" />
           </Field>
           <Field label="备注（自己认批次用）">
             <TextInput value={batchNote} maxLength={40} onChange={e => setBatchNote(e.target.value)} className="w-40" />

@@ -247,3 +247,13 @@ export function StatusBadge({ status, children }: { status: string; children: Re
     <span className={`inline-block rounded-lg border px-2 py-0.5 text-[10px] font-bold ${skin}`}>{children}</span>
   );
 }
+
+/**
+ * 日期框的上下界（`YYYY-MM-DD`，中國時間）：今天往前 `back` 年、往後 `ahead` 年。執行期算，不寫死某一天
+ *（`test/childAge.structure.test.ts`），也讓每一個日期框都有界（`test/birthDateSelect.structure.test.ts`）。
+ */
+export function dateBounds(back: number, ahead: number, now = new Date()): { min: string; max: string } {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  const y = Number(today.slice(0, 4));
+  return { min: `${y - back}${today.slice(4)}`, max: `${y + ahead}${today.slice(4)}` };
+}

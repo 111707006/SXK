@@ -45,7 +45,7 @@ describe('HOME_MEDIA 關著', () => {
   it('公開端點回空', async () => {
     const resp = await client.get('/api/home/media');
     expect(resp.status).toBe(200);
-    expect(await resp.json()).toEqual({ splash: null, banners: [] });
+    expect(await resp.json()).toEqual({ splash: null, banners: [], cards: { t1: null, training: null } });
   });
 
   it('後台的首頁素材不存在（404）', async () => {

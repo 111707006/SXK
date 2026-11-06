@@ -10,7 +10,7 @@ import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, HOME_TRAINING_CARD_1022, type H
 import { PRODUCT } from '../productConfig';
 import { WORDING_1022 } from '../wording1022';
 import HomeCarousel from './HomeCarousel';
-import { useHomeMedia } from './homeMediaClient';
+import { homeCardImage, useHomeMedia } from './homeMediaClient';
 
 /**
  * Ledo 版首頁（設計稿第 2 頁）：打招呼、示範片大卡、孩子的概況、三個去處改成清單行。
@@ -177,7 +177,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
             className="flex w-full overflow-hidden rounded-[28px] bg-ledo-accent-soft text-left transition active:scale-[0.99] cursor-pointer"
           >
             <span className="relative w-[38%] shrink-0 overflow-hidden">
-              <img src={CARD_ART_1022.training} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={homeCardImage(media, 'training', CARD_ART_1022.training)} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-1 p-3.5">
               <span className="text-sm font-black text-ledo-ink">{HOME_TRAINING_CARD_1022.title}</span>
@@ -201,7 +201,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
                 className="group flex min-w-0 flex-col overflow-hidden rounded-3xl border-[1.5px] border-ledo-line bg-white text-left shadow-sm transition active:scale-[0.99] cursor-pointer"
               >
                 <span className="relative block aspect-[4/3] w-full overflow-hidden bg-ledo-accent-soft">
-                  <img src={CARD_ART_1022[card.id]} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                  <img src={homeCardImage(media, card.id, CARD_ART_1022[card.id])} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
                   <span className="absolute inset-x-2 bottom-2 flex">
                     <Chip on>{card.title}</Chip>
                   </span>

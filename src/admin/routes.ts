@@ -37,7 +37,7 @@ import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
 import { calculateAgeMonth } from '../utils/dateUtils';
 import { calendarDateOf } from '../t2/weeks';
 import { looksLike, MAX_POSTER_BYTES, mediaUrlOf, readSeconds, saveActivityMedia, saveUpload, stepImageStem, type MediaKind, type UploadSpec } from './activityMedia';
-import { isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
+import { HOME_CARD_SLOTS, isHomeMediaSlot, isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
 import path from 'path';
 import crypto from 'crypto';
 import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf } from './parentSummary';
@@ -1318,14 +1318,20 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       }
     });
 
-    // `POST /home-media?slot=banner|splash&kind=image|video`，本體是檔案。
+    // `POST /home-media?slot=banner|splash|card_t1|card_training&kind=image|video`，本體是檔案。
     router.post('/home-media', async (req: AuthedRequest, res) => {
       if (!requireGlobal(req, res)) { req.resume(); return; }
       const slot = req.query.slot;
       const kind = req.query.kind;
-      if ((slot !== 'splash' && slot !== 'banner') || (kind !== 'image' && kind !== 'video')) {
+      if (!isHomeMediaSlot(slot) || (kind !== 'image' && kind !== 'video')) {
         req.resume();
-        res.status(400).json({ error: '要指定位置（开屏／轮播）与种类（图片／短片）。' });
+        res.status(400).json({ error: '要指定位置（开屏／轮播／首页卡片）与种类（图片／短片）。' });
+        return;
+      }
+      // 首頁卡片（11/03 第 7 頁）只收圖片。
+      if (HOME_CARD_SLOTS.includes(slot) && kind !== 'image') {
+        req.resume();
+        res.status(400).json({ error: '首页卡片只收图片（jpg／png）。' });
         return;
       }
       try {

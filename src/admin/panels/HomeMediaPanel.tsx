@@ -1,5 +1,5 @@
 /**
- * 後台「首页素材」（客戶 10/22，#87／#88）：開屏一張、首頁輪播多張。全站一套，只有全域管理員、只有專案 A。
+ * 後台「首页素材」（客戶 10/22，#87／#88）：開屏一張、首頁輪播多張；11/03 第 7 頁加首頁兩張卡的圖（只收圖片）。全站一套，只有全域管理員、只有專案 A。
  *
  * 上傳前就在瀏覽器擋格式與大小（伺服器照樣再擋一次）；短片的封面由這台瀏覽器抽一格另外傳（同示範片，
  * 主機不保證有 ffmpeg）。連結只收站內路徑或 https（`isSafeMediaLink`，與伺服器同一支）。每張素材旁邊畫一個
@@ -11,6 +11,8 @@ import { adminApi, AdminApiError } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { readVideoInfo } from '../videoFrame';
 import {
+  HOME_CARD_SLOTS,
+  HOME_MEDIA_SLOTS,
   HOME_MEDIA_TYPES,
   isSafeMediaLink,
   MAX_HOME_IMAGE_BYTES,
@@ -21,15 +23,24 @@ import {
 } from '../../homeMedia/shape';
 import { Button, EmptyState, ErrorNote, Field, Panel, Spinner, TextInput, useAsyncData } from '../ui';
 
-const SLOT_TITLE: Record<HomeMediaSlot, string> = { splash: '开屏', banner: '首页轮播' };
+const SLOT_TITLE: Record<HomeMediaSlot, string> = {
+  splash: '开屏',
+  banner: '首页轮播',
+  card_t1: '首页卡片：发育筛查（T1）',
+  card_training: '首页卡片：线上家庭个性化训练',
+};
 const SLOT_HINT: Record<HomeMediaSlot, string> = {
   splash: '家长每次打开网站先看到 3 秒，右上角可以跳过；只用启用中排在最前的那一张。',
   banner: '首页大图，5 秒换一张、可以左右滑；全部停用时首页照旧是固定示范片。',
+  card_t1: '首页 T1 卡上的图，只收图片；只用启用中排在最前的那一张，全部停用时用内建的图。',
+  card_training: '首页「线上家庭个性化训练」那张宽卡左边的图，只收图片；只用启用中排在最前的那一张，全部停用时用内建的图。',
 };
 
-/** 上傳前在瀏覽器先擋（伺服器照樣再擋）。回錯誤訊息，沒問題回 null。 */
-export function precheckHomeMediaFile(file: { type: string; size: number }): { kind: HomeMediaKind } | { error: string } {
+/** 上傳前在瀏覽器先擋（伺服器照樣再擋）。回錯誤訊息，沒問題回 null。卡片槽位只收圖片。 */
+export function precheckHomeMediaFile(file: { type: string; size: number }, slot?: HomeMediaSlot): { kind: HomeMediaKind } | { error: string } {
+  const imageOnly = slot !== undefined && HOME_CARD_SLOTS.includes(slot);
   const kind: HomeMediaKind | null = HOME_MEDIA_TYPES.video.includes(file.type) ? 'video' : HOME_MEDIA_TYPES.image.includes(file.type) ? 'image' : null;
+  if (imageOnly && kind !== 'image') return { error: '首页卡片只收 jpg、png 图片。' };
   if (!kind) return { error: '只收 jpg、png 图片或 mp4 短片。' };
   const max = kind === 'video' ? MAX_HOME_VIDEO_BYTES : MAX_HOME_IMAGE_BYTES;
   if (file.size > max) return { error: `${kind === 'video' ? '短片' : '图片'}太大了（上限 ${max / 1024 / 1024} MB）。` };
@@ -37,8 +48,8 @@ export function precheckHomeMediaFile(file: { type: string; size: number }): { k
 }
 
 function Preview({ item, slot }: { item: HomeMediaItem; slot: HomeMediaSlot }) {
-  // 開屏是整個手機畫面（9:19.5），輪播是首頁那張 16:9 的大卡。
-  const frame = slot === 'splash' ? 'w-[96px] aspect-[9/19.5]' : 'w-[170px] aspect-video';
+  // 開屏是整個手機畫面（9:19.5），輪播是首頁那張 16:9 的大卡，首頁卡片的圖約 4:3（畫面照比例裁切）。
+  const frame = slot === 'splash' ? 'w-[96px] aspect-[9/19.5]' : HOME_CARD_SLOTS.includes(slot) ? 'w-[128px] aspect-[4/3]' : 'w-[170px] aspect-video';
   return (
     <div className={`${frame} shrink-0 overflow-hidden rounded-xl border border-brand-stone bg-brand-cream`}>
       {item.kind === 'video' ? (
@@ -117,7 +128,7 @@ export default function HomeMediaPanel({ onError }: { onError: (view: AdminError
 
   const upload = async (slot: HomeMediaSlot, file: File) => {
     setUploadError(null);
-    const check = precheckHomeMediaFile(file);
+    const check = precheckHomeMediaFile(file, slot);
     if ('error' in check) {
       setUploadError(check.error);
       return;
@@ -159,7 +170,7 @@ export default function HomeMediaPanel({ onError }: { onError: (view: AdminError
   if (data?.off) {
     return (
       <Panel title="首页素材">
-        <EmptyState title="首页素材还没开启" hint="伺服器开关 HOME_MEDIA 打开后，这里可以上传开屏与首页轮播。" />
+        <EmptyState title="首页素材还没开启" hint="伺服器开关 HOME_MEDIA 打开后，这里可以上传开屏、首页轮播与首页卡片的图。" />
       </Panel>
     );
   }
@@ -167,7 +178,8 @@ export default function HomeMediaPanel({ onError }: { onError: (view: AdminError
   return (
     <div className="space-y-4">
       {uploadError && <ErrorNote message={uploadError} />}
-      {(['splash', 'banner'] as const).map(slot => {
+      {HOME_MEDIA_SLOTS.map(slot => {
+        const imageOnly = HOME_CARD_SLOTS.includes(slot);
         const inSlot = list.filter(i => i.slot === slot).sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
         return (
           <Panel
@@ -176,11 +188,11 @@ export default function HomeMediaPanel({ onError }: { onError: (view: AdminError
             description={SLOT_HINT[slot]}
             action={
               <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-brand-forest px-3.5 py-2 text-xs font-bold text-white ${uploading ? 'opacity-50' : ''}`}>
-                <Upload size={12} /> {uploading === slot ? '上传中…' : '上传图片或短片'}
+                <Upload size={12} /> {uploading === slot ? '上传中…' : imageOnly ? '上传图片' : '上传图片或短片'}
                 <input
                   id={`home-media-upload-${slot}`}
                   type="file"
-                  accept="image/jpeg,image/png,video/mp4"
+                  accept={imageOnly ? 'image/jpeg,image/png' : 'image/jpeg,image/png,video/mp4'}
                   className="sr-only"
                   disabled={uploading !== null}
                   onChange={e => {
@@ -193,7 +205,7 @@ export default function HomeMediaPanel({ onError }: { onError: (view: AdminError
             }
           >
             {inSlot.length === 0 ? (
-              <EmptyState title={`还没有${SLOT_TITLE[slot]}素材`} hint="图片 jpg／png 2 MB 以内，短片 mp4 30 MB 以内。" />
+              <EmptyState title={`还没有${SLOT_TITLE[slot]}素材`} hint={imageOnly ? '图片 jpg／png 2 MB 以内。' : '图片 jpg／png 2 MB 以内，短片 mp4 30 MB 以内。'} />
             ) : (
               <ul className="space-y-2.5">
                 {inSlot.map((item, i) => (

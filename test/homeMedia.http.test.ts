@@ -215,6 +215,29 @@ describe('上傳、公開端點、停用', () => {
   });
 });
 
+describe('首頁卡片的圖（11/03 第 7 頁）', () => {
+  it('card_t1／card_training 收圖片、公開端點的 cards 讀得到；短片 400 不寫檔；不混進輪播', async () => {
+    const token = await login('god@sxk.com', 'pw-god-123');
+    const t1 = await upload('slot=card_t1&kind=image', JPG, 'image/jpeg', token);
+    expect(t1.status).toBe(200);
+    const t1Item = (await t1.json()).item;
+    expect(t1Item.url).toMatch(/^\/media\/home\/card_t1-\d+-[0-9a-f]{8}\.jpg\?v=\d+$/);
+    const tr = (await (await upload('slot=card_training&kind=image', PNG, 'image/png', token)).json()).item;
+
+    const before = homeFiles().length;
+    expect((await upload('slot=card_t1&kind=video', MP4, 'video/mp4', token)).status).toBe(400);
+    expect(homeFiles().length).toBe(before);
+
+    const pub = await (await client.get('/api/home/media')).json();
+    expect(pub.cards.t1.id).toBe(t1Item.id);
+    expect(pub.cards.training.id).toBe(tr.id);
+    expect(pub.banners).toEqual([]);
+
+    await patch(t1Item.id, { active: false }, token);
+    expect((await (await client.get('/api/home/media')).json()).cards.t1).toBeNull();
+  });
+});
+
 describe('首頁設定帶開關', () => {
   it('homeMedia: true', async () => {
     expect((await (await client.get('/api/home/config')).json()).homeMedia).toBe(true);

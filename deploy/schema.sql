@@ -714,7 +714,7 @@ CREATE TABLE IF NOT EXISTS `handoff_invites` (
 -- 首页素材（客户 10/22，#87；迁移 deploy/migrations/2026-10-23-home-media.sql，只有专案 A 用）。
 CREATE TABLE IF NOT EXISTS `home_media` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `slot` ENUM('splash','banner') NOT NULL,
+  `slot` ENUM('splash','banner','card_t1','card_training') NOT NULL,
   `kind` ENUM('image','video') NOT NULL,
   `url` VARCHAR(255) NOT NULL,
   -- 短片的封面（后台浏览器抽的一格）；图片是 NULL。

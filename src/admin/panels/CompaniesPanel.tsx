@@ -5,6 +5,7 @@
  * 決定一位家長會歸屬到哪一家公司。它在資料庫上是 UNIQUE，重複會被 409 擋下 ——
  * 兩家公司共用一個識別碼等於把家長送給錯的公司，而那件事沒有補救的方法。
  */
+import EntryLinkQr from '../EntryLinkQr';
 import { useCallback, useState } from 'react';
 import { Plus, Save } from 'lucide-react';
 import { adminApi } from '../adminApi';
@@ -134,7 +135,8 @@ export default function CompaniesPanel({
                   <td className="py-2.5 pr-3 font-bold text-brand-forest">{c.name}</td>
                   <td className="py-2.5 pr-3 font-mono text-brand-charcoal/70">{c.slug}</td>
                   <td className="py-2.5 pr-3">
-                    <code className="break-all text-[10px] text-brand-charcoal/55">{`${origin}/?c=${c.slug}`}</code>
+                    {/* 11/03 第 2 頁：連結旁加二維碼，可下載 PNG */}
+                    <EntryLinkQr url={`${origin}/?c=${c.slug}`} code={c.slug} />
                   </td>
                   <td className="py-2.5">
                     {c.wecomWebhookUrl ? (

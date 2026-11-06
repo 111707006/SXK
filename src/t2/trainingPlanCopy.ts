@@ -16,7 +16,7 @@ export const TRAINING_PLAN_PAGE = {
   pay: '开通',
   payUnavailable: '暂未开放',
   priceTbd: '价格待定',
-  redeemEntry: '兑换码',
+  redeemEntry: 'VIP 兑换',
   /** 「VIP 兑换」那一格（簡報 11/03 第 8 頁）。 */
   vipTitle: 'VIP 兑换',
   vipBlurb: '有 VIP 兑换码？输入后直接开通线上家庭训练。',
@@ -30,5 +30,5 @@ export const TRAINING_PLAN_PAGE = {
   redeemTooMany: '试得太多次了，请过一小时再试。',
   redeemNeedLogin: '请先登录，再输入兑换码。',
   activated: (endsOn: string) => `已开通，到 ${Number(endsOn.slice(5, 7))} 月 ${Number(endsOn.slice(8, 10))} 日`,
-  goTraining: '开始居家训练',
+  goTraining: '开始线上家庭训练',
 } as const;

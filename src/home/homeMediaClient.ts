@@ -49,6 +49,15 @@ export function useHomeMedia(): PublicHomeMedia | null {
   return media;
 }
 
+/**
+ * 首頁卡片的圖（11/03 第 7 頁）：後台「首页素材」設了 `card_t1`／`card_training` 就用那一張，
+ * 沒設、還沒讀到、或不是這兩張卡（例如 T2 卡）用內建的圖。
+ */
+export function homeCardImage(media: PublicHomeMedia | null, cardId: string, fallback: string): string {
+  const item = cardId === 't1' ? media?.cards.t1 : cardId === 'training' ? media?.cards.training : null;
+  return item?.url ?? fallback;
+}
+
 /** 點素材：站內路徑與 https 網址都整頁換過去（SPA 只認 `/`、`/r/…`、`/handoff`，換頁由伺服器的兜底接）。 */
 export function openMediaLink(link: string | null): void {
   if (!link) return;

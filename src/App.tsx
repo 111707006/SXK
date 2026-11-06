@@ -2048,7 +2048,7 @@ export default function App() {
             {/* 内容区 */}
             <div className="overflow-y-auto px-6 py-5 space-y-5 text-xs text-brand-charcoal/80 leading-relaxed">
               <PrivacyTerms />
-              <LegalFooterLine />
+              <LegalFooterLine docs={['privacy']} />
             </div>
           </div>
         </div>
@@ -2081,7 +2081,7 @@ export default function App() {
             {/* 内容区 */}
             <div className="overflow-y-auto px-6 py-5 space-y-5 text-xs text-brand-charcoal/80 leading-relaxed">
               <ServiceTerms />
-              <LegalFooterLine />
+              <LegalFooterLine docs={['service']} />
             </div>
           </div>
         </div>

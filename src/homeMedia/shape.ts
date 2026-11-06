@@ -3,7 +3,17 @@
  * 開屏一張、首頁輪播多張，後台上傳，家長端讀公開端點。前端與伺服器共用這一檔（純資料與純函式）。
  */
 
-export type HomeMediaSlot = 'splash' | 'banner';
+/**
+ * `card_t1`／`card_training`（客戶 11/03 第 7 頁）：首頁 T1 卡與「線上家庭個性化訓練」卡的圖，只收圖片、
+ * 取啟用中排序最前的一張；沒設＝首頁照舊用內建的圖。
+ */
+export type HomeMediaSlot = 'splash' | 'banner' | 'card_t1' | 'card_training';
+export const HOME_MEDIA_SLOTS: ReadonlyArray<HomeMediaSlot> = ['splash', 'banner', 'card_t1', 'card_training'];
+/** 首頁卡的槽位：只收圖片。 */
+export const HOME_CARD_SLOTS: ReadonlyArray<HomeMediaSlot> = ['card_t1', 'card_training'];
+export function isHomeMediaSlot(v: unknown): v is HomeMediaSlot {
+  return typeof v === 'string' && (HOME_MEDIA_SLOTS as ReadonlyArray<string>).includes(v);
+}
 export type HomeMediaKind = 'image' | 'video';
 
 export interface HomeMediaItem {
@@ -21,13 +31,20 @@ export interface HomeMediaItem {
   createdAt: string | null;
 }
 
-/** 公開端點回的：啟用中的開屏（排序最前的一張）與輪播（依排序）。 */
+/** 首頁兩張卡的圖（各取啟用中排序最前的一張）。 */
+export interface HomeCardMedia {
+  t1: HomeMediaItem | null;
+  training: HomeMediaItem | null;
+}
+
+/** 公開端點回的：啟用中的開屏（排序最前的一張）、輪播（依排序）、首頁兩張卡的圖。 */
 export interface PublicHomeMedia {
   splash: HomeMediaItem | null;
   banners: HomeMediaItem[];
+  cards: HomeCardMedia;
 }
 
-export const EMPTY_HOME_MEDIA: PublicHomeMedia = { splash: null, banners: [] };
+export const EMPTY_HOME_MEDIA: PublicHomeMedia = { splash: null, banners: [], cards: { t1: null, training: null } };
 
 /** 上限（暫採，規格 Further Notes）：圖片 2 MB、短片 30 MB。 */
 export const MAX_HOME_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -74,7 +91,9 @@ export function homeMediaFromRow(row: Record<string, unknown>): HomeMediaItem | 
   const slot = row.slot;
   const kind = row.kind;
   const id = Number(row.id);
-  if ((slot !== 'splash' && slot !== 'banner') || (kind !== 'image' && kind !== 'video')) return null;
+  if (!isHomeMediaSlot(slot) || (kind !== 'image' && kind !== 'video')) return null;
+  // 卡片槽位只畫圖片（資料庫裡若有短片也不拿去當卡片圖）
+  if (HOME_CARD_SLOTS.includes(slot) && kind !== 'image') return null;
   if (!Number.isInteger(id) || typeof row.url !== 'string' || row.url === '') return null;
   const link = typeof row.link === 'string' && isSafeMediaLink(row.link) ? row.link : null;
   const created = row.created_at instanceof Date ? row.created_at.toISOString() : typeof row.created_at === 'string' ? row.created_at : null;
@@ -97,6 +116,10 @@ export function publicHomeMedia(items: ReadonlyArray<HomeMediaItem>): PublicHome
   return {
     splash: active.find(i => i.slot === 'splash') ?? null,
     banners: active.filter(i => i.slot === 'banner'),
+    cards: {
+      t1: active.find(i => i.slot === 'card_t1') ?? null,
+      training: active.find(i => i.slot === 'card_training') ?? null,
+    },
   };
 }
 
@@ -108,8 +131,11 @@ export function readPublicHomeMedia(body: unknown): PublicHomeMedia {
     typeof v === 'object' && v !== null &&
     typeof (v as HomeMediaItem).url === 'string' &&
     ((v as HomeMediaItem).kind === 'image' || (v as HomeMediaItem).kind === 'video');
+  const img = (v: unknown): HomeMediaItem | null => (ok(v) && v.kind === 'image' ? v : null);
+  const cards = (typeof b.cards === 'object' && b.cards !== null ? b.cards : {}) as Record<string, unknown>;
   return {
     splash: ok(b.splash) ? b.splash : null,
     banners: Array.isArray(b.banners) ? b.banners.filter(ok) : [],
+    cards: { t1: img(cards.t1), training: img(cards.training) },
   };
 }

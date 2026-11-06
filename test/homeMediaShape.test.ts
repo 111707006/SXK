@@ -52,8 +52,25 @@ describe('列與公開那一份', () => {
   });
 
   it('前端讀回來形狀不對就當成沒有素材', () => {
-    expect(readPublicHomeMedia(null)).toEqual({ splash: null, banners: [] });
-    expect(readPublicHomeMedia({ splash: { url: 1 }, banners: 'x' })).toEqual({ splash: null, banners: [] });
+    const none = { splash: null, banners: [], cards: { t1: null, training: null } };
+    expect(readPublicHomeMedia(null)).toEqual(none);
+    expect(readPublicHomeMedia({ splash: { url: 1 }, banners: 'x' })).toEqual(none);
+    // 舊伺服器沒有 cards、或卡片是短片：當成沒設
+    expect(readPublicHomeMedia({ splash: null, banners: [], cards: { t1: { url: '/v.mp4', kind: 'video' } } })).toEqual(none);
+  });
+
+  it('首頁卡片（11/03 第 7 頁）：各取啟用中排序最前的一張圖；短片的列不要；不混進輪播', () => {
+    const items = [
+      row({ id: 1, slot: 'card_t1', sort_order: 2 }), row({ id: 2, slot: 'card_t1', sort_order: 1 }),
+      row({ id: 3, slot: 'card_training', sort_order: 1, active: 0 }), row({ id: 4, slot: 'card_training', sort_order: 2 }),
+      row({ id: 5, slot: 'banner', sort_order: 1 }),
+    ].map(r => homeMediaFromRow(r)!) as HomeMediaItem[];
+    const pub = publicHomeMedia(items);
+    expect(pub.cards.t1!.id).toBe(2);
+    expect(pub.cards.training!.id).toBe(4);
+    expect(pub.banners.map(b => b.id)).toEqual([5]);
+    expect(homeMediaFromRow(row({ slot: 'card_t1', kind: 'video' }))).toBeNull();
+    expect(publicHomeMedia([]).cards).toEqual({ t1: null, training: null });
   });
 });
 
@@ -81,9 +98,20 @@ describe('schema 與遷移', () => {
     return sql.slice(start, sql.indexOf('ENGINE=InnoDB', start));
   };
 
-  it('CREATE TABLE 一字不差、遷移只加表', () => {
+  // 11/03 第 7 頁：slot 多兩個值，由 2026-11-07 的 MODIFY 加上；schema.sql 寫的是加完之後的樣子。
+  const SLOT_V1 = "`slot` ENUM('splash','banner') NOT NULL,";
+  const SLOT_V2 = "`slot` ENUM('splash','banner','card_t1','card_training') NOT NULL";
+
+  it('CREATE TABLE 一字不差（slot 換成 11/07 加長後的定義）、遷移只加表', () => {
     const migration = read('deploy/migrations/2026-10-23-home-media.sql');
-    expect(block(migration)).toBe(block(read('deploy/schema.sql')));
+    expect(block(migration)).toContain(SLOT_V1);
+    expect(block(migration).replace(SLOT_V1, `${SLOT_V2},`)).toBe(block(read('deploy/schema.sql')));
     expect(migration).not.toMatch(/ALTER TABLE|DROP /);
+  });
+
+  it('11/07 的遷移只 MODIFY slot、加長成 schema.sql 的那一個', () => {
+    const migration = read('deploy/migrations/2026-11-07-home-media-cards.sql');
+    const stmts = migration.split('\n').filter(l => /^\s*(ALTER|DROP|CREATE|UPDATE|DELETE|INSERT)/i.test(l));
+    expect(stmts).toEqual([`ALTER TABLE \`home_media\` MODIFY ${SLOT_V2};`]);
   });
 });

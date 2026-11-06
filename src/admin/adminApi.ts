@@ -7,6 +7,7 @@
  */
 
 import type { HomeMediaItem, HomeMediaKind, HomeMediaSlot } from '../homeMedia/shape';
+import type { LegalDoc, LegalDocKey, LegalDocs } from '../legal/shape';
 import type { AdminCenterShape } from './companyScope';
 import type { AssessmentRecord } from '../types';
 import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
@@ -474,6 +475,11 @@ export const adminApi = {
 
   // ── 首頁素材（客戶 10/22，#87；伺服器開關 HOME_MEDIA 關著時這幾支是 404）──
   homeMedia: () => request<{ items: HomeMediaItem[] }>('/home-media'),
+
+  // 條款（11/03 第 14 頁，`LEGAL_DOCS`）
+  legalDocs: () => request<LegalDocs>('/legal'),
+  saveLegalDoc: (key: LegalDocKey, markdown: string) =>
+    request<{ doc: LegalDoc }>(`/legal/${key}`, { method: 'PUT', body: JSON.stringify({ markdown }) }),
 
   uploadHomeMedia: async (slot: HomeMediaSlot, kind: HomeMediaKind, file: Blob) => {
     const token = getAdminToken();

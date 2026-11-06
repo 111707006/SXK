@@ -10,6 +10,8 @@ import { grantTrainingPass, trainingPassState, type TrainingPassDeps, type Train
 import { NON_SCALE_TOOLKITS, PROXY_TOOLKIT } from './src/t2/snapshotKinds';
 import { loadPublicHomeMedia } from './src/db/homeMedia';
 import { EMPTY_HOME_MEDIA } from './src/homeMedia/shape';
+import { loadLegalDocs } from './src/db/legalDocs';
+import { EMPTY_LEGAL_DOCS } from './src/legal/shape';
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
@@ -251,6 +253,13 @@ const HOME_V2_REQUESTED = resolvePaywallSwitch('HOME_V2', process.env.HOME_V2);
 // ⚠️ 要先跑 `deploy/migrations/2026-10-23-home-media.sql`。
 const HOME_MEDIA_REQUESTED = resolvePaywallSwitch('HOME_MEDIA', process.env.HOME_MEDIA);
 const HOME_MEDIA = HOME_MEDIA_REQUESTED && APP_MODE === 'full';
+
+// 後台可編輯的條款（客戶 11/03 第 14 頁，規格 docs/specs/client-changes-2026-11-03.md）：開著時後台「条款」分頁（全域管理員）
+// 編輯服務及免責條款、隱私保護條款（Markdown，`legal_documents` 表），家長端條款彈窗讀公開端點 `GET /api/legal`；
+// 沒存過的那一份照舊畫內建條款。關著＝後台那兩支不註冊、公開端點回兩份都沒存過。**只在專案 A**（B 設了不生效，啟動印一行）。
+// ⚠️ 要先跑 `deploy/migrations/2026-11-07-legal-documents.sql`。
+const LEGAL_DOCS_REQUESTED = resolvePaywallSwitch('LEGAL_DOCS', process.env.LEGAL_DOCS);
+const LEGAL_DOCS = LEGAL_DOCS_REQUESTED && APP_MODE === 'full';
 
 // A 的合作公司（客戶 10/22，issue #89／#90，規格 docs/specs/client-changes-2026-10-22-2-media.md）：開著時專案 B 的公司機制
 // 在 A 也註冊 —— 進站代號（`?c=`）在建帳號那一刻定歸屬、後台公司分頁與視野切換、公司成員只看自家、公司 Logo 端點。
@@ -4091,6 +4100,24 @@ const redeemLimiter = createRedeemLimiter();
 });
 
 /**
+ * 條款（開關 `LEGAL_DOCS`，11/03 第 14 頁）：後台存過的兩份 Markdown 與存檔時間；沒存過是 null（家長端畫內建條款）。
+ * **公開，不需要登入**（登入頁勾同意之前就要看得到）。關著、沒有資料庫、讀失敗一律回兩份都沒存過。只在專案 A。
+ */
+tier2Only.get('/api/legal', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  if (!LEGAL_DOCS) {
+    res.json(EMPTY_LEGAL_DOCS);
+    return;
+  }
+  try {
+    res.json(await loadLegalDocs());
+  } catch (err: any) {
+    console.error('[Legal] load failed:', err.message);
+    res.json(EMPTY_LEGAL_DOCS);
+  }
+});
+
+/**
  * 首頁素材（開關 `HOME_MEDIA`，#87／#88）：啟用中的開屏（排序最前的一張）與輪播。**公開，不需要登入**（同首頁設定）。
  * 開關關著、沒有資料庫、讀失敗一律回沒有素材 —— 首頁照舊是固定示範片，不擋家長。只在專案 A。
  */
@@ -4303,6 +4330,8 @@ app.use(
       homeMediaDir: HOME_MEDIA ? MEDIA_DIR : undefined,
       // 兌換碼（#110）：只在專案 A、`TRAINING_PLAN` 開著。
       redeemCodes: TRAINING_PLAN,
+      // 條款（11/03 第 14 頁）：只在專案 A、`LEGAL_DOCS` 開著。
+      legalDocs: LEGAL_DOCS,
       // 家長詳情與列印帶出最新的 T2 報告（#67）。只有專案 A（B 沒有 T2）。
       t2Reports: APP_MODE === 'full',
       // 發育指數的算法（`DEV_INDEX_BASIS`）。
@@ -4415,6 +4444,13 @@ export async function startServer() {
         A_COMPANIES
           ? '[SenXinKang Server] A_COMPANIES=1: project A has partner companies (entry slug sets the account owner, admin company scope).'
           : '[SenXinKang Server] A_COMPANIES is set but ignored: project B always has partner companies (A only).'
+      );
+    }
+    if (LEGAL_DOCS_REQUESTED) {
+      console.log(
+        LEGAL_DOCS
+          ? '[SenXinKang Server] LEGAL_DOCS=1: terms come from the admin editor (legal_documents) once saved.'
+          : '[SenXinKang Server] LEGAL_DOCS is set but ignored: project B keeps the built-in terms (A only).'
       );
     }
     if (HOME_MEDIA_REQUESTED) {

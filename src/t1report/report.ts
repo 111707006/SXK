@@ -216,19 +216,23 @@ function templateSummary1022(input: T1ReportInput): string {
   if (yellow.length) parts.push(`${yellow.join('、')}方面${STATUS_WORDING.borderline.describe}，${STATUS_WORDING.borderline.tag}`);
   return [
     overall,
-    `需要先关注的方面：${parts.join('；')}。`,
+    `需要先关注的是：${parts.join('；')}。`,
     `下一步建议做「T2 深度评估」，把${flagged === 1 ? '这个' : '这几个'}方面看得更细，再定在家怎么练。`,
   ].join('');
 }
 
 /** 居家建議：被標記的方面挑一題還不能（沒有就挑有時）做的，放進日常；不夠三條用一般的補。 */
-function templateHome(answers: T1Answers, group: AgeGroup): string[] {
+function templateHome(answers: T1Answers, group: AgeGroup, is1022 = false): string[] {
   const out: string[] = [];
   for (const d of flaggedDimensions(answers)) {
     if (out.length >= 2) break;
     const target = itemsAnswered(d, 0)[0] ?? itemsAnswered(d, 1)[0];
     if (!target) continue;
-    out.push(`「${d.dimensionName}」：把「${target.text}」放进每天的日常里，大人先示范一次，再请孩子试一次，做到了就及时夸奖。`);
+    // 1022（使用者 2026-11-06「语意不通顺的改」）：題目是一句觀察（「游戏输了能接受，不长时间崩溃」），
+    // 舊句「把『……』放进日常、大人先示范一次」讀起來像要大人示範那件事。新句只說日常裡留意、做到就誇。
+    out.push(is1022
+      ? `「${d.dimensionName}」：在日常里多留意「${target.text}」这一项，遇到合适的时机就让孩子试一试，做到了就及时夸奖。`
+      : `「${d.dimensionName}」：把「${target.text}」放进每天的日常里，大人先示范一次，再请孩子试一次，做到了就及时夸奖。`);
   }
   for (const g of HOME_GENERAL[group]) if (out.length < 3) out.push(g);
   return out;
@@ -278,7 +282,7 @@ export function templateT1Report(input: T1ReportInput, options: T1ReportOptions 
     summary: is1022 ? templateSummary1022(input) : templateSummary(input),
     perDimension: flagged.map(d => ({ dimensionId: d.dimensionId, note: is1022 ? templateNote1022(d, group) : templateNote(d) })),
     rehabSuggestions: rehab,
-    homeGuidance: templateHome(answers, group),
+    homeGuidance: templateHome(answers, group, is1022),
     prognosisPrediction: templateNextSteps(answers, group),
     neuralPathwayAnalysis: '',
   };

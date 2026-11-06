@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 describe('簡報 11/03 的刪減', () => {
   it('條款落款：1022 只留更新日期', () => {
     const legal = readFileSync('src/components/LegalTerms.tsx', 'utf8');
-    expect(legal).toMatch(/最后更新日期：\{LEGAL_LAST_UPDATED\}\{PRODUCT\.features\.ui1022 \? null : <> · \{PRODUCT\.brand\.legalEntity\}<\/>\}/);
+    expect(legal).toMatch(/最后更新日期：\{(?:edited \?\? )?LEGAL_LAST_UPDATED\}\{PRODUCT\.features\.ui1022 \? null : <> · \{PRODUCT\.brand\.legalEntity\}<\/>\}/);
   });
 
   it('T2 入口：1022 不畫提示，缺口那一格也不放服務按鈕', () => {

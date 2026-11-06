@@ -129,7 +129,7 @@ function BatchRow({ batch, onChanged, onError }: { batch: AdminCouponBatch; onCh
         <div className="flex flex-wrap items-end gap-2">
           <DiscountInputs kind={kind} value={value} onKind={setKind} onValue={setValue} />
           <Field label="到期日（空白＝不过期）">
-            <TextInput type="date" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="w-40" />
+            <TextInput type="date" min="2026-01-01" max="2099-12-31" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="w-40" />
           </Field>
           <Button busy={busy} disabled={!discount} onClick={() => void save()}>存档</Button>
         </div>
@@ -223,7 +223,7 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
             <TextInput value={quantity} onChange={e => setQuantity(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className="w-24" />
           </Field>
           <Field label="到期日（空白＝不过期）">
-            <TextInput type="date" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="w-40" />
+            <TextInput type="date" min="2026-01-01" max="2099-12-31" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} className="w-40" />
           </Field>
           <Field label="备注（自己认批次用）">
             <TextInput value={batchNote} maxLength={40} onChange={e => setBatchNote(e.target.value)} className="w-40" />

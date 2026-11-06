@@ -65,7 +65,7 @@ export function ServiceTerms() {
  */
 function EditableOr({ docKey, builtin }: { docKey: LegalDocKey; builtin: React.ReactNode }) {
   const docs = useLegalDocs();
-  if (!docs) return <p className="text-xs text-brand-charcoal/60">条款载入中…</p>;
+  if (!docs) return <p className="text-xs text-brand-charcoal/80">条款载入中…</p>;
   const doc = docs[docKey];
   return doc ? <LegalMarkdownView markdown={doc.markdown} /> : <>{builtin}</>;
 }

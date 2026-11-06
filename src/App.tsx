@@ -1556,6 +1556,7 @@ export default function App() {
                   onSelectDimension={selectDashboardDimension}
                   onViewReport={viewDashboardReport}
                   onStartT1Screening={startT1Screening}
+                  onOpenT2={PRODUCT.features.ui1022 && PRODUCT.features.tier2And3 ? goToT2Entrance : undefined}
                 />
               </div>
             ) : currentView === 'dashboard' ? (

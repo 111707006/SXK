@@ -82,6 +82,8 @@ export const WORDING_1022 = {
     dimensionCardHint: '点击查看这个方面',
     /** 做完 T1 後九宮格那一塊的標題（簡報 11/03 第 11 頁）。 */
     gridTitle: '评估细项概要',
+    /** 做完 T1 後的大標題（簡報 11/03 第 16 頁，使用者 2026-11-06：「Aaron 的 9 个方面」改這個）。 */
+    panelTitle: (name: string) => `${name}的评估面板`,
   },
 
   buttons: {

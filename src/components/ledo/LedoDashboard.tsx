@@ -21,6 +21,8 @@ interface Props {
   onStartT1Screening: () => void;
   /** 1022：孩子不在 T1 範圍內時，T1 那張卡換成這張紅燈卡（issue #82）。 */
   t1Blocked?: ReactNode;
+  /** 1022（簡報 11/03 第 16–17 頁）：點紅、黃的方面（或紅黃按鈕）到報告上的 T2 購買區。沒給就照舊 `onSelectDimension`。 */
+  onOpenT2?: () => void;
 }
 
 function doneDate(scores: DimensionScore[]): string | null {
@@ -30,7 +32,7 @@ function doneDate(scores: DimensionScore[]): string | null {
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
-export default function LedoDashboard({ childName, completedScores, onSelectDimension, onViewReport, onStartT1Screening, t1Blocked }: Props) {
+export default function LedoDashboard({ childName, completedScores, onSelectDimension, onViewReport, onStartT1Screening, t1Blocked, onOpenT2 }: Props) {
   const t1 = completedScores.filter(s => s.tierId === 'T1');
   const done = t1.length > 0;
   const byId = new Map(t1.map(s => [s.dimensionId, s]));
@@ -44,6 +46,87 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
   const date = doneDate(t1);
   const ui1022 = PRODUCT.features.ui1022;
 
+  // 1022 做完 T1（簡報 11/03 第 16–17 頁，使用者 2026-11-06）：由上而下 ①紅／黃／綠三顆，各顯示幾項
+  // ②九宮格（主要內容，「评估细项概要」）③T1 卡與「重新评估」。底色由藍改灰；紅、黃點了到 T2 購買區，綠的不能點。
+  if (done && ui1022 && !t1Blocked) {
+    const openFlagged = (id: string) => (onOpenT2 ? onOpenT2() : onSelectDimension(id));
+    const firstOf = (st: DimensionScore['status']) => dims.find(x => x.s?.status === st)?.d.id;
+    const buttons: Array<{ st: DimensionScore['status']; tone: 'more' | 'mild' | 'ok' }> = [
+      { st: 'delay', tone: 'more' },
+      { st: 'borderline', tone: 'mild' },
+      { st: 'normal', tone: 'ok' },
+    ];
+    return (
+      <div id="ledo-dashboard" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
+        <Greeting small={`${childName}的家长，${greetingFor(new Date())}`} title={WORDING_1022.dashboard.panelTitle(childName)} />
+
+        <div id="ledo-status-buttons" className="grid grid-cols-3 gap-2">
+          {buttons.map(({ st, tone }) => {
+            const n = count(st);
+            const clickable = st !== 'normal' && n > 0;
+            const first = firstOf(st);
+            return (
+              <button
+                key={st}
+                type="button"
+                id={`ledo-status-${tone}`}
+                disabled={!clickable}
+                onClick={clickable && first ? () => openFlagged(first) : undefined}
+                className={`flex min-w-0 flex-col items-start gap-0.5 rounded-3xl p-3 text-left ${TONE[tone].bg} ${TONE[tone].ink} ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
+              >
+                <span className="text-[26px] font-black leading-tight tabular-nums">{n}</span>
+                <span className="text-xs font-bold leading-snug">{STATUS_WORDING[st].label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <section id="ledo-detail-block" className="space-y-2.5 rounded-[28px] bg-ledo-field p-3">
+          <h3 className="px-1 text-sm font-black text-ledo-ink">{WORDING_1022.dashboard.gridTitle}</h3>
+          <div id="ledo-dim-grid" className="grid grid-cols-3 gap-2">
+            {dims.map(({ d, s }) => {
+              const tone = s ? TONE[STATUS_TONE[s.status] ?? 'ok'] : TONE.field;
+              const flaggedDim = Boolean(s && s.status !== 'normal');
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  id={`ledo-dim-${d.id}`}
+                  disabled={!flaggedDim}
+                  onClick={flaggedDim ? () => openFlagged(d.id) : undefined}
+                  className={`flex min-w-0 flex-col items-start gap-1 rounded-2xl p-2.5 text-left ${tone.bg} ${flaggedDim ? 'cursor-pointer' : 'cursor-default'}`}
+                >
+                  <b className="break-words text-[13px] font-black leading-snug text-ledo-ink">{d.name}</b>
+                  <span className={`text-xs font-bold leading-snug ${tone.ink}`}>{s ? STATUS_WORDING[s.status].label : '还没评估'}</span>
+                  {flaggedDim && (
+                    <span className="mt-auto rounded-full bg-white px-2 py-0.5 text-xs font-black text-ledo-ink">{PRODUCT.dashboard.dimensionCardCta}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <div id="ledo-dash-summary" className="flex items-center gap-3 rounded-[28px] bg-ledo-field p-3">
+          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-white">
+            <img src={LEDO_ART.panel} alt="" className="h-full w-full object-cover" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <b className="block text-sm font-black text-ledo-ink">{WORDING_1022.t1Name}</b>
+            <span className="text-xs text-ledo-ink-2">{`${date ?? ''}完成 · ${t1.length}/${DIMENSIONS_DATA.length}`}</span>
+          </div>
+          <button type="button" id="ledo-start-t1" onClick={onStartT1Screening} className="shrink-0 rounded-full bg-ledo-accent px-4 py-2.5 text-sm font-black text-white cursor-pointer">
+            重新评估
+          </button>
+        </div>
+
+        <button type="button" id="ledo-view-report" onClick={onViewReport} className="w-full rounded-full bg-ledo-field py-3 text-sm font-black text-ledo-ink cursor-pointer">
+          查看报告
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div id="ledo-dashboard" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
       <Greeting
@@ -52,8 +135,7 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
       />
 
       {t1Blocked ?? (
-      // 1022（簡報 11/03 第 11 頁）：做完 T1 後，上面這塊（T1 卡＋兩個數字）自己一塊底色。
-      <div id="ledo-dash-summary" className={done && ui1022 ? 'grid grid-cols-2 gap-2.5 rounded-[28px] bg-ledo-field p-3' : 'grid grid-cols-2 gap-2.5'}>
+      <div id="ledo-dash-summary" className="grid grid-cols-2 gap-2.5">
         <div className={`flex flex-col gap-2 rounded-3xl bg-ledo-accent-soft p-3.5 text-ledo-accent-soft-ink ${done ? 'row-span-2' : 'col-span-2'}`}>
           <div className={`overflow-hidden rounded-2xl bg-white ${done ? 'aspect-square' : 'aspect-[3/2]'}`}>
             <img src={LEDO_ART.panel} alt="" className="h-full w-full object-cover" />
@@ -83,42 +165,6 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
           </>
         )}
       </div>
-      )}
-
-      {/*
-        1022（issue #85）：做完 T1 後九個方面排成三欄、一屏看得完；需要支持的那幾格有「深度评估」。
-        不畫兩段清單（「先看这几项」那一段就是報告上拿掉的那個名字）。
-      */}
-      {done && ui1022 && (
-        <>
-          {/* 1022（簡報 11/03 第 11 頁）：九宮格另一塊、另一個底色，加標題「评估细项概要」。 */}
-          <section id="ledo-detail-block" className="space-y-2.5 rounded-[28px] bg-ledo-stage p-3">
-          <h3 className="px-1 text-sm font-black text-ledo-ink">{WORDING_1022.dashboard.gridTitle}</h3>
-          <div id="ledo-dim-grid" className="grid grid-cols-3 gap-2">
-            {dims.map(({ d, s }) => {
-              const tone = s ? TONE[STATUS_TONE[s.status] ?? 'ok'] : TONE.field;
-              return (
-                <button
-                  key={d.id}
-                  type="button"
-                  id={`ledo-dim-${d.id}`}
-                  onClick={() => onSelectDimension(d.id)}
-                  className={`flex min-w-0 flex-col items-start gap-1 rounded-2xl p-2.5 text-left cursor-pointer ${tone.bg}`}
-                >
-                  <b className="break-words text-[13px] font-black leading-snug text-ledo-ink">{d.name}</b>
-                  <span className={`text-xs font-bold leading-snug ${tone.ink}`}>{s ? STATUS_WORDING[s.status].label : '还没评估'}</span>
-                  {s && s.status !== 'normal' && (
-                    <span className="mt-auto rounded-full bg-white px-2 py-0.5 text-xs font-black text-ledo-ink">{PRODUCT.dashboard.dimensionCardCta}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          </section>
-          <button type="button" id="ledo-view-report" onClick={onViewReport} className="w-full rounded-full bg-ledo-accent-soft py-3 text-sm font-black text-ledo-accent-soft-ink cursor-pointer">
-            查看报告
-          </button>
-        </>
       )}
 
       {done && !ui1022 && flagged.length > 0 && (

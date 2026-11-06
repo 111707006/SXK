@@ -29,6 +29,18 @@ afterEach(() => {
 });
 
 describe('1022 開著：評估面板', () => {
+  it('做完 T1（簡報 11/03 第 16–17 頁）：標題、紅黃綠三顆在最上、九宮格、T1 卡在下；綠的不能點', async () => {
+    const html = await renderDashboard({ VITE_UI_1022: '1' });
+    expect(html).toContain('小树的评估面板');
+    expect(html).not.toContain('个方面</h2>');
+    const order = ['ledo-status-buttons', 'ledo-detail-block', 'ledo-dash-summary'].map(id => html.indexOf(`id="${id}"`));
+    expect(order.every(i => i > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).toMatch(/id="ledo-status-ok" disabled=""/);
+    expect(html).toMatch(/id="ledo-dim-[a-z_]+" disabled=""/);
+    expect(html).not.toContain('bg-ledo-accent-soft p-3.5');
+  });
+
   it('還沒做：新叫法，沒有「会看哪些方面」與「点击亮的…」', async () => {
     const html = await renderDashboard({ VITE_UI_1022: '1' }, []);
     expect(html).toContain('先做一次 T1 儿少综合发展评估');

@@ -37,6 +37,9 @@ import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
 import { calculateAgeMonth } from '../utils/dateUtils';
 import { calendarDateOf } from '../t2/weeks';
 import { looksLike, MAX_POSTER_BYTES, mediaUrlOf, readSeconds, saveActivityMedia, saveUpload, stepImageStem, type MediaKind, type UploadSpec } from './activityMedia';
+import { loadLegalDocs, saveLegalDoc } from '../db/legalDocs';
+import { readLegalMarkdown } from '../legal/markdown';
+import { isLegalDocKey } from '../legal/shape';
 import { HOME_CARD_SLOTS, isHomeMediaSlot, isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
 import path from 'path';
 import crypto from 'crypto';
@@ -125,6 +128,8 @@ export interface AdminRouterHooks {
   homeMediaDir?: string;
   /** 兌換碼（#110）：只有專案 A、`TRAINING_PLAN` 開著才傳 `true`；沒有就那幾支不註冊。 */
   redeemCodes?: boolean;
+  /** 後台可編輯的條款（11/03 第 14 頁）：只有專案 A、`LEGAL_DOCS` 開著才傳 `true`；沒有就那兩支不註冊（404）。 */
+  legalDocs?: boolean;
   /**
    * 家長詳情帶不帶最新的 T2 報告快照（#67）。只有專案 A 傳 `true`；B 沒有 T2，
    * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
@@ -1401,6 +1406,48 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       } catch (err: any) {
         console.error('[Admin] updateHomeMedia failed:', err.message);
         res.status(500).json({ error: '更新素材失败。' });
+      }
+    });
+  }
+
+  // ── 條款（客戶 11/03 第 14 頁，`LEGAL_DOCS`；`src/legal/`、`src/db/legalDocs.ts`）──
+  //
+  // 全站一套，只有全域管理員。存檔＝整份換掉；「最后更新日期」由資料庫填當下。沒有刪除、沒有歷史：
+  // 改了不要求家長重新勾同意（使用者 2026-11-06）。還沒存過的那一份回 null，後台編輯器從內建條款起頭。
+  if (hooks.legalDocs) {
+    router.get('/legal', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      try {
+        res.json(await loadLegalDocs());
+      } catch (err: any) {
+        console.error('[Admin] loadLegalDocs failed:', err.message);
+        res.status(500).json({ error: '读取条款失败。' });
+      }
+    });
+
+    router.put('/legal/:doc', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const key = req.params.doc;
+      if (!isLegalDocKey(key)) {
+        res.status(404).json({ error: '没有这一份条款。' });
+        return;
+      }
+      const read = readLegalMarkdown((req.body ?? {}).markdown);
+      if (!read.ok) {
+        res.status(400).json({ error: read.error });
+        return;
+      }
+      const identity = req.admin!;
+      try {
+        const doc = await saveLegalDoc(key, read.markdown, 'adminUserId' in identity ? identity.adminUserId : null);
+        if (!doc) {
+          res.status(503).json({ error: '没有资料库，条款存不进去。' });
+          return;
+        }
+        res.json({ doc });
+      } catch (err: any) {
+        console.error('[Admin] saveLegalDoc failed:', err.message);
+        res.status(500).json({ error: '条款存档失败，请再试一次。' });
       }
     });
   }

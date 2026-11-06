@@ -711,6 +711,16 @@ CREATE TABLE IF NOT EXISTS `handoff_invites` (
   CONSTRAINT `fk_handoff_invites_admin` FOREIGN KEY (`admin_user_id`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 后台可编辑的条款（客户 11/03 第 14 页；迁移 deploy/migrations/2026-11-07-legal-documents.sql，只有专案 A、LEGAL_DOCS 用）。
+CREATE TABLE IF NOT EXISTS `legal_documents` (
+  `doc_key` ENUM('service','privacy') NOT NULL PRIMARY KEY,
+  `markdown` MEDIUMTEXT NOT NULL,
+  -- UTC（src/db/legalDocs.ts 写 UTC_TIMESTAMP()）
+  `updated_at` DATETIME NOT NULL,
+  -- 最后一次存档的后台帐号（admin_users.id）；帐号删了留着数字，不设外键
+  `updated_by` INT UNSIGNED NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 首页素材（客户 10/22，#87；迁移 deploy/migrations/2026-10-23-home-media.sql，只有专案 A 用）。
 CREATE TABLE IF NOT EXISTS `home_media` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

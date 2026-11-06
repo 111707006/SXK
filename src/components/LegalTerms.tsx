@@ -27,6 +27,9 @@
 
 import { FileText, ShieldCheck } from 'lucide-react';
 import { PRODUCT } from '../productConfig';
+import LegalMarkdownView from '../legal/LegalMarkdownView';
+import { useLegalDocs } from '../legal/legalClient';
+import { latestLegalDate, type LegalDocKey } from '../legal/shape';
 
 /** 兩份條款共同的最後修訂日。改條款內容時記得一起改。 */
 export const LEGAL_LAST_UPDATED = '2026年9月4日';
@@ -53,6 +56,21 @@ function Bullets({ items }: { items: React.ReactNode[] }) {
  * 標題列，登入頁彈窗把兩份併在一個捲動區裡），外框留給呼叫端。
  */
 export function ServiceTerms() {
+  return <EditableOr docKey="service" builtin={<BuiltinServiceTerms />} />;
+}
+
+/**
+ * 後台編輯過的那一份（11/03 第 14 頁，`LEGAL_DOCS`，只在專案 A）有就畫它，沒存過畫內建的。
+ * 讀到之前畫一行「载入中」—— 不先閃一份內建條款再換掉（家長可能正在讀）。B 不問，直接畫內建的。
+ */
+function EditableOr({ docKey, builtin }: { docKey: LegalDocKey; builtin: React.ReactNode }) {
+  const docs = useLegalDocs();
+  if (!docs) return <p className="text-xs text-brand-charcoal/60">条款载入中…</p>;
+  const doc = docs[docKey];
+  return doc ? <LegalMarkdownView markdown={doc.markdown} /> : <>{builtin}</>;
+}
+
+function BuiltinServiceTerms() {
   return (
     <div>
       <p>
@@ -150,6 +168,16 @@ export function ServiceTerms() {
 
 /** 隱私保護條款。同上，只有內文，外框留給呼叫端。 */
 export function PrivacyTerms() {
+  return <EditableOr docKey="privacy" builtin={<BuiltinPrivacyTerms />} />;
+}
+
+/** 內建的兩份（後台沒存過時家長看到的；`test/legalDocs.test.ts` 對 `src/legal/defaultMarkdown.ts` 逐句比對）。 */
+export const BUILTIN_LEGAL_TERMS = {
+  service: () => <BuiltinServiceTerms />,
+  privacy: () => <BuiltinPrivacyTerms />,
+};
+
+function BuiltinPrivacyTerms() {
   return (
     <div>
       <p>本条款是《儿童综合发展评估系统服务协议》的组成部分，与前述服务协议具有同等法律效力。</p>
@@ -275,12 +303,18 @@ export function PrivacyTerms() {
   );
 }
 
-/** 兩份條款底下那一行落款。三個呼叫端都要一樣，所以也收在這裡。 */
-export function LegalFooterLine() {
+/**
+ * 兩份條款底下那一行落款。三個呼叫端都要一樣，所以也收在這裡。
+ * `docs` 指這個落款底下是哪幾份（登入頁的合併彈窗是兩份）：後台存過的取最晚存檔那一天（11/03 第 14 頁：
+ * 存檔時自動填），一份都沒存過用內建條款的日期。
+ */
+export function LegalFooterLine({ docs: keys = ['service', 'privacy'] }: { docs?: LegalDocKey[] } = {}) {
+  const docs = useLegalDocs();
+  const edited = docs ? latestLegalDate(keys.map(k => docs[k])) : null;
   return (
     <div className="pt-3 mt-4 border-t border-brand-stone/30 text-xs text-brand-charcoal/80 text-center">
       {/* 1022（簡報 11/03 第 14 頁）：落款只留更新日期，不寫「森心康（SenXinKang）技术实验室」。 */}
-      最后更新日期：{LEGAL_LAST_UPDATED}{PRODUCT.features.ui1022 ? null : <> · {PRODUCT.brand.legalEntity}</>}
+      最后更新日期：{edited ?? LEGAL_LAST_UPDATED}{PRODUCT.features.ui1022 ? null : <> · {PRODUCT.brand.legalEntity}</>}
     </div>
   );
 }

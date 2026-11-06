@@ -45,6 +45,7 @@ import SummaryPanel from './panels/SummaryPanel';
 import ActivitiesPanel from './panels/ActivitiesPanel';
 import VideoTaggingPanel from './panels/VideoTaggingPanel';
 import HomeMediaPanel from './panels/HomeMediaPanel';
+import LegalPanel from './panels/LegalPanel';
 import ReferrersPanel from './panels/ReferrersPanel';
 import RedeemCodesBlock from './panels/RedeemCodesBlock';
 import ProxyPanel from './panels/ProxyPanel';
@@ -356,6 +357,7 @@ function AdminCenter() {
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}
           {activeTab === 'videos' && <VideoTaggingPanel onError={handleError} />}
           {activeTab === 'homeMedia' && <HomeMediaPanel onError={handleError} />}
+          {activeTab === 'legal' && <LegalPanel onError={handleError} />}
           {activeTab === 'referrers' && (
             <ReferrersPanel onError={handleError} companies={companies} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
           )}

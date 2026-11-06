@@ -41,6 +41,9 @@ import {
   type CouponDiscount,
 } from '../t2/coupon';
 import { redeemLedgerFileName, redeemLedgerWorkbook } from './redeemXlsx';
+import { splitLedgerFileName, splitLedgerWorkbook } from './splitXlsx';
+import { ledgerByParty, ledgerRows, ledgerTotals } from '../revenueSplit/ledger';
+import { DEFAULT_COMPANY_BP, DEFAULT_PLATFORM_BP, bpFromPercent } from '../revenueSplit/split';
 import { isPassMonths } from '../t2/trainingPass';
 import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
 import { calculateAgeMonth } from '../utils/dateUtils';
@@ -141,6 +144,8 @@ export interface AdminRouterHooks {
   legalDocs?: boolean;
   /** T2 優惠券（客戶 11/03，`T2_COUPON`）：只在專案 A、開關開著才註冊那幾支。 */
   coupons?: boolean;
+  /** 清分（客戶 11/03，`REVENUE_SPLIT`，ADR-0016）：只在專案 A、開關開著才傳；`feeBp` 是伺服器的微信手續費設定。 */
+  revenueSplit?: { feeBp: number };
   /**
    * 家長詳情帶不帶最新的 T2 報告快照（#67）。只有專案 A 傳 `true`；B 沒有 T2，
    * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
@@ -864,6 +869,105 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
 
   // ── T2 優惠券（客戶 11/03，`src/t2/coupon.ts`；只在 A、`T2_COUPON` 開著才註冊）──
   // 全域管理員批量產、改折法與到期日、看使用狀況、匯出未用的、作廢。與上面的兌換碼（VIP 兌換）是兩條線、兩個分頁。
+  // ── 清分（客戶 11/03〈清分〉，ADR-0016；只在 A、`REVENUE_SPLIT` 開著才註冊）──
+  // 全域管理員看與改比例（預設＋每家公司、每位推薦人的覆寫）、看一段日期每筆訂單各方金額、匯出對帳。不留修改紀錄（規格）。
+  if (hooks.revenueSplit) {
+    const feeBp = hooks.revenueSplit.feeBp;
+    const DATE = /^\d{4}-\d{2}-\d{2}$/;
+    const readRange = (q: any): { from: string; to: string } | null => {
+      const from = typeof q?.from === 'string' ? q.from : '';
+      const to = typeof q?.to === 'string' ? q.to : '';
+      if (!DATE.test(from) || !DATE.test(to) || from > to) return null;
+      if (Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to))) return null;
+      // 一次最多一年：對帳是一個月一個月看的，太長的一段會把整張表讀進記憶體。
+      if (Date.parse(to) - Date.parse(from) > 366 * 86400_000) return null;
+      return { from, to };
+    };
+
+    router.get('/revenue-split', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      try {
+        const [rates, companies, referrers] = await Promise.all([store.listSplitRates(), store.listCompanies(), store.listReferrers()]);
+        res.json({
+          feeBp,
+          fallback: { platformBp: DEFAULT_PLATFORM_BP, companyBp: DEFAULT_COMPANY_BP },
+          rates,
+          companies: companies.map(c => ({ id: c.id, name: c.name, active: c.active })),
+          referrers: referrers.map(r => ({ id: r.id, name: r.name, kind: r.kind, companyId: r.companyId, companyName: r.companyName, active: r.active })),
+        });
+      } catch (err: any) {
+        console.error('[Admin] revenue split settings failed:', err.message);
+        res.status(500).json({ error: '读取清分设定失败。' });
+      }
+    });
+
+    router.put('/revenue-split/rates', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const body = req.body ?? {};
+      const scope = body.scope;
+      if (scope !== 'default' && scope !== 'company' && scope !== 'referrer') return void res.status(400).json({ error: '设定对象不正确。' });
+      const refId = scope === 'default' ? 0 : body.refId;
+      if (scope !== 'default' && !(Number.isInteger(refId) && refId > 0)) return void res.status(400).json({ error: '设定对象不正确。' });
+      const platformBp = bpFromPercent(body.platformPercent ?? null);
+      const companyBp = bpFromPercent(body.companyPercent ?? null);
+      if (platformBp === undefined || companyBp === undefined) {
+        return void res.status(400).json({ error: '比例要是 0 到 100 之间的数字（最多两位小数），留空＝沿用上一层。' });
+      }
+      try {
+        if (scope === 'company') {
+          if (!(await store.findCompanyById(refId))) return void res.status(404).json({ error: '找不到这家合作公司。' });
+        } else if (scope === 'referrer') {
+          if (!(await store.findReferrer(refId))) return void res.status(404).json({ error: '找不到这位推荐人。' });
+        }
+        await store.setSplitRate({ scope, refId, platformBp, companyBp });
+        res.json({ ok: true });
+      } catch (err: any) {
+        console.error('[Admin] setSplitRate failed:', err.message);
+        res.status(500).json({ error: '保存清分比例失败。' });
+      }
+    });
+
+    router.get('/revenue-split/orders', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const range = readRange(req.query);
+      if (!range) return void res.status(400).json({ error: '日期不正确（YYYY-MM-DD，起日不晚于迄日，一次最多一年）。' });
+      try {
+        const rows = ledgerRows(await store.listSplitOrders(range.from, range.to));
+        res.json({ ...range, rows, totals: ledgerTotals(rows), byParty: ledgerByParty(rows) });
+      } catch (err: any) {
+        console.error('[Admin] listSplitOrders failed:', err.message);
+        res.status(500).json({ error: '读取订单失败。' });
+      }
+    });
+
+    // 匯出：同兌換碼對帳，每次在 `admin_exports` 記一筆（範圍 all），**記不下就 500、不給檔**。
+    router.post('/revenue-split/export', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const range = readRange(req.body);
+      if (!range) return void res.status(400).json({ error: '日期不正确（YYYY-MM-DD，起日不晚于迄日，一次最多一年）。' });
+      try {
+        const rows = ledgerRows(await store.listSplitOrders(range.from, range.to));
+        const file = await splitLedgerWorkbook(rows);
+        await store.recordExport({
+          adminUserId: req.admin!.adminUserId,
+          condition: { kind: 'all' },
+          kind: 'revenue_split',
+          rowCount: rows.length,
+          filters: JSON.stringify(range),
+          requestIp: req.ip ?? null,
+        });
+        const name = splitLedgerFileName(range.from, range.to);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="revenue-split.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(file);
+      } catch (err: any) {
+        console.error('[Admin] revenue split export failed:', err.message);
+        res.status(500).json({ error: '导出失败，请稍后再试。' });
+      }
+    });
+  }
+
   if (hooks.coupons) {
     const idParam = (req: AuthedRequest): number | null => (/^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : null);
     const readNote = (raw: unknown): string | null | undefined => {

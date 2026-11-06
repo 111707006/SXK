@@ -155,6 +155,8 @@ CREATE TABLE IF NOT EXISTS `payments` (
   -- T2 订单用了哪一张优惠券（coupon_codes.id）、折前多少（分）；没用券是 NULL（2026-11-07）。
   `coupon_code_id` INT UNSIGNED NULL,
   `list_amount_fen` INT UNSIGNED NULL,
+  -- 清分（客户 11/03，ADR-0016，REVENUE_SPLIT）：开单那一刻的对方与比例；开关打开之前的订单是 NULL。
+  `split_snapshot` JSON NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `paid_at` DATETIME DEFAULT NULL,
   INDEX `idx_user` (`user_id`),
@@ -881,3 +883,16 @@ CREATE TABLE IF NOT EXISTS `coupon_codes` (
 -- 这份脚本不碰既有资料列。要清掉的话请自行确认后手动执行：
 --   DELETE FROM `users` WHERE `email` = 'test@test.com';
 -- 它现在是一列没有任何登入路径走得到的资料。
+
+-- 清分的比例（客户 11/03，ADR-0016；迁移 deploy/migrations/2026-11-07-revenue-split.sql）。
+CREATE TABLE IF NOT EXISTS `revenue_split_rates` (
+  -- default：预设那一组（ref_id 固定 0）；company：某家合作公司（companies.id）；referrer：某位推荐人（referrers.id）。
+  `scope` ENUM('default','company','referrer') NOT NULL,
+  `ref_id` INT UNSIGNED NOT NULL DEFAULT 0,
+  -- 万分比（2000＝20%）；NULL＝没设，往上一层找（推荐人 → 公司 → 预设 → 程式里的 20%）。
+  -- platform_bp：平台拿扣掉微信手续费之后的几成；company_bp：三方时合作公司拿「对方那一份」的几成（其余给治疗师）。
+  `platform_bp` SMALLINT UNSIGNED NULL,
+  `company_bp` SMALLINT UNSIGNED NULL,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`scope`, `ref_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

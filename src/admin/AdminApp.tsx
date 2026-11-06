@@ -49,6 +49,7 @@ import LegalPanel from './panels/LegalPanel';
 import ReferrersPanel from './panels/ReferrersPanel';
 import RedeemCodesBlock from './panels/RedeemCodesBlock';
 import CouponsPanel from './panels/CouponsPanel';
+import RevenueSplitPanel from './panels/RevenueSplitPanel';
 import ProxyPanel from './panels/ProxyPanel';
 
 /**
@@ -363,6 +364,7 @@ function AdminCenter() {
             <ReferrersPanel onError={handleError} companies={companies} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
           )}
           {activeTab === 'coupons' && <CouponsPanel onError={handleError} />}
+          {activeTab === 'revenueSplit' && <RevenueSplitPanel onError={handleError} />}
           {activeTab === 'myCodes' && <RedeemCodesBlock referrerId={null} onError={handleError} />}
           {activeTab === 'proxy' && <ProxyPanel onError={handleError} />}
         </div>

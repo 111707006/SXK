@@ -79,6 +79,8 @@ const GLOBAL_TABLES: Record<string, string> = {
     '推薦人只看自己的（referrerId 取自工作階段）。',
   coupon_batches:
     'T2 優惠券的批次（客戶 11/03，T2_COUPON）：森心康發的折扣碼，不是家長資料。只有全域管理員（requireGlobal）。',
+  revenue_split_rates:
+    '清分的比例（客戶 11/03，ADR-0016）：預設與每家公司、每位推薦人的覆寫，是森心康的設定，不是家長資料。只有全域管理員（requireGlobal）。',
   coupon_codes:
     '優惠券本身（客戶 11/03）。同兌換碼：用過的只帶家長編號與時間，不 JOIN users。',
   redeem_codes:
@@ -98,6 +100,9 @@ const CROSS_SCOPE_ALLOWLIST: Record<string, string> = {
   summaryByCompany:
     '跨公司彙總。合法地跨越公司邊界，但只回統計數字，不回任何個別家長；' +
     '路由層限定全域管理員。',
+  listSplitOrders:
+    '清分對帳（客戶 11/03，ADR-0016）：跨所有家長的付款，只帶家長編號、不 JOIN users（沒有手機號）。路由限全域管理員（requireGlobal），' +
+    '匯出每次在 admin_exports 記一筆（範圍 all），記不下就不給檔。',
   listRedeemLedger:
     '兌換碼對帳匯出（#113）：跨所有推薦人、帶出用掉碼的家長手機號。路由限全域管理員（requireGlobal），' +
     '每次匯出都在 admin_exports 記一筆（範圍 all），記不下就不給檔。',

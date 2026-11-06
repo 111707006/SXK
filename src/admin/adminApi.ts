@@ -7,6 +7,7 @@
  */
 
 import type { CouponDiscount } from '../t2/coupon';
+import type { LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
 import type { HomeMediaItem, HomeMediaKind, HomeMediaSlot } from '../homeMedia/shape';
 import type { LegalDoc, LegalDocKey, LegalDocs } from '../legal/shape';
 import type { AdminCenterShape } from './companyScope';
@@ -25,6 +26,30 @@ export interface AdminIdentityView {
   email: string;
   companyId: number | null;
   selection: { kind: 'company'; companyId: number } | { kind: 'unassigned' } | null;
+}
+
+/** 清分（ADR-0016）的一組比例（萬分比；`null`＝沿用上一層）。 */
+export interface AdminSplitRate {
+  scope: 'default' | 'company' | 'referrer';
+  refId: number;
+  platformBp: number | null;
+  companyBp: number | null;
+}
+
+export interface AdminSplitSettings {
+  feeBp: number;
+  fallback: { platformBp: number; companyBp: number };
+  rates: AdminSplitRate[];
+  companies: Array<{ id: number; name: string; active: boolean }>;
+  referrers: Array<{ id: number; name: string; kind: 'channel' | 'therapist'; companyId: number | null; companyName: string | null; active: boolean }>;
+}
+
+export interface AdminSplitOrders {
+  from: string;
+  to: string;
+  rows: LedgerRow[];
+  totals: LedgerTotals;
+  byParty: Array<{ party: string; orders: number; companyFen: number; referrerFen: number; platformFen: number }>;
 }
 
 /** 一批 T2 優惠券（`src/admin/adminStore.ts` 的 `CouponBatchRecord`）。 */
@@ -494,6 +519,15 @@ export const adminApi = {
   couponCodesCsv: (batchId: number) => download(`/coupons/${batchId}/codes.csv`, { method: 'GET' }, `未用优惠码-第${batchId}批.csv`),
   voidCoupon: (codeId: number) => request<{ ok: true }>(`/coupon-codes/${codeId}/void`, { method: 'POST', body: '{}' }),
   exportRedeemLedger: () => download('/redeem-codes/export', { method: 'POST', body: '{}' }, '兑换码对帐.xlsx'),
+
+  // ── 清分（ADR-0016；只有全域管理員、`REVENUE_SPLIT` 開著）──
+  splitSettings: () => request<AdminSplitSettings>('/revenue-split'),
+  setSplitRate: (input: { scope: AdminSplitRate['scope']; refId: number; platformPercent: string | null; companyPercent: string | null }) =>
+    request<{ ok: true }>('/revenue-split/rates', { method: 'PUT', body: JSON.stringify(input) }),
+  splitOrders: (from: string, to: string) =>
+    request<AdminSplitOrders>(`/revenue-split/orders?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  exportSplit: (from: string, to: string) =>
+    download('/revenue-split/export', { method: 'POST', body: JSON.stringify({ from, to }) }, `清分对帐-${from}-${to}.xlsx`),
   /** 未用碼的 CSV：全域管理員給推薦人編號，推薦人自己不給。 */
   codesCsv: (referrerId: number | null) =>
     download(referrerId === null ? '/referrer/codes.csv' : `/referrers/${referrerId}/codes.csv`, { method: 'GET' }, '未用兑换码.csv'),

@@ -2,6 +2,8 @@ import { createRedeemLimiter } from './src/redeem/rateLimit';
 import { formatCode, normalizeCode } from './src/redeem/codes';
 import { redeemCodeForUser } from './src/db/redeemCodes';
 import { claimCouponForUser, couponOfUser, type StoredCoupon } from './src/db/coupons';
+import { loadSplitAttribution, loadSplitRates, saveSplitSnapshot } from './src/db/revenueSplit';
+import { resolveFeeBp, resolveSplit } from './src/revenueSplit/split';
 import { applyCouponDiscount, couponDiscountLabel, COUPON_ALREADY_CLAIMED, COUPON_INVALID, COUPON_RATE_LIMITED, type ParentCoupon } from './src/t2/coupon';
 import { isPassMonths, PASS_MONTHS } from './src/t2/trainingPass';
 import { resolvePlanPrices } from './src/t2/trainingPlanPrices';
@@ -287,6 +289,20 @@ const TRAINING_PLAN = TRAINING_PLAN_REQUESTED && APP_MODE === 'full';
 // **只在專案 A**（B 沒有 T2，設了不生效，啟動印一行）。同一套 fail-closed 解析。⚠️ 要先跑 `2026-11-07-t2-coupons.sql`。
 const T2_COUPON_REQUESTED = resolvePaywallSwitch('T2_COUPON', process.env.T2_COUPON);
 const T2_COUPON = T2_COUPON_REQUESTED && APP_MODE === 'full';
+// 清分（客戶 11/03〈清分〉，ADR-0016，`src/revenueSplit/split.ts`）：開著時每一筆訂單開單那一刻記下對方（合作公司／推薦人）與比例
+// （`payments.split_snapshot`），後台「清分」分頁（全域管理員）改比例、看每筆各方金額、匯出對帳。還不打微信分賬的介面（商戶號沒開通）。
+// 關著＝那幾支不註冊（404）、訂單不記快照。**只在專案 A**（B 設了不生效，啟動印一行）。⚠️ 要先跑 `2026-11-07-revenue-split.sql`。
+const REVENUE_SPLIT_REQUESTED = resolvePaywallSwitch('REVENUE_SPLIT', process.env.REVENUE_SPLIT);
+const REVENUE_SPLIT = REVENUE_SPLIT_REQUESTED && APP_MODE === 'full';
+// 微信支付手續費（萬分比，暫採 60＝0.6%）：清分分的是扣掉手續費之後的金額；開單時記在快照上。認不得起不來。
+const WECHAT_FEE_BP = resolveFeeBp(process.env.WECHAT_FEE_BP);
+
+/** 清分：這一筆訂單開單那一刻的對方與比例寫進快照。寫不進去就丟錯 —— 不開一筆沒記比例的單（ADR-0016）。 */
+async function recordPaymentSplit(userId: number, paymentId: number | null): Promise<void> {
+  if (!REVENUE_SPLIT || paymentId === null) return;
+  const [rates, who] = await Promise.all([loadSplitRates(), loadSplitAttribution(userId)]);
+  await saveSplitSnapshot(paymentId, resolveSplit(rates, who, WECHAT_FEE_BP));
+}
 // 訓練計劃的價錢（#111，`src/t2/trainingPlanPrices.ts`）：`1:…,3:…,6:…`（分），三個都要；認不得起不來。沒設＝價格待定、只能兌換。
 const TRAINING_PLAN_PRICES = resolvePlanPrices(process.env.TRAINING_PLAN_PRICES_FEN);
 
@@ -2879,6 +2895,7 @@ async function createPlanPayment(req: express.Request, res: express.Response, us
   const outTradeNo = generateOutTradeNo();
   if (!isValidOutTradeNo(outTradeNo)) throw new Error(`generated out_trade_no violates the official contract: ${outTradeNo}`);
   const paymentId = await mysqlDb.createPayment({ userId: user.id, outTradeNo, amountFen, scope: 'plan', dimensionId: null, months });
+  await recordPaymentSplit(user.id, paymentId);
   const payerClientIp = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '');
   const order = await wechatPay.placeOrder(wechatPayStatus.config!, 'h5', {
     description: `居家训练 ${months} 个月`,
@@ -2979,6 +2996,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       dimensionId: paidDimensionId,
       ...(appliedCoupon ? { coupon: appliedCoupon } : {}),
     });
+    await recordPaymentSplit(user.id, paymentId);
 
     // Credentials missing → the order row exists but there is nothing to pay
     // with. Say so; the client must never read this as success.
@@ -4405,6 +4423,8 @@ app.use(
       legalDocs: LEGAL_DOCS,
       // T2 優惠券（客戶 11/03）：只在專案 A、`T2_COUPON` 開著。
       coupons: T2_COUPON,
+      // 清分（ADR-0016）：只在專案 A、`REVENUE_SPLIT` 開著。
+      revenueSplit: REVENUE_SPLIT ? { feeBp: WECHAT_FEE_BP } : undefined,
       // 家長詳情與列印帶出最新的 T2 報告（#67）。只有專案 A（B 沒有 T2）。
       t2Reports: APP_MODE === 'full',
       // 發育指數的算法（`DEV_INDEX_BASIS`）。
@@ -4524,6 +4544,13 @@ export async function startServer() {
         LEGAL_DOCS
           ? '[SenXinKang Server] LEGAL_DOCS=1: terms come from the admin editor (legal_documents) once saved.'
           : '[SenXinKang Server] LEGAL_DOCS is set but ignored: project B keeps the built-in terms (A only).'
+      );
+    }
+    if (REVENUE_SPLIT_REQUESTED) {
+      console.log(
+        REVENUE_SPLIT
+          ? `[SenXinKang Server] REVENUE_SPLIT=1: each order records its split (payments.split_snapshot); WeChat fee ${WECHAT_FEE_BP} bp.`
+          : '[SenXinKang Server] REVENUE_SPLIT is set but ignored: project B has no paid orders to split (A only).'
       );
     }
     if (T2_COUPON_REQUESTED) {

@@ -523,7 +523,7 @@ export interface AdminExportEntry {
   /** `all`：兌換碼對帳匯出（#113），跨所有推薦人、只有全域管理員。 */
   condition: CompanyCondition | { kind: 'all' };
   /** `parent_summary` 是導出 .xlsx；`parent_summary_view` 是看了畫面上的彙總（一樣是整批電話）；`redeem_codes` 是兌換碼對帳（#113）。 */
-  kind: 'parent_summary' | 'parent_summary_view' | 'redeem_codes';
+  kind: 'parent_summary' | 'parent_summary_view' | 'redeem_codes' | 'revenue_split';
   rowCount: number;
   filters: string;
   requestIp: string | null;
@@ -1689,5 +1689,81 @@ export async function listRedeemLedger(): Promise<RedeemLedgerRow[]> {
     usedByPhone: row.used_by_phone ?? null,
     usedAt: toIso(row.used_at),
     passEndsOn: row.pass_ends_on ?? null,
+  }));
+}
+
+// ── 清分（客戶 11/03，開關 `REVENUE_SPLIT`，ADR-0016，`src/revenueSplit/split.ts`）──
+// `revenue_split_rates` 是森心康的比例設定，不是家長資料；對帳讀 `payments`（跨所有家長、只帶家長編號，不 JOIN users），
+// 路由限全域管理員（requireGlobal），每次匯出記一筆 admin_exports。列在 `test/adminScope.structure.test.ts`。
+
+export interface SplitRateRecord {
+  scope: 'default' | 'company' | 'referrer';
+  refId: number;
+  platformBp: number | null;
+  companyBp: number | null;
+}
+
+export async function listSplitRates(): Promise<SplitRateRecord[]> {
+  const p = requirePool();
+  const [rows] = await p.execute('SELECT scope, ref_id, platform_bp, company_bp FROM revenue_split_rates ORDER BY scope, ref_id', []);
+  return (rows as any[]).map(r => ({
+    scope: r.scope === 'company' ? 'company' : r.scope === 'referrer' ? 'referrer' : 'default',
+    refId: Number(r.ref_id),
+    platformBp: r.platform_bp === null ? null : Number(r.platform_bp),
+    companyBp: r.company_bp === null ? null : Number(r.company_bp),
+  }));
+}
+
+/** 寫一組比例；兩個都是 `null` 就刪掉那一列（沿用上一層）。不留修改紀錄（規格）。 */
+export async function setSplitRate(input: SplitRateRecord): Promise<void> {
+  const p = requirePool();
+  if (input.platformBp === null && input.companyBp === null) {
+    await p.execute('DELETE FROM revenue_split_rates WHERE scope = ? AND ref_id = ?', [input.scope, input.refId]);
+    return;
+  }
+  await p.execute(
+    // 一組（scope, ref_id）一列，整列換掉：兩個比例都是這一次送來的（沒送的那一個就是 NULL＝沿用上一層）。
+    'REPLACE INTO revenue_split_rates (scope, ref_id, platform_bp, company_bp) VALUES (?, ?, ?, ?)',
+    [input.scope, input.refId, input.platformBp, input.companyBp]
+  );
+}
+
+export interface SplitOrderRow {
+  id: number;
+  userId: number;
+  outTradeNo: string;
+  transactionId: string | null;
+  scope: 't2' | 't3' | 'plan';
+  months: number | null;
+  amountFen: number;
+  status: 'success' | 'refunded';
+  paidAt: string | null;
+  /** 原樣（`parseSnapshot` 讀）；開關打開之前的訂單是 null。 */
+  snapshot: unknown;
+}
+
+/** 一段日期（頭尾都含，`YYYY-MM-DD`，資料庫時區）付款成功或已退款的訂單，依付款時間。 */
+export async function listSplitOrders(from: string, to: string): Promise<SplitOrderRow[]> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT pay.id, pay.user_id, pay.out_trade_no, pay.transaction_id, pay.scope, pay.months, pay.amount_fen, pay.status,
+            pay.paid_at, pay.split_snapshot
+       FROM payments pay
+      WHERE pay.status IN ('success', 'refunded') AND pay.paid_at >= ? AND pay.paid_at < DATE_ADD(?, INTERVAL 1 DAY)
+      ORDER BY pay.paid_at ASC, pay.id ASC
+      LIMIT 5000`,
+    [from, to]
+  );
+  return (rows as any[]).map(r => ({
+    id: Number(r.id),
+    userId: Number(r.user_id),
+    outTradeNo: String(r.out_trade_no),
+    transactionId: r.transaction_id ?? null,
+    scope: r.scope === 't2' ? 't2' : r.scope === 'plan' ? 'plan' : 't3',
+    months: r.months === null || r.months === undefined ? null : Number(r.months),
+    amountFen: Number(r.amount_fen),
+    status: r.status === 'refunded' ? 'refunded' : 'success',
+    paidAt: toIso(r.paid_at),
+    snapshot: r.split_snapshot ?? null,
   }));
 }

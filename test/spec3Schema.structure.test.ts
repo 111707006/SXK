@@ -19,6 +19,7 @@ describe.each([
   ['deploy/migrations/2026-10-23-referrers.sql', ['referrers', 'referrer_bindings']],
   ['deploy/migrations/2026-10-24-redeem-codes.sql', ['redeem_batches', 'redeem_codes']],
   ['deploy/migrations/2026-11-07-t2-coupons.sql', ['coupon_batches', 'coupon_codes']],
+  ['deploy/migrations/2026-11-07-revenue-split.sql', ['revenue_split_rates']],
 ] as const)('%s', (file, tables) => {
   const migration = read(file);
 
@@ -29,7 +30,7 @@ describe.each([
   it('只加不刪', () => {
     expect(migration).not.toMatch(/DROP /);
     const alters = migration.match(/ALTER TABLE[^;]*;/g) ?? [];
-    for (const a of alters) expect(a).toMatch(/MODIFY COLUMN `role` ENUM\('global_admin','company_member','referrer'\)|ADD COLUMN `(coupon_code_id|list_amount_fen)` INT UNSIGNED NULL/);
+    for (const a of alters) expect(a).toMatch(/MODIFY COLUMN `role` ENUM\('global_admin','company_member','referrer'\)|ADD COLUMN `(coupon_code_id|list_amount_fen)` INT UNSIGNED NULL|ADD COLUMN `split_snapshot` JSON NULL/);
   });
 });
 
@@ -68,5 +69,19 @@ describe('T2 優惠券（客戶 11/03）', () => {
       expect(pay).toContain(`\`${col}\` INT UNSIGNED NULL,`);
       expect(migration).toContain(`ADD COLUMN \`${col}\` INT UNSIGNED NULL`);
     }
+  });
+});
+
+describe('清分（客戶 11/03，ADR-0016）', () => {
+  it('比例一組（scope, ref_id）一列、可為 NULL（沿用上一層）', () => {
+    const b = block(schema, 'revenue_split_rates');
+    expect(b).toContain('PRIMARY KEY (`scope`, `ref_id`)');
+    expect(b).toContain('`platform_bp` SMALLINT UNSIGNED NULL,');
+    expect(b).toContain('`company_bp` SMALLINT UNSIGNED NULL,');
+  });
+
+  it('payments.split_snapshot 在 schema 與遷移裡都有、可為 NULL', () => {
+    expect(block(schema, 'payments')).toContain('`split_snapshot` JSON NULL,');
+    expect(read('deploy/migrations/2026-11-07-revenue-split.sql')).toContain('ADD COLUMN `split_snapshot` JSON NULL');
   });
 });

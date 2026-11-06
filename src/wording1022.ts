@@ -35,9 +35,15 @@ export const WORDING_1022 = {
     login: '登录／注册',
     /** 首頁兩張卡，T1 在前。 */
     t1Card: { title: 'T1 儿少综合发展评估', subtitle: '读懂成长信号，定制适合孩子的成长支持方案' },
-    /** 做完 T1 之後 T1 卡的副標：點了帶到報告上的 T2 入口（簡報 11/03 第 8 頁）。 */
-    t1CardDoneSub: '已完成 T1，下一步做「T2 深度评估」，看得更细',
     trainingCard: { title: '线上家庭个性化训练', subtitle: '跟着练！科学助力孩子能力提升' },
+    /** 第三排 T2 卡（簡報 11/03 第 13 頁）。 */
+    t2Card: { title: 'T2 深度评估', subtitle: '针对需要支持的方面，做更细的单项评估' },
+    /** 還沒做 T1 時 T2 卡的副標：先做 T1。 */
+    t2CardNeedT1Sub: '先完成 T1，再按结果做深度评估',
+    /** 做完 T1 之後 T1 卡的副標。 */
+    t1CardDone: (date: string) => `${date}完成，可以重新评估`,
+    /** 第二排訓練卡上的價錢（價錢未定，暫採；使用者 2026-11-06：一個月、原價 200、折扣價 19.9）。 */
+    trainingPrice: { label: '一个月', original: '原价 ¥200', price: '¥19.9', cta: '选方案' },
   },
 
   profile: {

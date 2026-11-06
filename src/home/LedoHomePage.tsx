@@ -6,7 +6,7 @@ import { calendarDateOf, weekEndOf, weekStartOf } from '../t2/weeks';
 import type { Checkin } from '../t2/practice';
 import { Avatar, Chip, Greeting, LEDO_ART, ListRow, SectionHead, Tile, greetingFor } from '../components/ledo/ui';
 import { BANNER, HOSPITAL_PHOTO } from './HomePage';
-import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, type HomeTarget } from './homeNav';
+import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, HOME_TRAINING_CARD_1022, type HomeTarget } from './homeNav';
 import { PRODUCT } from '../productConfig';
 import { WORDING_1022 } from '../wording1022';
 import HomeCarousel from './HomeCarousel';
@@ -50,6 +50,7 @@ const CARD_IMG: Record<string, string> = {
 /** 1022 的兩張卡用 Ledo 插畫（使用者 2026-10-27：「用比較符合我們風格的 AI 畫」），不用照片。 */
 const CARD_ART_1022: Record<string, string> = {
   t1: LEDO_ART.report,
+  t2: LEDO_ART.deepAssessment,
   training: LEDO_ART.training,
 };
 
@@ -102,7 +103,13 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
   const t1 = scores.filter(s => s.tierId === 'T1');
   const count = (st: DimensionScore['status']) => t1.filter(s => s.status === st).length;
   const date = doneDate(t1);
-  const practiceDays = useWeekPracticeDays(t1.length > 0);
+  // 1022 首頁不畫練習天數（簡報 11/03 第 13 頁），就不讀打卡。
+  const practiceDays = useWeekPracticeDays(t1.length > 0 && !PRODUCT.features.ui1022);
+  const cardSub1022 = (id: string): string => {
+    if (id === 't1') return t1.length > 0 && date ? WORDING_1022.home.t1CardDone(date) : WORDING_1022.home.t1Card.subtitle;
+    if (id === 't2') return t1.length > 0 ? WORDING_1022.home.t2Card.subtitle : WORDING_1022.home.t2CardNeedT1Sub;
+    return '';
+  };
   const sub: Record<string, string> = {
     training: '每周几个在家陪孩子做的活动',
     t1: date ? `${date}完成 · ${t1.length} 个方面` : '了解孩子的 9 个方面',
@@ -144,9 +151,70 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
       </button>
       )}
 
+      {PRODUCT.features.ui1022 ? (
+        // 1022 首頁三排（簡報 11/03 第 12–13 頁，使用者 2026-11-06）：①評估結果（綠、紅）②線上家庭個性化訓練寬卡（附價錢）③T1、T2。
+        // 拿掉「看报告」與「本周练过的天数」；三塊各有自己的底色或分隔線。
+        <>
+          {t1.length > 0 && (
+            <section id="home-overview-block" className="space-y-3 rounded-[28px] bg-ledo-field p-3">
+              <SectionHead title={childName ? `${childName}的概况` : '孩子的概况'} />
+              <div id="home-overview" className="grid grid-cols-2 gap-2">
+                <Tile tone="ok" value={count('normal')} label={`个方面${STATUS_WORDING.normal.label}`} />
+                <Tile
+                  tone="more"
+                  value={count('delay')}
+                  label={`个方面${STATUS_WORDING.delay.label}`}
+                  note={count('borderline') > 0 ? `另有 ${count('borderline')} 项${SHORT.borderline}` : undefined}
+                />
+              </div>
+            </section>
+          )}
+
+          <button
+            type="button"
+            id={`home-card-${HOME_TRAINING_CARD_1022.id}`}
+            onClick={() => onOpen(HOME_TRAINING_CARD_1022.target)}
+            className="flex w-full overflow-hidden rounded-[28px] bg-ledo-accent-soft text-left transition active:scale-[0.99] cursor-pointer"
+          >
+            <span className="relative w-[38%] shrink-0 overflow-hidden">
+              <img src={CARD_ART_1022.training} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-1 p-3.5">
+              <span className="text-sm font-black text-ledo-ink">{HOME_TRAINING_CARD_1022.title}</span>
+              <span className="text-xs leading-relaxed text-ledo-ink-2">{HOME_TRAINING_CARD_1022.sub}</span>
+              <span id="home-training-price" className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
+                <span className="text-xl font-black text-ledo-coral-ink tabular-nums">{WORDING_1022.home.trainingPrice.price}</span>
+                <span className="text-xs text-ledo-ink-2 line-through tabular-nums">{WORDING_1022.home.trainingPrice.original}</span>
+                <span className="text-xs text-ledo-ink-2">/ {WORDING_1022.home.trainingPrice.label}</span>
+              </span>
+              <span className="mt-1 self-start"><Chip on>{WORDING_1022.home.trainingPrice.cta}</Chip></span>
+            </span>
+          </button>
+
+          <div className="grid grid-cols-2 gap-3 border-t border-ledo-line pt-4">
+            {HOME_CARDS_1022.map(card => (
+              <button
+                key={card.id}
+                type="button"
+                id={`home-card-${card.id}`}
+                onClick={() => onOpen(card.target)}
+                className="group flex min-w-0 flex-col overflow-hidden rounded-3xl border-[1.5px] border-ledo-line bg-white text-left shadow-sm transition active:scale-[0.99] cursor-pointer"
+              >
+                <span className="relative block aspect-[4/3] w-full overflow-hidden bg-ledo-accent-soft">
+                  <img src={CARD_ART_1022[card.id]} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                  <span className="absolute inset-x-2 bottom-2 flex">
+                    <Chip on>{card.title}</Chip>
+                  </span>
+                </span>
+                <span className="px-3 py-2.5 text-xs leading-relaxed text-ledo-ink-2">{cardSub1022(card.id)}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+      <>
       {t1.length > 0 && (
-        // 1022（簡報 11/03 第 8 頁）：概況（評估結果＋本週練習天數）自己一塊底色，跟下面兩張卡分開。
-        <div id="home-overview-block" className={PRODUCT.features.ui1022 ? 'space-y-3 rounded-[28px] bg-ledo-field p-3' : 'contents'}>
+        <div id="home-overview-block" className="contents">
           <SectionHead title={childName ? `${childName}的概况` : '孩子的概况'} action={onOpenReport ? '看报告' : undefined} onAction={onOpenReport} />
           <div id="home-overview" className="grid grid-cols-2 gap-2">
             <div className="flex min-w-0 flex-col gap-2">
@@ -181,28 +249,6 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
         </div>
       )}
 
-      {/* 1022（issue #84；使用者 2026-10-27 改成照片卡）：兩張一樣大的照片卡並排、T1 在前，副標是客戶的固定句；沒有線下服務點。 */}
-      {PRODUCT.features.ui1022 ? (
-        <div className="grid grid-cols-2 gap-3">
-          {HOME_CARDS_1022.map(card => (
-            <button
-              key={card.id}
-              type="button"
-              id={`home-card-${card.id}`}
-              onClick={() => onOpen(card.target)}
-              className="group flex min-w-0 flex-col overflow-hidden rounded-3xl border-[1.5px] border-ledo-line bg-white text-left shadow-sm transition active:scale-[0.99] cursor-pointer"
-            >
-              <span className="relative block aspect-[4/3] w-full overflow-hidden bg-ledo-accent-soft">
-                <img src={CARD_ART_1022[card.id]} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
-                <span className="absolute inset-x-2 bottom-2 flex">
-                  <Chip on>{card.title}</Chip>
-                </span>
-              </span>
-              <span className="px-3 py-2.5 text-xs leading-relaxed text-ledo-ink-2">{card.id === 't1' && t1.length > 0 ? WORDING_1022.home.t1CardDoneSub : card.sub}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
       <div className="space-y-2.5">
         {HOME_CARDS.map(card => (
           <ListRow
@@ -215,6 +261,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
           />
         ))}
       </div>
+      </>
       )}
     </div>
   );

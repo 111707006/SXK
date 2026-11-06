@@ -396,14 +396,16 @@ export default function App() {
       setHomeLoginOpen(true);
       return;
     }
-    // 1022（簡報 11/03 第 8 頁「点进去还是 T1 重新评估，没有 T2 了」）：做完 T1 的家長點 T1 卡，
-    // 帶到即時報告上的「T2 深度评估」那張卡；還沒做的照舊到評估面板開始 T1。
-    if (PRODUCT.features.ui1022 && step.view === 'dashboard' && completedScores.some(s => s.tierId === 'T1')) {
-      goToT2Entrance();
+    // 1022 首頁的 T2 卡（簡報 11/03 第 13 頁，使用者 2026-11-06）：做過 T1 → 即時報告上的 T2 購買區；
+    // 還沒做 → 先到評估面板做 T1。T1 卡照舊到評估面板（做過的在那裡重新評估）。
+    if (step.view === 't2') {
+      if (completedScores.some(s => s.tierId === 'T1')) goToT2Entrance();
+      else { setCurrentView('dashboard'); setSelectedDimensionId(null); }
       return;
     }
     // 訓練計劃（`TRAINING_PLAN`，#110）：沒有有效使用權的家長點「线上家庭个性化训练」先到方案頁。
-    setCurrentView(step.view === 'training' && trainingPass !== null && !trainingPass.active ? 'training_plan' : step.view);
+    // 1022（簡報 11/03 第 13 頁，使用者 2026-11-06）：首頁那張卡一律先到方案頁（一／三／六個月＋VIP 兌換）；已開通的在方案頁上直接進去。
+    setCurrentView(step.view === 'training' && trainingPass !== null && (PRODUCT.features.ui1022 || !trainingPass.active) ? 'training_plan' : step.view);
     setSelectedDimensionId(null);
   };
 
@@ -1180,7 +1182,8 @@ export default function App() {
                 新版首頁開著時多一顆「首页」（五顆）：375px 一行放不下就橫捲（`overflow-x-auto`），不換行、不縮字。
                 關著照舊（class 一字不差）。
               */}
-              <nav className={`${homeV2 ? 'flex max-w-full overflow-x-auto bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40' : 'flex bg-brand-beige/50 p-1 rounded-xl border border-brand-stone/40'}${LEDO_TAB_BAR ? ' max-lg:hidden' : ''}`}>
+              {/* 1022：導覽列底色加深（簡報 11/03 第 10 頁「底色深一点」）。 */}
+              <nav className={`${homeV2 ? 'flex max-w-full overflow-x-auto p-1 rounded-xl border' : 'flex p-1 rounded-xl border'} ${PRODUCT.features.ui1022 ? 'bg-ledo-accent-soft border-ledo-accent-soft' : 'bg-brand-beige/50 border-brand-stone/40'}${LEDO_TAB_BAR ? ' max-lg:hidden' : ''}`}>
                 {navItems.map(item => (
                   <button
                     key={item.key}
@@ -1920,6 +1923,7 @@ export default function App() {
               <LazyBoundary>
                 <TrainingPlanPage
                   loggedIn={Boolean(userIdentity)}
+                  active={trainingPass.active ? { endsOn: trainingPass.endsOn } : undefined}
                   onActivated={() => setUnlocksNonce(n => n + 1)}
                   onGoTraining={() => setCurrentView('training')}
                   onPay={async months => {

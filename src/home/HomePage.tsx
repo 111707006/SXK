@@ -50,6 +50,8 @@ export function Photo({ photo, className = '' }: { photo: CardPhoto; className?:
 const CARD_ART: Record<HomeCard['id'], CardPhoto> = {
   training: { webp: '/home/home-training.webp', jpg: '/home/home-training.jpg', alt: '一家人在客厅里陪孩子玩' },
   t1: { webp: '/home/home-t1.webp', jpg: '/home/home-t1.jpg', alt: '医师与家长一起看孩子搭积木' },
+  // T2 卡只在 Ledo 版 1022 首頁（`LedoHomePage`）；舊首頁沒有這一張，填 T1 的照片只為了型別完整。
+  t2: { webp: '/home/home-t1.webp', jpg: '/home/home-t1.jpg', alt: '医师与家长一起看孩子搭积木' },
   offline: HOSPITAL_PHOTO,
 };
 

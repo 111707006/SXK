@@ -8,10 +8,11 @@
 import { WORDING_1022 } from '../wording1022';
 
 /** 首頁的卡片會帶去的那幾頁（`App.tsx` 的 `currentView` 的一部分）。 */
-export type HomeTarget = 'training' | 'dashboard' | 'offline_service';
+/** `t2`：1022 首頁第三排的 T2 卡（簡報 11/03 第 13 頁）——沒做 T1 先去 T1，做過到報告上的 T2 購買區（`App.tsx` 決定）。 */
+export type HomeTarget = 'training' | 'dashboard' | 'offline_service' | 't2';
 
 export interface HomeCard {
-  id: 'training' | 't1' | 'offline';
+  id: 'training' | 't1' | 't2' | 'offline';
   title: string;
   target: HomeTarget;
   more: string;
@@ -28,9 +29,15 @@ export const HOME_CARDS: ReadonlyArray<HomeCard> = [
  * 客戶 10/22（issue #84，`VITE_UI_1022`）：兩張卡，T1 在前、居家訓練在後；線下服務點不放（那一頁的路由留著）。
  * 副標是客戶給的固定句。去處不變（居家訓練卡改去訓練計劃頁在規格三）。
  */
+/**
+ * 1022 首頁（簡報 11/03 第 13 頁，使用者 2026-11-06）：第二排一張「线上家庭个性化训练」寬卡，第三排 T1、T2 兩張卡並排。
+ */
+export const HOME_TRAINING_CARD_1022: HomeCard & { sub: string } = {
+  id: 'training', title: WORDING_1022.home.trainingCard.title, sub: WORDING_1022.home.trainingCard.subtitle, target: 'training', more: '了解更多',
+};
 export const HOME_CARDS_1022: ReadonlyArray<HomeCard & { sub: string }> = [
   { id: 't1', title: WORDING_1022.home.t1Card.title, sub: WORDING_1022.home.t1Card.subtitle, target: 'dashboard', more: '了解更多' },
-  { id: 'training', title: WORDING_1022.home.trainingCard.title, sub: WORDING_1022.home.trainingCard.subtitle, target: 'training', more: '了解更多' },
+  { id: 't2', title: WORDING_1022.home.t2Card.title, sub: WORDING_1022.home.t2Card.subtitle, target: 't2', more: '了解更多' },
 ];
 
 export const HOME_COPY = {
@@ -62,8 +69,10 @@ export function landingView(homeV2: boolean): 'home' | 'dashboard' {
 }
 
 /** 登入之後停哪：從卡片來的帶到那一頁，直接按登入的停預設頁。開關關著一律照舊。 */
-export function viewAfterLogin(pending: HomeTarget | null, homeV2: boolean): HomeTarget | 'home' {
+export function viewAfterLogin(pending: HomeTarget | null, homeV2: boolean): Exclude<HomeTarget, 't2'> | 'home' {
   if (!homeV2) return 'dashboard';
+  // T2 卡：剛登入還不知道有沒有 T1，先到評估面板（沒做 T1 從這裡開始；做過的面板上就看得到深度評估）。
+  if (pending === 't2') return 'dashboard';
   return pending ?? 'home';
 }
 

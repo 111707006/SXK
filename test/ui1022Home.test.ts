@@ -21,28 +21,33 @@ afterEach(() => {
 });
 
 describe('1022 開著', () => {
-  it('兩張卡：T1 在前、居家訓練在後，標題與副標是新字', async () => {
+  it('三排（簡報 11/03 第 13 頁）：訓練寬卡在前、T1、T2 並排在後，標題與副標是新字', async () => {
     const html = await renderHome('1');
-    const t1 = html.indexOf('id="home-card-t1"');
     const training = html.indexOf('id="home-card-training"');
-    expect(t1).toBeGreaterThan(-1);
-    expect(training).toBeGreaterThan(t1);
+    const t1 = html.indexOf('id="home-card-t1"');
+    const t2 = html.indexOf('id="home-card-t2"');
+    expect(training).toBeGreaterThan(-1);
+    expect(t1).toBeGreaterThan(training);
+    expect(t2).toBeGreaterThan(t1);
     expect(html).toContain('T1 儿少综合发展评估');
     expect(html).toContain('读懂成长信号，定制适合孩子的成长支持方案');
+    expect(html).toContain('T2 深度评估');
     expect(html).toContain('线上家庭个性化训练');
     expect(html).toContain('跟着练！科学助力孩子能力提升');
+    // 價錢（暫採）：原價畫刪除線、折扣價
+    expect(html).toMatch(/line-through[^"]*">原价 ¥200</);
+    expect(html).toContain('¥19.9');
   });
 
-  it('沒有線下服務點；兩張一樣大的照片卡並排、有底框，T1 在前', async () => {
+  it('沒有線下服務點；T1、T2 兩張一樣大的插畫卡並排、有底框', async () => {
     const html = await renderHome('1');
     expect(html).not.toContain('home-card-offline');
     expect(html).not.toContain('线下服务点');
-    // 使用者 2026-10-27：照片卡（舊版首頁的樣式）、兩張同大小
-    expect(html).toMatch(/<div class="grid grid-cols-2 gap-3"><button type="button" id="home-card-t1" class="[^"]*border-\[1\.5px\] border-ledo-line[^"]*">/);
-    expect(html.indexOf('home-card-t1')).toBeLessThan(html.indexOf('home-card-training'));
+    expect(html).toMatch(/<div class="grid grid-cols-2 gap-3 border-t border-ledo-line pt-4"><button type="button" id="home-card-t1" class="[^"]*border-\[1\.5px\] border-ledo-line[^"]*">/);
     expect(html.match(/aspect-\[4\/3\]/g)).toHaveLength(2);
     // 插畫（使用者 2026-10-27），不是照片
     expect(html).toContain('/ledo/t1-a.jpg');
+    expect(html).toContain('/ledo/t1-c.jpg');
     expect(html).toContain('/ledo/training.jpg');
     expect(html).not.toContain('/home/home-t1.jpg');
   });

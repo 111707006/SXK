@@ -21,8 +21,8 @@
 import { AGE_SPLIT_NOTE } from './weeklyCopy';
 import { PRODUCT } from '../productConfig';
 
-/** 這一塊對家長叫什麼：1022（簡報 11/03 第 6、17、20 頁）改叫「家庭训练」。 */
-export const TRAINING_NAME = PRODUCT.features.ui1022 ? '家庭训练' : '线上干预';
+/** 這一塊對家長叫什麼：1022 改叫「线上家庭训练」（簡報 11/03 第 10、24 頁與會議紀要「统一修改为线上家庭训练」，使用者 2026-11-06）。 */
+export const TRAINING_NAME = PRODUCT.features.ui1022 ? '线上家庭训练' : '线上干预';
 import { PLAN_TOTAL_WEEKS, type PlanPosition } from './trainingPlan';
 import type { CheckinMood } from './practice';
 import type { ModuleNo } from './types';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PRODUCT } from '../productConfig';
 import { authFetch } from '../utils/api';
+import T2CouponField from './T2CouponField';
 import { formatFen } from '../utils/price';
 import type { T2Pricing } from '../t2/pricing';
 import { PROMO_GUIDE_LABEL } from '../t2/entrancePromo';
@@ -190,6 +191,9 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
               <span className="text-xs text-brand-charcoal/80 line-through ml-2">{PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}</span>
             )}
           </div>
+
+          {/* 優惠碼兌換（`T2_COUPON`）：與 T2 卡同一個元件；兌到之後下單照折後價收 */}
+          {pricing && <T2CouponField priceFen={pricing.priceFen} />}
 
           <ul className="space-y-2">
             {[

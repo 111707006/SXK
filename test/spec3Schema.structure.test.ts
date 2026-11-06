@@ -18,6 +18,7 @@ function block(sql: string, table: string): string {
 describe.each([
   ['deploy/migrations/2026-10-23-referrers.sql', ['referrers', 'referrer_bindings']],
   ['deploy/migrations/2026-10-24-redeem-codes.sql', ['redeem_batches', 'redeem_codes']],
+  ['deploy/migrations/2026-11-07-t2-coupons.sql', ['coupon_batches', 'coupon_codes']],
 ] as const)('%s', (file, tables) => {
   const migration = read(file);
 
@@ -28,7 +29,7 @@ describe.each([
   it('只加不刪', () => {
     expect(migration).not.toMatch(/DROP /);
     const alters = migration.match(/ALTER TABLE[^;]*;/g) ?? [];
-    for (const a of alters) expect(a).toMatch(/MODIFY COLUMN `role` ENUM\('global_admin','company_member','referrer'\)/);
+    for (const a of alters) expect(a).toMatch(/MODIFY COLUMN `role` ENUM\('global_admin','company_member','referrer'\)|ADD COLUMN `(coupon_code_id|list_amount_fen)` INT UNSIGNED NULL/);
   });
 });
 
@@ -44,5 +45,28 @@ describe('兌換碼', () => {
     expect(b).toContain('`code` CHAR(10) NOT NULL');
     expect(b).toContain('UNIQUE KEY `uk_redeem_codes_code` (`code`)');
     expect(b).toContain("`status` ENUM('unused','used','void') NOT NULL DEFAULT 'unused'");
+  });
+});
+
+describe('T2 優惠券（客戶 11/03）', () => {
+  it('每位家長只能用一張：used_by 是 UNIQUE', () => {
+    const b = block(schema, 'coupon_codes');
+    expect(b).toContain('UNIQUE KEY `uk_coupon_codes_used_by` (`used_by`)');
+    expect(b).toContain('UNIQUE KEY `uk_coupon_codes_code` (`code`)');
+  });
+
+  it('預設半價', () => {
+    const b = block(schema, 'coupon_batches');
+    expect(b).toContain("`discount_kind` ENUM('percent','amount') NOT NULL DEFAULT 'percent'");
+    expect(b).toContain('`discount_value` INT UNSIGNED NOT NULL DEFAULT 50');
+  });
+
+  it('payments 的兩個新欄在 schema 與遷移裡都有、都可為 NULL', () => {
+    const pay = block(schema, 'payments');
+    const migration = read('deploy/migrations/2026-11-07-t2-coupons.sql');
+    for (const col of ['coupon_code_id', 'list_amount_fen']) {
+      expect(pay).toContain(`\`${col}\` INT UNSIGNED NULL,`);
+      expect(migration).toContain(`ADD COLUMN \`${col}\` INT UNSIGNED NULL`);
+    }
   });
 });

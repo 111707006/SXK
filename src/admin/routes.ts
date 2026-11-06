@@ -31,6 +31,15 @@ import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { referrerMayCall } from './referrerAccess';
 import { formatCode, generateCode, MAX_BATCH } from '../redeem/codes';
+import {
+  DEFAULT_COUPON_DISCOUNT,
+  MAX_COUPON_AMOUNT_FEN,
+  MAX_COUPON_BATCH,
+  MAX_COUPON_NOTE,
+  readCouponDiscount,
+  readCouponExpiry,
+  type CouponDiscount,
+} from '../t2/coupon';
 import { redeemLedgerFileName, redeemLedgerWorkbook } from './redeemXlsx';
 import { isPassMonths } from '../t2/trainingPass';
 import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
@@ -125,6 +134,8 @@ export interface AdminRouterHooks {
   homeMediaDir?: string;
   /** 兌換碼（#110）：只有專案 A、`TRAINING_PLAN` 開著才傳 `true`；沒有就那幾支不註冊。 */
   redeemCodes?: boolean;
+  /** T2 優惠券（客戶 11/03，`T2_COUPON`）：只在專案 A、開關開著才註冊那幾支。 */
+  coupons?: boolean;
   /**
    * 家長詳情帶不帶最新的 T2 報告快照（#67）。只有專案 A 傳 `true`；B 沒有 T2，
    * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
@@ -845,6 +856,134 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       res.status(500).json({ error: '更新推荐人失败。' });
     }
   });
+
+  // ── T2 優惠券（客戶 11/03，`src/t2/coupon.ts`；只在 A、`T2_COUPON` 開著才註冊）──
+  // 全域管理員批量產、改折法與到期日、看使用狀況、匯出未用的、作廢。與上面的兌換碼（VIP 兌換）是兩條線、兩個分頁。
+  if (hooks.coupons) {
+    const idParam = (req: AuthedRequest): number | null => (/^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : null);
+    const readNote = (raw: unknown): string | null | undefined => {
+      if (raw === undefined) return undefined;
+      if (raw === null) return null;
+      if (typeof raw !== 'string') return undefined;
+      const t = raw.trim();
+      return t.length > MAX_COUPON_NOTE ? undefined : t || null;
+    };
+
+    router.get('/coupons', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      try {
+        res.json({ batches: await store.listCouponBatches() });
+      } catch (err: any) {
+        console.error('[Admin] listCouponBatches failed:', err.message);
+        res.status(500).json({ error: '读取优惠券失败。' });
+      }
+    });
+
+    router.post('/coupons', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const body = req.body ?? {};
+      const discount = body.discountKind === undefined && body.discountValue === undefined
+        ? DEFAULT_COUPON_DISCOUNT
+        : readCouponDiscount(body.discountKind, body.discountValue);
+      if (!discount) return void res.status(400).json({ error: `折扣不正确：打折填 1–99（50＝五折），减额填 1 分到 ¥${MAX_COUPON_AMOUNT_FEN / 100}。` });
+      const quantity = body.quantity;
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_COUPON_BATCH) {
+        return void res.status(400).json({ error: `一次产 1 到 ${MAX_COUPON_BATCH} 张。` });
+      }
+      const expiresOn = readCouponExpiry(body.expiresOn);
+      if (expiresOn === undefined) return void res.status(400).json({ error: '到期日不正确（YYYY-MM-DD）。' });
+      const note = readNote(body.note);
+      if (note === undefined && body.note !== undefined) return void res.status(400).json({ error: `备注最多 ${MAX_COUPON_NOTE} 个字。` });
+      try {
+        const batchId = await store.createCouponBatch({
+          note: note ?? null,
+          discount,
+          quantity,
+          expiresOn,
+          createdBy: req.admin!.adminUserId,
+          generate: () => generateCode(max => crypto.randomInt(max)),
+        });
+        res.json({ batchId, codes: await store.listCouponCodes(batchId) });
+      } catch (err: any) {
+        console.error('[Admin] createCouponBatch failed:', err.message);
+        res.status(500).json({ error: '产生优惠券失败。' });
+      }
+    });
+
+    router.patch('/coupons/:id', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idParam(req);
+      if (id === null) return void res.status(404).json({ error: '找不到这一批优惠券。' });
+      const body = req.body ?? {};
+      const patch: { discount?: CouponDiscount; expiresOn?: string | null; note?: string | null } = {};
+      if (body.discountKind !== undefined || body.discountValue !== undefined) {
+        const discount = readCouponDiscount(body.discountKind, body.discountValue);
+        if (!discount) return void res.status(400).json({ error: '折扣不正确：打折填 1–99（50＝五折），减额填分。' });
+        patch.discount = discount;
+      }
+      if (body.expiresOn !== undefined) {
+        const expiresOn = readCouponExpiry(body.expiresOn);
+        if (expiresOn === undefined) return void res.status(400).json({ error: '到期日不正确（YYYY-MM-DD）。' });
+        patch.expiresOn = expiresOn;
+      }
+      if (body.note !== undefined) {
+        const note = readNote(body.note);
+        if (note === undefined) return void res.status(400).json({ error: `备注最多 ${MAX_COUPON_NOTE} 个字。` });
+        patch.note = note;
+      }
+      if (Object.keys(patch).length === 0) return void res.status(400).json({ error: '没有要改的。' });
+      try {
+        const affected = await store.updateCouponBatch(id, patch);
+        if (affected === 0) return void res.status(404).json({ error: '找不到这一批优惠券。' });
+        res.json({ ok: true });
+      } catch (err: any) {
+        console.error('[Admin] updateCouponBatch failed:', err.message);
+        res.status(500).json({ error: '更新优惠券失败。' });
+      }
+    });
+
+    router.get('/coupons/:id/codes', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idParam(req);
+      if (id === null) return void res.status(404).json({ error: '找不到这一批优惠券。' });
+      try {
+        res.json({ codes: await store.listCouponCodes(id) });
+      } catch (err: any) {
+        console.error('[Admin] listCouponCodes failed:', err.message);
+        res.status(500).json({ error: '读取优惠券失败。' });
+      }
+    });
+
+    router.get('/coupons/:id/codes.csv', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idParam(req);
+      if (id === null) return void res.status(404).json({ error: '找不到这一批优惠券。' });
+      try {
+        const codes = await store.listCouponCodes(id);
+        const lines = ['优惠码', ...codes.filter(c => c.status === 'unused').map(c => formatCode(c.code))];
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`未用优惠码-第${id}批.csv`)}`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.send('﻿' + lines.join('\r\n') + '\r\n');
+      } catch (err: any) {
+        console.error('[Admin] export coupons failed:', err.message);
+        res.status(500).json({ error: '导出优惠券失败。' });
+      }
+    });
+
+    router.post('/coupon-codes/:id/void', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idParam(req);
+      try {
+        const affected = id === null ? 0 : await store.voidCouponCode(id);
+        if (affected === 0) return void res.status(409).json({ error: '这张优惠券不存在、已经用过，或已经作废。' });
+        res.json({ ok: true });
+      } catch (err: any) {
+        console.error('[Admin] voidCouponCode failed:', err.message);
+        res.status(500).json({ error: '作废优惠券失败。' });
+      }
+    });
+  }
 
   // ── 兌換碼（客戶 10/22，#110；只在 A、`TRAINING_PLAN` 開著才註冊）──
   // 全域管理員替推薦人產碼、看、匯出、作廢；推薦人只看與匯出自己的（推薦人編號取自工作階段）。

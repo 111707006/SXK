@@ -77,6 +77,10 @@ const GLOBAL_TABLES: Record<string, string> = {
   redeem_batches:
     '兌換碼的批次（客戶 10/22，#110）：森心康發給推薦人的碼，不是家長資料。全域管理員看全部（requireGlobal），' +
     '推薦人只看自己的（referrerId 取自工作階段）。',
+  coupon_batches:
+    'T2 優惠券的批次（客戶 11/03，T2_COUPON）：森心康發的折扣碼，不是家長資料。只有全域管理員（requireGlobal）。',
+  coupon_codes:
+    '優惠券本身（客戶 11/03）。同兌換碼：用過的只帶家長編號與時間，不 JOIN users。',
   redeem_codes:
     '兌換碼本身（#110）。同上；用過的碼只帶家長編號與時間，不 JOIN users（家長的手機號另由對帳匯出那一支、只給全域管理員）。',
   home_media:

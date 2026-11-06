@@ -250,6 +250,17 @@ describe('GET /api/t2/weekly-plan（TRAINING_PUSH_V3=1）', () => {
     expect(weeklyTable).toHaveLength(1);
   });
 
+  it('peek=1（簡報 11/03 第 25 頁上一週）：存過的照回；沒存過的 404、不開期、不存', async () => {
+    await get(FIRST);
+    const stored = await get(`${FIRST}&peek=1`);
+    expect(stored.status).toBe(200);
+    const missing = await get(`${weekOf(2)}&peek=1`);
+    expect(missing.status).toBe(404);
+    expect((await missing.json()).code).toBe('WEEK_NOT_STORED');
+    expect(weeklyTable).toHaveLength(1);
+    expect(periods).toHaveLength(1);
+  });
+
   it('開關打開前存的舊週次（4 支、沒有 push）照存的樣子回', async () => {
     weeklyTable.push({
       userId: PARENT,

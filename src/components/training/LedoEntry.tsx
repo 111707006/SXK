@@ -11,14 +11,215 @@ import { CalendarDays, Loader2, MessageCircle, UserRound } from 'lucide-react';
 import { ServiceNote, serviceChoices } from '../serviceChoices';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { PREPARING_SENTENCE, ageBandLabel, weekRangeLabel } from '../../t2/weeklyCopy';
-import { ENTRY, LEDO_ENTRY, planTitle, practicedTimes, swapCount, swapHeading, swapSub, weekAgeLine } from '../../t2/trainingCopy';
-import type { DimensionCode } from '../../t2/types';
+import { ENTRY, ENTRY_1103, LEDO_ENTRY, planTitle, practicedTimes, swapCount, swapHeading, swapSub, weekAgeLine } from '../../t2/trainingCopy';
+import type { Activity, DimensionCode } from '../../t2/types';
 import { Avatar, Chip, Greeting, LEDO_ART, ListRow, PlayButton, RoundArrow, SectionHead } from '../ledo/ui';
 import { useTraining } from './TrainingContext';
 import { alternateRows, filterDimensions, planPositionOf } from './trainingData';
 import { SHOW_LIBRARY } from './visibility';
+import { useLastWeek } from './useLastWeek';
+
+/** 本週／上週的大圖卡（簡報 11/03 第 25 頁：用「换着玩」那種卡）。 */
+function BigCard({ activity, sub, badge, tone, onClick }: {
+  activity: Activity; sub: string; badge?: { text: string; tone: 'more' | 'ok' }; tone: 'ok' | 'mild'; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-w-0 flex-col gap-2 rounded-[22px] p-2.5 text-left cursor-pointer ${tone === 'ok' ? 'bg-ledo-ok' : 'bg-ledo-mild'}`}
+    >
+      <span className="relative block aspect-[4/3] overflow-hidden rounded-2xl bg-white">
+        {activity.posterUrl && <img src={activity.posterUrl} alt="" loading="lazy" className="h-full w-full object-cover" />}
+        {badge && (
+          <span className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-xs font-black ${badge.tone === 'more' ? 'bg-ledo-more text-ledo-more-ink' : 'bg-white text-ledo-ok-ink'}`}>
+            {badge.text}
+          </span>
+        )}
+      </span>
+      <span className="flex items-center justify-between gap-1.5">
+        <span className="min-w-0">
+          <b className="block truncate text-[13px] font-bold text-ledo-ink">{activity.title}</b>
+          <span className="block truncate text-xs text-ledo-ink-2">{sub}</span>
+        </span>
+        <RoundArrow />
+      </span>
+    </button>
+  );
+}
+
+/** 配不到活動的維度（票 #60 的行為），兩版共用。 */
+function Preparing({ preparing, onBookService }: { preparing: DimensionCode[]; onBookService: Parameters<typeof serviceChoices>[0]['book'] }) {
+  return (
+    <div className="space-y-2 rounded-3xl bg-ledo-mild p-3.5 text-ledo-mild-ink">
+      <p className="text-xs leading-relaxed">
+        「{preparing.map(d => SITE_DIMENSION_NAME[d]).join('、')}」{PREPARING_SENTENCE}。
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {serviceChoices({ book: onBookService, inTraining: true }).map(c => (
+          <button
+            key={c.descriptor.type}
+            type="button"
+            disabled={!c.onSelect}
+            onClick={c.onSelect ?? undefined}
+            className={`flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-left text-xs font-bold text-ledo-ink cursor-pointer disabled:cursor-default ${
+              c.state === 'soon' ? 'disabled:opacity-50' : ''
+            }`}
+          >
+            <UserRound size={12} className="shrink-0" />
+            {c.descriptor.label}
+            <ServiceNote state={c.state} className="text-ledo-ink-2" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExpertBanner({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="flex items-center gap-3 rounded-3xl bg-ledo-accent-soft p-3.5">
+      <MessageCircle size={20} className="shrink-0 text-ledo-accent-soft-ink" />
+      <p className="flex-1 text-sm font-bold text-ledo-ink">{ENTRY.bannerText}</p>
+      <button type="button" onClick={onOpen} className="shrink-0 rounded-full bg-ledo-accent px-3.5 py-2 text-xs font-black text-white cursor-pointer">
+        {ENTRY.bannerAction}
+      </button>
+    </div>
+  );
+}
 
 export default function LedoEntry() {
+  return PRODUCT.features.ui1022 ? <Entry1103 /> : <LedoEntryV1 />;
+}
+
+/**
+ * 1022（簡報 11/03 第 24–25 頁，使用者 2026-11-06）：固定副標題、家長常問（按鈕，點開看說明）、
+ * 本週與上週兩組大圖卡；拿掉維度膠囊與按維度分的「换着玩」，不再用標籤分組。
+ */
+function Entry1103() {
+  const { data, nav, childName, onBookService } = useTraining();
+  const [faq, setFaq] = useState<number | null>(null);
+  const last = useLastWeek(data.plan?.weekStart ?? null);
+
+  if (data.status === 'unavailable') return null;
+  if (data.status === 'loading') {
+    return (
+      <div className="flex items-center gap-2 py-6 text-xs text-ledo-ink-2">
+        <Loader2 size={14} className="animate-spin" />
+        {ENTRY.loading}
+      </div>
+    );
+  }
+  if (data.status === 'error' || !data.plan) return <p className="py-6 text-xs text-ledo-ink-2">{ENTRY.error}</p>;
+
+  const plan = data.plan;
+  const practice = data.practice;
+  const position = planPositionOf(plan);
+  const range = weekRangeLabel(plan.weekStart, plan.weekEnd);
+
+  return (
+    <div className="space-y-4" data-testid="training-entry">
+      <Greeting
+        small={`${range ? `${range} · ` : ''}${LEDO_ENTRY.week(position.weekIndex, position.totalWeeks)}`}
+        title={ENTRY.title}
+        right={
+          <button
+            type="button"
+            aria-label={ENTRY.tabs.calendar}
+            onClick={() => nav.openPage({ name: 'calendar' })}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-ledo-line bg-white text-ledo-ink cursor-pointer"
+          >
+            <CalendarDays size={16} />
+          </button>
+        }
+      />
+      <p id="training-subtitle" className="-mt-2 text-xs leading-relaxed text-ledo-ink-2">{ENTRY_1103.subtitle}</p>
+
+      {plan.activities.length > 0 && (
+        <button
+          type="button"
+          onClick={() => nav.openPage({ name: 'plan' })}
+          className="relative block aspect-video w-full overflow-hidden rounded-[28px] bg-ledo-accent-soft text-left cursor-pointer active:scale-[0.99] transition"
+        >
+          <img src={LEDO_ART.training} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <span className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
+            <Chip tone="white">
+              {planTitle(childName)}
+              {practice ? LEDO_ENTRY.practiced(practice.sessions) : ''}
+            </Chip>
+            <PlayButton />
+          </span>
+        </button>
+      )}
+
+      {/* 家長常問（會議：「以按钮形式置于显眼位置并展示解释」） */}
+      <section id="training-faq" className="space-y-2">
+        <h3 className="text-sm font-black text-ledo-ink">{ENTRY_1103.faqTitle}</h3>
+        <div className="flex flex-wrap gap-1.5">
+          {ENTRY_1103.faq.map((f, i) => (
+            <button key={f.q} type="button" aria-expanded={faq === i} onClick={() => setFaq(o => (o === i ? null : i))} className="cursor-pointer">
+              <Chip on={faq === i}>{f.q}</Chip>
+            </button>
+          ))}
+        </div>
+        {faq !== null && (
+          <p id="training-faq-answer" className="rounded-2xl bg-ledo-field px-3.5 py-2.5 text-xs leading-relaxed text-ledo-ink">{ENTRY_1103.faq[faq].a}</p>
+        )}
+      </section>
+
+      {plan.activities.length === 0 ? (
+        <p className="text-xs leading-relaxed text-ledo-ink-2">{ENTRY.noActivities}</p>
+      ) : (
+        <section id="training-this-week" className="space-y-2.5 rounded-[28px] bg-ledo-accent-soft p-3">
+          <SectionHead
+            title={ENTRY_1103.thisWeek(plan.activities.length)}
+            action={SHOW_LIBRARY ? ENTRY.tabs.library : undefined}
+            onAction={SHOW_LIBRARY ? () => nav.openPage({ name: 'library' }) : undefined}
+          />
+          <div className="grid grid-cols-2 gap-2.5">
+            {plan.activities.map(({ activity, dimension }, i) => (
+              <BigCard
+                key={activity.id}
+                activity={activity}
+                tone={i % 2 === 0 ? 'ok' : 'mild'}
+                sub={`${SITE_DIMENSION_NAME[dimension]}${practice ? ` · ${practicedTimes(practice.timesByActivity[activity.id] ?? 0)}` : ''}`}
+                onClick={() => nav.openPage({ name: 'detail', id: activity.id, from: 'plan' })}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {last && (
+        <section id="training-last-week" className="space-y-2.5 rounded-[28px] bg-ledo-field p-3">
+          <SectionHead title={ENTRY_1103.lastWeek(last.picks.length)} />
+          <p className="-mt-1.5 px-1 text-xs text-ledo-ink-2">{ENTRY_1103.lastWeekSub}</p>
+          <div className="grid grid-cols-2 gap-2.5">
+            {last.picks.map(({ activity, dimension }, i) => {
+              const done = last.practiced.has(activity.id);
+              return (
+                <BigCard
+                  key={activity.id}
+                  activity={activity}
+                  tone={i % 2 === 0 ? 'ok' : 'mild'}
+                  sub={SITE_DIMENSION_NAME[dimension]}
+                  badge={done ? { text: ENTRY_1103.practiced, tone: 'ok' } : { text: ENTRY_1103.notPracticed, tone: 'more' }}
+                  onClick={() => nav.openPage({ name: 'detail', id: activity.id, from: 'swap' })}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {plan.preparing.length > 0 && <Preparing preparing={plan.preparing} onBookService={onBookService} />}
+
+      <ExpertBanner onOpen={() => nav.openSheet({ kind: 'expert' })} />
+    </div>
+  );
+}
+
+function LedoEntryV1() {
   const { data, nav, childName, onBookService } = useTraining();
   const [chip, setChip] = useState<'all' | DimensionCode>('all');
 

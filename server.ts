@@ -2104,6 +2104,12 @@ tier2Only.get('/api/t2/weekly-plan', async (req, res) => {
     const loaded = await readActivityLibrary();
     const library = loaded ?? [];
     let record = await loadWeeklyPlan(userId, weekStart);
+    // `peek=1`（簡報 11/03 第 25 頁「上周 3 个活动」）：只讀存過的那一週，沒有就 404、不配一份也不存。
+    // 線上家庭訓練頁看上一週時帶它 —— 家長沒打開過的那一週不該因為看一眼就被補上一列。
+    if (!record && req.query.peek === '1') {
+      res.status(404).json({ error: '这一周没有安排过活动。', code: 'WEEK_NOT_STORED' });
+      return;
+    }
     if (!record) {
       // 報告生成之前的週次不補一列（Keep 規格 §4.5）：計劃的第 1 週是這份快照「最早的 week_start」，
       // 家長往回翻到三個月前、替那一週存下一列，這一週就從第 1 週跳成第 15 週。那一列本身也不對 ——

@@ -279,7 +279,8 @@ export function PrivacyTerms() {
 export function LegalFooterLine() {
   return (
     <div className="pt-3 mt-4 border-t border-brand-stone/30 text-xs text-brand-charcoal/80 text-center">
-      最后更新日期：{LEGAL_LAST_UPDATED} · {PRODUCT.brand.legalEntity}
+      {/* 1022（簡報 11/03 第 14 頁）：落款只留更新日期，不寫「森心康（SenXinKang）技术实验室」。 */}
+      最后更新日期：{LEGAL_LAST_UPDATED}{PRODUCT.features.ui1022 ? null : <> · {PRODUCT.brand.legalEntity}</>}
     </div>
   );
 }

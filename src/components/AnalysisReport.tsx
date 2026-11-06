@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { DIMENSIONS_DATA } from '../data';
 import { PRODUCT } from '../productConfig';
-import { TRAINING_NAME } from '../t2/trainingCopy';
 import { peekDeviceId } from '../utils/deviceId';
 import {
   DEFAULT_SERVICE_TYPE,
@@ -611,13 +610,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <h3 className="text-lg font-bold">{WORDING_1022.expertQr.title}</h3>
           <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">{WORDING_1022.expertQr.sub}</p>
         </div>
+        {/* 簡報 11/03 第 22 頁：這張卡只留二維碼，不放「去线上家庭训练」。 */}
         <WecomQrBlock tone="dark" />
-        {onOpenTraining && (
-          <button type="button" id="booking-cta-online_training" onClick={onOpenTraining}
-            className="px-4 py-2.5 rounded-xl bg-brand-sage text-brand-forest font-bold text-xs hover:bg-white transition cursor-pointer">
-            去{TRAINING_NAME} →
-          </button>
-        )}
       </div>
       ) : PRODUCT.features.tier2And3 ? (
       <>

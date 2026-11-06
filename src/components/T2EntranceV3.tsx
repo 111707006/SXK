@@ -36,7 +36,10 @@ interface T2EntranceV3Props {
 export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false, bonusMonth = false, onUnlock, onStart, serviceButtons }: T2EntranceV3Props) {
   // 規則觸發改成的提示（社交溝通警訊、抽動、情緒那一題，ADR-0011）底下附預約按鈕；有了這一組，缺口那一格就不再重複一組按鈕
   const bookAtNotices = plan.notices.some(n => n.book);
-  const notices = plan.notices.length > 0 && (
+  // 1022（簡報 11/03 第 21 頁，使用者 2026-11-06）：提示（眨眼、清喉咙……）連同底下的服務按鈕整塊不放；
+  // 要找專家的走報告下面那張「1 对 1 专家咨询」二維碼卡。
+  const ui1022 = PRODUCT.features.ui1022;
+  const notices = !ui1022 && plan.notices.length > 0 && (
     <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2" id="t2v3-entrance-notices">
       <ul className="space-y-1.5">
         {plan.notices.map(n => (
@@ -75,7 +78,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
         {plan.gaps.map(g => (
           <p key={g.dimension} className="text-xs text-brand-charcoal/80 leading-relaxed">{g.text}</p>
         ))}
-        {serviceButtons}
+        {!ui1022 && serviceButtons}
       </div>
     );
   }
@@ -93,7 +96,7 @@ export default function T2EntranceV3({ plan, locked, pricing, freePeriod = false
       allDone={plan.tools.every(t => plan.completed?.some(c => c.code === t.code) ?? false)}
     >
       {notices}
-      {plan.gaps.length > 0 && (
+      {!ui1022 && plan.gaps.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
           {plan.gaps.map(g => (
             <p key={g.dimension} className="text-xs text-brand-charcoal/80 leading-relaxed">{g.text}</p>

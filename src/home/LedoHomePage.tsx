@@ -36,9 +36,9 @@ export interface LedoHomeProps {
   scores?: DimensionScore[];
 }
 
-/** 色塊小字放不下「需要少量支持」的全名（375px 會折行）：去掉「需要」，報告與面板照用全名。 */
+/** 色塊小字放不下「需要少量支持」的全名（375px 會折行）：「需要」縮成「需」，報告與面板照用全名。 */
 const SHORT = {
-  borderline: STATUS_WORDING.borderline.label.replace(/^需要/, ''),
+  borderline: STATUS_WORDING.borderline.label.replace(/^需要/, '需'),
 };
 
 const CARD_IMG: Record<string, string> = {
@@ -111,7 +111,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
     return '';
   };
   const sub: Record<string, string> = {
-    training: '每周几个在家陪孩子做的活动',
+    training: '每周在家陪孩子做几个小活动',
     t1: date ? `${date}完成 · ${t1.length} 个方面` : '了解孩子的 9 个方面',
     offline: `${HOME_COPY.offline.hospital} · ${HOME_COPY.offline.status}`,
   };
@@ -119,7 +119,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
   return (
     <div id="home-page" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
       <Greeting
-        small={childName ? `${childName}的家长，${greetingFor(new Date())}` : `${greetingFor(new Date())}，欢迎来看看`}
+        small={childName ? `${childName}的家长，${greetingFor(new Date())}` : `${greetingFor(new Date())}，欢迎使用`}
         title={PRODUCT.features.ui1022 ? WORDING_1022.home.heroTitle : '今天也陪孩子玩一下'}
       />
 
@@ -164,7 +164,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
                   tone="more"
                   value={count('delay')}
                   label={`个方面${STATUS_WORDING.delay.label}`}
-                  note={count('borderline') > 0 ? `另有 ${count('borderline')} 项${SHORT.borderline}` : undefined}
+                  note={count('borderline') > 0 ? `另有 ${count('borderline')} 个方面${SHORT.borderline}` : undefined}
                 />
               </div>
             </section>
@@ -223,7 +223,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
                 tone="more"
                 value={count('delay')}
                 label={`个方面${STATUS_WORDING.delay.label}`}
-                note={count('borderline') > 0 ? `另有 ${count('borderline')} 项${SHORT.borderline}` : undefined}
+                note={count('borderline') > 0 ? `另有 ${count('borderline')} 个方面${SHORT.borderline}` : undefined}
                 className="flex-1"
               />
             </div>

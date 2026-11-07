@@ -178,7 +178,7 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
           </div>
           <h2 className="text-lg font-extrabold text-brand-forest mt-1">{PRODUCT.features.ui1022 ? 'T2 深度评估 · 整份解锁' : '第二层深度评估 · 整份解锁'}</h2>
           <p className="text-xs text-brand-charcoal/80 mt-1">
-            依孩子的筛查结果安排要答的量表，答完生成深度报告与每周家庭活动。
+            按孩子的筛查结果安排要填的问卷，答完生成深度报告与每周家庭活动。
           </p>
         </div>
 
@@ -212,7 +212,7 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
           <div className="flex items-start gap-2 text-xs text-brand-charcoal/80 bg-brand-cream rounded-xl p-3 border border-brand-stone/40">
             <ShieldCheck size={12} className="shrink-0 mt-0.5 text-brand-moss" />
             <span>
-              一次解锁整份{PRODUCT.features.ui1022 ? ' T2 深度评估' : '第二层深度评估'}。权益绑定您的帐号，不绑定某一次筛查批次。付款由微信支付处理，本平台不接触您的支付信息。
+              一次解锁整份{PRODUCT.features.ui1022 ? ' T2 深度评估' : '第二层深度评估'}。解锁后跟着您的账号，以后重新筛查也能用。付款由微信支付处理，本平台不接触您的支付信息。
             </span>
           </div>
 

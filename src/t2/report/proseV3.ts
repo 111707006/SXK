@@ -117,9 +117,9 @@ function templateWhatWeSaw(input: T2ReportInputV3, d: DimensionFindingV3): strin
   const status = STATUS_WORDING[STATUS_OF_BAND[d.band as 'watch' | 'refer']];
   const weak = weakFacetsV3(input.findings, d).slice(0, 4);
   const detail = weak.length
-    ? `其中「${weak.join('」「')}」${weak.length === 1 ? '这一方面' : '这几方面'}比较需要多陪孩子练。`
+    ? `其中「${weak.join('」、「')}」${weak.length === 1 ? '这一方面' : '这几方面'}比较需要多陪孩子练。`
     : '这一项整体都可以在日常里多陪孩子练。';
-  return `这次关于「${name}」的问卷看下来，${status.describe}，${status.tag}。${detail}`;
+  return `从这次「${name}」的问卷看，这一方面${status.describe}，${status.tag}。${detail}`;
 }
 
 /** 模板退路。產出一定過 `validateProseV3`（`t2ReportProseV3.test.ts` 窮舉盯著）。 */

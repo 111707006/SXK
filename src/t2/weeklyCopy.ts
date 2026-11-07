@@ -47,16 +47,16 @@ export const AGE_BAND_LABEL: Readonly<Record<AgeKey, string>> = {
 export const PREPARING_SENTENCE = '这方面的活动还在准备中，可以先和专家聊聊这一周可以做什么';
 
 /** 兩個月齡不同時的說明（檔頭「年齡段」）。 */
-export const AGE_SPLIT_NOTE = '这一周的活动按这一周开始时的月龄安排；报告里的描述按答题那时候的月龄写';
+export const AGE_SPLIT_NOTE = '报告是按答题时的月龄写的';
 
 /** 這一支是往前取的（`belowWindow`）時多說的一句。 */
-export const BELOW_WINDOW_NOTE = '这一支比同龄的一般安排再往前一点，从孩子已经做得到的地方开始';
+export const BELOW_WINDOW_NOTE = '这个活动比同龄孩子常做的简单一点，从孩子已经做得到的地方开始';
 
 /**
  * 「因為……所以練……」（規格 §7.3 的 `reason` 展開）。
  *
  * `因为语言沟通目前与同龄常见的发展节奏有差距（这次看到：主动说出来的话比同龄孩子少一些…），
- *  所以这周安排这一支来练。`
+ *  所以这周安排这个活动来练。`
  *
  * 沒有對上任何 ★ 標籤時省掉中間那一段 —— 那時這一支是「這個維度的模組群裡挑出來的」，
  * 硬安一個標籤上去就是在說一件規則引擎沒說的事。
@@ -66,12 +66,12 @@ export function reasonSentence(dimension: DimensionCode, reason: PickReason): st
   const describe = STATUS_WORDING[STATUS_OF_BAND[reason.band]].describe;
   // 九個維度都穩定時配的是 clear 的維度（`activityMatch.ts` 檔頭 3a）：「因为发展稳定，所以来练」讀起來像在補救，
   // 換成「保持下去」的說法。
-  if (reason.band === 'clear') return `${name}${describe}，这周安排这一支一起玩，保持下去。`;
+  if (reason.band === 'clear') return `${name}方面目前稳定，这周安排这个活动一起玩，保持下去。`;
   const tag = reason.matchedTags[0] as ActivityTag | undefined;
   // `TAG_SENTENCES` 是完整的句子（自己帶句號）。嵌進括號裡時把句號去掉，
   // 否則畫面上會出現「……句子也短一些。），所以」這種兩個標點疊在一起的讀法。
   const seen = tag ? `（这次看到：${TAG_SENTENCES[tag].replace(/。$/, '')}）` : '';
-  return `因为${name}目前${describe}${seen}，所以这周安排这一支来练。`;
+  return `因为${name}目前${describe}${seen}，所以这周安排这个活动来练。`;
 }
 
 /** 「9 月 7 日 – 9 月 13 日」。吃兩個 `YYYY-MM-DD`；認不得就回空字串（畫面上少一行，不是壞掉）。 */

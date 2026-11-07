@@ -84,8 +84,8 @@ export const TRAINING_PAGE = {
 /** 居家訓練使用權（`TRAINING_PLAN`，#91）在「线上干预」那一頁上的說法。 */
 export const TRAINING_PASS = {
   remaining: (days: number, endsOn: string) => `居家训练还剩 ${days} 天（到 ${Number(endsOn.slice(5, 7))} 月 ${Number(endsOn.slice(8, 10))} 日）`,
-  none: '还没有开通居家训练。开通后做一次 T1 评估，当天就会排出每周的家庭活动；以前的报告与打卡纪录都还在。',
-  expired: '居家训练已经到期。续买之后接着按孩子的结果安排活动；以前的报告与打卡纪录都还在。',
+  none: '还没有开通居家训练。开通后做一次 T1 评估，当天就会排出每周的家庭活动；以前的报告与打卡记录都还在。',
+  expired: '居家训练已经到期。续买之后接着按孩子的结果安排活动；以前的报告与打卡记录都还在。',
   renew: '开通居家训练',
 } as const;
 
@@ -110,7 +110,7 @@ export const ENTRY = {
   bannerAction: '去预约',
   loading: '正在准备这一周的活动…',
   error: '这一周的活动暂时读不出来，请稍后再打开这一页。',
-  noActivities: '这一周还没有排得上的活动。下面可以先约专家聊聊这一周在家可以做什么。',
+  noActivities: '这一周还没有合适的活动，可以先约专家聊聊在家能做什么。',
 } as const;
 
 /**
@@ -125,7 +125,7 @@ export const ENTRY_1103 = {
     { q: '孩子不配合怎么办？', a: '先陪他玩，不要说「训练」。从他喜欢的那一个开始，或者换成「简单一点」的玩法。' },
     { q: '需要每天练吗？', a: '一周练 3–4 天就好。固定在同一个时间练，比偶尔练很久更有用。' },
     { q: '要跟示范片一模一样吗？', a: '不用。示范片是参考，按孩子的样子调整，做到一半也算练过。' },
-    { q: '练完要做什么？', a: '按「完成」打卡，记下孩子当时的样子。12 周结束时，会照练习的情况安排下一段的活动。' },
+    { q: '练完要做什么？', a: '按「做完了，打卡」，记下孩子当时的样子。12 周结束时，会照练习的情况安排下一段的活动。' },
     { q: '什么时候再评估？', a: '练满 12 周（大约三个月）再做一次评估，看看哪些方面有进步。' },
   ],
   thisWeek: (n: number) => `本周 ${n} 个活动`,
@@ -164,8 +164,8 @@ export function planCardMeta(activityCount: number, sessions: number | null): st
  * `ageMonth` 是那一週星期一的月齡，不寫「现在」：孩子週中滿月時，「现在」已經多一個月（審查 #28）。
  */
 export function weekAgeLine(ageMonth: number, ageBand: string, reportAgeMonth: number): string {
-  const line = `这一周按孩子 ${ageMonth} 个月${ageBand ? `、${ageBand}这一段` : ''}安排。`;
-  return ageMonth === reportAgeMonth ? line : `${line}${AGE_SPLIT_NOTE}（答题时 ${reportAgeMonth} 个月）。`;
+  const head = `这一周按孩子 ${ageMonth} 个月${ageBand ? `（${ageBand}）` : ''}安排`;
+  return ageMonth === reportAgeMonth ? `${head}。` : `${head}；${AGE_SPLIT_NOTE.replace('答题时的月龄', `答题时的 ${reportAgeMonth} 个月`)}。`;
 }
 
 export function swapHeading(dimensionName: string): string {
@@ -177,12 +177,12 @@ export function swapCount(n: number): string {
 }
 
 export function swapSub(childName: string | undefined): string {
-  return `练同一块、也适合${childLabel(childName)}现在的月龄；玩腻了就换一个`;
+  return `练的是同一个方面，也适合${childLabel(childName)}现在的月龄；玩腻了就换一个`;
 }
 
 /** 換著玩的活動在詳情頁說的那一句（它沒有配對的理由，不套「因為……所以練……」）。 */
 export function swapReason(dimensionName: string, childName: string | undefined): string {
-  return `这一个不在这周的计划里：和本周的活动练同一块（${dimensionName}），也适合${childLabel(childName)}现在的月龄，玩腻了可以换它。`;
+  return `这个活动不在这周的计划里：和本周的活动练同一个方面（${dimensionName}），也适合${childLabel(childName)}现在的月龄，玩腻了可以换它。`;
 }
 
 // ── 計劃頁（§3.2） ─────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ export function swapReason(dimensionName: string, childName: string | undefined)
  */
 export function planGreeting(childName: string | undefined): string {
   const name = childName?.trim();
-  return `Hi，${name ? `${name}家长` : '家长'} 已为${childLabel(childName)}生成`;
+  return `${name ? `${name}家长` : '家长'}您好，已为${childLabel(childName)}生成`;
 }
 
 /** `第 N 周 / 共 12 周`；過了 12 週是「已满 12 周，建议再评估一次」（§4.5）。 */
@@ -215,7 +215,7 @@ export const PLAN_PAGE = {
     { label: '计划', big: String(PLAN_TOTAL_WEEKS), unit: '周', note: `第 ${PLAN_TOTAL_WEEKS} 周末\n再评估一次看变化` },
   ],
 
-  sharesTitle: '这周练哪几块',
+  sharesTitle: '这周练哪几个方面',
 
   resultsTitle: '我的评估结果',
   /** 評估結果從哪裡來（#92、#112）。 */
@@ -384,7 +384,7 @@ export const DETAIL = {
   expert: '问专家',
 
   trainsTitle: '这个活动练什么',
-  whyPlan: '为什么这周排这一个：',
+  whyPlan: '为什么这周排这个活动：',
   whyOther: '什么时候选它：',
   collapse: '收起',
   stepsTitle: '怎么玩',
@@ -462,11 +462,11 @@ export function libraryReason(
   childName: string | undefined,
   childAgeMonth: number | null,
 ): string {
-  if (fit === 'fits') return `这一个不在这周的计划里，也适合${childLabel(childName)}现在的月龄，想换着玩可以选它。`;
+  if (fit === 'fits') return `这个活动不在这周的计划里，也适合${childLabel(childName)}现在的月龄，想换着玩可以选它。`;
   if (fit === 'tooYoung' && childAgeMonth !== null) {
-    return `这一个适合 ${ageLabel}，${childLabel(childName)}现在 ${ageText(childAgeMonth)}，还不到这个年龄——先看看示范片，到了再练。`;
+    return `这个活动适合 ${ageLabel}，${childLabel(childName)}现在 ${ageText(childAgeMonth)}，还不到这个年龄——先看看示范片，到了再练。`;
   }
-  return '这一个不在这周的计划里，想换着玩可以选它。';
+  return '这个活动不在这周的计划里，想换着玩可以选它。';
 }
 
 // ── 按 GO 之後（§3.4、§3.5，票 7） ──────────────────────────────────────
@@ -482,11 +482,11 @@ export const PLAYER = {
   soundOn: '打开声音',
   soundOff: '静音',
   tapToPlay: '点一下播放',
-  sayTitle: '边做边说（影片脚本的旁白）',
+  sayTitle: '边做边说（示范片的旁白）',
   /** 圖文模式、又沒有示範片時多說的一句（§3.5）。 */
-  noClipNote: '这一个还没有示范片；示范片做好后，按 GO 会改成看片跟着做。',
+  noClipNote: '这个活动还没有示范片；示范片做好后，按 GO 会改成看片跟着做。',
   /** 活動庫裡這一支還沒有步驟（後台可以清成零步）：照樣做得完、打得了卡。 */
-  noSteps: '这一个的步骤还在整理中，陪孩子玩过了一样可以打卡。',
+  noSteps: '这个活动的步骤还在整理中，陪孩子玩过了一样可以打卡。',
 } as const;
 
 /** 「第 1 步 · 共 4 步」。 */
@@ -516,7 +516,7 @@ export const CHECKIN = {
   planPracticed: '本周练过的活动',
   moodQuestion: '孩子今天玩得怎样？',
   progressTitle: '这次看看有没有进步',
-  progressSub: '影片脚本里的「怎么看出有进步」，看到了就勾起来',
+  progressSub: '下面是看得出进步的几个表现，看到了就勾选',
   optional: '都是选填，会记在打卡日历里',
   saveFailed: '没存上，请再点一次。',
   toCalendar: '看打卡日历',
@@ -537,10 +537,10 @@ export const ACTIONS_SHEET = {
   minutes: '分钟',
   clip: '示范片',
   noteClip: '按 GO 之后示范片循环播放，步骤一步一步往下看；做完就打卡。',
-  noteNoClip: '这一个还没有示范片，先照图文一步一步做。',
+  noteNoClip: '这个活动还没有示范片，先照图文一步一步做。',
   playTitle: '怎么玩–Play',
   sayTitle: '边做边说–Say',
-  saySub: '影片脚本里的旁白，照着对孩子说就好。',
+  saySub: '示范片里的旁白，照着对孩子说就好。',
   easier: '简单–Easier',
   harder: '难一点–Harder',
   go: 'GO · 开始跟着做',
@@ -557,7 +557,7 @@ export const MODE_SHEET = {
   title: '跟练方式',
   video: '看示范片跟着做',
   videoNote: '示范片边看边做，适合第一次做',
-  videoNoClip: '这一个还没有示范片',
+  videoNoClip: '这个活动还没有示范片',
   pictures: '只看图文步骤',
   picturesNote: '一步一张卡，网络不好、想自己掌握节奏时用',
   savedHere: '只记在这支手机上',
@@ -566,11 +566,11 @@ export const MODE_SHEET = {
 /** 投屏（§3.8）：瀏覽器叫不出投屏時的說明。 */
 export const CAST_SHEET = {
   title: '投屏到电视',
-  leadClip: '这个浏览器叫不出投屏，可以改用手机自己的投屏：',
-  leadNoClip: '这一个还没有示范片，先照图文步骤做。有示范片的活动可以这样投：',
+  leadClip: '这个浏览器打不开投屏，可以改用手机自带的投屏：',
+  leadNoClip: '这个活动还没有示范片，先照图文步骤做。有示范片的活动可以这样投：',
   ways: [
     { who: 'iPhone：', how: '按 GO 播放后，点画面上的投屏图示（AirPlay），或从控制中心选「屏幕镜像」。' },
-    { who: '安卓：', how: '用浏览器菜单里的「投屏」，或手机下拉选单里的「无线投屏」。' },
+    { who: '安卓：', how: '用浏览器菜单里的「投屏」，或手机下拉菜单里的「无线投屏」。' },
     { who: '在微信里：', how: '先点右上角「…」→「在浏览器打开」，再照上面做。' },
   ],
 } as const;
@@ -588,14 +588,14 @@ export const REMINDER_SHEET = {
   saving: '正在保存…',
   saveFailed: '没存上，请稍后再试。',
   ics: '也加到手机日历（.ics）',
-  icsOpening: '正在打开日历档…',
-  icsFailed: '日历档暂时打不开，请稍后再试。',
-  icsNote: 'iPhone 会直接打开「日历」；安卓看浏览器。',
+  icsOpening: '正在打开日历文件…',
+  icsFailed: '日历文件暂时打不开，请稍后再试。',
+  icsNote: 'iPhone 会直接打开「日历」；安卓手机要看浏览器支不支持。',
   /** 已設的提醒還在讀：先不讓按（免得把預設的一、三、五存成家長的提醒）。 */
   loadingStored: '正在读取已经设好的提醒…',
   /** 讀不到已設的提醒：家長自己選過再加。 */
   storedUnknown: '暂时读不到已经设好的提醒；选好哪几天、几点再加。',
-  wechat: '微信里下载不了日历档：先点右上角「…」→「在浏览器打开」，再回到这里加到手机日历。',
+  wechat: '微信里下载不了日历文件：先点右上角「…」→「在浏览器打开」，再回到这里加到手机日历。',
 } as const;
 
 /** 「已加到打卡日历：每周一、三、五 19:30」。 */
@@ -636,7 +636,7 @@ export const CALENDAR = {
   /** 這個月的打卡讀不出來：日曆照畫，練過的日子不標，數字不出（不寫 0）。 */
   checkinsError: '打卡记录暂时读不出来，请稍后再打开这一页。',
   /** 提醒讀不出來：不說「还没设」（那是一句不知道真假的話）。 */
-  reminderError: '提醒暂时读不出来，点这里重新设定',
+  reminderError: '提醒暂时读不出来，点这里重新设置',
 } as const;
 
 /**
@@ -644,7 +644,7 @@ export const CALENDAR = {
  * 「每周……」與加到日曆抽屜存好時說的是同一句（`reminderLabel`，票 7）。
  */
 export function reminderLine(prefs: PracticePrefs | null): string {
-  if (!hasReminder(prefs)) return '还没设提醒，设定每周哪几天练';
+  if (!hasReminder(prefs)) return '还没设提醒，点这里选每周练习的日子';
   return `提醒：${reminderLabel(prefs.reminderDays, prefs.reminderTime)}`;
 }
 
@@ -692,9 +692,9 @@ export function libraryChips(
   counts: { all: number; fit: number; later: number },
 ): Array<{ key: 'all' | 'fit' | 'later'; label: string }> {
   return [
-    { key: 'all', label: `全部 ${counts.all}` },
-    { key: 'fit', label: `适合${childLabel(childName)}现在 ${counts.fit}` },
-    { key: 'later', label: `再大一点 ${counts.later}` },
+    { key: 'all', label: `全部（${counts.all}）` },
+    { key: 'fit', label: `适合${childLabel(childName)}现在（${counts.fit}）` },
+    { key: 'later', label: `再大一点（${counts.later}）` },
   ];
 }
 

@@ -88,16 +88,16 @@ describe('年齡提醒（§3.3）', () => {
 
 describe('片庫裡的一支為什麼可以選（「什么时候选它」）', () => {
   it('適合現在的月齡', () => {
-    expect(libraryReason('fits', '6个月–3岁', '小宝', 18)).toBe('这一个不在这周的计划里，也适合小宝现在的月龄，想换着玩可以选它。');
+    expect(libraryReason('fits', '6个月–3岁', '小宝', 18)).toBe('这个活动不在这周的计划里，也适合小宝现在的月龄，想换着玩可以选它。');
   });
 
   it('還不到那個年齡', () => {
-    expect(libraryReason('tooYoung', '3–6岁', '小宝', 18)).toBe('这一个适合 3–6岁，小宝现在 1 岁 6 个月，还不到这个年龄——先看看示范片，到了再练。');
+    expect(libraryReason('tooYoung', '3–6岁', '小宝', 18)).toBe('这个活动适合 3–6岁，小宝现在 1 岁 6 个月，还不到这个年龄——先看看示范片，到了再练。');
   });
 
   it('不知道月齡、或比適齡大：只說不在計劃裡、想換著玩可以選', () => {
-    expect(libraryReason('unknown', '3–6岁', '小宝', null)).toBe('这一个不在这周的计划里，想换着玩可以选它。');
-    expect(libraryReason('tooOld', '6个月–1岁', '小宝', 30)).toBe('这一个不在这周的计划里，想换着玩可以选它。');
+    expect(libraryReason('unknown', '3–6岁', '小宝', null)).toBe('这个活动不在这周的计划里，想换着玩可以选它。');
+    expect(libraryReason('tooOld', '6个月–1岁', '小宝', 30)).toBe('这个活动不在这周的计划里，想换着玩可以选它。');
   });
 });
 

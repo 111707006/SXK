@@ -27,13 +27,13 @@ export const ABILITY_LINKS: ReadonlyArray<AbilityLink> = [
   { a: 'language', b: 'cognitive', why: '理解和表达，要靠概念、记忆这些动脑的基本功' },
   { a: 'language', b: 'learning_ability', why: '读写是建立在口语上的' },
   { a: 'cognitive', b: 'learning_ability', why: '推理和记忆是学东西的底子' },
-  { a: 'cognitive', b: 'self_care', why: '记得住步骤、懂规则，才做得来日常的事' },
+  { a: 'cognitive', b: 'self_care', why: '记得住步骤、懂得规则，日常的事才做得来' },
   { a: 'social_emotional', b: 'emotion_behavior', why: '情绪稳下来，才比较能和别人好好相处' },
   { a: 'emotion_behavior', b: 'attention', why: '管住冲动和管住情绪，用的是同一种「刹车」能力' },
   { a: 'attention', b: 'learning_ability', why: '专注和做事有条理，决定学习的效率' },
   { a: 'sensory_processing', b: 'attention', why: '对声音、触碰太敏感或太迟钝，都会让孩子坐不住、分心' },
   { a: 'sensory_processing', b: 'emotion_behavior', why: '感觉不舒服时，常常用发脾气、躲开来表达' },
-  { a: 'sensory_processing', b: 'gross_motor', why: '平衡和身体位置的感觉，撑着走跑跳和动作协调' },
+  { a: 'sensory_processing', b: 'gross_motor', why: '平衡感和身体位置感，是走、跑、跳和动作协调的基础' },
   { a: 'gross_motor', b: 'self_care', why: '穿衣、吃饭、如厕都要用到大小动作' },
 ];
 

@@ -65,7 +65,7 @@ const dimName = (d: DimensionCode) => SITE_DIMENSION_NAME[d];
 
 /** 規則必選的幾支各有自己的理由；其餘照類別。 */
 const RULE_REASON: Readonly<Record<string, string>> = {
-  'M-CHAT-R/F': '筛查里和别人互动、沟通的几题，想再多了解一些',
+  'M-CHAT-R/F': '筛查里有几题和与人互动、沟通有关，用这份问卷再多了解一些',
   'SXK-EMO': '筛查里有关情绪的一题，想多了解一些；建议在专业人员陪同下填写',
   'SXK-TIC': '您提到孩子有反复眨眼、清喉咙等情况，想多了解一些',
 };
@@ -79,15 +79,15 @@ export function reasonOf(t: Pick<RecommendedTool, 'code' | 'cls' | 'dim'>): stri
     case 'dx':
       return '和您填写的孩子情况有关';
     case 'P1':
-      return d ? `「${dimName(d)}」想优先多了解一些` : '帮助更完整地了解孩子';
+      return d ? `先多了解孩子的「${dimName(d)}」` : '帮助更完整地了解孩子';
     case 'P2':
     case 'P5':
-      return d ? `「${dimName(d)}」和您填写的孩子情况有关，想多了解一些` : '和您填写的孩子情况有关';
+      return d ? `和您填写的孩子情况有关，多了解一下「${dimName(d)}」` : '和您填写的孩子情况有关';
     case 'P3':
     case 'P4':
-      return d ? `筛查里「${dimName(d)}」这一项，想再多了解一些` : '帮助更完整地了解孩子';
+      return d ? `筛查里「${dimName(d)}」有标示，用这份问卷再多了解一些` : '帮助更完整地了解孩子';
     case 'depth':
-      return d ? `「${dimName(d)}」再多一份问卷，看得更完整` : '帮助更完整地了解孩子';
+      return d ? `「${dimName(d)}」再加一份问卷，了解得更完整` : '帮助更完整地了解孩子';
     case 'base':
       return '了解孩子日常生活的整体情况，之后可以前后对照';
     case 'fill':
@@ -107,7 +107,7 @@ const NOTICE_TEXT: Readonly<Record<Alert['type'], string>> = {
   SAFETY: '筛查里有一题和孩子的情绪有关，建议先预约专家，和专业人员聊一聊。',
   MEDICAL: '筛查里有关走路的题目，建议同时请儿童神经科或康复医学科的医生看一看。',
   PREREQ: '语言这一项，建议先确认孩子做过的听力检查结果。',
-  DX_AGE: '您填写的孩子情况，在这个年龄先按筛查结果安排问卷。',
+  DX_AGE: '在这个年龄，问卷先按筛查结果安排；您填写的孩子情况暂不影响安排。',
 };
 const ITEMS_MISSING_TEXT = '这次的筛查没有记下每一题的作答，重新做一次筛查，安排会更贴近孩子。';
 /** 規則觸發改成的提示（ADR-0011）。社交那一句會點名孩子在篩查裡卡住的那幾題（`socialSignalText`）。 */
@@ -116,7 +116,7 @@ const SOC_SIGNAL_TAIL = '这几项和孩子怎么跟人互动、表达自己有�
 
 export function socialSignalText(items: ReadonlyArray<string>): string {
   return items.length
-    ? `筛查里这几题，孩子目前还做不到或只是有时做到：${items.map(t => `「${t}」`).join('')}。${SOC_SIGNAL_TAIL}`
+    ? `筛查里这几题，孩子目前还做不到或只是有时做得到：${items.map(t => `「${t}」`).join('、')}。${SOC_SIGNAL_TAIL}`
     : `筛查里有几题和孩子怎么跟人互动、表达自己有关，孩子目前还做不到。${SOC_SIGNAL_TAIL.replace('这几项和孩子怎么跟人互动、表达自己有关，', '')}`;
 }
 

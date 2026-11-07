@@ -243,7 +243,7 @@ export default function ReportBody({
         <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-3 text-xs font-semibold leading-relaxed">
           <CheckCircle2 className="text-emerald-600 shrink-0 mt-0.5" size={16} />
           <div>
-            {ALL_CLEAR_SUMMARY}请配合日常亲子共读与游戏互动继续保持。
+            {ALL_CLEAR_SUMMARY}{ui1022 ? '平时继续亲子共读、一起游戏就好。' : '请配合日常亲子共读与游戏互动继续保持。'}
           </div>
         </div>
       ) : (
@@ -444,6 +444,7 @@ export default function ReportBody({
  * **關注分決定每一角凸出去多遠，嚴重度決定它是什麼顏色。** 兩者分工，不互相取代。
  */
 function RadarSection({ scores }: { scores: DimensionScore[] }) {
+  const ui1022 = PRODUCT.features.ui1022;
   const sortedScores = [...scores]
     .map(s => ({
       ...s,
@@ -512,9 +513,19 @@ function RadarSection({ scores }: { scores: DimensionScore[] }) {
           9大维度结论——雷达图分析
         </h3>
         <p className="text-xs text-brand-charcoal/80 mt-0.5">
-          共评测 9 项发展维度，其中 <span className="font-bold text-rose-600">{attentionCount} 项</span>{' '}
-          {STATUS_WORDING.borderline.tag}（<span className="font-bold text-rose-600">{redCount} 项</span>{' '}
-          {STATUS_WORDING.delay.tag}）
+          {ui1022 ? (
+            <>
+              共评估 9 个方面，其中 <span className="font-bold text-rose-600">{attentionCount} 项</span>
+              {STATUS_WORDING.borderline.tag}（含 <span className="font-bold text-rose-600">{redCount} 项</span>
+              {STATUS_WORDING.delay.tag}）
+            </>
+          ) : (
+            <>
+              共评测 9 项发展维度，其中 <span className="font-bold text-rose-600">{attentionCount} 项</span>{' '}
+              {STATUS_WORDING.borderline.tag}（<span className="font-bold text-rose-600">{redCount} 项</span>{' '}
+              {STATUS_WORDING.delay.tag}）
+            </>
+          )}
         </p>
       </div>
 

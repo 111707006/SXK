@@ -56,7 +56,7 @@ export default function LedoT1Questions({ questions, answers, ageBandName, onSel
       <div className="flex flex-col gap-2.5 rounded-3xl bg-ledo-accent-soft p-4">
         <span className="self-start rounded-full bg-white px-3 py-[5px] text-xs font-bold text-ledo-ink">{q.dimensionName}</span>
         <p className="text-lg font-bold leading-relaxed text-ledo-ink">{q.text}</p>
-        <span className="text-xs text-ledo-accent-soft-ink">想想最近一个月在家或户外的样子</span>
+        <span className="text-xs text-ledo-accent-soft-ink">想想孩子最近一个月在家或户外的表现</span>
       </div>
 
       <div className="flex flex-col gap-2" role="radiogroup" aria-label={q.text}>

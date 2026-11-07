@@ -163,7 +163,7 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
         <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           {doneNames.length > 0
             ? `这份报告整理自近 3 个月填写的 ${doneNames.length} 份问卷：${doneNames.join('、')}。`
-            : '近 3 个月还没有填写完的问卷，下面先按筛查结果列出各方面。'}
+            : '近 3 个月没有填完的问卷，下面先按筛查结果列出各方面。'}
         </p>
         {isLedoPage() ? (
           // Ledo 版（設計稿第 9 頁）：九宮格當摘要，一格只放方面與狀態；沒判定的那幾格的說明列在下面，字不丟。
@@ -329,7 +329,7 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
           className="flex flex-wrap items-center gap-x-1 text-left text-sm font-extrabold text-brand-forest hover:text-brand-moss transition cursor-pointer"
         >
           {reviewOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-          <span className="whitespace-nowrap">你勾选的项目</span>
+          <span className="whitespace-nowrap">您勾选的项目</span>
           <span className="text-xs font-bold text-brand-charcoal/80">（还没稳定的那些，可以当成练习目标）</span>
         </button>
         {reviewOpen && (

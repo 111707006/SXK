@@ -706,7 +706,9 @@ export default function App() {
   };
 
   const handleClearProfile = () => {
-    if (confirm(`确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位，深度评估与${TRAINING_NAME}也会从头开始！`)) {
+    if (confirm(PRODUCT.features.ui1022
+      ? `确定要清除孩子的档案并重新开始吗？已保存的评估结果会清空，T2 深度评估与${TRAINING_NAME}也会从头开始。`
+      : `确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位，深度评估与${TRAINING_NAME}也会从头开始！`)) {
       setChildProfile(null);
       setCompletedScores([]);
       setOrders([]);
@@ -721,7 +723,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (confirm('确认登出当前账户并返回登录首页吗？您的数据安全保存在云端。')) {
+    if (confirm(PRODUCT.features.ui1022 ? '确定要退出登录吗？您的资料已保存在云端，下次登录就能看到。' : '确认登出当前账户并返回登录首页吗？您的数据安全保存在云端。')) {
       clearLocalSession();
       setSyncError(null);
       // 自己按的登出不需要那條橫幅 —— 他知道剛剛發生了什麼。
@@ -1227,10 +1229,10 @@ export default function App() {
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
                             <UserCheck size={14} className="text-brand-moss" />
-                            客户服务中心
+                            {PRODUCT.features.ui1022 ? '孩子档案' : '客户服务中心'}
                           </h3>
                           <span className="text-xs px-2 py-0.5 bg-brand-sage/20 rounded-md text-brand-forest font-bold">
-                            儿童健康档案
+                            {PRODUCT.features.ui1022 ? '成长档案' : '儿童健康档案'}
                           </span>
                         </div>
                         
@@ -1265,7 +1267,7 @@ export default function App() {
                         {/* Screening progress */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between text-xs text-brand-charcoal/80 font-semibold">
-                            <span>{PRODUCT.features.ui1022 ? 'T1 评估进度' : '脑功能评估进度'} ({completedScores.length}/9 维度)</span>
+                            <span>{PRODUCT.features.ui1022 ? `T1 评估进度（${completedScores.length}/9 个方面）` : `脑功能评估进度 (${completedScores.length}/9 维度)`}</span>
                             <span>{Math.round((completedScores.length / 9) * 100)}%</span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -1317,12 +1319,12 @@ export default function App() {
                       <div className="pt-3.5 space-y-2.5">
                         <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
                           <FileText size={13} className="text-brand-moss" />
-                          已完成的评估成绩
+                          {PRODUCT.features.ui1022 ? '已完成的评估' : '已完成的评估成绩'}
                         </h4>
                         
                         {completedScores.length === 0 ? (
                           <div className="text-center py-4 text-xs text-brand-charcoal/80">
-                            尚未完成任何康复测评
+                            {PRODUCT.features.ui1022 ? '还没有完成评估' : '尚未完成任何康复测评'}
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1">
@@ -1358,7 +1360,7 @@ export default function App() {
                           className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition duration-200 active:scale-[0.98] shadow-sm cursor-pointer"
                         >
                           <LogOut size={13} className="shrink-0 text-rose-600" />
-                          <span>登出账户</span>
+                          <span>{PRODUCT.features.ui1022 ? '退出登录' : '登出账户'}</span>
                         </button>
                       </div>
 

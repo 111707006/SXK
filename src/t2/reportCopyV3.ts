@@ -30,12 +30,12 @@ export function toolNameV3(toolId: string): string {
 
 /** 各旗標的句子（`{name}` 換成量表名稱）。字句待客戶（R-3），之前用中性的說法。 */
 export const NOTICE_SENTENCE_V3: Readonly<Record<string, string>> = {
-  refer: '「{name}」里有几项，建议近期请专业人员当面看一看。',
+  refer: '「{name}」里有几项需要留意，建议近期请专业人员当面看一看。',
   priority: '「{name}」里您勾选了需要留意的情况，建议预约专家进一步了解。',
   regression: '您提到孩子有些以前会的，现在不会了，建议近期请专业人员当面看一看。',
   impact_high: '情绪方面对孩子日常生活的影响比较大，建议先和专业人员聊一聊。',
-  insufficient: '「{name}」能作答的题目不够，这一份这次先不下判断。',
-  too_many_na: '「{name}」能作答的题目不够，这一份这次先不下判断。',
+  insufficient: '「{name}」可以作答的题目太少，这次先不下结论。',
+  too_many_na: '「{name}」可以作答的题目太少，这次先不下结论。',
 };
 
 /**

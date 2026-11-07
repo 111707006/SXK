@@ -98,7 +98,7 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
               <input
                 id="child-name-input"
                 type="text"
-                placeholder="例如: 森森"
+                placeholder={PRODUCT.features.ui1022 ? '例如：小宝' : '例如: 森森'}
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);

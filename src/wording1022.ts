@@ -48,7 +48,7 @@ export const WORDING_1022 = {
 
   profile: {
     title: 'T1 儿少综合发展评估',
-    intro: '请填写“待评估”孩子的基本信息',
+    intro: '请先填写孩子的基本信息',
     formTitle: '待评估孩子的基本信息',
   },
 
@@ -59,7 +59,7 @@ export const WORDING_1022 = {
     /** 掃碼卡（簡報第 22 頁）。 */
     /** 報告頁頂上孩子那一顆（簡報 11/03 第 13 頁）。 */
     profileChip: '评估档案',
-    qrHint: '长按二维码或扫描二维码，这份报告就会在您自己的手机上打开，之后随时都能再看。',
+    qrHint: '长按识别或用手机扫描二维码，就能在自己的手机上打开这份报告，之后随时可以再看。',
     /** 歷次報告清單每一筆的名字（簡報第 5 頁「后面所有名称都改」）。 */
     listItemTitle: 'T1 儿少综合发展评估报告',
   },
@@ -67,9 +67,9 @@ export const WORDING_1022 = {
   /** 報告與面板上「第二层评估」「第二层『量表评估中心』」的新叫法（`PRODUCT.nextStep`）。 */
   nextStep: {
     actionLabel: 'T2 深度评估',
-    alertText: '建议近期进入「T2 深度评估」。',
-    legendAttentionHint: '进入 T2 深度评估',
-    legendConcernHint: '建议进入 T2 深度评估',
+    alertText: '以上方面可以先做「T2 深度评估」，了解得更清楚。',
+    legendAttentionHint: '可做 T2 深度评估',
+    legendConcernHint: '建议做 T2 深度评估',
     screeningResultWithFindings: '标黄、标红的方面建议再做「T2 深度评估」，了解得更清楚。',
     screeningResultAllClear: '各方面发展稳定，可以把这次结果留作成长记录。',
   },
@@ -99,14 +99,14 @@ export const WORDING_1022 = {
     optional: '选填',
     unknown: '不清楚',
     /** 原題寫「（早产才需要选）」，在這裡是必填，括號那句拿掉。 */
-    gestationQuestion: '出生时怀孕几周？',
+    gestationQuestion: '孩子出生时，妈妈怀孕几周？',
     missing: '还有必填的题目没有选',
   },
 
   /** 「预约 1 对 1 专家」改成企業微信二維碼（使用者 2026-10-24）：不選專家、不選時段。 */
   expertQr: {
     title: '1 对 1 专家咨询',
-    sub: '扫码添加企业微信，由儿童发展评估专家为您逐项说明报告，并给出接下来可以怎么做。',
+    sub: '扫码添加企业微信，由儿童发展评估专家为您逐项说明报告，并告诉您接下来可以怎么做。',
     scan: '扫码添加企业微信',
     hint: '在微信里长按二维码即可识别；添加后说明想咨询的内容，客服会为您安排。',
     alt: '企业微信客服二维码',

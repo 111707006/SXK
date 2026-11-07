@@ -52,16 +52,16 @@ export function AnswersOverview({ scores, notes }: { scores: DimensionScore[]; n
         </h3>
         {/* 原本後面還有半句「只看這一次的作答」的防禦性說明，拿掉了（客戶 10/17、使用者 10-18：報告要行銷出去）。 */}
         {answers.bandName && (
-          <p className="text-xs text-brand-charcoal/80 mt-0.5">题目按孩子当时的年龄出题（{answers.bandName}）。</p>
+          <p className="text-xs text-brand-charcoal/80 mt-0.5">题目是按孩子当时的年龄出的（{answers.bandName}）。</p>
         )}
       </div>
 
       {counts ? (
         <div className="space-y-2.5">
           <p className="text-sm font-extrabold text-brand-forest">
-            这个年龄题组里，做到了 <span className="text-brand-moss text-base">{counts.can}</span> / {counts.total} 项
+            这个年龄的 {counts.total} 题里，做到了 <span className="text-brand-moss text-base">{counts.can}</span> 题
             {counts.partly > 0 && (
-              <span className="text-xs font-semibold text-brand-charcoal/80">（另有 {counts.partly} 项有时・部分做得到）</span>
+              <span className="text-xs font-semibold text-brand-charcoal/80">（另有 {counts.partly} 题有时做得到）</span>
             )}
           </p>
           <div className="w-full h-4 rounded-full overflow-hidden flex border border-brand-stone/50" role="img"
@@ -205,7 +205,7 @@ export function ScreeningHistory({ history, current }: {
           历次筛查对照
         </h3>
         <p className="text-xs text-brand-charcoal/80 mt-0.5">
-          每一点是一次报告里该方面的「关注分」（0–8，越高越建议进一步了解），只画您自己做过的筛查。
+          每个点是一次筛查里这一方面的「关注分」（0–8，分数越高，越建议进一步了解）；图上只有您自己做过的筛查。
         </p>
       </div>
 
@@ -229,7 +229,7 @@ export function ScreeningHistory({ history, current }: {
         </p>
       ) : bands.size > 1 ? (
         <p className="text-xs text-brand-charcoal/80 leading-relaxed">
-          这几次之间孩子跨了年龄段，前后的题目不同，对照时请以同一段的几次为主。
+          这几次之间孩子换了年龄段，前后题目不同，请主要对照同一年龄段的几次。
         </p>
       ) : null}
 

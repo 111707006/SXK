@@ -112,7 +112,7 @@ describe('規則觸發改成提示（ADR-0011）', () => {
     const rec = recommend(input({ ageM: 20, levels: { ...LEVELS0, SOC: 2 }, extraTags: ['ASD_SIG'] }), undefined, { onePerDimension: true });
     const plan = parentPlanV3(rec, false, ['叫名字会回头或有反应', '会用手指指出想要的东西']);
     const n = plan.notices.find(x => x.kind === 'SOC_SIGNAL')!;
-    expect(n.text).toContain('「叫名字会回头或有反应」「会用手指指出想要的东西」');
+    expect(n.text).toContain('「叫名字会回头或有反应」、「会用手指指出想要的东西」');
     expect(n.book).toBe(true);
     expect(plan.tools.map(t => t.code)).not.toContain('M-CHAT-R/F');
     expect(plan.tools.find(t => t.dimension === 'SOC')?.code).toBe('SXK-SOC');

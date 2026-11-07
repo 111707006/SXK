@@ -194,7 +194,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
       }
       if (owner) clearDraft(owner, selected.code);
       setCompleted(c => ({ ...c, [selected.code]: body.createdAt }));
-      setFlash(`「${selected.name}」已完成，已记录。`);
+      setFlash(`「${selected.name}」已完成并保存。`);
       closeTool();
     } catch (err) {
       console.warn('Failed to submit T2 v3 tool result:', err);
@@ -378,7 +378,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
         <div className="pt-6 border-t border-brand-stone/60 flex flex-col sm:flex-row items-center justify-between gap-3">
           {jumpTo1022 && !ready ? (
             <button type="button" id="t2v3-jump-missing" onClick={jumpToMissing} className="text-xs font-bold text-brand-clay underline underline-offset-4 cursor-pointer">
-              {gateText}，点这里跳过去
+              {gateText}，点这里跳到那一题
             </button>
           ) : (
             <span className={`text-xs font-semibold ${ready ? 'text-brand-moss' : 'text-brand-charcoal/80'}`}>{gateText}</span>
@@ -425,7 +425,11 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
         <h2 className="text-sm font-extrabold text-brand-forest">逐份作答</h2>
         <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           按孩子现在 {formatAge(plan.answerAgeMonth)} 出题，每份都可以分开做、也可以重做（每次都另记一笔）。
-          已完成 {doneCount} / {tools.length} 份{plan.totalMinutes > 0 && <>，全部约 {plan.totalMinutes} 分钟</>}。
+          {!ledo && (
+            <>
+              已完成 {doneCount} / {tools.length} 份{plan.totalMinutes > 0 && <>，全部约 {plan.totalMinutes} 分钟</>}。
+            </>
+          )}
         </p>
       </div>
 

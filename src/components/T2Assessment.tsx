@@ -173,7 +173,7 @@ export default function T2Assessment({ onBack, onOpenReport }: T2AssessmentProps
       // 交卷成功：回應就是清單上的一筆，直接接上，不再 GET 一次。
       const entry: CompletedEntry = { id: body.id, createdAt: body.createdAt, toolId: body.result.toolId, bands: body.bands };
       setEntries(prev => [...prev.filter(e => e.toolId !== entry.toolId), entry]);
-      setFlash(`${describePlanItem(selected!)} 已完成，已记录。`);
+      setFlash(`${describePlanItem(selected!)} 已完成并保存。`);
       setSelected(null);
       setDraft(EMPTY_DRAFT);
       setRaterNote('');

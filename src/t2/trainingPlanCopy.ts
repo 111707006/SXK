@@ -29,6 +29,6 @@ export const TRAINING_PLAN_PAGE = {
   redeemInvalid: '兑换码不正确或已使用',
   redeemTooMany: '试得太多次了，请过一小时再试。',
   redeemNeedLogin: '请先登录，再输入兑换码。',
-  activated: (endsOn: string) => `已开通，到 ${Number(endsOn.slice(5, 7))} 月 ${Number(endsOn.slice(8, 10))} 日`,
+  activated: (endsOn: string) => `已开通，有效期至 ${Number(endsOn.slice(5, 7))} 月 ${Number(endsOn.slice(8, 10))} 日`,
   goTraining: '开始线上家庭训练',
 } as const;

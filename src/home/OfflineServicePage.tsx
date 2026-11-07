@@ -64,7 +64,7 @@ function LedoOffline({ onBack }: { onBack: () => void }) {
           <Tile key={d.type} tone={i === 0 ? 'acc' : 'ok'} label={d.label} note="开放后提供" />
         ))}
       </div>
-      <p className="text-[13px] leading-relaxed text-ledo-ink-2">开放时间与做法确定后会在这里公布；现在可以先约线上咨询。</p>
+      <p className="text-[13px] leading-relaxed text-ledo-ink-2">开放时间与服务内容确定后会在这里公布；现在可以先约线上咨询。</p>
     </div>
   );
 }

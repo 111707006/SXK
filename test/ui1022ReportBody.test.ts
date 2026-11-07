@@ -70,7 +70,7 @@ describe.each([
     const html = await render('1', report);
     expect(html).not.toContain('第二层');
     expect(html).not.toContain('量表评估中心');
-    expect(html).toContain('建议近期进入「T2 深度评估」。');
+    expect(html).toContain('以上方面可以先做「T2 深度评估」，了解得更清楚。');
   });
 });
 

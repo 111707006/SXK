@@ -121,14 +121,14 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
         });
         const data = await resp.json().catch(() => ({}));
         if (cancelled) return;
-        if (!resp.ok) throw new Error(data.error || '产生报告连结失败。');
+        if (!resp.ok) throw new Error(data.error || '报告链接生成失败，请稍后再试。');
         if (!data.available) {
           setState({ kind: 'unavailable' });
           return;
         }
         setState({ kind: 'ready', qrSvg: data.qrSvg });
       } catch (err: any) {
-        if (!cancelled) setState({ kind: 'error', message: err.message || '产生报告连结失败。' });
+        if (!cancelled) setState({ kind: 'error', message: err.message || '报告链接生成失败，请稍后再试。' });
       }
     })();
     return () => {
@@ -168,7 +168,7 @@ function ReportTakeawayCard({ reportId }: { reportId: string | null }) {
           把这份报告带回家
         </h3>
         {state.kind === 'loading' && (
-          <p className="text-xs text-brand-charcoal/80">正在产生报告连结…</p>
+          <p className="text-xs text-brand-charcoal/80">正在生成报告链接…</p>
         )}
         {state.kind === 'error' && (
           <p className="text-xs text-rose-600">{state.message}</p>
@@ -625,7 +625,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           </span>
           <h3 className="text-lg font-bold">预约 1 对 1 专家</h3>
           <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
-            由儿童发展评估专家为您逐项说明这份报告，并给出接下来可以怎么做。
+            由儿童发展评估专家为您逐项说明这份报告，并告诉您接下来可以怎么做。
           </p>
         </div>
       </div>
@@ -665,7 +665,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
           <h3 className="text-lg font-bold">预约 1 对 1 专家，线上或到机构都可以</h3>
           <p className="text-xs text-brand-cream/90 max-w-xl leading-relaxed">
             四种可选：线上咨询说明、线上干预训练指导、线下干预训练、线下咨询。
-            由儿童发展评估专家为您逐项说明这份报告，并给出接下来可以怎么做。
+            由儿童发展评估专家为您逐项说明这份报告，并告诉您接下来可以怎么做。
           </p>
         </div>
 

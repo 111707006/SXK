@@ -220,7 +220,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
             {/* Separator */}
             <div className="relative flex py-2 items-center">
               <div className="flex-grow border-t border-dashed border-brand-stone/40"></div>
-              <span className="flex-shrink mx-2 text-xs text-brand-charcoal/80 font-semibold">危险区域</span>
+              <span className="flex-shrink mx-2 text-xs text-brand-charcoal/80 font-semibold">{PRODUCT.features.ui1022 ? '谨慎操作' : '危险区域'}</span>
               <div className="flex-grow border-t border-dashed border-brand-stone/40"></div>
             </div>
 
@@ -234,7 +234,7 @@ export default function EditProfileModal({ child, onSave, onClose, onResetAll }:
               className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1 cursor-pointer"
             >
               <Trash2 size={11} />
-              重置档案与所有测评成绩
+              {PRODUCT.features.ui1022 ? '清除档案与所有评估结果' : '重置档案与所有测评成绩'}
             </button>
           </div>
         </form>

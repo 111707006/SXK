@@ -176,9 +176,9 @@ function templateNote1022(d: T1DimensionAnswers, group: AgeGroup): string {
   const seen = (quotes: number): string => {
     const notYet = itemsAnswered(d, 0).slice(0, quotes);
     const partly = itemsAnswered(d, 1).slice(0, quotes - notYet.length);
-    if (notYet.length && partly.length) return `${quote(notYet)}还做不到，${quote(partly)}有时做得到。`;
-    if (notYet.length) return `${quote(notYet)}还做不到。`;
-    if (partly.length) return `${quote(partly)}有时做得到，还不太稳定。`;
+    if (notYet.length && partly.length) return `孩子还做不到${quote(notYet)}；${quote(partly)}有时做得到。`;
+    if (notYet.length) return `孩子还做不到${quote(notYet)}。`;
+    if (partly.length) return `孩子${quote(partly)}有时做得到，还不太稳定。`;
     return `这一方面${STATUS_WORDING[d.status].describe}。`;
   };
   const noteOf = (quotes: number) => `${NOTE_OPENING_1022}${seen(quotes)}可以这样练：${practiceOf(group, d.dimensionId)}`;
@@ -217,7 +217,7 @@ function templateSummary1022(input: T1ReportInput): string {
   return [
     overall,
     `需要先关注的是：${parts.join('；')}。`,
-    `下一步建议做「T2 深度评估」，把${flagged === 1 ? '这个' : '这几个'}方面看得更细，再定在家怎么练。`,
+    `下一步建议做「T2 深度评估」，把${flagged === 1 ? '这个' : '这几个'}方面看得更细，再决定在家怎么练。`,
   ].join('');
 }
 
@@ -231,7 +231,7 @@ function templateHome(answers: T1Answers, group: AgeGroup, is1022 = false): stri
     // 1022（使用者 2026-11-06「语意不通顺的改」）：題目是一句觀察（「游戏输了能接受，不长时间崩溃」），
     // 舊句「把『……』放进日常、大人先示范一次」讀起來像要大人示範那件事。新句只說日常裡留意、做到就誇。
     out.push(is1022
-      ? `「${d.dimensionName}」：在日常里多留意「${target.text}」这一项，遇到合适的时机就让孩子试一试，做到了就及时夸奖。`
+      ? `「${d.dimensionName}」：日常里多留意孩子「${target.text}」做得怎么样，有一点进步就及时夸奖。`
       : `「${d.dimensionName}」：把「${target.text}」放进每天的日常里，大人先示范一次，再请孩子试一次，做到了就及时夸奖。`);
   }
   for (const g of HOME_GENERAL[group]) if (out.length < 3) out.push(g);

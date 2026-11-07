@@ -45,7 +45,7 @@ export default function LedoReportLibrary({ childName, t1Count, history, onOpenL
 
       <SectionHead title="历次报告" action={history.length > 0 ? `${history.length} 份` : undefined} />
       {history.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-ledo-line py-6 text-center text-xs text-ledo-ink-2">暂无归档的 T1 综合评估</p>
+        <p className="rounded-2xl border border-dashed border-ledo-line py-6 text-center text-xs text-ledo-ink-2">还没有以前的报告</p>
       ) : (
         <div className="space-y-2.5">
           {history.map(rec => {

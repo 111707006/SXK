@@ -84,7 +84,7 @@ describe('「因為……所以練……」', () => {
 
   it('clear（九個都穩定時配的）：說「保持下去」，不說「因为……所以练」', () => {
     const sentence = reasonSentence('LANG', reason({ band: 'clear' }));
-    expect(sentence).toBe(`语言沟通${STATUS_WORDING.normal.describe}，这周安排这一支一起玩，保持下去。`);
+    expect(sentence).toBe('语言沟通方面目前稳定，这周安排这个活动一起玩，保持下去。');
   });
 
   it('每一個 ★ 標籤都查得到句子（配對只吐得出這些）', () => {
@@ -126,7 +126,7 @@ describe('年齡段與週次', () => {
     // 那一句在句子層接 AGE_SPLIT_NOTE（兩個月齡不同時）
     expect(trainingCopy).toContain('AGE_SPLIT_NOTE');
     expect(trainingCopy).toMatch(/ageMonth === reportAgeMonth/);
-    expect(AGE_SPLIT_NOTE).toContain('这一周开始时的月龄'); // 不寫「现在」（審查 #28）
+    expect(AGE_SPLIT_NOTE).not.toContain('现在'); // 不寫「现在」（審查 #28）
     expect(AGE_SPLIT_NOTE).toContain('答题');
   });
 });
@@ -143,7 +143,7 @@ describe('配不到活動時', () => {
   it('往前取的那一支會多說一句（不是安靜地給一支更早的）', () => {
     expect(detail).toContain('BELOW_WINDOW_NOTE');
     expect(detail).toMatch(/reason\.belowWindow/);
-    expect(BELOW_WINDOW_NOTE).toContain('往前');
+    expect(BELOW_WINDOW_NOTE).toContain('简单一点');
   });
 });
 

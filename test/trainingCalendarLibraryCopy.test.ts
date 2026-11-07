@@ -23,9 +23,9 @@ describe('提醒列（§3.7）', () => {
     expect(reminderLine({ reminderDays: [5, 6], reminderTime: '08:30' })).toBe('提醒：每周六、日 08:30');
   });
 
-  it('還沒設：「还没设提醒，设定每周哪几天练」', () => {
-    expect(reminderLine({ reminderDays: [], reminderTime: null })).toBe('还没设提醒，设定每周哪几天练');
-    expect(reminderLine(null)).toBe('还没设提醒，设定每周哪几天练');
+  it('還沒設：「还没设提醒，点这里选每周练习的日子」', () => {
+    expect(reminderLine({ reminderDays: [], reminderTime: null })).toBe('还没设提醒，点这里选每周练习的日子');
+    expect(reminderLine(null)).toBe('还没设提醒，点这里选每周练习的日子');
   });
 });
 
@@ -60,9 +60,9 @@ describe('示範片庫（§3.9）', () => {
 
   it('三個篩選帶數量：全部／适合{孩子名}现在／再大一点', () => {
     expect(libraryChips('小宝', { all: 17, fit: 7, later: 10 })).toEqual([
-      { key: 'all', label: '全部 17' },
-      { key: 'fit', label: '适合小宝现在 7' },
-      { key: 'later', label: '再大一点 10' },
+      { key: 'all', label: '全部（17）' },
+      { key: 'fit', label: '适合小宝现在（7）' },
+      { key: 'later', label: '再大一点（10）' },
     ]);
   });
 

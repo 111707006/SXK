@@ -196,9 +196,9 @@ describe('詳情：腳本那幾區有腳本才出（§3.3 最後一句）', () =
     expect(withGuide).not.toContain('星晨');
   });
 
-  it('本週四支：「为什么这周排这一个」是配對的理由句；「为什么练大运动」', () => {
-    expect(withGuide).toContain('为什么这周排这一个：');
-    expect(withGuide).toContain('所以这周安排这一支来练');
+  it('本週四支：「为什么这周排这个活动」是配對的理由句；「为什么练大运动」', () => {
+    expect(withGuide).toContain('为什么这周排这个活动：');
+    expect(withGuide).toContain('所以这周安排这个活动来练');
     expect(withGuide).toContain('为什么练');
   });
 });
@@ -282,7 +282,7 @@ describe('按 GO 之後', () => {
   it('沒有片 → 圖文模式，多一句「示范片做好后，按 GO 会改成看片跟着做」', () => {
     const html = render(createElement(PlayerScreen, { id: 'A041', from: 'plan', mode: 'video' }));
     expect(html).toContain('data-testid="training-pictures"');
-    expect(html).toContain('这一个还没有示范片；示范片做好后，按 GO 会改成看片跟着做。');
+    expect(html).toContain('这个活动还没有示范片；示范片做好后，按 GO 会改成看片跟着做。');
   });
 });
 

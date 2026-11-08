@@ -85,6 +85,8 @@ import { DIMENSION_CODES } from './src/t2/types';
 import type { Activity, DimensionCode, T2Findings } from './src/t2/types';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
+import { buildAuthorizeUrl, callbackOrigin, exchangeCodeForOpenid, loadOauthConfig, readOauthState, safeReturnPath, signOauthState } from './src/wechatOauth';
+import { findOpenid, saveOpenid } from './src/db/wechatOpenids';
 import { DIMENSIONS_DATA } from './src/data';
 import type { UnlockScope } from './src/types';
 import { PARENT_WORDING_CLAUSE } from './src/utils/parentWording';
@@ -379,12 +381,63 @@ const wechatPayStatus = wechatPay.loadConfig();
  * JSAPI only works inside WeChat's browser (needs an openid from the OAuth
  * flow), H5 only works outside it. Covering both means shipping both.
  *
- * H5 is what's implemented. The JSAPI seam is real — same signing, callback,
- * query and idempotency code, different path and body — but the openid step
- * is missing, so asking for it fails loudly instead of silently ordering
- * something WeChat will reject.
+ * Default is H5. JSAPI (2026-11-08) shares the signing, callback, query and
+ * idempotency code; the client asks for it per order (`channel: 'jsapi'`) when it
+ * runs inside WeChat, and the openid comes from the 服務號 web authorization
+ * (`WECHAT_OAUTH` below). `PAY_TRADE_TYPE=jsapi` forces JSAPI for every order.
  */
 const PAY_TRADE_TYPE = (process.env.PAY_TRADE_TYPE || 'h5') as wechatPay.TradeType;
+
+/**
+ * JSAPI（在微信裡付款，2026-11-08）：服務號網頁授權拿家長的 openid（`src/wechatOauth.ts`）。
+ * 設了 `WECHATPAY_APPID`＋`WECHAT_MP_APPSECRET`＋`PUBLIC_BASE_URL` 才開；只在專案 A。
+ * 開了以後，前端在微信裡下單帶 `channel: 'jsapi'`，微信外照舊走 H5。
+ */
+const WECHAT_OAUTH = APP_MODE === 'full' ? loadOauthConfig() : null;
+
+/**
+ * 這一張單用哪一種付：JSAPI 要先有 openid —— 在**開單之前**決定，沒有 openid 就不留一列沒人付得了的訂單。
+ */
+type PayChannel = { kind: 'h5' } | { kind: 'jsapi'; openid: string } | { kind: 'need_openid' } | { kind: 'jsapi_off' };
+async function resolvePayChannel(req: express.Request, userId: number): Promise<PayChannel> {
+  const wantJsapi = PAY_TRADE_TYPE === 'jsapi' || req.body?.channel === 'jsapi';
+  if (!wantJsapi) return { kind: 'h5' };
+  if (!WECHAT_OAUTH) return { kind: 'jsapi_off' };
+  const openid = await findOpenid(userId, WECHAT_OAUTH.appid);
+  return openid ? { kind: 'jsapi', openid } : { kind: 'need_openid' };
+}
+
+/** 沒辦法用 JSAPI 開單時回什麼（回了就 true，呼叫端直接 return）。 */
+function refusePayChannel(res: express.Response, channel: PayChannel): boolean {
+  if (channel.kind === 'need_openid') {
+    res.status(409).json({ error: '需要先完成微信授权才能付款。', code: 'OPENID_REQUIRED' });
+    return true;
+  }
+  if (channel.kind === 'jsapi_off') {
+    res.status(503).json({ error: '微信内付款暂未开放，请稍后再试。', code: 'JSAPI_UNAVAILABLE' });
+    return true;
+  }
+  return false;
+}
+
+/** 依付款方式下單，回給前端的那一段（H5 的跳轉連結，或 JSAPI 調起支付的參數）。 */
+async function placeChannelOrder(
+  req: express.Request,
+  channel: PayChannel,
+  order: { description: string; outTradeNo: string; amountFen: number },
+): Promise<{ tradeType: 'h5'; h5Url?: string } | { tradeType: 'jsapi'; jsapi: wechatPay.JsapiPayParams }> {
+  const config = wechatPayStatus.config!;
+  if (channel.kind === 'jsapi') {
+    const placed = await wechatPay.placeOrder(config, 'jsapi', { ...order, payerClientIp: '', openid: channel.openid });
+    if (!placed.prepayId) throw new Error('WeChat Pay jsapi order returned no prepay_id');
+    return { tradeType: 'jsapi', jsapi: wechatPay.buildJsapiPayParams(config, placed.prepayId) };
+  }
+  // H5 requires the payer's real IP. Behind nginx this is the X-Forwarded-For
+  // hop we already trust (app.set('trust proxy', 1)).
+  const payerClientIp = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  const placed = await wechatPay.placeOrder(config, 'h5', { ...order, payerClientIp });
+  return { tradeType: 'h5', h5Url: placed.h5Url };
+}
 
 // Security headers (X-Content-Type-Options, frameguard, HSTS, etc.).
 // CSP is disabled so the Vite-built SPA's inline styles/scripts still load;
@@ -2874,7 +2927,7 @@ paidOnly.get('/api/unlocks', async (req, res) => {
  */
 /** 訓練計劃能不能付款（#111）：開關、價錢、微信支付設齊、H5。 */
 function trainingPlanPayAvailable(): boolean {
-  return TRAINING_PLAN && TRAINING_PLAN_PRICES !== null && Boolean(wechatPayStatus.config) && PAY_TRADE_TYPE === 'h5';
+  return TRAINING_PLAN && TRAINING_PLAN_PRICES !== null && Boolean(wechatPayStatus.config) && (PAY_TRADE_TYPE === 'h5' || WECHAT_OAUTH !== null);
 }
 
 /**
@@ -2892,19 +2945,70 @@ async function createPlanPayment(req: express.Request, res: express.Response, us
   const user = await findSessionUser(userId);
   if (!user) return void res.status(401).json({ error: '登录状态已失效，请重新登录。' });
   const amountFen = TRAINING_PLAN_PRICES[months];
+  const channel = await resolvePayChannel(req, user.id);
+  if (refusePayChannel(res, channel)) return;
   const outTradeNo = generateOutTradeNo();
   if (!isValidOutTradeNo(outTradeNo)) throw new Error(`generated out_trade_no violates the official contract: ${outTradeNo}`);
   const paymentId = await mysqlDb.createPayment({ userId: user.id, outTradeNo, amountFen, scope: 'plan', dimensionId: null, months });
   await recordPaymentSplit(user.id, paymentId);
-  const payerClientIp = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '');
-  const order = await wechatPay.placeOrder(wechatPayStatus.config!, 'h5', {
-    description: `居家训练 ${months} 个月`,
-    outTradeNo,
-    amountFen,
-    payerClientIp,
-  });
-  res.json({ outTradeNo, paymentId, amountFen, scope: 'plan', months, wechatReady: true, tradeType: 'h5', h5Url: order.h5Url });
+  const placed = await placeChannelOrder(req, channel, { description: `居家训练 ${months} 个月`, outTradeNo, amountFen });
+  res.json({ outTradeNo, paymentId, amountFen, scope: 'plan', months, wechatReady: true, ...placed });
 }
+
+// ── 服務號網頁授權（JSAPI 支付的 openid，2026-11-08，src/wechatOauth.ts）──
+// 三支都只在專案 A（paidOnly）；`WECHAT_OAUTH` 沒設時 status 回 enabled:false、另兩支 404。
+
+/** 這位家長要不要先走一次授權（前端在微信裡、已登入時問一次）。 */
+paidOnly.get('/api/wechat/oauth/status', async (req, res) => {
+  try {
+    const userId = currentUserId(req);
+    if (!userId) return void res.status(401).json({ error: '请先登录。' });
+    if (!WECHAT_OAUTH || !wechatPayStatus.config || !mysqlDb.isConfigured()) return void res.json({ enabled: false, needed: false });
+    const user = await findSessionUser(userId);
+    if (!user) return void res.status(401).json({ error: '登录状态已失效，请重新登录。' });
+    const openid = await findOpenid(user.id, WECHAT_OAUTH.appid);
+    res.json({ enabled: true, needed: !openid });
+  } catch (err: any) {
+    console.error('[WechatOauth] status failed:', err.message);
+    res.json({ enabled: false, needed: false });
+  }
+});
+
+/** 換一條授權網址（帶簽過的 state，10 分鐘）。前端拿到用 location.href 過去。 */
+paidOnly.post('/api/wechat/oauth/link', async (req, res) => {
+  try {
+    const userId = currentUserId(req);
+    if (!userId) return void res.status(401).json({ error: '请先登录。' });
+    if (!WECHAT_OAUTH) return void res.status(404).json({ error: 'Not found' });
+    const user = await findSessionUser(userId);
+    if (!user) return void res.status(401).json({ error: '登录状态已失效，请重新登录。' });
+    const state = signOauthState(user.id, safeReturnPath(req.body?.returnPath), SESSION_SECRET);
+    // 回到家長原本的網域（www 或不帶 www）：通行證存在各自網域的 localStorage
+    const origin = callbackOrigin(WECHAT_OAUTH, typeof req.headers.origin === 'string' ? req.headers.origin : `https://${req.headers.host ?? ''}`);
+    res.set('Cache-Control', 'no-store').json({ url: buildAuthorizeUrl(WECHAT_OAUTH, state, origin) });
+  } catch (err: any) {
+    console.error('[WechatOauth] link failed:', err.message);
+    res.status(500).json({ error: '暂时无法完成微信授权，请稍后再试。' });
+  }
+});
+
+/** 微信帶 code 回來：驗 state、換 openid、存起來，導回原頁。任何失敗都導回原頁（不留在錯誤頁）。 */
+paidOnly.get('/api/wechat/oauth/callback', async (req, res) => {
+  if (!WECHAT_OAUTH) return void res.status(404).send('Not found');
+  const state = readOauthState(req.query.state, SESSION_SECRET);
+  if (!state) return void res.redirect(302, '/');
+  const back = state.returnPath;
+  try {
+    const code = typeof req.query.code === 'string' ? req.query.code : '';
+    if (!code) return void res.redirect(302, back);
+    const openid = await exchangeCodeForOpenid(WECHAT_OAUTH, code);
+    await saveOpenid(state.userId, WECHAT_OAUTH.appid, openid);
+    res.redirect(302, back);
+  } catch (err: any) {
+    console.error('[WechatOauth] callback failed:', err.message);
+    res.redirect(302, back);
+  }
+});
 
 paidOnly.post('/api/payment/create', async (req, res) => {
   try {
@@ -2979,6 +3083,9 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       }
     }
 
+    const channel: PayChannel = wechatPayStatus.config ? await resolvePayChannel(req, user.id) : { kind: 'h5' };
+    if (refusePayChannel(res, channel)) return;
+
     const outTradeNo = generateOutTradeNo();
     if (!isValidOutTradeNo(outTradeNo)) {
       // Can only fire if the generator is changed badly; failing here beats
@@ -3010,32 +3117,12 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       return;
     }
 
-    if (PAY_TRADE_TYPE === 'jsapi') {
-      // The seam, held open honestly. Ordering works; obtaining the payer's
-      // openid (OAuth web authorization) does not exist yet, and inventing one
-      // would just move the failure to WeChat's door with the parent mid-payment.
-      res.status(501).json({
-        error: 'JSAPI 支付尚未实装（需先完成网页授权取得 openid）。',
-        code: 'JSAPI_NOT_IMPLEMENTED',
-      });
-      return;
-    }
-
     const dimensionName = DIMENSIONS_DATA.find(d => d.id === dimensionId)?.name || dimensionId;
     // What the parent will see on the WeChat payment sheet.
     const orderDescription = scope === 't2'
       ? '森心康 深度评估解锁'
       : `森心康 ${dimensionName} 深度评估解锁`;
-    // H5 requires the payer's real IP. Behind nginx this is the X-Forwarded-For
-    // hop we already trust (app.set('trust proxy', 1)).
-    const payerClientIp = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '');
-
-    const order = await wechatPay.placeOrder(wechatPayStatus.config, 'h5', {
-      description: orderDescription,
-      outTradeNo,
-      amountFen,
-      payerClientIp,
-    });
+    const placed = await placeChannelOrder(req, channel, { description: orderDescription, outTradeNo, amountFen });
 
     res.json({
       alreadyUnlocked: false,
@@ -3045,9 +3132,8 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       scope,
       dimensionId: paidDimensionId,
       wechatReady: true,
-      tradeType: 'h5',
-      // 有效期只有 5 分鐘 —— 前端拿到就該立刻跳轉，不可存起來重用。
-      h5Url: order.h5Url,
+      // H5：h5Url 有效期只有 5 分鐘 —— 前端拿到就該立刻跳轉，不可存起來重用。JSAPI：jsapi 是調起支付的參數。
+      ...placed,
     });
   } catch (err: any) {
     console.error('[Payment] Failed to create payment:', err.message);

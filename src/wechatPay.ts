@@ -200,7 +200,7 @@ export function buildOrderBody(
   if (tradeType === 'h5') {
     base.scene_info = { payer_client_ip: req.payerClientIp, h5_info: { type: 'Wap' } };
   } else {
-    if (!req.openid) throw new Error('JSAPI 下單需要 openid（網頁授權流程尚未實作）。');
+    if (!req.openid) throw new Error('JSAPI 下單需要 openid（先走服務號網頁授權，src/wechatOauth.ts）。');
     base.payer = { openid: req.openid };
   }
 
@@ -248,6 +248,38 @@ export async function placeOrder(
   return tradeType === 'h5'
     ? { tradeType, h5Url: resp.data?.h5_url }
     : { tradeType, prepayId: resp.data?.prepay_id };
+}
+
+/** 前端 `WeixinJSBridge.invoke('getBrandWCPayRequest', …)` 要的參數（JSAPI 調起支付）。 */
+export interface JsapiPayParams {
+  appId: string;
+  timeStamp: string;
+  nonceStr: string;
+  package: string;
+  signType: 'RSA';
+  paySign: string;
+}
+
+/**
+ * JSAPI 調起支付的簽名串：四行（appId、時間戳、隨機串、`prepay_id=…`），**每一行都以 `\n` 結尾**。
+ * 用商戶 API 私鑰 RSA-SHA256 簽、base64。
+ *
+ * 來源：https://pay.weixin.qq.com/doc/v3/merchant/4012365341
+ */
+export function buildJsapiPayMessage(appId: string, timeStamp: string, nonceStr: string, pkg: string): string {
+  return `${appId}\n${timeStamp}\n${nonceStr}\n${pkg}\n`;
+}
+
+export function buildJsapiPayParams(
+  config: Pick<WechatPayConfig, 'appid' | 'privateKey'>,
+  prepayId: string,
+  now: () => number = Date.now,
+  nonce: string = generateNonce(),
+): JsapiPayParams {
+  const timeStamp = String(Math.floor(now() / 1000));
+  const pkg = `prepay_id=${prepayId}`;
+  const paySign = crypto.createSign('RSA-SHA256').update(buildJsapiPayMessage(config.appid, timeStamp, nonce, pkg)).sign(config.privateKey, 'base64');
+  return { appId: config.appid, timeStamp, nonceStr: nonce, package: pkg, signType: 'RSA', paySign };
 }
 
 /**

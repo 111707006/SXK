@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PRODUCT } from '../productConfig';
 import { authFetch } from '../utils/api';
+import { startPayment } from '../utils/wechatPayClient';
 import T2CouponField from './T2CouponField';
 import { formatFen } from '../utils/price';
 import type { T2Pricing } from '../t2/pricing';
@@ -78,6 +79,26 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
    * 回來了。唯一可信的是後端查單（它會直接問微信）。前端在這裡什麼都不判斷，
    * 只把訂單號送回去問。
    */
+  const checkOrder = async (outTradeNo: string, alive: () => boolean = () => true) => {
+    setIsChecking(true);
+    try {
+      const resp = await authFetch(`/api/payment/status?outTradeNo=${encodeURIComponent(outTradeNo)}`);
+      const data = await resp.json().catch(() => ({}));
+      if (!alive()) return;
+      if (resp.ok && data.status === 'success') {
+        sessionStorage.removeItem(PENDING_ORDER_KEY);
+        onAlreadyUnlocked();
+        return;
+      }
+      // 未完成 —— 不清掉訂單號，家長可能只是還沒付完。
+      setError('尚未收到付款结果。如已完成支付，请稍候片刻再返回本页面。');
+    } catch {
+      if (alive()) setError('无法确认支付结果，请稍后重试。');
+    } finally {
+      if (alive()) setIsChecking(false);
+    }
+  };
+
   useEffect(() => {
     const raw = sessionStorage.getItem(PENDING_ORDER_KEY);
     if (!raw) return;
@@ -86,27 +107,8 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
     // 舊版存的是 `dimensionId`。那種殘留不再認得，直接忽略 —— 拿一張舊的維度訂單
     // 去查 T2 的結果，只會讓家長看到一個對不上的答案。
     if (!saved.outTradeNo || saved.scope !== 't2') return;
-
     let cancelled = false;
-    setIsChecking(true);
-    (async () => {
-      try {
-        const resp = await authFetch(`/api/payment/status?outTradeNo=${encodeURIComponent(saved.outTradeNo!)}`);
-        const data = await resp.json().catch(() => ({}));
-        if (cancelled) return;
-        if (resp.ok && data.status === 'success') {
-          sessionStorage.removeItem(PENDING_ORDER_KEY);
-          onAlreadyUnlocked();
-          return;
-        }
-        // 未完成 —— 不清掉訂單號，家長可能只是還沒付完。
-        setError('尚未收到付款结果。如已完成支付，请稍候片刻再返回本页面。');
-      } catch {
-        if (!cancelled) setError('无法确认支付结果，请稍后重试。');
-      } finally {
-        if (!cancelled) setIsChecking(false);
-      }
-    })();
+    void checkOrder(saved.outTradeNo, () => !cancelled);
     return () => { cancelled = true; };
   }, []);
 
@@ -114,44 +116,25 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
     setError(null);
     setIsCreating(true);
     try {
-      const resp = await authFetch('/api/payment/create', {
-        method: 'POST',
-        // 沒有維度可送。`scope` 就是伺服器用來決定發哪一種權益的那一個欄位。
-        body: JSON.stringify({ scope: 't2' }),
+      // 沒有維度可送。`scope` 就是伺服器用來決定發哪一種權益的那一個欄位。
+      // 在微信裡走 JSAPI、微信外走 H5（`startPayment`）；H5 跳走前記下訂單號，回跳後要靠它查單。
+      const outcome = await startPayment({ scope: 't2' }, outTradeNo => {
+        sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify({ outTradeNo, scope: 't2' }));
       });
-      const ct = resp.headers.get('content-type');
-      if (!ct || !ct.includes('application/json')) {
-        throw new Error('服务器返回了非预期的响应。');
-      }
-      const data = await resp.json();
-      if (!resp.ok) {
-        throw new Error(data?.error || '创建订单失败，请稍后重试。');
-      }
-      // 已擁有 → 直接放行，不再開一張單。後端也擋（`alreadyUnlocked`），
-      // 這裡只是讓家長少看一個畫面。
-      if (data.alreadyUnlocked) {
-        onAlreadyUnlocked();
+      // 已擁有 → 直接放行，不再開一張單。後端也擋（`alreadyUnlocked`），這裡只是讓家長少看一個畫面。
+      if (outcome.kind === 'already') { onAlreadyUnlocked(); return; }
+      if (outcome.kind === 'redirecting') return;
+      if (outcome.kind === 'jsapi') {
+        // 微信那一頁關了不等於付款成功：照樣問伺服器（它會直接問微信）
+        if (outcome.result === 'cancel') { setError('已取消付款。'); return; }
+        sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify({ outTradeNo: outcome.outTradeNo, scope: 't2' }));
+        await checkOrder(outcome.outTradeNo);
         return;
       }
-
-      if (data.wechatReady && data.h5Url) {
-        // 記下訂單號 —— 回跳後要靠它查單。H5 的 h5_url 只有 5 分鐘效期，
-        // 拿到就跳，不存起來重用。
-        sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify({
-          outTradeNo: data.outTradeNo, scope: 't2',
-        }));
-        // 只允許在既有參數後追加 redirect_url，且值必須 urlencode。
-        // 用一般導頁（不是 window.open / rel=noreferrer）—— H5 支付會檢查
-        // Referer，少了它會直接失敗。
-        const redirect = `${window.location.origin}${window.location.pathname}`;
-        window.location.href = `${data.h5Url}&redirect_url=${encodeURIComponent(redirect)}`;
-        return;
-      }
-
       setPendingOrder({
-        outTradeNo: data.outTradeNo,
-        amountFen: data.amountFen,
-        reason: typeof data.reason === 'string' ? data.reason : null,
+        outTradeNo: outcome.outTradeNo ?? '',
+        amountFen: outcome.amountFen ?? shownFen,
+        reason: outcome.reason ?? null,
       });
     } catch (err: any) {
       setError(err?.message || '创建订单失败，请稍后重试。');

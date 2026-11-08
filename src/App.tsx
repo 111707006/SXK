@@ -49,6 +49,7 @@ import SplashScreen from './home/SplashScreen';
 import CompanyBadge from './components/CompanyBadge';
 import TrainingPlanPage from './components/training/TrainingPlanPage';
 import RedeemCodeForm from './components/training/RedeemCodeForm';
+import { maybeSilentWechatOauth, startPayment } from './utils/wechatPayClient';
 import { TRAINING_PLAN_PAGE } from './t2/trainingPlanCopy';
 import { isInT1Range } from './t1Data';
 import LedoReportLibrary from './components/ledo/LedoReportLibrary';
@@ -586,6 +587,16 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, [userIdentity, authToken, unlocksNonce]);
+
+  /**
+   * 在微信裡付款（JSAPI，2026-11-08）要家長的 openid：權益讀到了、不是免費期、在微信裡、伺服器開了 JSAPI、
+   * 還沒授權過 → 先靜默走一次服務號授權（snsapi_base，看不到同意畫面），之後按付款不必再跳一次。
+   * 一個分頁只試一次；伺服器沒開 JSAPI 時 status 回 enabled:false，什麼都不做。
+   */
+  useEffect(() => {
+    if (!PRODUCT.features.paywall || !userIdentity || t2Unlocked === null || t2FreePeriod) return;
+    void maybeSilentWechatOauth();
+  }, [userIdentity, t2Unlocked, t2FreePeriod]);
 
   /**
    * 進入某維度的深度評估，未解鎖則先過付費牆。
@@ -1930,14 +1941,19 @@ export default function App() {
                   onActivated={() => setUnlocksNonce(n => n + 1)}
                   onGoTraining={() => setCurrentView('training')}
                   onPay={async months => {
-                    // 訓練計劃付款（#111）：伺服器照設定的價錢開單，拿到 H5 網址就跳過去；回來時 `/api/unlocks` 會重讀。
+                    // 訓練計劃付款（#111）：伺服器照設定的價錢開單。微信裡調起 JSAPI、付完問伺服器查單再重讀使用權；
+                    // 微信外拿到 H5 網址就跳過去，回來時 `/api/unlocks` 會重讀（`startPayment`）。
                     try {
-                      const resp = await authFetch('/api/payment/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope: 'plan', months }) });
-                      const body = await resp.json().catch(() => ({}));
-                      if (resp.ok && typeof body.h5Url === 'string') window.location.href = body.h5Url;
-                      else alert(body.error || '暂时无法付款，请稍后再试。');
-                    } catch {
-                      alert('网络连接异常，请稍后再试。');
+                      const outcome = await startPayment({ scope: 'plan', months });
+                      if (outcome.kind === 'jsapi') {
+                        if (outcome.result === 'cancel') return;
+                        await authFetch(`/api/payment/status?outTradeNo=${encodeURIComponent(outcome.outTradeNo)}`).catch(() => null);
+                        setUnlocksNonce(n => n + 1);
+                      } else if (outcome.kind === 'not_ready') {
+                        alert(outcome.reason || '暂时无法付款，请稍后再试。');
+                      }
+                    } catch (err: any) {
+                      alert(err?.message || '网络连接异常，请稍后再试。');
                     }
                   }}
                 />

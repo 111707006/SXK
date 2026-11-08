@@ -896,3 +896,12 @@ CREATE TABLE IF NOT EXISTS `revenue_split_rates` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`scope`, `ref_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 家长在服务号底下的微信 openid（JSAPI 支付，2026-11-08，deploy/migrations/2026-11-08-wechat-openids.sql）
+CREATE TABLE IF NOT EXISTS `wechat_openids` (
+  `user_id` INT UNSIGNED NOT NULL,
+  `appid` VARCHAR(32) NOT NULL,
+  `openid` VARCHAR(64) NOT NULL,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`, `appid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

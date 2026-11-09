@@ -206,10 +206,13 @@ export default function ReportBody({
       {/* Diagnostic top header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-cream pb-5 mb-6">
         <div>
-          <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
-            <Award size={14} />
-            {sourceLabel}
-          </div>
+          {/* 1022：「本地模板生成」不給家長看（內部標籤，2026-11-10 清單第 18 條）；後台詳情自己另有「报告来源」那一行 */}
+          {(!ui1022 || isAiGenerated === true) && (
+            <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
+              <Award size={14} />
+              {sourceLabel}
+            </div>
+          )}
           <h2 className="text-xl font-bold text-brand-forest mt-1">{ui1022 ? WORDING_1022.report.title : '儿童综合发展评估报告'}</h2>
           {/* 對照表要求固定放在報告最上方的定位句，原句照抄（見 statusWording.ts）；1022 換客戶指定的那一句。 */}
           <p id="report-disclaimer" className="text-xs text-brand-charcoal/80 mt-1.5">{ui1022 ? WORDING_1022.report.disclaimer : SCREENING_DISCLAIMER}</p>
@@ -238,8 +241,9 @@ export default function ReportBody({
         </p>
       </div>
 
-      {/* SECTION 1: ALERT BANNER */}
-      {redNames.length === 0 && yellowNames.length === 0 ? (
+      {/* SECTION 1: ALERT BANNER —— 1022 新版報告的結論已經點名紅黃燈（驗證器要求），紅框是同一句話再講一次，
+          只留全綠那一句（2026-11-10 清單第 15 條）。 */}
+      {ui1022 && real && (redNames.length > 0 || yellowNames.length > 0) ? null : redNames.length === 0 && yellowNames.length === 0 ? (
         <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-3 text-xs font-semibold leading-relaxed">
           <CheckCircle2 className="text-emerald-600 shrink-0 mt-0.5" size={16} />
           <div>

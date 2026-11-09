@@ -66,11 +66,17 @@ describe.each([
     expect(html.indexOf('首席专家结论')).toBeLessThan(html.indexOf('雷达图'));
   });
 
-  it('「第二层」改叫「T2 深度评估」', async () => {
+  it('不寫「第二层」；首席专家结论已點名，紅框提示不再畫（2026-11-10 第 18 條）', async () => {
     const html = await render('1', report);
     expect(html).not.toContain('第二层');
     expect(html).not.toContain('量表评估中心');
-    expect(html).toContain('以上方面可以先做「T2 深度评估」，了解得更清楚。');
+    // 紅框只在新版快照拿掉（新版的首席专家结论已點名紅黃燈）；舊版快照照舊畫，改叫「T2 深度评估」。
+    if (report === realReport) {
+      // 結論本身也可能寫「本次筛查提示：」，所以看紅框本身的樣式。
+      expect(html).not.toContain('bg-rose-50 border border-rose-200 text-rose-950');
+    } else {
+      expect(html).toContain('以上方面可以先做「T2 深度评估」，了解得更清楚。');
+    }
   });
 });
 

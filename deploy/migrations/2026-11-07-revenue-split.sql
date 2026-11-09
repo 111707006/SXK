@@ -32,7 +32,11 @@ SET @has_col := (
   SELECT COUNT(*) FROM information_schema.COLUMNS
    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payments' AND COLUMN_NAME = 'split_snapshot'
 );
-SET @sql := IF(@has_col = 0, 'ALTER TABLE `payments` ADD COLUMN `split_snapshot` JSON NULL AFTER `list_amount_fen`', 'SELECT 1');
+-- 接在 list_amount_fen 後面；優惠券那一份（2026-11-07-t2-coupons.sql，檔名排在這一份後面）還沒跑時先接在 months 後面，
+-- 之後優惠券的兩欄也是插在 months 後面，跑完兩份的欄位順序一樣（2026-11-09 正式站照檔名順序跑，這一句曾因找不到 list_amount_fen 失敗）。
+SET @after := IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payments' AND COLUMN_NAME = 'list_amount_fen') > 0, 'list_amount_fen', 'months');
+SET @sql := IF(@has_col = 0, CONCAT('ALTER TABLE `payments` ADD COLUMN `split_snapshot` JSON NULL AFTER `', @after, '`'), 'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

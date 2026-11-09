@@ -56,9 +56,10 @@ describe('畫面', () => {
   const render = (value: SupplementAnswers) =>
     renderToStaticMarkup(createElement(T1SupplementStep, { value, onChange: () => {}, onBack: () => {}, onSubmit: () => {} }));
 
-  it('缺必填時「生成报告」按不下去', () => {
-    expect(render({ diagnoses: [] })).toMatch(/<button type="button" id="t1-supplement-submit" disabled=""/);
-    expect(render(full)).not.toMatch(/id="t1-supplement-submit" disabled/);
+  it('一進來不先報錯（按了「生成报告」才說哪裡沒選；缺必填時交卷由 T1Screening 擋，2026-11-10 清單第 14 條）', () => {
+    const empty = render({ diagnoses: [] });
+    expect(empty).not.toContain('还有必填');
+    expect(empty).toMatch(/whitespace-nowrap[^"]*">必填/);
     expect(render(full)).toContain('生成报告');
   });
 

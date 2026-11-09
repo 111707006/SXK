@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { WORDING_1022 } from '../wording1022';
 import {
   GESTATION_FULL_TERM,
@@ -25,7 +25,7 @@ function Question({ title, required, children }: { title: string; required: bool
     <div className="space-y-2">
       <p className="text-sm font-bold leading-relaxed text-ledo-ink">
         {title}
-        <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${required ? 'bg-ledo-more text-ledo-more-ink' : 'bg-ledo-field text-ledo-ink-2'}`}>
+        <span className={`ml-1.5 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold ${required ? 'bg-ledo-more text-ledo-more-ink' : 'bg-ledo-field text-ledo-ink-2'}`}>
           {required ? WORDING_1022.supplement.required : WORDING_1022.supplement.optional}
         </span>
       </p>
@@ -41,6 +41,8 @@ export default function T1SupplementStep({ value, onChange, onBack, onSubmit }: 
   onSubmit: () => void;
 }) {
   const missing = supplementMissing(value);
+  // 按過「生成报告」才說還有哪裡沒選：一進來就是紅字，家長還沒開始答就被當成答錯（2026-11-10 清單第 14 條）
+  const [tried, setTried] = useState(false);
   const unknown = WORDING_1022.supplement.unknown;
 
   return (
@@ -86,13 +88,13 @@ export default function T1SupplementStep({ value, onChange, onBack, onSubmit }: 
 
       {/* 診斷那一題拿掉（使用者 2026-10-27：「不影響的話就刪了」）：推薦每個方面只出一份、不看診斷（ADR-0011），答了也不改任何結果。 */}
 
-      {missing.length > 0 && <p className="text-xs font-bold text-ledo-more-ink">{WORDING_1022.supplement.missing}</p>}
+      {tried && missing.length > 0 && <p className="text-xs font-bold text-ledo-more-ink">{WORDING_1022.supplement.missing}</p>}
 
       <div className="grid grid-cols-2 gap-2.5">
         <button type="button" onClick={onBack} className="rounded-full bg-ledo-accent-soft py-3.5 text-sm font-black text-ledo-accent-soft-ink cursor-pointer">
           上一题
         </button>
-        <button type="button" id="t1-supplement-submit" disabled={missing.length > 0} onClick={onSubmit}
+        <button type="button" id="t1-supplement-submit" onClick={() => (missing.length > 0 ? setTried(true) : onSubmit())}
           className="rounded-full bg-ledo-bar py-3.5 text-sm font-black text-white disabled:opacity-40 cursor-pointer disabled:cursor-default">
           {WORDING_1022.buttons.generateReport}
         </button>

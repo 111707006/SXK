@@ -1348,10 +1348,14 @@ export default function App() {
                               <div key={`${score.dimensionId}-${score.tierId}`} className="p-1.5 bg-brand-sage/10 rounded-lg border border-brand-stone/20 flex flex-col justify-between">
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="font-bold text-brand-forest truncate text-xs">{score.dimensionName}</span>
-                                  <span className="px-1 py-0.2 bg-white border border-brand-stone/30 rounded text-xs font-bold text-brand-moss shrink-0">{score.tierId}层</span>
+                                  {/* 1022：不出「T1层」與分數 —— 報告的「关注分」是越高越需要支持，這裡的得分是越高越好，
+                                      同一個方面兩頁的數字方向相反（2026-11-10 實際走一遍清單第 4 條）。家長端只留判定。 */}
+                                  {!PRODUCT.features.ui1022 && (
+                                    <span className="px-1 py-0.2 bg-white border border-brand-stone/30 rounded text-xs font-bold text-brand-moss shrink-0">{score.tierId}层</span>
+                                  )}
                                 </div>
-                                <div className="flex justify-between items-center mt-1">
-                                  <span className="text-xs font-bold text-brand-forest/70">{score.score}分</span>
+                                <div className={`flex items-center mt-1 ${PRODUCT.features.ui1022 ? 'justify-end' : 'justify-between'}`}>
+                                  {!PRODUCT.features.ui1022 && <span className="text-xs font-bold text-brand-forest/70">{score.score}分</span>}
                                   <span className={`text-xs font-extrabold ${
                                     score.status === 'delay' ? 'text-rose-600' :
                                     score.status === 'borderline' ? 'text-amber-600' : 'text-emerald-600'

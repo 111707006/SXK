@@ -68,7 +68,7 @@ vi.mock('../src/wechatPay', async importOriginal => {
   return {
     ...actual,
     loadConfig: () => ({
-      config: { appid: 'wxtestappid', mchid: '1675548366', serialNo: 'S', privateKey: keys.privatePem, apiV3Key: 'k'.repeat(32), platformPublicKey: 'p', platformKeyId: 'PUB', notifyUrl: 'https://sxkscreen.com/api/payment/notify' },
+      config: { appid: 'wxtestappid', mchid: '1675548366', serialNo: 'S', privateKey: keys.privatePem, apiV3Key: 'k'.repeat(32), verifyMode: 'public_key', platformPublicKey: 'p', platformKeyId: 'PUB', notifyUrl: 'https://sxkscreen.com/api/payment/notify' },
       missing: [],
     }),
     placeOrder: async (_cfg: unknown, tradeType: string, req: any) => {

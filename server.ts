@@ -85,6 +85,7 @@ import { DIMENSION_CODES } from './src/t2/types';
 import type { Activity, DimensionCode, T2Findings } from './src/t2/types';
 import qrcode from 'qrcode-generator';
 import * as wechatPay from './src/wechatPay';
+import { PlatformCertStore } from './src/wechatPlatformCerts';
 import { buildAuthorizeUrl, callbackOrigin, exchangeCodeForOpenid, loadOauthConfig, readOauthState, safeReturnPath, signOauthState } from './src/wechatOauth';
 import { findOpenid, saveOpenid } from './src/db/wechatOpenids';
 import { DIMENSIONS_DATA } from './src/data';
@@ -384,6 +385,11 @@ const UNLOCK_PRICE_FEN = Number(process.env.UNLOCK_PRICE_FEN) || 1990;
 // every payment path must behave sanely without them — see /api/payment/create,
 // which reports `wechatReady: false` rather than pretending.
 const wechatPayStatus = wechatPay.loadConfig();
+/**
+ * 平台證書模式（使用者 2026-11-10，`src/wechatPlatformCerts.ts`）：回調依 `Wechatpay-Serial` 找平台證書驗簽，
+ * 證書向微信下載、存在記憶體、12 小時更新。公鑰模式（設了 `WECHATPAY_PUBLIC_KEY(_PATH)`＋`_ID`）不用它。
+ */
+const platformCerts = wechatPayStatus.config?.verifyMode === 'platform_cert' ? new PlatformCertStore(wechatPayStatus.config) : null;
 
 /**
  * H5 or JSAPI. They are mutually exclusive environments, not a hierarchy:
@@ -3238,17 +3244,23 @@ paidOnly.post('/api/pay/wechat/notify', async (req: any, res) => {
 
   if (!signature || !timestamp || !nonce || !rawBody) return fail(400, 'missing signature headers or body');
 
-  // Wechatpay-Serial identifies WeChat's key, not ours. A mismatch means their
-  // key rotated and ours is stale — rejecting makes them retry, which is the
-  // correct outcome, and it stops us from verifying against the wrong key.
-  if (serial && wechatPayStatus.config.platformKeyId && serial !== wechatPayStatus.config.platformKeyId) {
-    return fail(401, `Wechatpay-Serial ${serial} does not match the configured public key id`);
+  // Wechatpay-Serial identifies WeChat's key, not ours.
+  // - 公鑰模式：要等於設定的公鑰 ID。對不上表示對方換了鑰匙、我們的過期了 —— 拒收讓微信重試，也不拿錯的鑰匙驗。
+  // - 平台證書模式：依序列號找平台證書（不認得會先重新下載一次）；找不到就拒收，微信會重試。
+  let publicKey: string;
+  if (wechatPayStatus.config.verifyMode === 'public_key') {
+    if (serial && serial !== wechatPayStatus.config.platformKeyId) {
+      return fail(401, `Wechatpay-Serial ${serial} does not match the configured public key id`);
+    }
+    publicKey = wechatPayStatus.config.platformPublicKey;
+  } else {
+    if (!serial) return fail(401, 'missing Wechatpay-Serial');
+    const found = await platformCerts!.publicKeyFor(serial);
+    if (!found) return fail(401, `Wechatpay-Serial ${serial} is not a known, unexpired platform certificate`);
+    publicKey = found;
   }
 
-  const verified = wechatPay.verifyCallbackSignature({
-    timestamp, nonce, rawBody, signature,
-    publicKey: wechatPayStatus.config.platformPublicKey,
-  });
+  const verified = wechatPay.verifyCallbackSignature({ timestamp, nonce, rawBody, signature, publicKey });
   if (!verified.ok) return fail(401, verified.reason || 'signature verification failed');
 
   let decrypted: any;
@@ -4692,9 +4704,16 @@ export async function startServer() {
       );
       console.log(
         wechatPayStatus.config
-          ? `[SenXinKang Server] WeChat Pay configured (trade type: ${PAY_TRADE_TYPE}).`
+          ? `[SenXinKang Server] WeChat Pay configured (trade type: ${PAY_TRADE_TYPE}, callbacks verified by ${wechatPayStatus.config.verifyMode}).`
           : `[SenXinKang Server] WeChat Pay NOT configured — orders can be opened but not paid. Missing: ${wechatPayStatus.missing.join(', ')}`
       );
+      // 平台證書模式：開機先下載一次，設定錯（私鑰、序列號、APIv3 密鑰）在日誌裡馬上看得到，不等第一筆付款
+      if (platformCerts && !process.env.VITEST) {
+        platformCerts
+          .refresh()
+          .then(() => console.log(`[SenXinKang Server] WeChat Pay platform certificates loaded: ${platformCerts.serials().join(', ')}`))
+          .catch(err => console.error(`[SenXinKang Server] WeChat Pay platform certificates could not be downloaded: ${err.message}`));
+      }
     }
   });
 }

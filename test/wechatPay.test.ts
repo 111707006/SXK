@@ -218,6 +218,31 @@ describe('設定載入', () => {
     expect(missing).toContain('WECHATPAY_NOTIFY_URL');
   });
 
+  const base = {
+    WECHATPAY_APPID: 'wx1', WECHATPAY_MCHID: '1675548366', WECHATPAY_SERIAL_NO: 'S', WECHATPAY_PRIVATE_KEY: 'pem',
+    WECHATPAY_APIV3_KEY: 'k'.repeat(32), WECHATPAY_NOTIFY_URL: 'https://sxkscreen.com/api/pay/wechat/notify',
+  } as NodeJS.ProcessEnv;
+
+  it('公鑰兩欄都沒設＝平台證書模式（使用者 2026-11-10），設定齊全', () => {
+    const { config, missing } = loadConfig(base);
+    expect(missing).toEqual([]);
+    expect(config?.verifyMode).toBe('platform_cert');
+  });
+
+  it('公鑰兩欄都設＝公鑰模式', () => {
+    const { config } = loadConfig({ ...base, WECHATPAY_PUBLIC_KEY: 'pub', WECHATPAY_PUBLIC_KEY_ID: 'PUB_KEY_ID_1' });
+    expect(config?.verifyMode).toBe('public_key');
+  });
+
+  it('公鑰只設一半：指名缺的那一個', () => {
+    const onlyKey = loadConfig({ ...base, WECHATPAY_PUBLIC_KEY: 'pub' });
+    expect(onlyKey.config).toBeNull();
+    expect(onlyKey.missing.some(m => m.startsWith('WECHATPAY_PUBLIC_KEY_ID'))).toBe(true);
+    const onlyId = loadConfig({ ...base, WECHATPAY_PUBLIC_KEY_ID: 'PUB_KEY_ID_1' });
+    expect(onlyId.config).toBeNull();
+    expect(onlyId.missing.some(m => m.startsWith('WECHATPAY_PUBLIC_KEY(_PATH)'))).toBe(true);
+  });
+
   it('APIv3 金鑰長度不對會被指名', () => {
     const { missing } = loadConfig({ WECHATPAY_APIV3_KEY: 'short' } as NodeJS.ProcessEnv);
     expect(missing.some(m => m.includes('32 bytes'))).toBe(true);

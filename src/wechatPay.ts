@@ -7,6 +7,8 @@
  * live in `docs/research/wechat-pay-v3-h5.md`, which cites a source URL per
  * rule — read that before changing anything here.
  *
+ * 回調驗簽兩種：平台證書（正式站，`src/wechatPlatformCerts.ts` 下載與快取）或微信支付公鑰（`loadConfig` 的 `verifyMode`）。
+ *
  * ⚠️ NOTHING here has run against WeChat's servers. The merchant id, certificate
  * and the ICP filing do not exist yet. What IS verified: the signature-message
  * construction is pinned to WeChat's own published example byte for byte, and
@@ -45,9 +47,15 @@ export interface WechatPayConfig {
   privateKey: string;
   /** APIv3 密鑰，必須恰為 32 bytes —— 回調解密用。 */
   apiV3Key: string;
-  /** 微信支付公鑰（官方推薦方案）—— 驗回調的簽。 */
+  /**
+   * 回調怎麼驗簽：`platform_cert`＝平台證書（向微信下載、依序列號找，`src/wechatPlatformCerts.ts`；
+   * 使用者 2026-11-10 選的，商戶號維持這個模式）；`public_key`＝微信支付公鑰（下面兩欄）。
+   * 有設公鑰兩欄就是 `public_key`，沒設就是 `platform_cert`。
+   */
+  verifyMode: 'platform_cert' | 'public_key';
+  /** 微信支付公鑰（`public_key` 模式）—— 驗回調的簽；平台證書模式是空字串。 */
   platformPublicKey: string;
-  /** 微信支付公鑰 ID，用於比對回調的 `Wechatpay-Serial`。 */
+  /** 微信支付公鑰 ID，用於比對回調的 `Wechatpay-Serial`；平台證書模式是空字串。 */
   platformKeyId: string;
   /** 必須是 https、公網可達、不帶查詢參數。 */
   notifyUrl: string;
@@ -93,13 +101,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigStatus {
     serialNo: 'WECHATPAY_SERIAL_NO',
     privateKey: 'WECHATPAY_PRIVATE_KEY(_PATH)',
     apiV3Key: 'WECHATPAY_APIV3_KEY',
-    platformPublicKey: 'WECHATPAY_PUBLIC_KEY(_PATH)',
-    platformKeyId: 'WECHATPAY_PUBLIC_KEY_ID',
+    platformPublicKey: 'WECHATPAY_PUBLIC_KEY(_PATH)（與 PUBLIC_KEY_ID 一起設；兩個都不設＝平台證書模式）',
+    platformKeyId: 'WECHATPAY_PUBLIC_KEY_ID（與 PUBLIC_KEY 一起設；兩個都不設＝平台證書模式）',
     notifyUrl: 'WECHATPAY_NOTIFY_URL',
   };
 
+  // 公鑰兩欄是選填的一組：都沒設＝平台證書模式；設了一半要指名缺哪一個（設錯的人以為自己在用公鑰）。
+  const optional = new Set<keyof typeof candidate>(['platformPublicKey', 'platformKeyId']);
+  const keyHalf = Boolean(candidate.platformPublicKey) !== Boolean(candidate.platformKeyId);
   const missing = (Object.keys(candidate) as (keyof typeof candidate)[])
-    .filter(k => !candidate[k])
+    .filter(k => !candidate[k] && (!optional.has(k) || keyHalf))
     .map(k => labels[k]);
 
   // 32 bytes 是硬性規定，長度不對的話會在解密時才炸 —— 那時人已經付完錢了。
@@ -113,7 +124,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigStatus {
     missing.push('WECHATPAY_NOTIFY_URL（不可帶查詢參數）');
   }
 
-  return { config: missing.length ? null : candidate, missing };
+  const verifyMode = candidate.platformPublicKey && candidate.platformKeyId ? 'public_key' : 'platform_cert';
+  return { config: missing.length ? null : { ...candidate, verifyMode }, missing };
 }
 
 /**

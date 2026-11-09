@@ -55,7 +55,7 @@ vi.mock('../src/wechatPay', async importOriginal => {
   const actual = await importOriginal<typeof import('../src/wechatPay')>();
   return {
     ...actual,
-    loadConfig: () => ({ config: { appId: 'x', mchid: 'y', platformKeyId: '', platformPublicKey: '', apiV3Key: '' }, missing: [] }),
+    loadConfig: () => ({ config: { appId: 'x', mchid: 'y', verifyMode: 'platform_cert', platformKeyId: '', platformPublicKey: '', apiV3Key: '' }, missing: [] }),
     queryOrderByOutTradeNo: async () => ({ tradeState: 'SUCCESS', transactionId: 'wx-tx-plan' }),
     placeOrder: async () => ({ h5Url: 'https://wx.example/h5' }),
   };

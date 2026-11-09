@@ -62,7 +62,7 @@ vi.mock('../src/wechatPay', async (importOriginal) => {
   return {
     ...actual,
     // 憑證齊全，查單模式才走得到 settlePayment。
-    loadConfig: () => ({ config: { appId: 'x', mchid: 'y', platformKeyId: '', platformPublicKey: '', apiV3Key: '' }, missing: [] }),
+    loadConfig: () => ({ config: { appId: 'x', mchid: 'y', verifyMode: 'platform_cert', platformKeyId: '', platformPublicKey: '', apiV3Key: '' }, missing: [] }),
     queryOrderByOutTradeNo: async () => ({ tradeState: 'SUCCESS', transactionId: 'wx-tx-1' }),
   };
 });

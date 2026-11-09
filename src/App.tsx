@@ -1423,7 +1423,8 @@ export default function App() {
           ) : homeV2 && !userIdentity ? (
             /* 新版首頁、未登入：右上「登录、注册」（規格 §5.1）。純驗證碼登入沒有另外的註冊，兩顆到同一個登入頁。
                1022（issue #84）合成一顆「登录／注册」；從頁首登入完回首頁（viewAfterLogin）。 */
-            PRODUCT.features.ui1022 ? (
+            // 已經在登入頁上就不再畫這顆（2026-11-10 清單第 21 條）
+            PRODUCT.features.ui1022 ? (homeLoginOpen ? null : (
               <button
                 type="button"
                 id="header-login-btn"
@@ -1432,7 +1433,7 @@ export default function App() {
               >
                 {WORDING_1022.home.login}
               </button>
-            ) : (
+            )) : (
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"

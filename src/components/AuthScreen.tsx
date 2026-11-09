@@ -266,7 +266,7 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
               type="checkbox"
               checked={agreedToTerms}
               onChange={(e) => setAgreedToTerms(e.target.checked)}
-              className="mt-0.5 w-3.5 h-3.5 rounded border-brand-stone/60 text-brand-forest focus:ring-brand-moss/40 accent-brand-forest shrink-0"
+              className={`${PRODUCT.features.ui1022 ? 'mt-0 w-5 h-5' : 'mt-0.5 w-3.5 h-3.5'} rounded border-brand-stone/60 text-brand-forest focus:ring-brand-moss/40 accent-brand-forest shrink-0`}
             />
             <span className="text-xs text-brand-charcoal/80 leading-relaxed">
               本人已审阅并同意

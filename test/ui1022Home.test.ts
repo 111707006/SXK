@@ -84,7 +84,8 @@ describe('關著照舊', () => {
 describe('頁首登入', () => {
   const app = readFileSync('src/App.tsx', 'utf8');
   it('1022 一顆「登录／注册」，關著照舊兩顆', () => {
-    expect(app).toMatch(/PRODUCT\.features\.ui1022 \? \(\s*<button[^>]*\s*type="button"\s*id="header-login-btn"[\s\S]*?\{WORDING_1022\.home\.login\}/);
+    // 已經在登入頁上就不畫（2026-11-10 清單第 21 條）
+    expect(app).toMatch(/PRODUCT\.features\.ui1022 \? \(homeLoginOpen \? null : \(\s*<button[^>]*\s*type="button"\s*id="header-login-btn"[\s\S]*?\{WORDING_1022\.home\.login\}/);
     expect(app).toContain('id="header-register-btn"');
   });
 

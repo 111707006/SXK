@@ -150,5 +150,6 @@ export function Chip({ tone = 'acc', on = false, children }: { tone?: Tone | 'wh
 /** 早上好／下午好／晚上好（看家長手機的時間）。 */
 export function greetingFor(now: Date): string {
   const h = now.getHours();
-  return h < 11 ? '早上好' : h < 18 ? '下午好' : '晚上好';
+  // 半夜 0–4 點不說「早上好」（2026-11-10 清單第 24 條）
+  return h < 5 ? '晚上好' : h < 11 ? '早上好' : h < 18 ? '下午好' : '晚上好';
 }

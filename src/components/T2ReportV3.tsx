@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Award, ChevronDown, ChevronRight, ClipboardList, HeartHandshake, Layers, RefreshCw, Sparkles, UserRound } from 'lucide-react';
 import { reportSourceLabel } from '../utils/reportSource';
+import { formatAge } from '../utils/dateUtils';
 import { SITE_DIMENSION_NAME } from '../t2/dimensionMap';
 import type { T2FindingsV3 } from '../t2/findingsV3';
 import { KITV3_LOADERS } from '../t2/kitv3/lazy';
@@ -120,18 +121,20 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
       {/* 標頭：來源、生成日期、測評月齡 */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
-            <Award size={14} />
-            {reportSourceLabel(entry.isAiGenerated)}
-          </div>
+          {/* 家長那一份（有 actions）不出「本地模板生成」這種內部標籤；後台的只讀快照照舊（2026-11-10 清單第 18 條） */}
+          {(!actions || entry.isAiGenerated === true) && (
+            <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
+              <Award size={14} />
+              {reportSourceLabel(entry.isAiGenerated)}
+            </div>
+          )}
           <h2 className="text-lg font-bold text-brand-forest mt-1">深度评估报告</h2>
           <p className="text-xs text-brand-charcoal/80 mt-1">
-            {formatDay(entry.createdAt) && `${formatDay(entry.createdAt)}生成 · `}按答题时 {ageMonth} 个月整理
+            {formatDay(entry.createdAt) && `${formatDay(entry.createdAt)}生成 · `}按答题时 {formatAge(ageMonth)} 整理
           </p>
         </div>
         {actions && (
           <div className="flex flex-col items-start sm:items-end gap-2">
-            <div className="print:hidden">{actions.regenerate}</div>
             <PrintButton id="t2v3-print-btn" />
           </div>
         )}
@@ -162,7 +165,10 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
         {prose && <p className="text-xs text-brand-charcoal leading-relaxed" id="t2v3-overview">{prose.overview}</p>}
         <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           {doneNames.length > 0
-            ? `这份报告整理自近 3 个月填写的 ${doneNames.length} 份问卷：${doneNames.join('、')}。`
+            ? prose
+              // 上面那段報告文字已經說了「整理了近 3 个月填写的 N 份问卷」，這裡只列是哪幾份（2026-11-10 清單第 15 條）
+              ? `这次整理的问卷：${doneNames.join('、')}。`
+              : `这份报告整理自近 3 个月填写的 ${doneNames.length} 份问卷：${doneNames.join('、')}。`
             : '近 3 个月没有填完的问卷，下面先按筛查结果列出各方面。'}
         </p>
         {isLedoPage() ? (
@@ -362,6 +368,8 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
         )}
       </section>
 
+      {/* 「重新生成」放到最後：放在標題下會比報告本身還顯眼（2026-11-10 清單第 16 條） */}
+      {actions && <div className="print:hidden pt-2">{actions.regenerate}</div>}
       {actions && (
         <div className="print:hidden pt-2 flex items-center gap-2">
           <RefreshCw size={12} className="text-brand-charcoal/80" />

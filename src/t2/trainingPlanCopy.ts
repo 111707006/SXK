@@ -11,10 +11,11 @@ export const PLAN_BLURBS: Record<PassMonths, { title: string; blurb: string }> =
 };
 
 /**
- * 方案的原價（劃掉的那一個，使用者 2026-11-10：一個月「原价 ¥199、折价 ¥19.9」）。只是顯示用：實際收多少一律照
- * 伺服器的 `TRAINING_PLAN_PRICES_FEN`（`/api/training/plans` 的 `priceFen`）；原價不高於實收價時不畫。
+ * 方案的原價（劃掉的那一個）。使用者 2026-11-10：原價 ¥199／299／399，現在照折扣價 ¥19.9／29.9／39.9 收
+ * （正式站 `TRAINING_PLAN_PRICES_FEN=1:1990,3:2990,6:3990`）。只是顯示用：實際收多少一律照伺服器的
+ * `TRAINING_PLAN_PRICES_FEN`（`/api/training/plans` 的 `priceFen`）；原價不高於實收價時不畫。
  */
-export const PLAN_LIST_PRICE_FEN: Partial<Record<PassMonths, number>> = { 1: 19900 };
+export const PLAN_LIST_PRICE_FEN: Partial<Record<PassMonths, number>> = { 1: 19900, 3: 29900, 6: 39900 };
 
 /** 分 → 「¥19.9」「¥199」。 */
 export function planYuan(fen: number): string {

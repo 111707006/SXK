@@ -106,8 +106,9 @@ export const ENTRY = {
   weekTag: '本周',
   libraryTitle: '示范片库',
   librarySub: '示范片做好后都放在这里，年龄没到的也能先看',
-  bannerText: '不确定怎么带？约专家带着做一次',
-  bannerAction: '去预约',
+  // 按下去打開的是「1 对 1 专家咨询」的企業微信 QR code，不是約一次真人帶練（2026-11-10 清單第 19 條）
+  bannerText: '不确定怎么带？加专家微信问一问',
+  bannerAction: '去添加',
   loading: '正在准备这一周的活动…',
   error: '这一周的活动暂时读不出来，请稍后再打开这一页。',
   noActivities: '这一周还没有合适的活动，可以先约专家聊聊在家能做什么。',

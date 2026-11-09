@@ -269,8 +269,29 @@ function templateNextSteps(answers: T1Answers, group: AgeGroup): string {
   ].join('');
 }
 
+/**
+ * 1022 的模板不用「他」指孩子：女孩的報告寫「说一遍给他听」會被家長看成寫錯人（2026-11-10 實際走一遍清單第 8 條）。
+ * 一律改成「孩子」；「其他」「他们」不動。只套 1022 的寫法 —— 關著時的輸出照基準檔一字不差。
+ */
+export function withoutHe(text: string): string {
+  return text.replace(/(?<!其)他(?!们)/g, '孩子');
+}
+
 /** 模板退路。產出一定過 `validateT1Report`（`test/t1ReportReal.test.ts` 窮舉年齡段×判定盯著）。 */
 export function templateT1Report(input: T1ReportInput, options: T1ReportOptions = {}): T1RealReport {
+  const report = templateT1ReportRaw(input, options);
+  if (options.writing !== '1022') return report;
+  return {
+    ...report,
+    summary: withoutHe(report.summary),
+    perDimension: report.perDimension.map(d => ({ ...d, note: withoutHe(d.note) })),
+    rehabSuggestions: report.rehabSuggestions.map(withoutHe),
+    homeGuidance: report.homeGuidance.map(withoutHe),
+    prognosisPrediction: withoutHe(report.prognosisPrediction),
+  };
+}
+
+function templateT1ReportRaw(input: T1ReportInput, options: T1ReportOptions): T1RealReport {
   const { answers } = input;
   const is1022 = options.writing === '1022';
   const group = ageGroupOf(answers);

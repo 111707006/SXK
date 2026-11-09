@@ -163,7 +163,8 @@ export default function CheckinScreen({ id, checkinId, times, date }: { id: stri
       <div className="shrink-0 px-5 pt-3 pb-[calc(18px+env(safe-area-inset-bottom))] grid grid-cols-2 gap-2.5">
         <button
           type="button"
-          onClick={() => nav.openPage({ name: 'calendar' })}
+          // 換掉打卡成功那一層：日曆按返回回到詳情，不再回到「打卡成功」（2026-11-10 清單第 20 條）
+          onClick={() => nav.replacePage({ name: 'calendar' })}
           className="h-12 rounded-full border border-brand-stone text-brand-forest font-bold cursor-pointer"
         >
           {CHECKIN.toCalendar}

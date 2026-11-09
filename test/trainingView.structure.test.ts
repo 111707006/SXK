@@ -237,6 +237,7 @@ describe('票 7：詳情、播放器、打卡成功、抽屜', () => {
   it('「练过 N」與「看打卡日历」開打卡日曆（票 8 接上真的頁）', () => {
     expect(overlay).toMatch(/case 'calendar':\s*return <CalendarScreen \/>;/);
     expect(detail).toContain("nav.openPage({ name: 'calendar' })");
-    expect(checkin).toContain("nav.openPage({ name: 'calendar' })");
+    // 打卡成功 → 日曆是換掉那一層（返回不回到打卡成功，2026-11-10 清單第 20 條）
+    expect(checkin).toContain("nav.replacePage({ name: 'calendar' })");
   });
 });

@@ -246,7 +246,7 @@ export default function ParentsPanel({
               </tbody>
             </table>
             <p className="mt-3 text-[10px] text-brand-charcoal/40">
-              共 {parents.length} 位家长。后端一次最多回 500 笔。
+              共 {parents.length} 位家长{parents.length >= 500 ? '（一次最多列 500 位）' : ''}。
             </p>
           </div>
         )}

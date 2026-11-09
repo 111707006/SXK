@@ -733,7 +733,8 @@ function ParentDetailBody({ parent }: { parent: AdminParentDetail }) {
 
       <Section icon={<Phone size={12} />} title="联络方式">
         <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
-          <Row label="帐号信箱" value={parent.email || '—'} />
+          {/* 邮箱登入拿掉之後（#27）新家長都沒有信箱：沒有就不列這一行（2026-11-10 清單第 32 條） */}
+          {parent.email && <Row label="帐号信箱" value={parent.email} />}
           <Row label="注册手机" value={parent.phone || '—'} />
           {parent.bookings[0] && (
             <>

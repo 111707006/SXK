@@ -128,6 +128,16 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>(() => (homeV2 ? 'home' : 'dashboard'));
   // 1022（issue #86）：換主畫面推一格歷史，返回鍵（含微信左上角）回上一個主畫面。
   useViewHistory(currentView, setCurrentView, isAppView, PRODUCT.features.ui1022);
+  /**
+   * 換頁回到頂端：以前沿用上一頁的捲動位置，建完檔到首頁時「早上好」被固定頁首蓋住、T1 題卡的返回鈕被蓋掉一半
+   * （2026-11-10 實際走一遍清單第 13 條）。layout effect 跑在子元件的 effect／計時器之前，
+   * 報告頁「捲到 T2 卡」（`focusT2`，setTimeout）之類的捲動照樣在它之後生效。
+   */
+  const firstViewRef = useRef(true);
+  React.useLayoutEffect(() => {
+    if (firstViewRef.current) { firstViewRef.current = false; return; }
+    window.scrollTo(0, 0);
+  }, [currentView]);
   // T2 報告頁（票 #61）是從作答清單的「生成报告」還是「查看上次的报告」進來的：前者一進去就打 POST。
   const [t2ReportGenerate, setT2ReportGenerate] = useState(false);
   

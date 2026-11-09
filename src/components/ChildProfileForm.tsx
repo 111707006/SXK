@@ -25,7 +25,8 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
   // 永久的生日 —— 而年齡決定篩查出哪一段的題目。修改檔案彈窗已經拒絕猜，
   // 同一個元件的兩個用法不該一個猜一個不猜。
   const [birthDate, setBirthDate] = useState<string>(() => currentChild?.birthDate || '');
-  const [gender, setGender] = useState<Gender>(currentChild?.gender || 'boy');
+  // 1022：新建檔案不預設男孩 —— 預設看起來像已經選好，選錯會帶進報告的稱呼與 T2 計分（2026-11-10 清單第 22 條）。B 照舊。
+  const [gender, setGender] = useState<Gender | null>(currentChild?.gender ?? (PRODUCT.features.ui1022 ? null : 'boy'));
   // 补充资料（T2 v3 推薦規格 §2.1）只在有深度評估的產品問；B 的檔案不帶這幾欄
   const [extras, setExtras] = useState<ChildExtras>(() => extrasOf(currentChild));
   const [error, setError] = useState('');
@@ -42,6 +43,10 @@ export default function ChildProfileForm({ currentChild, onSave }: ChildProfileF
     }
     if (!birthDate) {
       setError('请选择儿童出生日期');
+      return;
+    }
+    if (gender === null) {
+      setError('请选择儿童性别');
       return;
     }
     if (calculatedAgeMonth === null) {

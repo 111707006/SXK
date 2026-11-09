@@ -19,6 +19,8 @@ import type { Activity, DimensionCode, ModuleNo } from '../../t2/types';
 import { DIMENSION_CODES, GUIDE_PREP_KEYS } from '../../t2/types';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { MODULE_TITLES, parseAgeRange } from '../../t2/activitySeed';
+// 畫面上的模組名用簡體那一份（活動庫原文是繁體；2026-11-10 清單第 30 條）
+import { MODULE_TITLES_SC } from '../../t2/trainingCopy';
 import { ACTIVITY_TAGS, REPORT_ONLY_TAGS, TAG_DIMENSIONS, tagDimension } from '../../t2/findingTags';
 import type { ActivityTag, FindingTag, TagDimension } from '../../t2/findingTags';
 import { FINDING_TAG_LABELS } from '../findingTagLabels';
@@ -290,7 +292,7 @@ export default function ActivitiesPanel({ onError }: { onError: (view: AdminErro
                   <option value="">全部 15 个模组</option>
                   {MODULE_NOS.map(no => (
                     <option key={no} value={no}>
-                      {no}. {MODULE_TITLES[no]}
+                      {no}. {MODULE_TITLES_SC[no]}
                     </option>
                   ))}
                 </Select>
@@ -352,7 +354,7 @@ export default function ActivitiesPanel({ onError }: { onError: (view: AdminErro
                     {!a.active && <Tag tone="muted">已停用</Tag>}
                   </p>
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-brand-charcoal/50">
-                    <span>模组 {a.moduleNo}·{MODULE_TITLES[a.moduleNo]}</span>
+                    <span>模组 {a.moduleNo}·{MODULE_TITLES_SC[a.moduleNo]}</span>
                     <span>{a.dimensions.map(d => SITE_DIMENSION_NAME[d]).join('／') || '未选维度'}</span>
                     {a.targetMonth === null ? (
                       <Tag tone="warn">未填目标月龄</Tag>
@@ -662,7 +664,7 @@ function Editor({
           </p>
           {/* 編號與模組不可改：模組由編號算出（ceil(編號/20)），改了它活動會搬到別的模組群而編號還留在原處。 */}
           <p className="mt-1 text-[10px] text-brand-charcoal/50">
-            模组 {original.moduleNo}·{MODULE_TITLES[original.moduleNo]} · 配对硬闸 {original.ageMonths.min}–{original.ageMonths.max} 个月
+            模组 {original.moduleNo}·{MODULE_TITLES_SC[original.moduleNo]} · 配对硬闸 {original.ageMonths.min}–{original.ageMonths.max} 个月
           </p>
         </div>
         <button onClick={onCancel} aria-label="取消" className="rounded-lg p-1 text-brand-charcoal/50 transition hover:bg-white">

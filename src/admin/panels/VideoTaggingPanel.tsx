@@ -19,7 +19,8 @@ import { adminApi } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import type { Activity, DimensionCode } from '../../t2/types';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
-import { MODULE_TITLES } from '../../t2/activitySeed';
+// 畫面上的模組名用簡體那一份（活動庫原文是繁體；2026-11-10 清單第 30 條）
+import { MODULE_TITLES_SC } from '../../t2/trainingCopy';
 import { ACTIVITY_TAGS, TAG_DIMENSIONS, tagDimension, type ActivityTag, type TagDimension } from '../../t2/findingTags';
 import { FINDING_TAG_LABELS } from '../findingTagLabels';
 import { TAG_SENTENCES } from '../../t2/report/sentences';
@@ -291,7 +292,7 @@ function Workbench({ activity, onSaved, onNext }: { activity: Activity; onSaved:
       <div className="flex flex-wrap items-baseline gap-2">
         <span className="font-mono text-xs text-brand-charcoal/50">{activity.id}</span>
         <h3 className="text-base font-bold text-brand-charcoal">{activity.title}</h3>
-        <span className="text-xs text-brand-charcoal/50">模组 {activity.moduleNo} · {MODULE_TITLES[activity.moduleNo]}</span>
+        <span className="text-xs text-brand-charcoal/50">模组 {activity.moduleNo} · {MODULE_TITLES_SC[activity.moduleNo]}</span>
         {!activity.active && <span className="rounded bg-brand-stone px-1.5 text-[10px]">已停用</span>}
       </div>
 

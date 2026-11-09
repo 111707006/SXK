@@ -42,8 +42,8 @@ export const WORDING_1022 = {
     t2CardNeedT1Sub: '先完成 T1，再按结果做深度评估',
     /** 做完 T1 之後 T1 卡的副標。 */
     t1CardDone: (date: string) => `${date}完成，可以重新评估`,
-    /** 第二排訓練卡上的價錢（價錢未定，暫採；使用者 2026-11-06：一個月、原價 200、折扣價 19.9）。 */
-    trainingPrice: { label: '一个月', original: '原价 ¥200', price: '¥19.9', cta: '选方案' },
+    /** 第二排訓練卡上的價錢（價錢未定，暫採；使用者 2026-11-06：一個月、原價 200、折扣價 19.9；2026-11-10 原價改 199，伺服器 1 個月實收 1990 分）。 */
+    trainingPrice: { label: '一个月', original: '原价 ¥199', price: '¥19.9', cta: '选方案' },
   },
 
   profile: {

@@ -35,7 +35,7 @@ describe('1022 開著', () => {
     expect(html).toContain('线上家庭个性化训练');
     expect(html).toContain('跟着练！科学助力孩子能力提升');
     // 價錢（暫採）：原價畫刪除線、折扣價
-    expect(html).toMatch(/line-through[^"]*">原价 ¥200</);
+    expect(html).toMatch(/line-through[^"]*">原价 ¥199</);
     expect(html).toContain('¥19.9');
   });
 

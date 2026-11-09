@@ -24,7 +24,8 @@ const UNASSIGNED_VALUE = 'unassigned';
 const UNASSIGNED_LABEL = '未归属的家长';
 /** A 的未歸屬就是森心康直屬（CONTEXT.md「未歸屬」）；A 有合作公司（#89）之後選單上這樣寫。 */
 const DIRECT_LABEL = '森心康直属家长';
-const unassignedLabel = (shape: AdminCenterShape) => (isProjectA(shape) ? DIRECT_LABEL : UNASSIGNED_LABEL);
+/** 視野選單裡「沒有歸屬」那一項叫什麼；說明文字也用它，兩邊才不會一個叫直屬、一個叫未歸屬（2026-11-10 清單第 33 條）。 */
+export const unassignedLabel = (shape: AdminCenterShape) => (isProjectA(shape) ? DIRECT_LABEL : UNASSIGNED_LABEL);
 
 // ══════════════════════════════════════════════
 // 畫面分流

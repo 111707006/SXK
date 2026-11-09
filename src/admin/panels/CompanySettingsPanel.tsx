@@ -18,7 +18,7 @@ import { adminApi } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { Button, ErrorNote, Field, Panel, Spinner, TextInput, toErrorView, useAsyncData } from '../ui';
 
-export default function CompanySettingsPanel({ onError }: { onError: (view: AdminErrorView) => void }) {
+export default function CompanySettingsPanel({ onError, unassignedName = '未归属的家长' }: { onError: (view: AdminErrorView) => void; unassignedName?: string }) {
   const load = useCallback(() => adminApi.company(), []);
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
 
@@ -87,7 +87,7 @@ export default function CompanySettingsPanel({ onError }: { onError: (view: Admi
         // 全域管理員選到「未歸屬」時會走到這裡。那不是一家公司，
         // 沒有通知位置可以設定 —— 說清楚，不要显示一个存不进去的空表单。
         <p className="py-8 text-center text-xs leading-relaxed text-brand-charcoal/55">
-          「未归属的家长」不是一家合作公司，因此没有机构设定可以调整。
+          「{unassignedName}」不是一家合作公司，因此没有机构设定可以调整。
           <br />
           请从右上角切换到一家合作公司。
         </p>

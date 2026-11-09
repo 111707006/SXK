@@ -27,6 +27,7 @@ import {
   showCompanySwitcher,
   switcherOptions,
   tabNeedsCompany,
+  unassignedLabel,
   visibleTabs,
   type AdminErrorView,
   type AdminTabId,
@@ -333,7 +334,7 @@ function AdminCenter() {
           <p className="mt-3 text-xs font-bold text-brand-forest">请先选定要查看的合作公司</p>
           <p className="mx-auto mt-2 max-w-md text-[11px] leading-relaxed text-brand-charcoal/60">
             全域管理员没有「同时看全部公司」这个状态。请从右上角选定一家合作公司，
-            或选择「未归属的家长」——那些是没有从合作公司连结进站的家长。
+            或选择「{unassignedLabel(shape)}」——那些是没有从合作公司连结进站的家长。
             <br />
             每一次切换都会被记录下来。
           </p>
@@ -352,7 +353,7 @@ function AdminCenter() {
             />
           )}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
-          {activeTab === 'company' && <CompanySettingsPanel onError={handleError} />}
+          {activeTab === 'company' && <CompanySettingsPanel onError={handleError} unassignedName={unassignedLabel(shape)} />}
           {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} />}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} />}
           {activeTab === 'summary' && <SummaryPanel onError={handleError} />}

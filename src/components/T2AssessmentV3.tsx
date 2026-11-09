@@ -412,8 +412,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
   // ── 清單 ──
   const doneCount = tools.filter(t => completed[t.code]).length;
   const bySession: Array<{ title: string; items: ListTool[] }> = [
-    { title: plan.sessions === 2 ? '第一次填写' : '要填的问卷', items: tools.filter(t => t.session === 1) },
-    { title: '第二次填写', items: tools.filter(t => t.session === 2) },
+    // 「第一次／第二次填写」家長看不懂是什麼意思（2026-11-10 清單第 26 條）：說成先填哪幾份、哪幾份可以換一天
+    { title: plan.sessions === 2 ? '先填这几份' : '要填的问卷', items: tools.filter(t => t.session === 1) },
+    { title: '接着填这几份（可以换一天）', items: tools.filter(t => t.session === 2) },
     { title: '最近做过的', items: tools.filter(t => t.session === undefined) },
   ].filter(g => g.items.length > 0);
 

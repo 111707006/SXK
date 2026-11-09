@@ -81,6 +81,7 @@ import { TRAINING_NAME, TRAINING_PAGE } from './t2/trainingCopy';
 import { latestT1ReportFor } from './utils/reportResume';
 import { readHandoffLink } from './handoff/fragment';
 import { HANDOFF_INVITE, HANDOFF_LANDING } from './handoff/handoffCopy';
+import { clearT1Draft } from './utils/t1Draft';
 
 /** App 的主畫面（`currentView`）。返回鍵的歷史記的就是這幾個名字（`useViewHistory`）。 */
 const APP_VIEWS = ['home', 'offline_service', 'dashboard', 't1_screening', 'assessment', 'report', 'mall', 'language_special', 'specialized_report', 'paywall', 't2_assessment', 't2_report', 'training', 'training_plan'] as const;
@@ -277,6 +278,7 @@ export default function App() {
     localStorage.removeItem('senxinkang_user_email');
     localStorage.removeItem('senxinkang_token');
     localStorage.removeItem('senxinkang_device_id');
+    clearT1Draft();
   };
 
   /**

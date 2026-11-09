@@ -5,6 +5,7 @@ import { PRODUCT } from '../productConfig';
 import { WORDING_1022 } from '../wording1022';
 import T1SupplementStep from './T1SupplementStep';
 import { applySupplement, supplementFromChild, supplementMissing, type SupplementAnswers } from '../utils/t1Supplement';
+import { childDraftKey, clearT1Draft, loadT1Draft, saveT1Draft } from '../utils/t1Draft';
 import LedoT1Questions from './ledo/LedoT1Questions';
 import { ALL_CLEAR_SUMMARY, SCREENING_DISCLAIMER, STATUS_WORDING, flaggedSummary } from '../utils/statusWording';
 import { 
@@ -82,13 +83,21 @@ export default function T1Screening({ child, onBack, onSaveT1Results, answeredBe
   // Group questions by dimension (each should have exactly 4 questions)
   const dimensionsList = Array.from(new Set(questions.map(q => q.dimensionId)));
   
+  // 中途離開（重新整理、微信切出去被回收）回來接著做：作答存在這支手機上（utils/t1Draft.ts）
+  const [draft] = useState(() => loadT1Draft(child, questions.map(q => q.id)));
   const [currentStep, setCurrentStep] = useState(0); // 0 to 8 representing the 9 dimensions
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [answers, setAnswers] = useState<Record<string, number>>(() => draft?.answers ?? {});
   const [isCompleted, setIsCompleted] = useState(false);
   const [calculatedScores, setCalculatedScores] = useState<DimensionScore[]>([]);
   /** 1022：九個方面答完之後的「补充资料」那一步（issue #83）。 */
-  const [atSupplement, setAtSupplement] = useState(false);
-  const [supplement, setSupplement] = useState<SupplementAnswers>(() => supplementFromChild(child, answeredBefore));
+  const [atSupplement, setAtSupplement] = useState(() => draft?.atSupplement === true);
+  const [supplement, setSupplement] = useState<SupplementAnswers>(() => draft?.supplement ?? supplementFromChild(child, answeredBefore));
+
+  const draftKey = childDraftKey(child);
+  React.useEffect(() => {
+    if (isCompleted || Object.keys(answers).length === 0) return;
+    saveT1Draft({ childKey: draftKey, answers, supplement, atSupplement });
+  }, [answers, supplement, atSupplement, isCompleted, draftKey]);
 
   const activeDimId = dimensionsList[currentStep];
   const activeQuestions = questions.filter(q => q.dimensionId === activeDimId);
@@ -194,10 +203,12 @@ export default function T1Screening({ child, onBack, onSaveT1Results, answeredBe
   /** 1022（ADR-0014）：交卷就交給上層存成績與補充資料、到報告頁生成，結論頁不再出現。 */
   const handleSubmitWithSupplement = () => {
     if (supplementMissing(supplement).length > 0) return;
+    clearT1Draft();
     onSaveT1Results(scoreAnswers(), applySupplement(child, supplement));
   };
 
   const handleActivateDeepAssessment = () => {
+    clearT1Draft();
     onSaveT1Results(calculatedScores);
   };
 

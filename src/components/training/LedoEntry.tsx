@@ -99,7 +99,11 @@ export default function LedoEntry() {
 function Entry1103() {
   const { data, nav, childName, onBookService } = useTraining();
   const [faq, setFaq] = useState<number | null>(null);
-  const last = useLastWeek(data.plan?.weekStart ?? null);
+  // 第一期第 1 週一定沒有上一週：不去問，免得每次打開都在 console 留一條 404（2026-11-10 清單第 29 條）。
+  // 換期後的第 1 週照問（上一週是舊一期的最後一週）。
+  const pos = data.plan?.plan;
+  const firstEverWeek = pos?.weekIndex === 1 && (!('periodNo' in pos) || pos.periodNo === 1);
+  const last = useLastWeek(firstEverWeek ? null : data.plan?.weekStart ?? null);
 
   if (data.status === 'unavailable') return null;
   if (data.status === 'loading') {

@@ -42,7 +42,7 @@ import {
 } from '../t2/coupon';
 import { redeemLedgerFileName, redeemLedgerWorkbook } from './redeemXlsx';
 import { splitLedgerFileName, splitLedgerWorkbook } from './splitXlsx';
-import { ledgerByParty, ledgerRows, ledgerTotals } from '../revenueSplit/ledger';
+import { ledgerByParty, ledgerRows, ledgerTotals, SPLIT_ORDERS_MAX, SPLIT_TOO_MANY } from '../revenueSplit/ledger';
 import { DEFAULT_COMPANY_BP, DEFAULT_PLATFORM_BP, bpFromPercent } from '../revenueSplit/split';
 import { isPassMonths } from '../t2/trainingPass';
 import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
@@ -884,6 +884,12 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       return { from, to };
     };
 
+    const tooMany = (res: any, err: any): boolean => {
+      if (err?.code !== SPLIT_TOO_MANY) return false;
+      res.status(413).json({ error: `这段日期的订单超过 ${SPLIT_ORDERS_MAX} 笔，请把日期缩短再看。`, code: SPLIT_TOO_MANY });
+      return true;
+    };
+
     router.get('/revenue-split', async (req: AuthedRequest, res) => {
       if (!requireGlobal(req, res)) return;
       try {
@@ -935,6 +941,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         const rows = ledgerRows(await store.listSplitOrders(range.from, range.to));
         res.json({ ...range, rows, totals: ledgerTotals(rows), byParty: ledgerByParty(rows) });
       } catch (err: any) {
+        if (tooMany(res, err)) return;
         console.error('[Admin] listSplitOrders failed:', err.message);
         res.status(500).json({ error: '读取订单失败。' });
       }
@@ -962,6 +969,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         res.setHeader('Cache-Control', 'no-store');
         res.send(file);
       } catch (err: any) {
+        if (tooMany(res, err)) return;
         console.error('[Admin] revenue split export failed:', err.message);
         res.status(500).json({ error: '导出失败，请稍后再试。' });
       }

@@ -23,7 +23,8 @@ import {
 
 type State = { kind: 'hidden' } | { kind: 'open' } | { kind: 'applied'; coupon: ParentCoupon };
 
-export default function T2CouponField({ priceFen }: { priceFen: number }) {
+/** `onApplied`：讀到或兌到一張時告訴外層（付款鈕要寫折後價，與伺服器收的一致）。 */
+export default function T2CouponField({ priceFen, onApplied }: { priceFen: number; onApplied?: (coupon: ParentCoupon) => void }) {
   const [state, setState] = useState<State>({ kind: 'hidden' });
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,11 +39,13 @@ export default function T2CouponField({ priceFen }: { priceFen: number }) {
         const body = await resp.json();
         if (cancelled) return;
         setState(body?.coupon ? { kind: 'applied', coupon: body.coupon } : { kind: 'open' });
+        if (body?.coupon) onApplied?.(body.coupon);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
+    // 只在掛上時問一次；onApplied 換了不重問
   }, []);
 
   if (state.kind === 'hidden') return null;
@@ -69,7 +72,10 @@ export default function T2CouponField({ priceFen }: { priceFen: number }) {
         body: JSON.stringify({ code }),
       });
       const body = await resp.json().catch(() => ({}));
-      if (resp.ok && body?.coupon) setState({ kind: 'applied', coupon: body.coupon });
+      if (resp.ok && body?.coupon) {
+        setState({ kind: 'applied', coupon: body.coupon });
+        onApplied?.(body.coupon);
+      }
       else setError(typeof body?.error === 'string' ? body.error : COUPON_INVALID);
     } catch {
       setError('暂时无法兑换，请稍后再试。');

@@ -328,10 +328,10 @@ export function candidatesFor(
     ? pool.filter(a => (isTagged(a) ? tagsFit(a, dimension) : modules.includes(a.moduleNo)))
     : pool.filter(a => modules.includes(a.moduleNo));
   const dist = (a: Activity) => distance(ageSpanOf(a, tagged), window);
-  const untaggedFirst = (a: Activity) => (tagged && isTagged(a) ? 0 : tagged ? 1 : 0);
+  const taggedFirst = (a: Activity) => (tagged && !isTagged(a) ? 1 : 0);
   const inside = inGroup
     .filter(a => dist(a).gap === 0)
-    .sort((a, b) => untaggedFirst(a) - untaggedFirst(b) || avoided(a) - avoided(b) || byIdAsc(a, b));
+    .sort((a, b) => taggedFirst(a) - taggedFirst(b) || avoided(a) - avoided(b) || byIdAsc(a, b));
   const outside = inGroup
     .filter(a => dist(a).gap > 0)
     .sort((a, b) => {
@@ -341,7 +341,7 @@ export function candidatesFor(
         avoided(a) - avoided(b) ||
         da.gap - db.gap ||
         Number(db.below) - Number(da.below) ||
-        untaggedFirst(a) - untaggedFirst(b) ||
+        taggedFirst(a) - taggedFirst(b) ||
         byIdAsc(a, b)
       );
     });
@@ -564,20 +564,21 @@ export function periodAlternates(
 }
 
 /**
- * 某一週要寫進每週活動時，那幾格的活動若已停用（或從活動庫消失），用同一能力、同一個月的候選裡下一支還沒排的補上
+ * 某一週要寫進每週活動時，那幾格的活動若已停用、從活動庫消失，或示範片／標籤模式下示範片被下架，用同一能力、同一個月的候選裡下一支還沒排的補上
  * （規格 §4.6），`reason.replaced = true`。沒有可補的就變成準備中（`activityId: null`）。回傳新的一期；沒變就回原物件。
  */
 export function replaceInactive(plan: PeriodPlan, week: number, library: ReadonlyArray<Activity>): PeriodPlan {
   const index = week - 1;
   const slots = plan.weeks[index];
   if (!slots) return plan;
-  const byId = new Map(library.map(a => [a.id, a] as const));
-  const usable = (id: string | null) => id === null || byId.get(id)?.active === true;
+  const tagged = plan.tagged === true;
+  // 還排得進來的＝在這一期的候選池裡：啟用的；示範片／標籤模式另外要有示範片（後台下架一支片，那一格照樣補位）
+  const pool = pushPool(library, { sampleOnly: plan.sampleOnly, tagged });
+  const poolIds = new Set(pool.map(a => a.id));
+  const usable = (id: string | null) => id === null || poolIds.has(id);
   if (slots.every(s => usable(s.activityId))) return plan;
 
   const m = monthIndexOf(week);
-  const tagged = plan.tagged === true;
-  const pool = pushPool(library, { sampleOnly: plan.sampleOnly, tagged });
   const used = new Set(planActivityIds(plan));
   const nextSlots = slots.map(s => {
     if (usable(s.activityId)) return s;

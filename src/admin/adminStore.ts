@@ -14,6 +14,7 @@
  * 會擋住。它只能透過本模組取資料。
  */
 import type { CouponDiscount } from '../t2/coupon';
+import { SPLIT_ORDERS_MAX, SPLIT_TOO_MANY } from '../revenueSplit/ledger';
 import type { Pool, ResultSetHeader } from 'mysql2/promise';
 import { getPool, isConfigured } from '../db/mysql';
 import { companyWhereSql, type CompanyCondition } from './companyScope';
@@ -1742,7 +1743,10 @@ export interface SplitOrderRow {
   snapshot: unknown;
 }
 
-/** 一段日期（頭尾都含，`YYYY-MM-DD`，資料庫時區）付款成功或已退款的訂單，依付款時間。 */
+/**
+ * 一段日期（頭尾都含，`YYYY-MM-DD`，資料庫時區）付款成功或已退款的訂單，依付款時間。
+ * 超過 `SPLIT_ORDERS_MAX` 筆丟 `code = SPLIT_TOO_MANY` 的錯誤 —— 不回截掉一半的清單（合計會少算）。
+ */
 export async function listSplitOrders(from: string, to: string): Promise<SplitOrderRow[]> {
   const p = requirePool();
   const [rows] = await p.execute(
@@ -1751,9 +1755,12 @@ export async function listSplitOrders(from: string, to: string): Promise<SplitOr
        FROM payments pay
       WHERE pay.status IN ('success', 'refunded') AND pay.paid_at >= ? AND pay.paid_at < DATE_ADD(?, INTERVAL 1 DAY)
       ORDER BY pay.paid_at ASC, pay.id ASC
-      LIMIT 5000`,
+      LIMIT ${SPLIT_ORDERS_MAX + 1}`,
     [from, to]
   );
+  if ((rows as any[]).length > SPLIT_ORDERS_MAX) {
+    throw Object.assign(new Error(`more than ${SPLIT_ORDERS_MAX} orders in ${from}..${to}`), { code: SPLIT_TOO_MANY });
+  }
   return (rows as any[]).map(r => ({
     id: Number(r.id),
     userId: Number(r.user_id),

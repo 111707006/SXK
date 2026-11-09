@@ -592,11 +592,14 @@ export default function App() {
    * 在微信裡付款（JSAPI，2026-11-08）要家長的 openid：權益讀到了、不是免費期、在微信裡、伺服器開了 JSAPI、
    * 還沒授權過 → 先靜默走一次服務號授權（snsapi_base，看不到同意畫面），之後按付款不必再跳一次。
    * 一個分頁只試一次；伺服器沒開 JSAPI 時 status 回 enabled:false，什麼都不做。
+   * 只在首頁／總覽這兩個落地畫面走：整頁導去微信再回來，記憶體裡的畫面狀態（作答到一半、預約表）會不見；
+   * 家長已經在別的畫面就不打斷，等按付款時伺服器要了再走（OPENID_REQUIRED）。
    */
+  const onLandingView = currentView === 'home' || currentView === 'dashboard';
   useEffect(() => {
-    if (!PRODUCT.features.paywall || !userIdentity || t2Unlocked === null || t2FreePeriod) return;
+    if (!PRODUCT.features.paywall || !userIdentity || t2Unlocked === null || t2FreePeriod || !onLandingView) return;
     void maybeSilentWechatOauth();
-  }, [userIdentity, t2Unlocked, t2FreePeriod]);
+  }, [userIdentity, t2Unlocked, t2FreePeriod, onLandingView]);
 
   /**
    * 進入某維度的深度評估，未解鎖則先過付費牆。

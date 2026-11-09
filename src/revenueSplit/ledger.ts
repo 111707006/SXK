@@ -34,6 +34,11 @@ export interface LedgerRow {
   amounts: SplitAmounts | null;
 }
 
+/** 一次對帳最多幾筆。超過不截斷（截掉的合計會少算、看不出來），整段退回、請管理員把日期縮短。 */
+export const SPLIT_ORDERS_MAX = 5000;
+/** 資料層超過上限時丟的錯誤碼（`err.code`）。 */
+export const SPLIT_TOO_MANY = 'SPLIT_TOO_MANY';
+
 const PRODUCT: Record<LedgerOrder['scope'], string> = { t2: 'T2 深度评估', t3: 'T3 单项', plan: '训练计划' };
 const KIND = { channel: '渠道商', therapist: '治疗师' } as const;
 

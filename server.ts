@@ -3,7 +3,7 @@ import { formatCode, normalizeCode } from './src/redeem/codes';
 import { redeemCodeForUser } from './src/db/redeemCodes';
 import { claimCouponForUser, couponOfUser, type StoredCoupon } from './src/db/coupons';
 import { loadSplitAttribution, loadSplitRates, saveSplitSnapshot } from './src/db/revenueSplit';
-import { resolveFeeBp, resolveSplit } from './src/revenueSplit/split';
+import { resolveFeeBp, resolveSplit, type SplitSnapshot } from './src/revenueSplit/split';
 import { applyCouponDiscount, couponDiscountLabel, COUPON_ALREADY_CLAIMED, COUPON_INVALID, COUPON_RATE_LIMITED, type ParentCoupon } from './src/t2/coupon';
 import { isPassMonths, PASS_MONTHS } from './src/t2/trainingPass';
 import { resolvePlanPrices } from './src/t2/trainingPlanPrices';
@@ -299,11 +299,20 @@ const REVENUE_SPLIT = REVENUE_SPLIT_REQUESTED && APP_MODE === 'full';
 // 微信支付手續費（萬分比，暫採 60＝0.6%）：清分分的是扣掉手續費之後的金額；開單時記在快照上。認不得起不來。
 const WECHAT_FEE_BP = resolveFeeBp(process.env.WECHAT_FEE_BP);
 
-/** 清分：這一筆訂單開單那一刻的對方與比例寫進快照。寫不進去就丟錯 —— 不開一筆沒記比例的單（ADR-0016）。 */
-async function recordPaymentSplit(userId: number, paymentId: number | null): Promise<void> {
-  if (!REVENUE_SPLIT || paymentId === null) return;
+/**
+ * 清分：這一筆訂單的對方與比例（ADR-0016）。**開單之前**讀好 —— 讀不到就丟錯、不留一列沒記比例的待付款單；
+ * 關著回 null。
+ */
+async function resolvePaymentSplit(userId: number): Promise<SplitSnapshot | null> {
+  if (!REVENUE_SPLIT) return null;
   const [rates, who] = await Promise.all([loadSplitRates(), loadSplitAttribution(userId)]);
-  await saveSplitSnapshot(paymentId, resolveSplit(rates, who, WECHAT_FEE_BP));
+  return resolveSplit(rates, who, WECHAT_FEE_BP);
+}
+
+/** 開單之後把讀好的快照寫上那一筆。寫不進去就丟錯 —— 不往微信下單（ADR-0016）。 */
+async function recordPaymentSplit(paymentId: number | null, split: SplitSnapshot | null): Promise<void> {
+  if (!split || paymentId === null) return;
+  await saveSplitSnapshot(paymentId, split);
 }
 // 訓練計劃的價錢（#111，`src/t2/trainingPlanPrices.ts`）：`1:…,3:…,6:…`（分），三個都要；認不得起不來。沒設＝價格待定、只能兌換。
 const TRAINING_PLAN_PRICES = resolvePlanPrices(process.env.TRAINING_PLAN_PRICES_FEN);
@@ -398,10 +407,13 @@ const WECHAT_OAUTH = APP_MODE === 'full' ? loadOauthConfig() : null;
 /**
  * 這一張單用哪一種付：JSAPI 要先有 openid —— 在**開單之前**決定，沒有 openid 就不留一列沒人付得了的訂單。
  */
-type PayChannel = { kind: 'h5' } | { kind: 'jsapi'; openid: string } | { kind: 'need_openid' } | { kind: 'jsapi_off' };
+type PayChannel = { kind: 'h5' } | { kind: 'jsapi'; openid: string } | { kind: 'need_openid' } | { kind: 'jsapi_off' } | { kind: 'wechat_only' };
 async function resolvePayChannel(req: express.Request, userId: number): Promise<PayChannel> {
   const wantJsapi = PAY_TRADE_TYPE === 'jsapi' || req.body?.channel === 'jsapi';
   if (!wantJsapi) return { kind: 'h5' };
+  // `PAY_TRADE_TYPE=jsapi` 強制 JSAPI：微信外的瀏覽器付不了，也走不了服務號授權 —— 直接說要用微信打開，不叫前端去授權頁
+  const ua = String(req.headers['user-agent'] ?? '');
+  if (req.body?.channel !== 'jsapi' && !/MicroMessenger/i.test(ua)) return { kind: 'wechat_only' };
   if (!WECHAT_OAUTH) return { kind: 'jsapi_off' };
   const openid = await findOpenid(userId, WECHAT_OAUTH.appid);
   return openid ? { kind: 'jsapi', openid } : { kind: 'need_openid' };
@@ -411,6 +423,10 @@ async function resolvePayChannel(req: express.Request, userId: number): Promise<
 function refusePayChannel(res: express.Response, channel: PayChannel): boolean {
   if (channel.kind === 'need_openid') {
     res.status(409).json({ error: '需要先完成微信授权才能付款。', code: 'OPENID_REQUIRED' });
+    return true;
+  }
+  if (channel.kind === 'wechat_only') {
+    res.status(409).json({ error: '请用微信打开本页再付款。', code: 'WECHAT_ONLY' });
     return true;
   }
   if (channel.kind === 'jsapi_off') {
@@ -2947,10 +2963,11 @@ async function createPlanPayment(req: express.Request, res: express.Response, us
   const amountFen = TRAINING_PLAN_PRICES[months];
   const channel = await resolvePayChannel(req, user.id);
   if (refusePayChannel(res, channel)) return;
+  const split = await resolvePaymentSplit(user.id);
   const outTradeNo = generateOutTradeNo();
   if (!isValidOutTradeNo(outTradeNo)) throw new Error(`generated out_trade_no violates the official contract: ${outTradeNo}`);
   const paymentId = await mysqlDb.createPayment({ userId: user.id, outTradeNo, amountFen, scope: 'plan', dimensionId: null, months });
-  await recordPaymentSplit(user.id, paymentId);
+  await recordPaymentSplit(paymentId, split);
   const placed = await placeChannelOrder(req, channel, { description: `居家训练 ${months} 个月`, outTradeNo, amountFen });
   res.json({ outTradeNo, paymentId, amountFen, scope: 'plan', months, wechatReady: true, ...placed });
 }
@@ -3085,6 +3102,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
 
     const channel: PayChannel = wechatPayStatus.config ? await resolvePayChannel(req, user.id) : { kind: 'h5' };
     if (refusePayChannel(res, channel)) return;
+    const split = await resolvePaymentSplit(user.id);
 
     const outTradeNo = generateOutTradeNo();
     if (!isValidOutTradeNo(outTradeNo)) {
@@ -3103,7 +3121,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       dimensionId: paidDimensionId,
       ...(appliedCoupon ? { coupon: appliedCoupon } : {}),
     });
-    await recordPaymentSplit(user.id, paymentId);
+    await recordPaymentSplit(paymentId, split);
 
     // Credentials missing → the order row exists but there is nothing to pay
     // with. Say so; the client must never read this as success.

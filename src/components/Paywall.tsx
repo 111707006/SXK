@@ -3,6 +3,7 @@ import { PRODUCT } from '../productConfig';
 import { authFetch } from '../utils/api';
 import { startPayment } from '../utils/wechatPayClient';
 import T2CouponField from './T2CouponField';
+import { applyCouponDiscount, type ParentCoupon } from '../t2/coupon';
 import { formatFen } from '../utils/price';
 import type { T2Pricing } from '../t2/pricing';
 import { PROMO_GUIDE_LABEL } from '../t2/entrancePromo';
@@ -70,7 +71,10 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
     })();
     return () => { cancelled = true; };
   }, []);
-  const shownFen = pricing?.priceFen ?? priceFen;
+  const [coupon, setCoupon] = useState<ParentCoupon | null>(null);
+  const listFen = pricing?.priceFen ?? priceFen;
+  // 用過優惠券：伺服器照折後價開單（`/api/payment/create`），付款鈕與待付款的金額照同一個算法寫
+  const shownFen = coupon && pricing ? applyCouponDiscount(listFen, coupon.discount) : listFen;
 
   /**
    * 從微信 H5 頁回跳後確認付款結果。
@@ -168,7 +172,7 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
         <div className="px-6 py-5 space-y-4">
           <div className="flex items-baseline gap-1">
             <span className="text-sm font-bold text-brand-forest">¥</span>
-            <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(shownFen)}</span>
+            <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(listFen)}</span>
             <span className="text-xs text-brand-charcoal/80 ml-1">/ {pricing ? `${pricing.items} 项深度评估` : '整份一次'}</span>
             {pricing && (
               <span className="text-xs text-brand-charcoal/80 line-through ml-2">{PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}</span>
@@ -176,7 +180,7 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
           </div>
 
           {/* 優惠碼兌換（`T2_COUPON`）：與 T2 卡同一個元件；兌到之後下單照折後價收 */}
-          {pricing && <T2CouponField priceFen={pricing.priceFen} />}
+          {pricing && <T2CouponField priceFen={pricing.priceFen} onApplied={setCoupon} />}
 
           <ul className="space-y-2">
             {[

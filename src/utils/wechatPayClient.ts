@@ -46,13 +46,26 @@ declare global {
 /** 調起微信支付；`WeixinJSBridge` 還沒好就等 `WeixinJSBridgeReady`（最多 5 秒）。 */
 export function invokeJsapiPay(params: JsapiPayParams): Promise<'ok' | 'cancel' | 'fail'> {
   return new Promise(resolve => {
+    // 逾時已經回 'fail' 之後，晚到的 WeixinJSBridgeReady 不能再調起付款頁（畫面已經說失敗了，沒有人在等結果）
+    let settled = false;
     const run = () => window.WeixinJSBridge!.invoke('getBrandWCPayRequest', params, r => {
       const msg = r?.err_msg || '';
       resolve(msg === 'get_brand_wcpay_request:ok' ? 'ok' : msg === 'get_brand_wcpay_request:cancel' ? 'cancel' : 'fail');
     });
     if (window.WeixinJSBridge) return run();
-    const timer = setTimeout(() => resolve('fail'), 5000);
-    document.addEventListener('WeixinJSBridgeReady', () => { clearTimeout(timer); run(); }, { once: true });
+    const onReady = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      run();
+    };
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('WeixinJSBridgeReady', onReady);
+      resolve('fail');
+    }, 5000);
+    document.addEventListener('WeixinJSBridgeReady', onReady, { once: true });
   });
 }
 
@@ -74,7 +87,7 @@ export async function startPayment(
   if (!resp.ok) {
     const msg = data?.error || '创建订单失败，请稍后重试。';
     // 微信外的瀏覽器、H5 還沒開通時：叫家長用微信打開
-    throw new Error(inWechat ? msg : `${msg}（也可以用微信打开本页再付款）`);
+    throw new Error(inWechat || data?.code === 'WECHAT_ONLY' ? msg : `${msg}（也可以用微信打开本页再付款）`);
   }
   if (data.alreadyUnlocked) return { kind: 'already' };
   if (data.wechatReady && data.tradeType === 'jsapi' && data.jsapi) {

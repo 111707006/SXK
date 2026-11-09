@@ -22,7 +22,7 @@ const SCORES = [
   t1('gross_motor', 'normal'), t1('self_care', 'normal'), t1('learning_ability', 'normal'),
 ];
 
-const db = vi.hoisted(() => ({ payments: [] as any[], snapshots: [] as Array<{ paymentId: number; snapshot: any }>, failSnapshot: false }));
+const db = vi.hoisted(() => ({ payments: [] as any[], snapshots: [] as Array<{ paymentId: number; snapshot: any }>, failSnapshot: false, failRates: false }));
 
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
@@ -41,11 +41,14 @@ vi.mock('../src/db/mysql', () => ({
 }));
 
 vi.mock('../src/db/revenueSplit', () => ({
-  loadSplitRates: async () => ({
-    default: { platformBp: null, companyBp: null },
-    company: new Map([[3, { platformBp: 1500, companyBp: null }]]),
-    referrer: new Map(),
-  }),
+  loadSplitRates: async () => {
+    if (db.failRates) throw new Error('db down');
+    return {
+      default: { platformBp: null, companyBp: null },
+      company: new Map([[3, { platformBp: 1500, companyBp: null }]]),
+      referrer: new Map(),
+    };
+  },
   loadSplitAttribution: async (userId: number) =>
     userId === 2
       ? { company: null, referrer: { id: 7, name: '王老师', kind: 'therapist', company: { id: 3, name: '某某康复' } } }
@@ -95,6 +98,8 @@ vi.mock('../src/admin/adminStore', async () => {
       rates.push(input);
     },
     async listSplitOrders(from: string, to: string) {
+      // 這一段假裝超過上限（資料層丟 SPLIT_TOO_MANY，不回截掉的清單）
+      if (from === '2026-01-01') throw Object.assign(new Error('too many'), { code: 'SPLIT_TOO_MANY' });
       return [
         { id: 1, userId: 4, outTradeNo: 'N1', transactionId: 'W1', scope: 't2', months: null, amountFen: 1990, status: 'success', paidAt: `${from}T02:00:00.000Z`, snapshot },
         { id: 2, userId: 5, outTradeNo: 'N2', transactionId: null, scope: 'plan', months: 3, amountFen: 29900, status: 'success', paidAt: `${to}T02:00:00.000Z`, snapshot: null },
@@ -138,6 +143,17 @@ describe('開單時記下這一筆怎麼分', () => {
   it('沒有合作方：全部是平台的', async () => {
     await pay(1);
     expect(db.snapshots.at(-1)!.snapshot).toMatchObject({ party: { kind: 'none' }, platformBp: 10000 });
+  });
+
+  it('比例讀不到：500，而且連待付款的那一列都不開', async () => {
+    db.failRates = true;
+    const before = db.payments.length;
+    try {
+      expect((await pay(3)).status).toBe(500);
+      expect(db.payments.length).toBe(before);
+    } finally {
+      db.failRates = false;
+    }
   });
 
   it('記不下來就不往下開單（500），不出一筆沒記比例的單', async () => {
@@ -212,6 +228,17 @@ describe('後台「清分」', () => {
   ])('對帳：日期不對 400（%s）', async q => {
     const t = await token('god@sxk.com', 'pw-god-123');
     expect((await client.get(`/api/admin/revenue-split/orders?${q}`, h(t))).status).toBe(400);
+  });
+
+  it('對帳與匯出：超過上限 413，不給截掉一半的合計、也不記匯出', async () => {
+    const t = await token('god@sxk.com', 'pw-god-123');
+    const before = store.__exports.length;
+    const view = await client.get('/api/admin/revenue-split/orders?from=2026-01-01&to=2026-12-31', h(t));
+    expect(view.status).toBe(413);
+    expect((await view.json()).code).toBe('SPLIT_TOO_MANY');
+    const file = await client.postJson('/api/admin/revenue-split/export', { from: '2026-01-01', to: '2026-12-31' }, h(t));
+    expect(file.status).toBe(413);
+    expect(store.__exports.length).toBe(before);
   });
 
   it('匯出：.xlsx、記一筆 admin_exports（範圍 all、日期）', async () => {

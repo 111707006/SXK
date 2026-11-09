@@ -51,9 +51,22 @@ function keyOf(secret: string): Buffer {
   return crypto.createHmac('sha256', secret).update(KEY_PURPOSE).digest();
 }
 
-/** `state`：base64url(JSON{u, r, e}) + '.' + HMAC。微信限制 state 最長 128 字元，所以回去的路徑另外截短。 */
+/** 放得進 state 的回去路徑最長幾個字元（微信限制 state 最長 128）。 */
+export const STATE_RETURN_PATH_MAX = 60;
+
+/**
+ * 太長的回去路徑不從中間切（切在查詢字串中間會導回一個壞網址）：先丟掉查詢字串與片段，路徑本身還太長就回首頁。
+ */
+export function shortReturnPath(raw: unknown): string {
+  const path = safeReturnPath(raw);
+  if (path.length <= STATE_RETURN_PATH_MAX) return path;
+  const bare = path.split(/[?#]/)[0] || '/';
+  return bare.length <= STATE_RETURN_PATH_MAX ? bare : '/';
+}
+
+/** `state`：base64url(JSON{u, r, e}) + '.' + HMAC。微信限制 state 最長 128 字元，所以回去的路徑另外縮短（`shortReturnPath`）。 */
 export function signOauthState(userId: number, returnPath: string, secret: string, now: number = Date.now()): string {
-  const payload = Buffer.from(JSON.stringify({ u: userId, r: safeReturnPath(returnPath).slice(0, 60), e: now + OAUTH_STATE_TTL_MS })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ u: userId, r: shortReturnPath(returnPath), e: now + OAUTH_STATE_TTL_MS })).toString('base64url');
   const sig = crypto.createHmac('sha256', keyOf(secret)).update(payload).digest('base64url').slice(0, 32);
   return `${payload}.${sig}`;
 }

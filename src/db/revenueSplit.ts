@@ -33,17 +33,20 @@ export async function loadSplitRates(): Promise<SplitRates> {
   return ratesFromRows(rows as any[]);
 }
 
-/** 這位家長現在的歸屬：帳號上的合作公司、綁定的推薦人（與推薦人隸屬的公司）。 */
+/**
+ * 這位家長現在的歸屬：帳號上的合作公司、綁定的推薦人（與推薦人隸屬的公司）。
+ * 停用的不算（後台停用了就不該再替新訂單分一份）：推薦人停用＝當成沒綁，有歸屬公司就照公司分；公司停用＝那一方不存在。
+ */
 export async function loadSplitAttribution(userId: number): Promise<SplitAttribution> {
   const [rows] = await pool().execute(
     `SELECT c.id AS company_id, c.name AS company_name,
             r.id AS referrer_id, r.name AS referrer_name, r.kind AS referrer_kind,
             rc.id AS referrer_company_id, rc.name AS referrer_company_name
        FROM users u
-       LEFT JOIN companies c ON c.id = u.company_id
+       LEFT JOIN companies c ON c.id = u.company_id AND c.active = 1
        LEFT JOIN referrer_bindings rb ON rb.user_id = u.id
-       LEFT JOIN referrers r ON r.id = rb.referrer_id
-       LEFT JOIN companies rc ON rc.id = r.company_id
+       LEFT JOIN referrers r ON r.id = rb.referrer_id AND r.active = 1
+       LEFT JOIN companies rc ON rc.id = r.company_id AND rc.active = 1
       WHERE u.id = ?
       LIMIT 1`,
     [userId]

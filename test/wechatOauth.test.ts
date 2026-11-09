@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { OAUTH_STATE_TTL_MS, callbackOrigin, loadOauthConfig, readOauthState, safeReturnPath, signOauthState } from '../src/wechatOauth';
+import { OAUTH_STATE_TTL_MS, callbackOrigin, loadOauthConfig, readOauthState, safeReturnPath, shortReturnPath, signOauthState } from '../src/wechatOauth';
 import { buildJsapiPayMessage } from '../src/wechatPay';
 import { isInWechat } from '../src/utils/wechatPayClient';
 
@@ -13,6 +13,17 @@ describe('服務號網頁授權的 state', () => {
     expect(readOauthState(state, secret, now + OAUTH_STATE_TTL_MS + 1)).toBeNull();
     expect(readOauthState(state, 'x'.repeat(32), now)).toBeNull();
     expect(readOauthState('a'.repeat(129), secret, now)).toBeNull();
+  });
+
+  it('太長的回去路徑不從查詢字串中間切：先丟查詢字串，路徑本身太長就回首頁', () => {
+    const now = 1_700_000_000_000;
+    const longQuery = `/plan?c=${'a'.repeat(30)}&view=training_plan&from=report`;
+    expect(shortReturnPath(longQuery)).toBe('/plan');
+    expect(shortReturnPath(`/${'p'.repeat(70)}`)).toBe('/');
+    expect(shortReturnPath('/?c=abc')).toBe('/?c=abc');
+    const state = signOauthState(7, longQuery, secret, now);
+    expect(state.length).toBeLessThanOrEqual(128);
+    expect(readOauthState(state, secret, now)).toEqual({ userId: 7, returnPath: '/plan' });
   });
 
   it('回去的路徑只收站內的', () => {

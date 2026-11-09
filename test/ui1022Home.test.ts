@@ -34,9 +34,21 @@ describe('1022 開著', () => {
     expect(html).toContain('T2 深度评估');
     expect(html).toContain('线上家庭个性化训练');
     expect(html).toContain('跟着练！科学助力孩子能力提升');
-    // 價錢（暫採）：原價畫刪除線、折扣價
-    expect(html).toMatch(/line-through[^"]*">原价 ¥199</);
-    expect(html).toContain('¥19.9');
+    // 價錢不寫死（2026-11-10 實際走一遍清單第 3 條）：還沒從伺服器讀到就不畫，不拿一個可能不對的數字頂上
+    expect(html).not.toContain('id="home-training-price"');
+    expect(html).not.toContain('¥19.9');
+  });
+
+  it('訓練卡價錢照伺服器的實收價；原價比較高才畫刪除線', async () => {
+    vi.stubEnv('VITE_UI_1022', '1');
+    const { TrainingCardPrice } = await import('../src/home/LedoHomePage');
+    const sale = renderToStaticMarkup(createElement(TrainingCardPrice, { priceFen: 1990 }));
+    expect(sale).toContain('¥19.9');
+    expect(sale).toMatch(/line-through[^"]*">原价 ¥199</);
+    const full = renderToStaticMarkup(createElement(TrainingCardPrice, { priceFen: 19900 }));
+    expect(full).toContain('¥199');
+    expect(full).not.toContain('原价');
+    expect(renderToStaticMarkup(createElement(TrainingCardPrice, { priceFen: null }))).toBe('');
   });
 
   it('沒有線下服務點；T1、T2 兩張一樣大的插畫卡並排、有底框', async () => {

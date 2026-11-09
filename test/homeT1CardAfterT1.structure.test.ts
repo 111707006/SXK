@@ -39,6 +39,7 @@ describe('1022 首頁的 T1、T2 卡與訓練卡', () => {
     expect(v1022).not.toContain("'看报告'");
     expect(v1022).not.toContain('onAction');
     expect(v1022).not.toContain('practiceDays');
-    expect(v1022).toContain('line-through');
+    // 價錢照伺服器畫（2026-11-10 清單第 3 條），原價的刪除線在 TrainingCardPrice 裡
+    expect(v1022).toContain('<TrainingCardPrice');
   });
 });

@@ -10,12 +10,31 @@ export const PLAN_BLURBS: Record<PassMonths, { title: string; blurb: string }> =
   6: { title: '六个月', blurb: '两期 24 周，适合需要长期陪练的方面。' },
 };
 
+/**
+ * 方案的原價（劃掉的那一個，使用者 2026-11-10：一個月「原价 ¥199、折价 ¥19.9」）。只是顯示用：實際收多少一律照
+ * 伺服器的 `TRAINING_PLAN_PRICES_FEN`（`/api/training/plans` 的 `priceFen`）；原價不高於實收價時不畫。
+ */
+export const PLAN_LIST_PRICE_FEN: Partial<Record<PassMonths, number>> = { 1: 19900 };
+
+/** 分 → 「¥19.9」「¥199」。 */
+export function planYuan(fen: number): string {
+  return `¥${(fen / 100).toFixed(fen % 100 === 0 ? 0 : fen % 10 === 0 ? 1 : 2)}`;
+}
+
+/** 這個方案要不要畫原價：有原價、實收價讀得到、而且原價比較高。 */
+export function planListPriceFen(months: PassMonths, priceFen: number | null): number | null {
+  const list = PLAN_LIST_PRICE_FEN[months];
+  return list !== undefined && priceFen !== null && list > priceFen ? list : null;
+}
+
 export const TRAINING_PLAN_PAGE = {
   title: '线上家庭个性化训练',
   sub: '按孩子的评估结果安排每周的家庭活动。开通后 T1、T2 评估都免费。',
   pay: '开通',
   payUnavailable: '暂未开放',
   priceTbd: '价格待定',
+  /** 劃掉的原價（`PLAN_LIST_PRICE_FEN`）。 */
+  listPrice: (yuan: string) => `原价 ${yuan}`,
   redeemEntry: 'VIP 兑换',
   /** 「VIP 兑换」那一格（簡報 11/03 第 8 頁）。 */
   vipTitle: 'VIP 兑换',

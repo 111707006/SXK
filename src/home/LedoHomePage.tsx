@@ -10,6 +10,7 @@ import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, HOME_TRAINING_CARD_1022, type H
 import { PRODUCT } from '../productConfig';
 import { WORDING_1022 } from '../wording1022';
 import HomeCarousel from './HomeCarousel';
+import { TRAINING_PLAN_PAGE, planListPriceFen, planYuan } from '../t2/trainingPlanCopy';
 import { homeCardImage, useHomeMedia } from './homeMediaClient';
 
 /**
@@ -99,6 +100,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
   // 首頁素材（`HOME_MEDIA`，#87）：後台有啟用中的輪播就畫輪播，沒有（或還沒讀到、讀失敗）照舊是固定示範片。
   const media = useHomeMedia();
   const banners = media?.banners ?? [];
+  const oneMonthFen = useOneMonthPriceFen(PRODUCT.features.ui1022);
 
   const t1 = scores.filter(s => s.tierId === 'T1');
   const count = (st: DimensionScore['status']) => t1.filter(s => s.status === st).length;
@@ -182,11 +184,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
             <span className="flex min-w-0 flex-1 flex-col gap-1 p-3.5">
               <span className="text-sm font-black text-ledo-ink">{HOME_TRAINING_CARD_1022.title}</span>
               <span className="text-xs leading-relaxed text-ledo-ink-2">{HOME_TRAINING_CARD_1022.sub}</span>
-              <span id="home-training-price" className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
-                <span className="text-xl font-black text-ledo-coral-ink tabular-nums">{WORDING_1022.home.trainingPrice.price}</span>
-                <span className="text-xs text-ledo-ink-2 line-through tabular-nums">{WORDING_1022.home.trainingPrice.original}</span>
-                <span className="text-xs text-ledo-ink-2">/ {WORDING_1022.home.trainingPrice.label}</span>
-              </span>
+              <TrainingCardPrice priceFen={oneMonthFen} />
               <span className="mt-1 self-start"><Chip on>{WORDING_1022.home.trainingPrice.cta}</Chip></span>
             </span>
           </button>
@@ -265,4 +263,38 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
       )}
     </div>
   );
+}
+
+/**
+ * 首頁訓練卡的價錢：照方案頁同一個來源（`/api/training/plans` 的一個月 `priceFen`），原價照 `PLAN_LIST_PRICE_FEN`。
+ * 以前數字寫死在 wording，方案頁照伺服器，兩邊會不一樣（2026-11-10 實際走一遍清單第 3 條）。
+ * 讀不到（還沒回來、開關關著、價格待定）就不畫這一行，不拿一個可能不對的數字頂上。
+ */
+export function TrainingCardPrice({ priceFen }: { priceFen: number | null }) {
+  if (priceFen === null) return null;
+  const list = planListPriceFen(1, priceFen);
+  return (
+    <span id="home-training-price" className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
+      <span className="text-xl font-black text-ledo-coral-ink tabular-nums">{planYuan(priceFen)}</span>
+      {list !== null && <span className="text-xs text-ledo-ink-2 line-through tabular-nums">{TRAINING_PLAN_PAGE.listPrice(planYuan(list))}</span>}
+      <span className="text-xs text-ledo-ink-2">/ {WORDING_1022.home.trainingPrice.label}</span>
+    </span>
+  );
+}
+
+function useOneMonthPriceFen(enabled: boolean): number | null {
+  const [fen, setFen] = useState<number | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    fetch('/api/training/plans')
+      .then(r => (r.ok ? r.json() : null))
+      .then(body => {
+        const p = Array.isArray(body?.plans) ? body.plans.find((x: { months?: unknown }) => x?.months === 1) : null;
+        if (alive) setFen(typeof p?.priceFen === 'number' && p.priceFen > 0 ? p.priceFen : null);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [enabled]);
+  return fen;
 }

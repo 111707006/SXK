@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Gift, Loader2 } from 'lucide-react';
-import { TRAINING_PLAN_PAGE } from '../../t2/trainingPlanCopy';
+import { TRAINING_PLAN_PAGE, planListPriceFen, planYuan } from '../../t2/trainingPlanCopy';
 import RedeemCodeForm from './RedeemCodeForm';
 
 interface PlanCard {
@@ -24,7 +24,6 @@ export function readPlans(body: unknown): { plans: PlanCard[]; payAvailable: boo
   return { plans, payAvailable: b.payAvailable === true };
 }
 
-const yuan = (fen: number) => `¥${(fen / 100).toFixed(fen % 100 === 0 ? 0 : 1)}`;
 
 export default function TrainingPlanPage({
   loggedIn,
@@ -107,7 +106,10 @@ export default function TrainingPlanPage({
                 <p className="text-xs leading-relaxed text-ledo-ink-2">{p.blurb}</p>
               </div>
               <div className="shrink-0 space-y-1.5 text-right">
-                <p className="text-lg font-black text-ledo-ink">{p.priceFen === null ? TRAINING_PLAN_PAGE.priceTbd : yuan(p.priceFen)}</p>
+                <p className="text-lg font-black text-ledo-ink">{p.priceFen === null ? TRAINING_PLAN_PAGE.priceTbd : planYuan(p.priceFen)}</p>
+                {planListPriceFen(p.months, p.priceFen) !== null && (
+                  <p className="text-xs text-ledo-ink-2 line-through tabular-nums">{TRAINING_PLAN_PAGE.listPrice(planYuan(planListPriceFen(p.months, p.priceFen)!))}</p>
+                )}
                 <button
                   type="button"
                   disabled={!data.payAvailable || !onPay || p.priceFen === null}

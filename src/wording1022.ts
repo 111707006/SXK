@@ -42,8 +42,12 @@ export const WORDING_1022 = {
     t2CardNeedT1Sub: '先完成 T1，再按结果做深度评估',
     /** 做完 T1 之後 T1 卡的副標。 */
     t1CardDone: (date: string) => `${date}完成，可以重新评估`,
-    /** 第二排訓練卡上的價錢（價錢未定，暫採；使用者 2026-11-06：一個月、原價 200、折扣價 19.9；2026-11-10 原價改 199，伺服器 1 個月實收 1990 分）。 */
-    trainingPrice: { label: '一个月', original: '原价 ¥199', price: '¥19.9', cta: '选方案' },
+    /**
+     * 第二排訓練卡上的價錢：數字不寫在這裡。實收價照伺服器的一個月方案（`/api/training/plans`，`TRAINING_PLAN_PRICES_FEN`），
+     * 原價照 `PLAN_LIST_PRICE_FEN`（使用者 2026-11-10：原價 ¥199、折價 ¥19.9）；畫法在 `LedoHomePage` 的 `TrainingCardPrice`。
+     * 以前寫死在這裡，方案頁照伺服器，兩邊會不一樣（2026-11-10 實際走一遍清單第 3 條）。
+     */
+    trainingPrice: { label: '一个月', cta: '选方案' },
   },
 
   profile: {

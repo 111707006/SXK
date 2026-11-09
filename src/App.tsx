@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, lazy } from 'react';
-import { Child, DimensionScore, MallOrder, AssessmentRecord } from './types';
+import { Child, DimensionScore, MallOrder, AssessmentRecord, AssessmentStatus } from './types';
 import { DIMENSIONS_DATA } from './data';
 import { PRODUCT } from './productConfig';
 import { STATUS_WORDING } from './utils/statusWording';
@@ -82,6 +82,7 @@ import { latestT1ReportFor } from './utils/reportResume';
 import { readHandoffLink } from './handoff/fragment';
 import { HANDOFF_INVITE, HANDOFF_LANDING } from './handoff/handoffCopy';
 import { clearT1Draft } from './utils/t1Draft';
+import { applyT2Verdicts, t2VerdictsFrom } from './t2/t2Verdicts';
 
 /** App 的主畫面（`currentView`）。返回鍵的歷史記的就是這幾個名字（`useViewHistory`）。 */
 const APP_VIEWS = ['home', 'offline_service', 'dashboard', 't1_screening', 'assessment', 'report', 'mall', 'language_special', 'specialized_report', 'paywall', 't2_assessment', 't2_report', 'training', 'training_plan'] as const;
@@ -589,6 +590,26 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, [userIdentity, authToken, unlocksNonce]);
+
+  /**
+   * 做過 T2 的方面，評估面板與首頁概況改照 T2 的判定（`src/t2/t2Verdicts.ts`，2026-11-10 實際走一遍清單第 5 條）。
+   * 回到首頁或面板時重讀一次：剛生成完 T2 報告回來就是新的。讀不到（沒報告 404、沒解鎖 403、斷線）就照 T1。
+   */
+  const [t2Verdicts, setT2Verdicts] = useState<Record<string, AssessmentStatus>>({});
+  const onPanelOrHome = currentView === 'home' || currentView === 'dashboard';
+  useEffect(() => {
+    if (!authToken) { setT2Verdicts({}); return; }
+    if (!PRODUCT.features.ui1022 || !PRODUCT.features.tier2And3 || !onPanelOrHome) return;
+    let cancelled = false;
+    authFetch('/api/t2/findings/latest')
+      .then(async resp => {
+        const data = resp.ok ? await resp.json() : null;
+        if (!cancelled) setT2Verdicts(t2VerdictsFrom(data?.findings));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [authToken, onPanelOrHome]);
+  const panelScores = useMemo(() => applyT2Verdicts(completedScores, t2Verdicts), [completedScores, t2Verdicts]);
 
   /**
    * 在微信裡付款（JSAPI，2026-11-08）要家長的 openid：權益讀到了、不是免費期、在微信裡、伺服器開了 JSAPI、
@@ -1344,7 +1365,7 @@ export default function App() {
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1">
-                            {completedScores.map((score) => (
+                            {(PRODUCT.features.ui1022 ? panelScores : completedScores).map((score) => (
                               <div key={`${score.dimensionId}-${score.tierId}`} className="p-1.5 bg-brand-sage/10 rounded-lg border border-brand-stone/20 flex flex-col justify-between">
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="font-bold text-brand-forest truncate text-xs">{score.dimensionName}</span>
@@ -1557,7 +1578,7 @@ export default function App() {
                   <LedoHomePage
                     onOpen={openHomeTarget}
                     childName={child?.name}
-                    scores={completedScores}
+                    scores={panelScores}
                     onOpenReport={completedScores.length > 0 ? navItems.find(i => i.key === 'report')?.onClick : undefined}
                   />
                 ) : (
@@ -1574,7 +1595,8 @@ export default function App() {
                 <LedoDashboard
                   t1Blocked={outOfRangeCard}
                   childName={child.name}
-                  completedScores={completedScores}
+                  completedScores={panelScores}
+                  t2Dimensions={t2Verdicts}
                   onSelectDimension={selectDashboardDimension}
                   onViewReport={viewDashboardReport}
                   onStartT1Screening={startT1Screening}

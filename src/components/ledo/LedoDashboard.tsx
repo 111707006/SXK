@@ -23,6 +23,8 @@ interface Props {
   t1Blocked?: ReactNode;
   /** 1022（簡報 11/03 第 16–17 頁）：點紅、黃的方面（或紅黃按鈕）到報告上的 T2 購買區。沒給就照舊 `onSelectDimension`。 */
   onOpenT2?: () => void;
+  /** 做過 T2、判定照 T2 的方面（`src/t2/t2Verdicts.ts`）：九宮格那一格多一行「按深度评估」，看得出不是 T1 的結果。 */
+  t2Dimensions?: Readonly<Record<string, unknown>>;
 }
 
 function doneDate(scores: DimensionScore[]): string | null {
@@ -32,7 +34,7 @@ function doneDate(scores: DimensionScore[]): string | null {
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
-export default function LedoDashboard({ childName, completedScores, onSelectDimension, onViewReport, onStartT1Screening, t1Blocked, onOpenT2 }: Props) {
+export default function LedoDashboard({ childName, completedScores, onSelectDimension, onViewReport, onStartT1Screening, t1Blocked, onOpenT2, t2Dimensions }: Props) {
   const t1 = completedScores.filter(s => s.tierId === 'T1');
   const done = t1.length > 0;
   const byId = new Map(t1.map(s => [s.dimensionId, s]));
@@ -98,6 +100,9 @@ export default function LedoDashboard({ childName, completedScores, onSelectDime
                 >
                   <b className="break-words text-[13px] font-black leading-snug text-ledo-ink">{d.name}</b>
                   <span className={`text-xs font-bold leading-snug ${tone.ink}`}>{s ? STATUS_WORDING[s.status].label : '还没评估'}</span>
+                  {s && t2Dimensions?.[d.id] !== undefined && (
+                    <span className="text-xs leading-snug text-ledo-ink-2">按深度评估</span>
+                  )}
                   {flaggedDim && (
                     <span className="mt-auto rounded-full bg-white px-2 py-0.5 text-xs font-black text-ledo-ink">{PRODUCT.dashboard.dimensionCardCta}</span>
                   )}

@@ -81,8 +81,14 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
 
   useEffect(() => {
     let cancelled = false;
+    // 只有真的生成過深度評估報告（快照裡有量表結果）才給「查看上次的报告」：還沒做任何一份時，
+    // 讀得到的是照 T1 推定的那一份，點進去九項都「此次没做」（2026-11-10 實際走一遍清單第 7 條）。
     authFetch('/api/t2/findings/latest')
-      .then(r => { if (!cancelled) setHasReport(r.ok); })
+      .then(async r => {
+        const body = r.ok ? await r.json().catch(() => null) : null;
+        const results = body?.findings?.toolResults;
+        if (!cancelled) setHasReport(Array.isArray(results) && results.length > 0);
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);

@@ -1,0 +1,8 @@
+# pnpm 11 不會自己跑相依套件的安裝腳本，沒列在這裡的一律擋下來、而且 `pnpm install` 直接失敗
+# （ERR_PNPM_IGNORED_BUILDS，CI 從 2026-11 起就是這樣紅的）。
+# - esbuild：要它的安裝腳本裝好平台的執行檔，打包伺服器（esbuild main.ts）靠它
+# - @google/genai、protobufjs：安裝腳本不是執行時需要的，不跑
+allowBuilds:
+  esbuild: true
+  '@google/genai': false
+  protobufjs: false

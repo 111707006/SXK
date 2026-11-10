@@ -12,11 +12,6 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # 20：正式站主機的版本（v20.20.2）；22：之後要升的版本
-        node: [20, 22]
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +23,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          # pnpm 11 要 Node 22.13 以上，CI 沒辦法用正式站的 Node 20 安裝（2026-11-10 試過）
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies

@@ -105,6 +105,7 @@ import { createHandoffCode, recordHandoffImport, redeemHandoffCode } from './src
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import { CSP_REPORT_PATH, cspDirectives, readCspMode, summariseCspReport } from './src/security/csp';
+import { checkPaidOrder, type PaidOrderFacts } from './src/payments/paidOrderCheck';
 import helmet from 'helmet';
 import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
@@ -3223,11 +3224,23 @@ paidOnly.post('/api/payment/create', async (req, res) => {
  * settle the same order. Only the one that actually moved the row wins; everyone
  * else sees affectedRows = 0 and must not grant anything.
  */
-async function settlePayment(outTradeNo: string, transactionId: string | null): Promise<'granted' | 'already' | 'unknown'> {
+async function settlePayment(
+  outTradeNo: string,
+  transactionId: string | null,
+  paid: PaidOrderFacts,
+): Promise<'granted' | 'already' | 'unknown' | 'mismatch'> {
   const payment = await mysqlDb.findPaymentByOutTradeNo(outTradeNo);
   if (!payment) {
     console.error(`[Payment] Settlement for an unknown order: ${outTradeNo}`);
     return 'unknown';
+  }
+  // 微信說付了的那一張，要是我們開的那一張、那個金額（src/payments/paidOrderCheck.ts）。對不上不發、不標成功，留 pending 給人查。
+  const check = wechatPayStatus.config
+    ? checkPaidOrder(paid, { appid: wechatPayStatus.config.appid, mchid: wechatPayStatus.config.mchid, amountFen: Number(payment.amount_fen) })
+    : { ok: false as const, reason: 'WeChat Pay is not configured' };
+  if (!check.ok) {
+    console.error(`[Payment] ALERT settlement refused for ${outTradeNo}: ${check.reason}; nothing granted, order left pending`);
+    return 'mismatch';
   }
   const moved = await mysqlDb.markPaymentSuccess(outTradeNo, transactionId);
   if (!moved) return 'already';
@@ -3337,7 +3350,11 @@ paidOnly.post('/api/pay/wechat/notify', async (req: any, res) => {
     return;
   }
   try {
-    await settlePayment(outTradeNo, decrypted?.transaction_id ?? null);
+    await settlePayment(outTradeNo, decrypted?.transaction_id ?? null, {
+      appid: decrypted?.appid,
+      mchid: decrypted?.mchid,
+      totalFen: decrypted?.amount?.total,
+    });
   } catch (err: any) {
     console.error(`[Payment] Settlement failed for ${outTradeNo}: ${err.message}`);
   }
@@ -3388,7 +3405,16 @@ paidOnly.get('/api/payment/status', async (req, res) => {
 
     const remote = await wechatPay.queryOrderByOutTradeNo(wechatPayStatus.config, outTradeNo);
     if (remote.tradeState === 'SUCCESS') {
-      await settlePayment(outTradeNo, remote.transactionId);
+      const settled = await settlePayment(outTradeNo, remote.transactionId, {
+        appid: remote.appid,
+        mchid: remote.mchid,
+        totalFen: remote.amountFen,
+      });
+      if (settled === 'mismatch') {
+        // 付了，但不是對得上的那一張：不說成功（前端會叫家長聯絡客服），也不發權益
+        res.json({ outTradeNo, status: payment.status, tradeState: remote.tradeState, review: true });
+        return;
+      }
       res.json({ outTradeNo, status: 'success', scope: payment.scope ?? 't3', dimensionId: payment.dimension_id });
       return;
     }

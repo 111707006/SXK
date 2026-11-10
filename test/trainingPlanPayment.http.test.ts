@@ -13,6 +13,8 @@ process.env.TRAINING_PLAN_PRICES_FEN = '1:2990,3:7990,6:13990';
 
 const PARENT_ID = 1;
 const PLAN_ORDER = generateOutTradeNo();
+/** 這一張開單是 1 分，微信卻說付了 7990（查單替身回的金額）：對不上，不能結算 */
+const MISMATCH_ORDER = generateOutTradeNo();
 
 const db = vi.hoisted(() => ({
   created: [] as any[],
@@ -55,8 +57,8 @@ vi.mock('../src/wechatPay', async importOriginal => {
   const actual = await importOriginal<typeof import('../src/wechatPay')>();
   return {
     ...actual,
-    loadConfig: () => ({ config: { appId: 'x', mchid: 'y', verifyMode: 'platform_cert', platformKeyId: '', platformPublicKey: '', apiV3Key: '' }, missing: [] }),
-    queryOrderByOutTradeNo: async () => ({ tradeState: 'SUCCESS', transactionId: 'wx-tx-plan' }),
+    loadConfig: () => ({ config: { appid: 'x', mchid: 'y', verifyMode: 'platform_cert', platformKeyId: '', platformPublicKey: '', apiV3Key: '' }, missing: [] }),
+    queryOrderByOutTradeNo: async () => ({ tradeState: 'SUCCESS', transactionId: 'wx-tx-plan', amountFen: 7990, appid: 'x', mchid: 'y' }),
     placeOrder: async () => ({ h5Url: 'https://wx.example/h5' }),
   };
 });
@@ -72,7 +74,10 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  db.payments = { [PLAN_ORDER]: { id: 21, user_id: PARENT_ID, status: 'pending', scope: 'plan', dimension_id: null, months: 3 } };
+  db.payments = {
+    [PLAN_ORDER]: { id: 21, user_id: PARENT_ID, status: 'pending', scope: 'plan', dimension_id: null, months: 3, amount_fen: 7990 },
+    [MISMATCH_ORDER]: { id: 22, user_id: PARENT_ID, status: 'pending', scope: 'plan', dimension_id: null, months: 3, amount_fen: 1 },
+  };
   db.created = [];
   db.grants = [];
 });
@@ -107,6 +112,19 @@ describe('結算', () => {
     const days = (Date.parse(mine[0].endsOn) - Date.parse(mine[0].startsOn)) / 86_400_000 + 1;
     expect(days).toBe(84);
     expect(db.grants).toEqual([]);
+  });
+
+  it('微信說付的金額跟訂單對不上：不標成功、不發使用權，回 review 讓前端叫家長聯絡客服', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const resp = await client.get(`/api/payment/status?outTradeNo=${MISMATCH_ORDER}`, bearer(PARENT_ID));
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.status).toBe('pending');
+    expect(body.review).toBe(true);
+    expect(db.settled.has(MISMATCH_ORDER)).toBe(false);
+    expect(db.passes.filter(p => p.uniqueKey === 'payment:22')).toHaveLength(0);
+    expect(err.mock.calls.some(c => String(c[0]).includes('settlement refused') && String(c[0]).includes('amount 7990'))).toBe(true);
+    err.mockRestore();
   });
 
   it('回調重送：只發一次', async () => {

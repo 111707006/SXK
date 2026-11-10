@@ -27,8 +27,8 @@ const grants: any[] = [];
 const settled = new Set<string>();
 
 const payments: Record<string, any> = {
-  [T2_ORDER]: { id: 11, user_id: PARENT_ID, status: 'pending', scope: 't2', dimension_id: null },
-  [T3_ORDER]: { id: 12, user_id: PARENT_ID, status: 'pending', scope: 't3', dimension_id: 'language' },
+  [T2_ORDER]: { id: 11, user_id: PARENT_ID, status: 'pending', scope: 't2', dimension_id: null, amount_fen: 1990 },
+  [T3_ORDER]: { id: 12, user_id: PARENT_ID, status: 'pending', scope: 't3', dimension_id: 'language', amount_fen: 1990 },
 };
 
 vi.mock('../src/db/mysql', () => ({
@@ -62,8 +62,8 @@ vi.mock('../src/wechatPay', async (importOriginal) => {
   return {
     ...actual,
     // 憑證齊全，查單模式才走得到 settlePayment。
-    loadConfig: () => ({ config: { appId: 'x', mchid: 'y', verifyMode: 'platform_cert', platformKeyId: '', platformPublicKey: '', apiV3Key: '' }, missing: [] }),
-    queryOrderByOutTradeNo: async () => ({ tradeState: 'SUCCESS', transactionId: 'wx-tx-1' }),
+    loadConfig: () => ({ config: { appid: 'x', mchid: 'y', verifyMode: 'platform_cert', platformKeyId: '', platformPublicKey: '', apiV3Key: '' }, missing: [] }),
+    queryOrderByOutTradeNo: async () => ({ tradeState: 'SUCCESS', transactionId: 'wx-tx-1', amountFen: 1990, appid: 'x', mchid: 'y' }),
   };
 });
 

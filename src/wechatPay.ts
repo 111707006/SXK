@@ -367,7 +367,7 @@ export function decryptResource(
 export async function queryOrderByOutTradeNo(
   config: WechatPayConfig,
   outTradeNo: string
-): Promise<{ tradeState: string; transactionId: string | null; amountFen: number | null }> {
+): Promise<{ tradeState: string; transactionId: string | null; amountFen: number | null; appid: unknown; mchid: unknown }> {
   // 簽名串的 URL 行必須包含查詢字串，順序也要與實際送出的一致。
   const urlPath = `/v3/pay/transactions/out-trade-no/${encodeURIComponent(outTradeNo)}?mchid=${config.mchid}`;
   const authorization = buildAuthorization(config, 'GET', urlPath, '');
@@ -391,5 +391,8 @@ export async function queryOrderByOutTradeNo(
     tradeState: resp.data?.trade_state,
     transactionId: resp.data?.transaction_id ?? null,
     amountFen: typeof resp.data?.amount?.total === 'number' ? resp.data.amount.total : null,
+    // 結算前要核對是不是我們開的那一張（src/payments/paidOrderCheck.ts）
+    appid: resp.data?.appid,
+    mchid: resp.data?.mchid,
   };
 }

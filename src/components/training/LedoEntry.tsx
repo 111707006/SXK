@@ -7,11 +7,11 @@
  */
 import { useState } from 'react';
 import { PRODUCT } from '../../productConfig';
-import { CalendarDays, Loader2, MessageCircle, UserRound } from 'lucide-react';
+import { CalendarDays, ChevronRight, Loader2, MessageCircle, UserRound } from 'lucide-react';
 import { ServiceNote, serviceChoices } from '../serviceChoices';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { PREPARING_SENTENCE, ageBandLabel, weekRangeLabel } from '../../t2/weeklyCopy';
-import { ENTRY, ENTRY_1103, LEDO_ENTRY, planTitle, practicedTimes, swapCount, swapHeading, swapSub, weekAgeLine } from '../../t2/trainingCopy';
+import { ENTRY, ENTRY_1103, LEDO_ENTRY, PLAN_HERO, practicedTimes, swapCount, swapHeading, swapSub, weekAgeLine } from '../../t2/trainingCopy';
 import type { Activity, DimensionCode } from '../../t2/types';
 import { Avatar, Chip, Greeting, LEDO_ART, ListRow, PlayButton, RoundArrow, SectionHead } from '../ledo/ui';
 import { useTraining } from './TrainingContext';
@@ -148,15 +148,18 @@ function Entry1103() {
         <button
           type="button"
           onClick={() => nav.openPage({ name: 'plan' })}
-          className="relative block aspect-video w-full overflow-hidden rounded-[28px] bg-ledo-accent-soft text-left cursor-pointer active:scale-[0.99] transition"
+          className="block w-full overflow-hidden rounded-[28px] border border-ledo-line bg-white text-left cursor-pointer active:scale-[0.99] transition"
         >
-          <img src={LEDO_ART.training} alt="" className="absolute inset-0 h-full w-full object-cover" />
-          <span className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
-            <Chip tone="white">
-              {planTitle(childName)}
-              {practice ? LEDO_ENTRY.practiced(practice.sessions) : ''}
-            </Chip>
-            <PlayButton />
+          <span className="relative block aspect-video w-full bg-ledo-accent-soft">
+            <img src={LEDO_ART.training} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          </span>
+          {/* 底下白色一條（2026-11-10 使用者）：「查看英英的活动计划」＋點擊按鈕。 */}
+          <span className="flex items-center justify-between gap-3 bg-white px-4 py-3">
+            <span className="min-w-0 text-sm font-black text-ledo-ink">{PLAN_HERO.label(childName)}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-ledo-bar px-4 py-2 text-xs font-black text-white">
+              {PLAN_HERO.button}
+              <ChevronRight size={14} />
+            </span>
           </span>
         </button>
       )}
@@ -306,15 +309,18 @@ function LedoEntryV1() {
         <button
           type="button"
           onClick={() => nav.openPage({ name: 'plan' })}
-          className="relative block aspect-video w-full overflow-hidden rounded-[28px] bg-ledo-accent-soft text-left cursor-pointer active:scale-[0.99] transition"
+          className="block w-full overflow-hidden rounded-[28px] border border-ledo-line bg-white text-left cursor-pointer active:scale-[0.99] transition"
         >
-          <img src={LEDO_ART.training} alt="" className="absolute inset-0 h-full w-full object-cover" />
-          <span className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
-            <Chip tone="white">
-              {planTitle(childName)}
-              {practice ? LEDO_ENTRY.practiced(practice.sessions) : ''}
-            </Chip>
-            <PlayButton />
+          <span className="relative block aspect-video w-full bg-ledo-accent-soft">
+            <img src={LEDO_ART.training} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          </span>
+          {/* 底下白色一條（2026-11-10 使用者）：「查看英英的活动计划」＋點擊按鈕。 */}
+          <span className="flex items-center justify-between gap-3 bg-white px-4 py-3">
+            <span className="min-w-0 text-sm font-black text-ledo-ink">{PLAN_HERO.label(childName)}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-ledo-bar px-4 py-2 text-xs font-black text-white">
+              {PLAN_HERO.button}
+              <ChevronRight size={14} />
+            </span>
           </span>
         </button>
       )}

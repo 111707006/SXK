@@ -154,6 +154,12 @@ export function planTitle(childName: string | undefined): string {
   return `${childLabel(childName)}的家庭活动计划`;
 }
 
+/** 計劃大卡底下白色那一條（2026-11-10 使用者）：「查看{孩子名}的活动计划」＋按鈕。 */
+export const PLAN_HERO = {
+  label: (childName: string | undefined) => `查看${childLabel(childName)}的活动计划`,
+  button: '点击查看',
+} as const;
+
 /** 計劃大卡的小字：`共 12 周 · 本周 4 个活动 · 已练 N 次`。打卡讀不出來（`null`）時不寫「已练」。 */
 export function planCardMeta(activityCount: number, sessions: number | null): string {
   const base = `共 ${PLAN_TOTAL_WEEKS} 周 · 本周 ${activityCount} 个活动`;

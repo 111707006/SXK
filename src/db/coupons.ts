@@ -64,3 +64,43 @@ export async function claimCouponForUser(userId: number, code: string, today: st
   if (!coupon) throw new Error('coupon claimed but not readable');
   return { ok: true, coupon };
 }
+
+/**
+ * 測試優惠碼（`TEST_COUPON_CODE`，`src/redeem/testCodes.ts`）：碼本身不進資料庫、不會用掉。每次有人兌，就在「测试优惠码」那一批
+ * （沒有就建一批，半價、不過期）裡新增一張已用、綁這位家長的券（碼用 `generate` 產）—— 之後付款照一般優惠券的路收（`couponOfUser`）。
+ * 每位家長仍只能有一張：已經有了回 `already_claimed`。
+ */
+export async function claimTestCouponForUser(
+  userId: number,
+  opts: { note: string; discount: CouponDiscount; generate: () => string },
+): Promise<CouponClaimOutcome> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL pool is not available');
+  if (await couponOfUser(userId)) return { ok: false, reason: 'already_claimed' };
+  const [found] = await p.execute('SELECT id FROM coupon_batches WHERE note = ? ORDER BY id ASC LIMIT 1', [opts.note]);
+  let batchId = Number((found as any[])[0]?.id);
+  if (!batchId) {
+    const [ins] = await p.execute(
+      'INSERT INTO coupon_batches (note, discount_kind, discount_value, quantity, expires_on, created_by) VALUES (?, ?, ?, 0, NULL, NULL)',
+      [opts.note, opts.discount.kind, opts.discount.value],
+    );
+    batchId = (ins as { insertId: number }).insertId;
+  }
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await p.execute(
+        "INSERT INTO coupon_codes (batch_id, code, status, used_by, used_at) VALUES (?, ?, 'used', ?, NOW())",
+        [batchId, opts.generate(), userId],
+      );
+      break;
+    } catch (err: any) {
+      if (err?.code !== 'ER_DUP_ENTRY') throw err;
+      // 撞到 used_by（同一位家長同時兌兩次）＝已經有一張；撞到碼就換一組再試
+      if (String(err?.message ?? '').includes('used_by')) return { ok: false, reason: 'already_claimed' };
+      if (attempt >= 5) throw err;
+    }
+  }
+  const coupon = await couponOfUser(userId);
+  if (!coupon) throw new Error('test coupon claimed but not readable');
+  return { ok: true, coupon };
+}

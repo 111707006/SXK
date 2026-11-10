@@ -63,3 +63,34 @@ export async function redeemCodeForUser(userId: number, code: string, today: str
     conn.release();
   }
 }
+
+/**
+ * 測試 VIP 碼（`TEST_VIP_CODE`，`src/redeem/testCodes.ts`）：不查也不改 `redeem_codes`，直接發一段 `code` 使用權
+ * （`ref_id` NULL、`unique_key = test:<家長>:<時間>`），接在既有使用權後面；不綁推薦人。碼不會用掉。
+ */
+export async function grantTestPassForUser(userId: number, today: string, months: PassMonths): Promise<{ startsOn: string; endsOn: string }> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL pool is not available');
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [passRows] = await conn.execute(
+      `SELECT DATE_FORMAT(starts_on, '%Y-%m-%d') AS starts_on, DATE_FORMAT(ends_on, '%Y-%m-%d') AS ends_on
+         FROM training_passes WHERE user_id = ? FOR UPDATE`,
+      [userId],
+    );
+    const passes: TrainingPass[] = (passRows as any[]).map(r => ({ startsOn: String(r.starts_on), endsOn: String(r.ends_on), months: 1, source: 'code' }));
+    const range = nextPassRange(passes, today, months);
+    await conn.execute(
+      "INSERT INTO training_passes (user_id, starts_on, ends_on, months, source, ref_id, unique_key) VALUES (?, ?, ?, ?, 'code', NULL, ?)",
+      [userId, range.startsOn, range.endsOn, months, `test:${userId}:${Date.now()}`],
+    );
+    await conn.commit();
+    return range;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}

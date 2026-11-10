@@ -1989,8 +1989,18 @@ export default function App() {
                       const outcome = await startPayment({ scope: 'plan', months });
                       if (outcome.kind === 'jsapi') {
                         if (outcome.result === 'cancel') return;
-                        await authFetch(`/api/payment/status?outTradeNo=${encodeURIComponent(outcome.outTradeNo)}`).catch(() => null);
+                        // 付完直接帶去線上家庭訓練（2026-11-10 使用者：付完還停在方案頁、看不出成功，又按了兩次開通）。
+                        // 回呼可能比畫面慢一點：查單最多 5 次、每次隔 1.5 秒；查到成功才跳，查不到就說確認中。
+                        let paid = false;
+                        for (let i = 0; i < 5 && !paid; i++) {
+                          if (i > 0) await new Promise(r => setTimeout(r, 1500));
+                          const resp = await authFetch(`/api/payment/status?outTradeNo=${encodeURIComponent(outcome.outTradeNo)}`).catch(() => null);
+                          const body = resp && resp.ok ? await resp.json().catch(() => null) : null;
+                          paid = body?.status === 'success';
+                        }
                         setUnlocksNonce(n => n + 1);
+                        if (paid) setCurrentView('training');
+                        else if (outcome.result === 'ok') alert('付款结果确认中，稍后在「线上家庭训练」查看是否已开通，请不要重复付款。');
                       } else if (outcome.kind === 'not_ready') {
                         alert(outcome.reason || '暂时无法付款，请稍后再试。');
                       }

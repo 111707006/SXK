@@ -1,7 +1,8 @@
 import { createRedeemLimiter } from './src/redeem/rateLimit';
-import { formatCode, normalizeCode } from './src/redeem/codes';
-import { redeemCodeForUser } from './src/db/redeemCodes';
-import { claimCouponForUser, couponOfUser, type StoredCoupon } from './src/db/coupons';
+import { formatCode, generateCode, normalizeCode } from './src/redeem/codes';
+import { grantTestPassForUser, redeemCodeForUser } from './src/db/redeemCodes';
+import { claimCouponForUser, claimTestCouponForUser, couponOfUser, type StoredCoupon } from './src/db/coupons';
+import { assertDistinctTestCodes, resolveTestCode, TEST_COUPON_BATCH_NOTE, TEST_COUPON_DISCOUNT, TEST_VIP_MONTHS } from './src/redeem/testCodes';
 import { loadSplitAttribution, loadSplitRates, saveSplitSnapshot } from './src/db/revenueSplit';
 import { resolveFeeBp, resolveSplit, type SplitSnapshot } from './src/revenueSplit/split';
 import { applyCouponDiscount, couponDiscountLabel, COUPON_ALREADY_CLAIMED, COUPON_INVALID, COUPON_RATE_LIMITED, type ParentCoupon } from './src/t2/coupon';
@@ -297,6 +298,10 @@ const T2_COUPON = T2_COUPON_REQUESTED && APP_MODE === 'full';
 // 關著＝那幾支不註冊（404）、訂單不記快照。**只在專案 A**（B 設了不生效，啟動印一行）。⚠️ 要先跑 `2026-11-07-revenue-split.sql`。
 const REVENUE_SPLIT_REQUESTED = resolvePaywallSwitch('REVENUE_SPLIT', process.env.REVENUE_SPLIT);
 const REVENUE_SPLIT = REVENUE_SPLIT_REQUESTED && APP_MODE === 'full';
+// 測試用的可重複使用碼（使用者 2026-11-10，`src/redeem/testCodes.ts`）：沒設＝沒有；形狀不對起不來。傳出去等於免費。
+const TEST_VIP_CODE = resolveTestCode('TEST_VIP_CODE', process.env.TEST_VIP_CODE);
+const TEST_COUPON_CODE = resolveTestCode('TEST_COUPON_CODE', process.env.TEST_COUPON_CODE);
+assertDistinctTestCodes(TEST_VIP_CODE, TEST_COUPON_CODE);
 // 微信支付手續費（萬分比，暫採 60＝0.6%）：清分分的是扣掉手續費之後的金額；開單時記在快照上。認不得起不來。
 const WECHAT_FEE_BP = resolveFeeBp(process.env.WECHAT_FEE_BP);
 
@@ -4238,6 +4243,14 @@ const redeemLimiter = createRedeemLimiter();
       return;
     }
     const code = normalizeCode(req.body?.code);
+    if (code && TEST_VIP_CODE && code === TEST_VIP_CODE) {
+      // 測試 VIP 碼：不會用掉，每兌一次接一個月（`TEST_VIP_CODE`）
+      const range = await withTimeout(grantTestPassForUser(dbUserId, calendarDateOf(new Date()), TEST_VIP_MONTHS), 5000);
+      console.log(`[Redeem] test VIP code used by user ${dbUserId} (until ${range.endsOn})`);
+      const state = await trainingPassOf(dbUserId);
+      res.json({ months: TEST_VIP_MONTHS, endsOn: state.endsOn ?? range.endsOn });
+      return;
+    }
     const outcome = code ? await withTimeout(redeemCodeForUser(dbUserId, code, calendarDateOf(new Date())), 5000) : { ok: false as const };
     if (!outcome.ok) {
       res.status(400).json({ error: '兑换码不正确或已使用', code: 'REDEEM_INVALID' });
@@ -4290,9 +4303,12 @@ const parentCouponOf = (c: StoredCoupon): ParentCoupon => ({ code: formatCode(c.
       return void res.status(429).json({ error: COUPON_RATE_LIMITED, code: 'RATE_LIMITED' });
     }
     const code = normalizeCode(req.body?.code);
-    const outcome = code
-      ? await withTimeout(claimCouponForUser(dbUserId, code, calendarDateOf(new Date())), 5000)
-      : { ok: false as const, reason: 'invalid' as const };
+    const outcome = !code
+      ? { ok: false as const, reason: 'invalid' as const }
+      : TEST_COUPON_CODE && code === TEST_COUPON_CODE
+        // 測試優惠碼：碼不會用掉，每位家長綁一張半價券（`TEST_COUPON_CODE`）
+        ? await withTimeout(claimTestCouponForUser(dbUserId, { note: TEST_COUPON_BATCH_NOTE, discount: TEST_COUPON_DISCOUNT, generate: () => generateCode(max => crypto.randomInt(max)) }), 5000)
+        : await withTimeout(claimCouponForUser(dbUserId, code, calendarDateOf(new Date())), 5000);
     if (!outcome.ok) {
       if (outcome.reason === 'already_claimed') return void res.status(409).json({ error: COUPON_ALREADY_CLAIMED, code: 'COUPON_ALREADY_CLAIMED' });
       return void res.status(400).json({ error: COUPON_INVALID, code: 'COUPON_INVALID' });
@@ -4668,6 +4684,9 @@ export async function startServer() {
           ? `[SenXinKang Server] REVENUE_SPLIT=1: each order records its split (payments.split_snapshot); WeChat fee ${WECHAT_FEE_BP} bp.`
           : '[SenXinKang Server] REVENUE_SPLIT is set but ignored: project B has no paid orders to split (A only).'
       );
+    }
+    if (TEST_VIP_CODE || TEST_COUPON_CODE) {
+      console.log(`[SenXinKang Server] Reusable test codes set: ${[TEST_VIP_CODE && 'TEST_VIP_CODE', TEST_COUPON_CODE && 'TEST_COUPON_CODE'].filter(Boolean).join(', ')} (anyone with the code gets access; remove to disable).`);
     }
     if (T2_COUPON_REQUESTED) {
       console.log(

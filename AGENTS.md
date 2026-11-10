@@ -513,6 +513,10 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `WECHATPAY_*` | 微信支付（`src/wechatPay.ts` 的 `loadConfig`，名单见 `.env.example`）：APPID、MCHID、SERIAL_NO、PRIVATE_KEY(_PATH)、APIV3_KEY、NOTIFY_URL 必填。回调验签两种：`WECHATPAY_PUBLIC_KEY(_PATH)`＋`WECHATPAY_PUBLIC_KEY_ID` **都不设＝平台证书模式**（正式站，使用者 2026-11-10：商户号不切公钥；伺服器用 APIv3 密钥下载平台证书、12 小时更新、依 `Wechatpay-Serial` 找，`src/wechatPlatformCerts.ts`），两个都设＝公钥模式，设一半起不来付款（列在缺项里） | 否 |
 | `WECHAT_MP_APPSECRET` | 在微信里付款（JSAPI，2026-11-08，**只在专案 A**）：服务号的 AppSecret（AppID 用 `WECHATPAY_APPID`）。与 `PUBLIC_BASE_URL`（https 的协定＋网域，要等于服务号的「网页授权域名」）一起设了才开：前端在微信里下单带 `channel: 'jsapi'`，没有 openid 先走一次服务号网页授权（`src/wechatOauth.ts`、`src/utils/wechatPayClient.ts`）；微信外照旧 H5。商户平台要加 JSAPI 支付授权目录 `https://sxkscreen.com/`。不设＝跟以前一样。**要先跑 `2026-11-08-wechat-openids.sql`** | 否 |
 | `PAYWALL_FREE` | 免费期间（微信支付还没开通时，使用者 2026-10-06）：`1` ＝ 后端闸门不执行、付费墙**不出现**；`TRAINING_PLAN` 开着时居家训练也不要使用权（2026-10-27）（登入的家长 `/api/unlocks` 拿到 `t2: true`）。与 `PAYWALL_DEMO_OPEN` 的差别只在画面：那一个让付费墙照样出现、附「展示用」的略过键。只收 `1`/`true`/`0`/`false`，认不得的值起不来。**接上微信支付后拿掉** | 否 |
+| `LISTEN_HOST` | 伺服器绑在哪个位址（2026-11-10 稽核）：不设＝`0.0.0.0`（照旧，Render 要这个）；正式站 A、B 都在 nginx 后面，设 `127.0.0.1` 外面就连不到 5000／5001。只收 `0.0.0.0`/`127.0.0.1`/`::`/`::1`，认不得起不来 | 否 |
+| `CSP_MODE` | Content-Security-Policy（`src/security/csp.ts`）：不设／`off` ＝不送（照旧）；`report` ＝送 Report-Only，违规写进日志（`/api/csp-report`，`[CSP report]` 开头，同一种只记一次）；`enforce` ＝真的挡。**先 report、看过日志再 enforce**。只收 `off`/`0`/`report`/`enforce` | 否 |
+| `PAY_RECONCILE_MINUTES` | 对帐补结（`src/payments/reconcile.ts`）：不设／`0` ＝关；5–1440 ＝每 N 分钟把开单 5 分钟以上、48 小时以内、还是 pending 的单问微信，付了的走同一个 `settlePayment`（核对金额、挡重复）。只在专案 A、微信支付与资料库都设好时跑 | 否 |
+| `ALERT_WEBHOOK_URL` | 出事通知（`src/alerts.ts`）：企业微信群机器人的网址（`https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…`，其他网址起不来）。程序要挂、付款金额对不上或结算失败、5 分钟内 5 次以上 5xx 时送；同一种事 10 分钟一次、一小时最多 20 则，不带手机号与孩子资料。不设＝不送 | 否 |
 
 > 上面四项 `ALI_SMS_*` 少任何一项，家长就登不进来 —— 通道会明确回报「尚未开放」，
 > 不会退回任何一种「看起来送出去了」的模式。

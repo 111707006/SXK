@@ -131,7 +131,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
       />
   );
 
-  const hero = banners.length > 0 ? <HomeCarousel items={banners} /> : (
+  const hero = banners.length > 0 ? <HomeCarousel items={banners} fill={desk} /> : (
       <button
         type="button"
         onClick={() => onOpen('training')}

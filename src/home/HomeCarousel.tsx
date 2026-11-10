@@ -11,7 +11,8 @@ import { openMediaLink } from './homeMediaClient';
  */
 export const CAROUSEL_INTERVAL_MS = 5000;
 
-export default function HomeCarousel({ items }: { items: HomeMediaItem[] }) {
+/** `fill`：電腦版首頁左欄要跟右欄等高，圖填滿整格（不照 16:9；2026-11-11 圖底下空一塊）。 */
+export default function HomeCarousel({ items, fill = false }: { items: HomeMediaItem[]; fill?: boolean }) {
   const track = useRef<HTMLDivElement>(null);
   const videos = useRef<Array<HTMLVideoElement | null>>([]);
   const [at, setAt] = useState(0);
@@ -74,7 +75,7 @@ export default function HomeCarousel({ items }: { items: HomeMediaItem[] }) {
         onTouchStart={() => {
           touchedAt.current = Date.now();
         }}
-        className="flex aspect-video w-full snap-x snap-mandatory overflow-x-auto rounded-[28px] bg-ledo-accent-soft [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={`flex ${fill ? 'h-full' : 'aspect-video'} w-full snap-x snap-mandatory overflow-x-auto rounded-[28px] bg-ledo-accent-soft [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
       >
         {items.map((item, i) => (
           <button

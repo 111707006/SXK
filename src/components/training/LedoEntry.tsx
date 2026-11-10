@@ -18,6 +18,7 @@ import { useTraining } from './TrainingContext';
 import { alternateRows, filterDimensions, planPositionOf } from './trainingData';
 import { SHOW_LIBRARY } from './visibility';
 import { useLastWeek } from './useLastWeek';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 /** 本週／上週的大圖卡（簡報 11/03 第 25 頁：用「换着玩」那種卡）。 */
 function BigCard({ activity, sub, badge, tone, onClick }: {
@@ -99,6 +100,7 @@ export default function LedoEntry() {
 function Entry1103() {
   const { data, nav, childName, onBookService } = useTraining();
   const [faq, setFaq] = useState<number | null>(null);
+  const desk = useDesktopLayout();
   // 第一期第 1 週一定沒有上一週：不去問，免得每次打開都在 console 留一條 404（2026-11-10 清單第 29 條）。
   // 換期後的第 1 週照問（上一週是舊一期的最後一週）。
   const pos = data.plan?.plan;
@@ -121,8 +123,8 @@ function Entry1103() {
   const position = planPositionOf(plan);
   const range = weekRangeLabel(plan.weekStart, plan.weekEnd);
 
-  return (
-    <div className="space-y-4" data-testid="training-entry">
+  const entryHead = (
+    <>
       <Greeting
         small={`${range ? `${range} · ` : ''}${LEDO_ENTRY.week(position.weekIndex, position.totalWeeks)}`}
         title={ENTRY.title}
@@ -138,7 +140,10 @@ function Entry1103() {
         }
       />
       <p id="training-subtitle" className="-mt-2 text-xs leading-relaxed text-ledo-ink-2">{ENTRY_1103.subtitle}</p>
-
+    </>
+  );
+  const entryHero = (
+    <>
       {plan.activities.length > 0 && (
         <button
           type="button"
@@ -155,7 +160,10 @@ function Entry1103() {
           </span>
         </button>
       )}
-
+    </>
+  );
+  const entryFaq = (
+    <>
       {/* 家長常問（會議：「以按钮形式置于显眼位置并展示解释」） */}
       <section id="training-faq" className="space-y-2">
         <h3 className="text-sm font-black text-ledo-ink">{ENTRY_1103.faqTitle}</h3>
@@ -170,7 +178,10 @@ function Entry1103() {
           <p id="training-faq-answer" className="rounded-2xl bg-ledo-field px-3.5 py-2.5 text-xs leading-relaxed text-ledo-ink">{ENTRY_1103.faq[faq].a}</p>
         )}
       </section>
-
+    </>
+  );
+  const entryWeek = (
+    <>
       {plan.activities.length === 0 ? (
         <p className="text-xs leading-relaxed text-ledo-ink-2">{ENTRY.noActivities}</p>
       ) : (
@@ -180,7 +191,7 @@ function Entry1103() {
             action={SHOW_LIBRARY ? ENTRY.tabs.library : undefined}
             onAction={SHOW_LIBRARY ? () => nav.openPage({ name: 'library' }) : undefined}
           />
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className={desk ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-2.5'}>
             {plan.activities.map(({ activity, dimension }, i) => (
               <BigCard
                 key={activity.id}
@@ -193,12 +204,15 @@ function Entry1103() {
           </div>
         </section>
       )}
-
+    </>
+  );
+  const entryLast = (
+    <>
       {last && (
         <section id="training-last-week" className="space-y-2.5 rounded-[28px] bg-ledo-field p-3">
           <SectionHead title={ENTRY_1103.lastWeek(last.picks.length)} />
           <p className="-mt-1.5 px-1 text-xs text-ledo-ink-2">{ENTRY_1103.lastWeekSub}</p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className={desk ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-2.5'}>
             {last.picks.map(({ activity, dimension }, i) => {
               const done = last.practiced.has(activity.id);
               return (
@@ -215,10 +229,32 @@ function Entry1103() {
           </div>
         </section>
       )}
-
+    </>
+  );
+  const entryPrep = (
+    <>
       {plan.preparing.length > 0 && <Preparing preparing={plan.preparing} onBookService={onBookService} />}
+    </>
+  );
+  const entryBanner = <ExpertBanner onOpen={() => nav.openSheet({ kind: 'expert' })} />;
 
-      <ExpertBanner onOpen={() => nav.openSheet({ kind: 'expert' })} />
+  if (desk) {
+    // 電腦版（VITE_DESKTOP_LAYOUT）：左邊計畫大卡、家長常問、問專家；右邊本週與上週的活動，一排三張。
+    return (
+      <div className="space-y-5" data-testid="training-entry">
+        {entryHead}
+        <div className="grid grid-cols-12 items-start gap-6">
+          <div className="col-span-5 min-w-0 space-y-4">{entryHero}{entryFaq}{entryPrep}{entryBanner}</div>
+          <div className="col-span-7 min-w-0 space-y-4">{entryWeek}{entryLast}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="training-entry">
+      {entryHead}{entryHero}{entryFaq}{entryWeek}{entryLast}{entryPrep}
+      {entryBanner}
     </div>
   );
 }

@@ -46,6 +46,7 @@ import { STATUS_CLASS } from './reportStatusClass';
 import { isFindingsV3, type T2FindingsV3 } from '../t2/findingsV3';
 import { isNonScaleSnapshot, PROXY_TOOLKIT } from '../t2/snapshotKinds';
 import T2ReportV3 from './T2ReportV3';
+import { useDesktopLayout } from '../desktop/useDesktopLayout';
 
 /**
  * 一份 T2 報告快照：`POST /api/t2/findings`、`GET /api/t2/findings/latest` 回的，
@@ -139,6 +140,8 @@ function formatDay(iso: string): string {
  * 畫面不讀它）。題目原文只在回顧那一段（`reviewGroups`），敘述段不引用。
  */
 export default function T2Report({ onBack, onBookService, childName, generateOnOpen, onOpenTraining }: T2ReportProps) {
+  // 電腦版（VITE_DESKTOP_LAYOUT）：外框放寬，T2ReportV3 裡分兩欄。
+  const desk = useDesktopLayout();
   const [entry, setEntry] = useState<FindingsEntry | null>(null);
   const [status, setStatus] = useState<'loading' | 'generating' | 'ready' | 'none' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -231,7 +234,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
 
   const shell = (children: React.ReactNode) => (
     <div className={isLedoPage()
-      ? 'bg-white rounded-[32px] p-4 sm:p-6 max-w-xl mx-auto shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left'
+      ? (desk ? 'bg-white rounded-[32px] p-8 max-w-6xl mx-auto shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)] text-left' : 'bg-white rounded-[32px] p-4 sm:p-6 max-w-xl mx-auto shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left')
       : 'bg-white rounded-3xl border border-brand-stone p-5 md:p-8 max-w-3xl mx-auto shadow-sm text-left'}>
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
         {backButton}

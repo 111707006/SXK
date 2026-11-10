@@ -3,6 +3,7 @@ import { STATUS_WORDING } from '../../utils/statusWording';
 import { Avatar, Chip, Greeting, LEDO_ART, ListRow, PlayButton, SectionHead } from './ui';
 import { PRODUCT } from '../../productConfig';
 import { WORDING_1022 } from '../../wording1022';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 /**
  * Ledo 版報告庫（設計稿第 5 頁）：「这次的报告」插畫大卡（打開即時報告），下面一行一份歸檔報告。
@@ -23,17 +24,14 @@ export default function LedoReportLibrary({ childName, t1Count, history, onOpenL
     return Number.isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()}`;
   };
   const latest = history[0];
+  const desk = useDesktopLayout();
 
-  return (
-    <div id="ledo-report-library" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
-      <Greeting small={`${childName}的报告`} title="评估报告" />
-
-      {t1Count > 0 && (
+  const liveCard = t1Count > 0 && (
         <button
           type="button"
           id="ledo-open-live-report"
           onClick={onOpenLive}
-          className="relative block aspect-[4/3] w-full overflow-hidden rounded-[28px] bg-ledo-ok text-left cursor-pointer active:scale-[0.99] transition"
+          className={desk ? 'relative block aspect-[4/3] w-full overflow-hidden rounded-[32px] bg-ledo-ok text-left cursor-pointer transition hover:brightness-[0.98]' : 'relative block aspect-[4/3] w-full overflow-hidden rounded-[28px] bg-ledo-ok text-left cursor-pointer active:scale-[0.99] transition'}
         >
           <img src={LEDO_ART.report} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <span className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
@@ -41,8 +39,10 @@ export default function LedoReportLibrary({ childName, t1Count, history, onOpenL
             <PlayButton />
           </span>
         </button>
-      )}
+  );
 
+  const historyList = (
+    <>
       <SectionHead title="历次报告" action={history.length > 0 ? `${history.length} 份` : undefined} />
       {history.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-ledo-line py-6 text-center text-xs text-ledo-ink-2">还没有以前的报告</p>
@@ -67,6 +67,31 @@ export default function LedoReportLibrary({ childName, t1Count, history, onOpenL
           })}
         </div>
       )}
+    </>
+  );
+
+  if (desk) {
+    // 電腦版：左邊「这次的报告」大卡，右邊歷次報告清單。
+    return (
+      <div id="ledo-report-library" className="mx-auto w-full max-w-6xl space-y-5 text-left animate-fade-in">
+        <div className="px-1"><Greeting small={`${childName}的报告`} title="评估报告" /></div>
+        <div className="grid grid-cols-12 items-start gap-5">
+          {liveCard && <div className="col-span-7 min-w-0">{liveCard}</div>}
+          <section className={`${liveCard ? 'col-span-5' : 'col-span-12'} min-w-0 space-y-3 rounded-[32px] bg-white p-6 shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)]`}>
+            {historyList}
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div id="ledo-report-library" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
+      <Greeting small={`${childName}的报告`} title="评估报告" />
+
+      {liveCard}
+
+      {historyList}
     </div>
   );
 }

@@ -26,6 +26,7 @@ import PrintButton from './PrintButton';
 import ScaleDetailCard from './ScaleDetailCard';
 import type { T2ReportActions } from './T2Report';
 import { SCALE_DETAIL_FOOTER, SCALE_DETAIL_LEAD, SCALE_DETAIL_TITLE } from '../t2/scaleDetailCopy';
+import { useDesktopLayout } from '../desktop/useDesktopLayout';
 
 /** 氣質與生活品質那兩支的客規代碼（不進九宮格，各有一段）。 */
 const TEMPERAMENT_TOOL = 'ITQ/TTS/BSQ';
@@ -116,50 +117,10 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
     </h3>
   );
 
-  return (
-    <div className="space-y-7">
-      {/* 標頭：來源、生成日期、測評月齡 */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-        <div>
-          {/* 家長那一份（有 actions）不出「本地模板生成」這種內部標籤；後台的只讀快照照舊（2026-11-10 清單第 18 條） */}
-          {(!actions || entry.isAiGenerated === true) && (
-            <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
-              <Award size={14} />
-              {reportSourceLabel(entry.isAiGenerated)}
-            </div>
-          )}
-          <h2 className="text-lg font-bold text-brand-forest mt-1">深度评估报告</h2>
-          <p className="text-xs text-brand-charcoal/80 mt-1">
-            {formatDay(entry.createdAt) && `${formatDay(entry.createdAt)}生成 · `}按答题时 {formatAge(ageMonth)} 整理
-          </p>
-        </div>
-        {actions && (
-          <div className="flex flex-col items-start sm:items-end gap-2">
-            <PrintButton id="t2v3-print-btn" />
-          </div>
-        )}
-      </div>
-      {actions?.errorLine}
-
-      {/*
-        最上方的提示：先是生成當下 T1 帶來的（安全、社交溝通警訊、抽動……，ADR-0011，快照的 t1Notices，附預約），
-        再是問卷的旗標（§5.3：轉介、倒退、情緒影響大、能作答的題不夠）
-      */}
-      {(t1Notices.length > 0 || notices.length > 0) && (
-        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl space-y-3" id="t2v3-notices">
-          <ul className="space-y-1.5">
-            {[...t1Notices.map(n => n.text), ...notices].map(line => (
-              <li key={line} className="flex items-start gap-2.5 text-xs font-bold leading-relaxed">
-                <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={15} />
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-          {actions && t1Notices.some(n => n.book) && <div className="print:hidden">{actions.serviceButtons}</div>}
-        </div>
-      )}
-
-      {/* 1. 總覽：九宮格（不篩的不出） */}
+  const desk = useDesktopLayout();
+  // 1. 總覽：九宮格（不篩的不出）
+  const secOverview = (
+    <>
       <section className="space-y-3">
         {sectionTitle(<ClipboardList size={15} />, '总览')}
         {prose && <p className="text-xs text-brand-charcoal leading-relaxed" id="t2v3-overview">{prose.overview}</p>}
@@ -212,8 +173,11 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
         </ul>
         )}
       </section>
-
-      {/* 2. 逐維度：留意／關注的維度各一段（prose 有才出） */}
+    </>
+  );
+  // 2. 逐維度：留意／關注的維度各一段（prose 有才出）
+  const secPerDim = (
+    <>
       {flagged.length > 0 && (
         <section className="space-y-3" id="t2v3-per-dimension">
           {sectionTitle(<Layers size={15} />, '各方面')}
@@ -233,8 +197,11 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
           })}
         </section>
       )}
-
-      {/* 2.5 量表详解：每一份問卷照它自己的分法講（規格 t2-v3-scale-detail-report.md） */}
+    </>
+  );
+  // 2.5 量表详解：每一份問卷照它自己的分法講（規格 t2-v3-scale-detail-report.md）
+  const secScale = (
+    <>
       {scaleDetails.length > 0 && (
         <section className="space-y-3" id="t2v3-scale-details">
           {sectionTitle(<ClipboardList size={15} />, SCALE_DETAIL_TITLE)}
@@ -243,8 +210,11 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
           <p className="text-xs text-brand-charcoal/80 leading-relaxed">{SCALE_DETAIL_FOOTER}</p>
         </section>
       )}
-
-      {/* 3. 沒有問卷的方面：導向四種服務 */}
+    </>
+  );
+  // 3. 沒有問卷的方面：導向四種服務
+  const secNoTool = (
+    <>
       {noTool.length > 0 && (
         <section className="space-y-3" id="t2v3-no-tool">
           {sectionTitle(<UserRound size={15} />, '这个月龄没有问卷可以做的方面')}
@@ -272,8 +242,11 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
           </div>
         </section>
       )}
-
-      {/* 4. 生活品質（不進九宮格） */}
+    </>
+  );
+  // 4. 生活品質（不進九宮格）
+  const secQol = (
+    <>
       {qol && (
         <section className="space-y-2" id="t2v3-qol">
           {sectionTitle(<HeartHandshake size={15} />, '日常生活')}
@@ -283,8 +256,11 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
           )}
         </section>
       )}
-
-      {/* 5. 氣質（不進九宮格；講偏向，不講好壞） */}
+    </>
+  );
+  // 5. 氣質（不進九宮格；講偏向，不講好壞）
+  const secTemp = (
+    <>
       {tempLines.length > 0 && (
         <section className="space-y-2" id="t2v3-temperament">
           {sectionTitle(<Sparkles size={15} />, '孩子的风格')}
@@ -302,7 +278,61 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
           </ul>
         </section>
       )}
+    </>
+  );
 
+  return (
+    <div className="space-y-7">
+      {/* 標頭：來源、生成日期、測評月齡 */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div>
+          {/* 家長那一份（有 actions）不出「本地模板生成」這種內部標籤；後台的只讀快照照舊（2026-11-10 清單第 18 條） */}
+          {(!actions || entry.isAiGenerated === true) && (
+            <div className="flex items-center gap-2 text-brand-moss font-bold text-xs uppercase tracking-wider">
+              <Award size={14} />
+              {reportSourceLabel(entry.isAiGenerated)}
+            </div>
+          )}
+          <h2 className="text-lg font-bold text-brand-forest mt-1">深度评估报告</h2>
+          <p className="text-xs text-brand-charcoal/80 mt-1">
+            {formatDay(entry.createdAt) && `${formatDay(entry.createdAt)}生成 · `}按答题时 {formatAge(ageMonth)} 整理
+          </p>
+        </div>
+        {actions && (
+          <div className="flex flex-col items-start sm:items-end gap-2">
+            <PrintButton id="t2v3-print-btn" />
+          </div>
+        )}
+      </div>
+      {actions?.errorLine}
+
+      {/*
+        最上方的提示：先是生成當下 T1 帶來的（安全、社交溝通警訊、抽動……，ADR-0011，快照的 t1Notices，附預約），
+        再是問卷的旗標（§5.3：轉介、倒退、情緒影響大、能作答的題不夠）
+      */}
+      {(t1Notices.length > 0 || notices.length > 0) && (
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl space-y-3" id="t2v3-notices">
+          <ul className="space-y-1.5">
+            {[...t1Notices.map(n => n.text), ...notices].map(line => (
+              <li key={line} className="flex items-start gap-2.5 text-xs font-bold leading-relaxed">
+                <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={15} />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          {actions && t1Notices.some(n => n.book) && <div className="print:hidden">{actions.serviceButtons}</div>}
+        </div>
+      )}
+
+      {desk ? (
+        // 電腦版（VITE_DESKTOP_LAYOUT）：左邊總覽與不進九宮格的幾段，右邊逐方面的說明。
+        <div className="grid grid-cols-2 items-start gap-8">
+          <div className="min-w-0 space-y-7">{secOverview}{secNoTool}{secQol}{secTemp}</div>
+          <div className="min-w-0 space-y-7">{secPerDim}{secScale}</div>
+        </div>
+      ) : (
+        <>{secOverview}{secPerDim}{secScale}{secNoTool}{secQol}{secTemp}</>
+      )}
       {/* 6. 線上干預：只留一行連結（2026-09-28 起不放在報告裡） */}
       {actions?.onOpenTraining && (
         <section id="t2v3-weekly" className="print:hidden">

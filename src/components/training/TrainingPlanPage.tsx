@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Gift, Loader2 } from 'lucide-react';
 import { TRAINING_PLAN_PAGE, planListPriceFen, planYuan } from '../../t2/trainingPlanCopy';
 import RedeemCodeForm from './RedeemCodeForm';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 interface PlanCard {
   months: 1 | 3 | 6;
@@ -55,6 +56,73 @@ export default function TrainingPlanPage({
       alive = false;
     };
   }, []);
+
+  const desk = useDesktopLayout();
+  const payable = (p: PlanCard) => Boolean(data?.payAvailable && onPay && p.priceFen !== null);
+
+  if (desk) {
+    // 電腦版（VITE_DESKTOP_LAYOUT，客戶 11/03 第 8 頁的參考圖）：「VIP 兑换」與三張方案卡橫排一列，
+    // 每張由上而下：名稱、價錢、按鈕、說明。字與資料同手機版，沒有另外的特色清單或「推荐」標籤。
+    const activeBox = (endsOnText: string) => (
+      <div className="flex items-center justify-between gap-4 rounded-[28px] bg-ledo-ok px-6 py-4 text-ledo-ok-ink">
+        <p className="text-sm font-black">{endsOnText}</p>
+        <button type="button" onClick={onGoTraining} className="shrink-0 rounded-full bg-ledo-bar px-6 py-2.5 text-sm font-black text-white cursor-pointer">{TRAINING_PLAN_PAGE.goTraining}</button>
+      </div>
+    );
+    return (
+      <div id="training-plan-page" className="mx-auto w-full max-w-6xl space-y-5 text-left animate-fade-in">
+        <div className="space-y-1 px-1">
+          <h2 className="text-[26px] font-black text-ledo-ink">{TRAINING_PLAN_PAGE.title}</h2>
+          <p className="text-sm leading-relaxed text-ledo-ink-2">{TRAINING_PLAN_PAGE.sub}</p>
+        </div>
+
+        {active && !activatedTo && <div id="training-plan-active">{activeBox(active.endsOn ? TRAINING_PLAN_PAGE.activated(active.endsOn) : TRAINING_PLAN_PAGE.activeNoEnd)}</div>}
+        {activatedTo && <div id="training-plan-activated">{activeBox(TRAINING_PLAN_PAGE.activated(activatedTo))}</div>}
+
+        <div className="grid grid-cols-4 items-stretch gap-4">
+          <div id="training-plan-vip" className="flex flex-col gap-4 rounded-[28px] border-[1.5px] border-ledo-accent bg-ledo-accent-soft/50 p-5">
+            <p className="flex items-center gap-1.5 text-base font-black text-ledo-ink"><Gift size={16} />{TRAINING_PLAN_PAGE.vipTitle}</p>
+            <button type="button" id="training-plan-redeem-entry" onClick={() => setRedeemOpen(o => !o)}
+              className="w-full rounded-full bg-ledo-accent py-2.5 text-sm font-black text-white cursor-pointer">
+              {TRAINING_PLAN_PAGE.redeemSubmit}
+            </button>
+            <p className="border-t border-ledo-accent/20 pt-4 text-xs leading-relaxed text-ledo-ink-2">{TRAINING_PLAN_PAGE.vipBlurb}</p>
+          </div>
+
+          {data === null ? (
+            <div className="col-span-3 grid place-items-center rounded-[28px] bg-white"><Loader2 size={18} className="animate-spin text-ledo-ink-2" /></div>
+          ) : data.plans.map(p => {
+            const list = planListPriceFen(p.months, p.priceFen);
+            return (
+              <div key={p.months} id={`training-plan-${p.months}`} className="flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)]">
+                <p className="text-sm font-black text-ledo-ink-2">{p.title}</p>
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-[30px] font-black leading-none text-ledo-ink tabular-nums">{p.priceFen === null ? TRAINING_PLAN_PAGE.priceTbd : planYuan(p.priceFen)}</span>
+                  {list !== null && <span className="text-xs text-ledo-ink-2 line-through tabular-nums">{TRAINING_PLAN_PAGE.listPrice(planYuan(list))}</span>}
+                </div>
+                <button
+                  type="button"
+                  disabled={!payable(p)}
+                  onClick={() => onPay?.(p.months)}
+                  className="w-full rounded-full bg-ledo-bar py-2.5 text-sm font-black text-white disabled:bg-ledo-field disabled:text-ledo-ink-2 cursor-pointer disabled:cursor-default"
+                >
+                  {payable(p) ? TRAINING_PLAN_PAGE.pay : TRAINING_PLAN_PAGE.payUnavailable}
+                </button>
+                <p className="border-t border-ledo-line pt-4 text-xs leading-relaxed text-ledo-ink-2">{p.blurb}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 兌換表單在電腦版放在整排卡片底下（第一欄太窄放不下）。 */}
+        {redeemOpen && (
+          <div className="max-w-xl rounded-[28px] bg-white p-5 shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)]">
+            <RedeemCodeForm loggedIn={loggedIn} onActivated={endsOn => { setActivatedTo(endsOn); setRedeemOpen(false); onActivated(); }} />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div id="training-plan-page" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">

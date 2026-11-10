@@ -54,6 +54,16 @@ function assertValidMallOpen() {
 }
 
 /**
+ * 電腦版側欄工作台的建置期開關（`VITE_DESKTOP_LAYOUT`，見 `src/productConfig.ts` 的 `features.desktopLayout`）。
+ * 只收 `1`／`0`；不設＝關。B 的建置不讀它，但打錯字一樣擋。
+ */
+function assertValidDesktopLayout() {
+  const raw = process.env.VITE_DESKTOP_LAYOUT;
+  if (raw === undefined || raw === '' || raw === '1' || raw === '0') return;
+  throw new Error(`VITE_DESKTOP_LAYOUT 的值無法辨識: ${JSON.stringify(raw)}。只接受 '1'（電腦版側欄）或 '0'（現行）；不設＝關。只在專案 A 有效。`);
+}
+
+/**
  * 1022 開著（而且是專案 A）時，靜態頁寫新的 title、description，body 第一段放一行視覺隱藏、讀屏可讀的歡迎句。
  * 專案 A 沒有微信公眾號 JS-SDK，微信的分享卡標題取網頁標題、說明取頁面第一段文字（規格「分享卡」，暫採）——
  * 執行期才設的 `document.title` 微信不一定等得到，所以寫進靜態檔。關著時 `index.html` 原封不動。
@@ -134,6 +144,7 @@ export default defineConfig(() => {
   assertValidUiLedo();
   assertValidUi1022();
   assertValidMallOpen();
+  assertValidDesktopLayout();
 
   return {
     plugins: [react(), tailwindcss(), brandFont(), shareCard1022()],

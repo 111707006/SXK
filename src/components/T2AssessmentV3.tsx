@@ -14,6 +14,7 @@ import type { ScoreContext } from '../t2/kitv3/score';
 import type { KitV3Bank } from '../t2/kitv3/types';
 import type { PlanV3Response } from '../t2/recommend/parentPlan';
 import type { Rater } from '../t2/types';
+import { useDesktopLayout } from '../desktop/useDesktopLayout';
 
 interface T2AssessmentV3Props {
   plan: PlanV3Response;
@@ -224,8 +225,12 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
 
   // Ledo 版（設計稿第 7、8 頁）：外框、選項、清單換畫法；清單、作答、交卷的邏輯與舊版同一份。
   const ledo = PRODUCT.features.ledo;
+  // 電腦版（VITE_DESKTOP_LAYOUT）：外框放寬；清單分左右兩欄、作答時填表人與交卷固定在右邊。
+  const desk = useDesktopLayout() && ledo;
   const shell = (children: React.ReactNode, back: React.ReactNode) => (
-    <div className={ledo
+    <div className={desk
+      ? 'bg-white rounded-[32px] p-8 max-w-6xl mx-auto shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)] text-left'
+      : ledo
       ? 'bg-white rounded-[32px] p-4 sm:p-6 max-w-xl mx-auto shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left'
       : 'bg-white rounded-3xl border border-brand-stone p-6 md:p-8 max-w-3xl mx-auto shadow-sm text-left'}>
       <div className="flex items-center justify-between border-b border-brand-cream pb-5 mb-6">
@@ -264,8 +269,7 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     }
     let no = 0;
     const gateText = rater === null ? '请先选择填表人' : missing.length > 0 ? `还有 ${missing.length} 题未作答` : '全部答完，可以交卷';
-    return shell(
-      <div className="space-y-6">
+    const header = (
         <div className="bg-brand-cream/35 p-4 rounded-2xl border border-brand-stone/50">
           <h2 className="text-sm font-extrabold text-brand-forest">{selected.name}</h2>
           <p className="text-xs text-brand-charcoal/80 mt-0.5">
@@ -275,7 +279,8 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
             <p className="text-xs text-brand-moss font-semibold mt-1" id="t2v3-resumed">已接着上次没答完的地方继续，答案都还在。</p>
           )}
         </div>
-
+    );
+    const raterSection = (
         <section id="t2v3-rater-section" className={`space-y-2 rounded-2xl transition${flashRing('rater')}`}>
           <h3 className="text-xs font-bold text-brand-forest">这份问卷由谁填写？</h3>
           <div className="flex flex-wrap gap-2">
@@ -294,8 +299,8 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           </div>
           <T2RaterNoteInput v2={raterV2} rater={rater} value={raterNote} onChange={setRaterNote} disabled={submitting} id="t2v3-rater-note" />
         </section>
-
-        {form.grade && (
+    );
+    const gradeSection = form.grade && (
           <section className="space-y-2">
             <h3 className="text-xs font-bold text-brand-forest">孩子现在读几年级？</h3>
             <p className="text-xs text-brand-charcoal/80">按年龄先选好了；跳级或晚读的请改成实际的年级，题目会跟着换。</p>
@@ -311,9 +316,8 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
               ))}
             </select>
           </section>
-        )}
-
-        {form.sections.map(section => {
+    );
+    const itemSections = form.sections.map(section => {
           const na = isNa(answers, section.key);
           return (
             <section key={section.key} className="space-y-3">
@@ -351,7 +355,10 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
                           {item.hint && <p className="text-xs text-brand-charcoal/80 leading-relaxed">{item.hint}</p>}
                         </div>
                       </div>
-                      <div className={`grid grid-cols-1 gap-2 pl-8 ${wide ? '' : section.options.length <= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
+                      <div className={desk
+                        // 電腦版：選項並排（附說明的兩兩一排，短的一排放完）
+                        ? `grid gap-2 pl-8 ${wide ? 'grid-cols-2' : section.options.length <= 3 ? 'grid-cols-3' : 'grid-cols-4'}`
+                        : `grid grid-cols-1 gap-2 pl-8 ${wide ? '' : section.options.length <= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
                         {section.options.map((opt, oi) => {
                           const anchor = item.anchors?.[oi];
                           const on = chosen === opt.value && item.key in answers;
@@ -377,11 +384,10 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
               )}
             </section>
           );
-        })}
-
-        {error && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{error}</p>}
-
-        <div className="pt-6 border-t border-brand-stone/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+        });
+    const errorNote = error && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">{error}</p>;
+    const submitBar = (
+        <div className={desk ? 'pt-5 border-t border-brand-stone/60 flex flex-col items-stretch gap-3 [&>button:last-child]:justify-center' : 'pt-6 border-t border-brand-stone/60 flex flex-col sm:flex-row items-center justify-between gap-3'}>
           {jumpTo1022 && !ready ? (
             <button type="button" id="t2v3-jump-missing" onClick={jumpToMissing} className="text-xs font-bold text-brand-clay underline underline-offset-4 cursor-pointer">
               {gateText}，点这里跳到那一题
@@ -404,6 +410,37 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
             {submitting ? '正在保存...' : '交卷'}
           </button>
         </div>
+    );
+    if (desk) {
+      return shell(
+        <div className="grid grid-cols-[minmax(0,1fr)_300px] items-start gap-8">
+          <div className="min-w-0 space-y-6">
+            {header}
+            {gradeSection}
+            {itemSections}
+            {errorNote}
+          </div>
+          <aside className="sticky top-[88px] space-y-5 rounded-3xl bg-ledo-field p-5">
+            {raterSection}
+            {submitBar}
+          </aside>
+        </div>,
+        backButton('返回问卷清单', closeTool),
+      );
+    }
+    return shell(
+      <div className="space-y-6">
+        {header}
+
+        {raterSection}
+
+        {gradeSection}
+
+        {itemSections}
+
+        {errorNote}
+
+        {submitBar}
       </div>,
       backButton('返回问卷清单', closeTool),
     );
@@ -418,8 +455,8 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
     { title: '最近做过的', items: tools.filter(t => t.session === undefined) },
   ].filter(g => g.items.length > 0);
 
-  return shell(
-    <div className="space-y-5">
+  const listArt = (
+    <>
       {ledo && (
         <div className="relative aspect-video w-full overflow-hidden rounded-[28px] bg-ledo-mild">
           <img src={LEDO_ART.deepAssessment} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -428,6 +465,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           </span>
         </div>
       )}
+    </>
+  );
+  const listIntro = (
       <div className="space-y-1">
         <h2 className="text-sm font-extrabold text-brand-forest">逐份作答</h2>
         <p className="text-xs text-brand-charcoal/80 leading-relaxed">
@@ -439,7 +479,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           )}
         </p>
       </div>
-
+  );
+  const listBody = (
+    <>
       {flash && (
         <div className="p-3 bg-brand-sage/40 border border-brand-moss/30 rounded-xl flex items-center gap-2 text-brand-forest text-xs font-bold">
           <Check size={14} className="text-brand-moss shrink-0" />
@@ -509,7 +551,9 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           )}
         </section>
       ))}
-
+    </>
+  );
+  const listFoot = (
       <div className="pt-5 border-t border-brand-stone/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-xs text-brand-charcoal/80 leading-relaxed">
           {doneCount === 0 ? '还没有完成任何一份问卷；至少答完一份才能生成报告。' : `已完成的 ${doneCount} 份会整理成一份报告。`}
@@ -541,6 +585,25 @@ export default function T2AssessmentV3({ plan, onBack, onOpenReport }: T2Assessm
           </button>
         </div>
       </div>
+  );
+
+  if (desk) {
+    // 電腦版：左邊插畫、說明與「生成报告」，右邊要填的問卷清單。
+    return shell(
+      <div className="grid grid-cols-12 items-start gap-8">
+        <div className="col-span-5 min-w-0 space-y-5">{listArt}{listIntro}{listFoot}</div>
+        <div className="col-span-7 min-w-0 space-y-5">{listBody}</div>
+      </div>,
+      backButton('返回报告', onBack),
+    );
+  }
+
+  return shell(
+    <div className="space-y-5">
+      {listArt}
+      {listIntro}
+      {listBody}
+      {listFoot}
     </div>,
     backButton('返回报告', onBack),
   );

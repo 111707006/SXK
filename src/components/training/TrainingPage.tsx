@@ -21,6 +21,7 @@ import { TRAINING_PAGE, TRAINING_PASS } from '../../t2/trainingCopy';
 import { calendarDateOf } from '../../t2/weeks';
 import { daysLeft } from '../../t2/trainingPass';
 import TrainingSection from './TrainingSection';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 export interface TrainingPageProps {
   childName?: string;
@@ -67,12 +68,16 @@ export default function TrainingPage({ childName, onBookService, onGoToT2, train
   }, [attempt]);
 
   const retry = useCallback(() => setAttempt(n => n + 1), []);
+  // 電腦版（VITE_DESKTOP_LAYOUT）：外框放寬，入口分兩欄（LedoEntry）。
+  const desk = useDesktopLayout() && PRODUCT.features.ui1022;
   const passBlocked = trainingPass !== null && !trainingPass.active;
   const today = calendarDateOf(new Date());
 
   return (
     <div
-      className={PRODUCT.features.ledo
+      className={desk
+        ? 'bg-white rounded-[32px] p-8 max-w-6xl mx-auto shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)] text-left'
+        : PRODUCT.features.ledo
         ? 'bg-white rounded-[32px] p-4 sm:p-6 max-w-xl mx-auto shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left'
         : 'bg-white rounded-3xl border border-brand-stone p-5 md:p-8 max-w-3xl mx-auto shadow-sm text-left'}
       id="training-page"

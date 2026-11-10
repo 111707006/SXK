@@ -63,6 +63,7 @@ import { Cover, DarkNav, StepImage } from './ui';
 import { PRODUCT } from '../../productConfig';
 import { addCalendarDays } from '../../t2/weeks';
 import { Avatar, ListRow, PlayButton, SectionHead, Tile } from '../ledo/ui';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 /**
  * 三級的字色與儀表的色，與報告九宮格同一組（綠／黃／紅，ADR-0007）。沒有判定的照 `dimensionStatus` 的
@@ -472,6 +473,8 @@ function LedoPlanTop({ weekStart, today, practiced, perDayNote, practicedOf, wee
 export default function PlanScreen() {
   const { data, nav, findings, childName, onBookService, onReassess } = useTraining();
   const steps = useRef<Array<HTMLElement | null>>([]);
+  // 電腦版（VITE_DESKTOP_LAYOUT）：只換 Ledo 版的排法。
+  const desk = useDesktopLayout() && PRODUCT.features.ledo;
   const plan = data.plan;
   if (!plan) {
     // 前進鍵把計劃頁開回來、而資料還在讀或讀不出來：留著導覽列與一句話，不給一整片白
@@ -504,15 +507,8 @@ export default function PlanScreen() {
     return plan.preparing.includes(dimension) ? PLAN_PAGE.preparingNote : '';
   };
 
-  return (
-    <div className="h-full flex flex-col bg-brand-cream" data-testid="training-plan">
-      <DarkNav
-        title={planTitle(childName)}
-        onBack={nav.back}
-        right={onReassess ? PLAN_PAGE.reassess : undefined}
-        onRight={onReassess}
-      />
-      <div className="flex-1 overflow-y-auto training-no-scrollbar pb-28">
+  const pTop = (
+    <>
         {ledo ? (
           <LedoPlanTop
             weekStart={plan.weekStart}
@@ -569,7 +565,10 @@ export default function PlanScreen() {
 
           </>
         )}
-
+    </>
+  );
+  const pSource = (
+    <>
         {/* 評估結果從哪裡來（#92、#112）：代填的寫「由治疗师填写」，只有 T1 的寫「按 T1…推定」。 */}
         {findings.toolkitVersion === PROXY_TOOLKIT && (
           <p id="plan-source-note" data-kind="proxy" className="mx-4 my-2 rounded-full bg-ledo-accent-soft px-3.5 py-1.5 text-xs font-bold text-ledo-accent-soft-ink">{PLAN_PAGE.sourceProxy}</p>
@@ -577,10 +576,16 @@ export default function PlanScreen() {
         {findings.toolkitVersion === T1_ONLY_TOOLKIT && (
           <p id="plan-source-note" data-kind="t1-only" className="mx-4 my-2 rounded-full bg-ledo-accent-soft px-3.5 py-1.5 text-xs font-bold text-ledo-accent-soft-ink">{PLAN_PAGE.sourceT1Only}</p>
         )}
-
+    </>
+  );
+  const pAbility = (
+    <>
         {/* v3：这一期练哪几块（能力表、约专家那一句、怎么带最有效） */}
         {push && <AbilityTable push={push} />}
-
+    </>
+  );
+  const pMid = (
+    <>
         {/* 这周练哪几块 */}
         {!ledo && picks.length > 0 && (
           <section className="bg-white px-4 pt-3 pb-5">
@@ -634,7 +639,10 @@ export default function PlanScreen() {
           </button>
         </section>
         )}
-
+    </>
+  );
+  const pWeek = (
+    <>
         {/* 本周活动 */}
         <section className="bg-white mt-2 px-4 pt-5 pb-5">
           <div className="flex items-end justify-between gap-2">
@@ -695,7 +703,10 @@ export default function PlanScreen() {
           </ul>
           )}
         </section>
-
+    </>
+  );
+  const pFaqSteps = (
+    <>
         {/* 家长最常问的四件事：四個問題當目錄（常見問題的人像不上） */}
         <section className="bg-white mt-2 pt-8 pb-4">
           <p className="text-center text-[14px] font-semibold tracking-[0.08em] text-brand-charcoal/80">{PLAN_PAGE.faqKicker}</p>
@@ -752,7 +763,10 @@ export default function PlanScreen() {
         <StepBlock n={4} title={PLAN_PAGE.steps[3]} anchor={el => { steps.current[3] = el; }}>
           <PlanWeekGrid firstWeekStart={position.firstWeekStart} today={data.today} practiced={practicedDays} />
         </StepBlock>
-
+    </>
+  );
+  const pExpert = (
+    <>
         {/* 有疑问 随时约专家：四種服務 → 既有的預約表 */}
         <section className="bg-white mt-2 px-4 pt-6 pb-8">
           <h3 className="text-[19px] font-bold text-brand-forest">{PLAN_PAGE.expertTitle}</h3>
@@ -778,6 +792,27 @@ export default function PlanScreen() {
             ))}
           </div>
         </section>
+    </>
+  );
+
+  return (
+    <div className="h-full flex flex-col bg-brand-cream" data-testid="training-plan">
+      <DarkNav
+        title={planTitle(childName)}
+        onBack={nav.back}
+        right={onReassess ? PLAN_PAGE.reassess : undefined}
+        onRight={onReassess}
+      />
+      <div className="flex-1 overflow-y-auto training-no-scrollbar pb-28">
+        {desk ? (
+          // 電腦版：左邊這週的位置、本週活動與約專家；右邊這一期練哪幾塊、常問與四個步驟。
+          <div className="grid grid-cols-2 items-start gap-4 p-4">
+            <div className="min-w-0 space-y-2 overflow-hidden rounded-[24px] bg-white">{pTop}{pSource}{pMid}{pWeek}{pExpert}</div>
+            <div className="min-w-0 space-y-2 overflow-hidden rounded-[24px] bg-white">{pAbility}{pFaqSteps}</div>
+          </div>
+        ) : (
+          <>{pTop}{pSource}{pAbility}{pMid}{pWeek}{pFaqSteps}{pExpert}</>
+        )}
       </div>
 
       {/* 底部固定列：本周练过的活动 x/N（舊週次 4、v3 每週 3 或 2）＋ 开始今天的活动 */}

@@ -66,6 +66,8 @@ import { DEFAULT_UNLOCK_PRICE_FEN } from './utils/price';
 import { BeianFooter } from './components/BeianFooter';
 import { BrandMark } from './components/BrandMark';
 import LedoTabBar, { type NavItem } from './components/ledo/LedoTabBar';
+import { DESKTOP_CHILD_BUTTON, DESKTOP_CHILD_MENU, DESKTOP_FRAME, DesktopContext, DesktopTopBar, type DesktopNextStep } from './desktop/DesktopShell';
+import { DesktopLayoutScope, useDesktopWide } from './desktop/useDesktopLayout';
 import { WORDING_1022 } from './wording1022';
 import { HOME_COPY, openHomeCard, viewAfterLogin, readHomeV2Hint, writeHomeV2Hint, type HomeTarget } from './home/homeNav';
 // 條款內文的唯一來源。登入頁（AuthScreen）渲染的是同一份 —— 見該檔說明。
@@ -108,6 +110,9 @@ export default function App() {
    * 是那一次篩查的事實記錄，永不重算。
    */
   const child = useMemo(() => refreshChildAge(childProfile, today), [childProfile, today]);
+  // 電腦版側欄（`VITE_DESKTOP_LAYOUT`，≥ 1024px）：只在有孩子檔案（登入後的工作台）時換外框；登入前照舊。
+  const desktopWide = useDesktopWide();
+  const desktopLayout = desktopWide && Boolean(child);
 
   // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'
   /**
@@ -1169,13 +1174,217 @@ export default function App() {
                       </div>
   ) : null;
 
+  /**
+   * 電腦版情境欄的「下一步」（版型 C）：只看這位家長現有的資料、字用家長端已經在用的那幾句。
+   * 還沒做 T1 → 做 T1；T1 有需要支持的方面（而且有 T2）→ 深度評估；全部穩定 → 不畫。
+   */
+  const desktopT1 = panelScores.filter(s => s.tierId === 'T1');
+  const desktopFlagged = desktopT1.filter(s => s.status !== 'normal').map(s => s.dimensionName);
+  const desktopNextStep: DesktopNextStep | null = !PRODUCT.features.ui1022
+    ? null
+    : desktopT1.length === 0
+      ? { title: WORDING_1022.t1Name, action: '开始评估', onClick: startT1Screening }
+      : desktopFlagged.length > 0 && PRODUCT.features.tier2And3
+        ? { title: PRODUCT.nextStep.actionLabelHigh, detail: desktopFlagged.join('、'), action: WORDING_1022.buttons.deepAssess, onClick: goToT2Entrance }
+        : null;
+
+  /**
+   * 孩子按鈕與它打開的個人中心面板。手機與平板掛在頁首；電腦版（`VITE_DESKTOP_LAYOUT`）掛在電腦版頂欄的右邊。
+   * 內容同一份，只有按鈕與面板的位置不同（`inSidebar` 為 false 時 class 一字不差）。
+   */
+  const customerMenu = (inSidebar: boolean, child: Child) => (
+  <div className="relative">
+    <button
+      id="customer-dropdown-btn"
+      onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
+      className={inSidebar ? DESKTOP_CHILD_BUTTON : "flex items-center gap-1.5 px-3.5 py-2 bg-brand-sage/20 hover:bg-brand-sage/35 border border-brand-stone/60 rounded-xl text-xs font-extrabold text-brand-forest transition shadow-sm cursor-pointer select-none"}
+    >
+      <User size={12} className="shrink-0 text-brand-moss" />
+      <span className={inSidebar ? "min-w-0 flex-1 truncate text-left" : "truncate max-w-[90px]"}>{child.name} ({formatAge(child.ageMonth)})</span>
+      <ChevronDown size={11} className={`text-brand-moss transition-transform duration-200 ${isCustomerDropdownOpen ? 'rotate-180' : ''}`} />
+    </button>
+
+    {isCustomerDropdownOpen && (
+      <>
+        {/* Dark/Translucent background overlay to detect clicks outside */}
+        <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]" onClick={() => setIsCustomerDropdownOpen(false)} />
+        {/* 1022（簡報 11/03 第 7 頁）：手機上頁首分頁在上、孩子按鈕靠左，面板改對齊左邊、寬度不超過螢幕（原本對齊右邊會跑出畫面左側）。 */}
+        <div className={`${inSidebar ? DESKTOP_CHILD_MENU : `${PRODUCT.features.ui1022 ? 'absolute left-0 lg:left-auto lg:right-0 w-[min(22rem,calc(100vw-2rem))]' : 'absolute right-0 w-88'} mt-3`} bg-white rounded-2xl shadow-xl border border-brand-stone/50 z-50 p-4.5 space-y-4 text-xs divide-y divide-brand-stone/40 animate-fade-in text-left max-h-[85vh] overflow-y-auto`}>
+          
+          {/* 1. Customer Basic Profile */}
+          <div className="pb-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
+                <UserCheck size={14} className="text-brand-moss" />
+                {PRODUCT.features.ui1022 ? '孩子档案' : '客户服务中心'}
+              </h3>
+              <span className="text-xs px-2 py-0.5 bg-brand-sage/20 rounded-md text-brand-forest font-bold">
+                {PRODUCT.features.ui1022 ? '成长档案' : '儿童健康档案'}
+              </span>
+            </div>
+            
+            <div className="bg-brand-beige/25 rounded-xl p-3 border border-brand-stone/40 flex items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="font-bold text-brand-forest text-sm flex items-center gap-1.5">
+                  <span>{child.name}</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full font-black tracking-wider bg-white text-brand-clay border border-brand-stone/30">
+                    {child.gender === 'boy' ? '男童 👦' : '女童 👧'}
+                  </span>
+                </div>
+                <div className="text-xs text-brand-charcoal/80 space-x-2">
+                  <span>年龄: {formatAge(child.ageMonth)}</span>
+                  <span>•</span>
+                  <span>月龄: {child.ageMonth} 个月</span>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setIsEditingProfile(true);
+                  setIsCustomerDropdownOpen(false);
+                }}
+                className="px-2.5 py-1 bg-white hover:bg-brand-sage/20 border border-brand-stone/40 text-brand-forest rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm cursor-pointer"
+                title="修改受评少儿成长档案"
+              >
+                <User size={10} className="text-brand-moss" />
+                修改档案
+              </button>
+            </div>
+
+            {/* Screening progress */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-brand-charcoal/80 font-semibold">
+                <span>{PRODUCT.features.ui1022 ? `T1 评估进度（${completedScores.length}/9 个方面）` : `脑功能评估进度 (${completedScores.length}/9 维度)`}</span>
+                <span>{Math.round((completedScores.length / 9) * 100)}%</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                <div 
+                  className="bg-brand-moss h-full rounded-full transition-all duration-300" 
+                  style={{ width: `${(completedScores.length / 9) * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {!PRODUCT.features.ui1022 && mallOrdersSection}
+
+          {/*
+            兌換碼（使用者 2026-11-03：「加入口」）：免費期間家長登入就進得了居家訓練、不會被帶到訓練計劃頁，
+            那裡角落的兌換碼就找不到了。伺服器開著訓練計劃（`trainingPass` 不是 null）才出現；兌換成功照樣綁推薦人、記一段使用權。
+          */}
+          {trainingPass !== null && (
+            <div id="profile-redeem-section" className="pt-3.5 space-y-2.5">
+              <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
+                <Gift size={13} className="text-brand-moss" />
+                {TRAINING_PLAN_PAGE.redeemEntry}
+              </h4>
+              {profileRedeemedTo ? (
+                <p id="profile-redeem-done" className="text-xs font-bold text-brand-forest">{TRAINING_PLAN_PAGE.activated(profileRedeemedTo)}</p>
+              ) : profileRedeemOpen ? (
+                <RedeemCodeForm
+                  idPrefix="profile-redeem"
+                  loggedIn={Boolean(userIdentity)}
+                  onActivated={endsOn => {
+                    setProfileRedeemedTo(endsOn);
+                    setUnlocksNonce(n => n + 1);
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  id="profile-redeem-open"
+                  onClick={() => setProfileRedeemOpen(true)}
+                  className="w-full px-3 py-2 bg-white hover:bg-brand-sage/20 border border-brand-stone/40 text-brand-forest rounded-lg text-xs font-bold transition cursor-pointer text-left"
+                >
+                  {TRAINING_PLAN_PAGE.profileRedeemHint}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 3. Completed Screening Scores */}
+          <div className="pt-3.5 space-y-2.5">
+            <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
+              <FileText size={13} className="text-brand-moss" />
+              {PRODUCT.features.ui1022 ? '已完成的评估' : '已完成的评估成绩'}
+            </h4>
+            
+            {completedScores.length === 0 ? (
+              <div className="text-center py-4 text-xs text-brand-charcoal/80">
+                {PRODUCT.features.ui1022 ? '还没有完成评估' : '尚未完成任何康复测评'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1">
+                {(PRODUCT.features.ui1022 ? panelScores : completedScores).map((score) => (
+                  <div key={`${score.dimensionId}-${score.tierId}`} className="p-1.5 bg-brand-sage/10 rounded-lg border border-brand-stone/20 flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-brand-forest truncate text-xs">{score.dimensionName}</span>
+                      {/* 1022：不出「T1层」與分數 —— 報告的「关注分」是越高越需要支持，這裡的得分是越高越好，
+                          同一個方面兩頁的數字方向相反（2026-11-10 實際走一遍清單第 4 條）。家長端只留判定。 */}
+                      {!PRODUCT.features.ui1022 && (
+                        <span className="px-1 py-0.2 bg-white border border-brand-stone/30 rounded text-xs font-bold text-brand-moss shrink-0">{score.tierId}层</span>
+                      )}
+                    </div>
+                    <div className={`flex items-center mt-1 ${PRODUCT.features.ui1022 ? 'justify-end' : 'justify-between'}`}>
+                      {!PRODUCT.features.ui1022 && <span className="text-xs font-bold text-brand-forest/70">{score.score}分</span>}
+                      <span className={`text-xs font-extrabold ${
+                        score.status === 'delay' ? 'text-rose-600' :
+                        score.status === 'borderline' ? 'text-amber-600' : 'text-emerald-600'
+                      }`}>
+                        {STATUS_WORDING[score.status].label}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {PRODUCT.features.ui1022 && mallOrdersSection}
+
+          {/* 5. Logout Profile Button */}
+          <div className="pt-3.5 pb-0.5">
+            <button
+              type="button"
+              id="logout-profile-btn"
+              onClick={handleLogout}
+              className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition duration-200 active:scale-[0.98] shadow-sm cursor-pointer"
+            >
+              <LogOut size={13} className="shrink-0 text-rose-600" />
+              <span>{PRODUCT.features.ui1022 ? '退出登录' : '登出账户'}</span>
+            </button>
+          </div>
+
+        </div>
+      </>
+    )}
+  </div>
+  );
+
   return (
+    <DesktopLayoutScope.Provider value={desktopLayout}>
     <div className="min-h-screen bg-brand-cream text-brand-charcoal font-sans flex flex-col justify-between">
       {/* 開屏（#88，`HOME_MEDIA`）：有啟用中的開屏素材才出現，同一分頁一次；掃碼頁與後台不經過 App。 */}
       {PRODUCT.features.home && <SplashScreen />}
+
+      {/* 電腦版分屏導覽（版型 C）：導覽、孩子按鈕與個人中心都是頁首那一份，換成電腦版的頂欄；這時不畫手機頁首。 */}
+      {desktopLayout && child && (
+        <DesktopTopBar
+          title={homeV2 && !PRODUCT.features.ui1022 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}
+          badge={PRODUCT.mode === 'full' ? <CompanyBadge enabled={companiesOn} identity={userIdentity} /> : undefined}
+          status={(syncing || syncError) ? (
+            <div className="text-xs text-brand-charcoal/80 font-medium flex items-center gap-1.5">
+              {syncing && <span className="text-brand-moss animate-spin text-xs" title="正在云端保存中...">⏳</span>}
+              {syncError && <span className="text-red-500 text-xs font-bold" title={syncError}>⚠️ 同步失败</span>}
+            </div>
+          ) : undefined}
+          items={navItems}
+          right={customerMenu(true, child)}
+        />
+      )}
       
       {/* Top Professional Master Header Navbar */}
-      <header className="sticky top-0 z-40 w-full bg-white border-b border-brand-stone/60 shadow-sm backdrop-blur-md">
+      {!desktopLayout && <header className="sticky top-0 z-40 w-full bg-white border-b border-brand-stone/60 shadow-sm backdrop-blur-md">
         {/*
           平板（640–1023px）也上下兩列：標題一列、導覽＋孩子一列。原本 sm 就並排，820px 寬時標題擠成兩行、
           孩子的選單掉到導覽底下（2026-09-29 三種寬度截圖時看到的）。
@@ -1253,172 +1462,7 @@ export default function App() {
               </nav>
 
               {/* Interactive Customer Dropdown Service Center */}
-              <div className="relative">
-                <button
-                  id="customer-dropdown-btn"
-                  onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-brand-sage/20 hover:bg-brand-sage/35 border border-brand-stone/60 rounded-xl text-xs font-extrabold text-brand-forest transition shadow-sm cursor-pointer select-none"
-                >
-                  <User size={12} className="shrink-0 text-brand-moss" />
-                  <span className="truncate max-w-[90px]">{child.name} ({formatAge(child.ageMonth)})</span>
-                  <ChevronDown size={11} className={`text-brand-moss transition-transform duration-200 ${isCustomerDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {isCustomerDropdownOpen && (
-                  <>
-                    {/* Dark/Translucent background overlay to detect clicks outside */}
-                    <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]" onClick={() => setIsCustomerDropdownOpen(false)} />
-                    {/* 1022（簡報 11/03 第 7 頁）：手機上頁首分頁在上、孩子按鈕靠左，面板改對齊左邊、寬度不超過螢幕（原本對齊右邊會跑出畫面左側）。 */}
-                    <div className={`${PRODUCT.features.ui1022 ? 'absolute left-0 lg:left-auto lg:right-0 w-[min(22rem,calc(100vw-2rem))]' : 'absolute right-0 w-88'} mt-3 bg-white rounded-2xl shadow-xl border border-brand-stone/50 z-50 p-4.5 space-y-4 text-xs divide-y divide-brand-stone/40 animate-fade-in text-left max-h-[85vh] overflow-y-auto`}>
-                      
-                      {/* 1. Customer Basic Profile */}
-                      <div className="pb-3.5 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-extrabold text-brand-forest flex items-center gap-1.5">
-                            <UserCheck size={14} className="text-brand-moss" />
-                            {PRODUCT.features.ui1022 ? '孩子档案' : '客户服务中心'}
-                          </h3>
-                          <span className="text-xs px-2 py-0.5 bg-brand-sage/20 rounded-md text-brand-forest font-bold">
-                            {PRODUCT.features.ui1022 ? '成长档案' : '儿童健康档案'}
-                          </span>
-                        </div>
-                        
-                        <div className="bg-brand-beige/25 rounded-xl p-3 border border-brand-stone/40 flex items-center justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="font-bold text-brand-forest text-sm flex items-center gap-1.5">
-                              <span>{child.name}</span>
-                              <span className="text-xs px-1.5 py-0.5 rounded-full font-black tracking-wider bg-white text-brand-clay border border-brand-stone/30">
-                                {child.gender === 'boy' ? '男童 👦' : '女童 👧'}
-                              </span>
-                            </div>
-                            <div className="text-xs text-brand-charcoal/80 space-x-2">
-                              <span>年龄: {formatAge(child.ageMonth)}</span>
-                              <span>•</span>
-                              <span>月龄: {child.ageMonth} 个月</span>
-                            </div>
-                          </div>
-                          
-                          <button
-                            onClick={() => {
-                              setIsEditingProfile(true);
-                              setIsCustomerDropdownOpen(false);
-                            }}
-                            className="px-2.5 py-1 bg-white hover:bg-brand-sage/20 border border-brand-stone/40 text-brand-forest rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm cursor-pointer"
-                            title="修改受评少儿成长档案"
-                          >
-                            <User size={10} className="text-brand-moss" />
-                            修改档案
-                          </button>
-                        </div>
-
-                        {/* Screening progress */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between text-xs text-brand-charcoal/80 font-semibold">
-                            <span>{PRODUCT.features.ui1022 ? `T1 评估进度（${completedScores.length}/9 个方面）` : `脑功能评估进度 (${completedScores.length}/9 维度)`}</span>
-                            <span>{Math.round((completedScores.length / 9) * 100)}%</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                            <div 
-                              className="bg-brand-moss h-full rounded-full transition-all duration-300" 
-                              style={{ width: `${(completedScores.length / 9) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {!PRODUCT.features.ui1022 && mallOrdersSection}
-
-                      {/*
-                        兌換碼（使用者 2026-11-03：「加入口」）：免費期間家長登入就進得了居家訓練、不會被帶到訓練計劃頁，
-                        那裡角落的兌換碼就找不到了。伺服器開著訓練計劃（`trainingPass` 不是 null）才出現；兌換成功照樣綁推薦人、記一段使用權。
-                      */}
-                      {trainingPass !== null && (
-                        <div id="profile-redeem-section" className="pt-3.5 space-y-2.5">
-                          <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
-                            <Gift size={13} className="text-brand-moss" />
-                            {TRAINING_PLAN_PAGE.redeemEntry}
-                          </h4>
-                          {profileRedeemedTo ? (
-                            <p id="profile-redeem-done" className="text-xs font-bold text-brand-forest">{TRAINING_PLAN_PAGE.activated(profileRedeemedTo)}</p>
-                          ) : profileRedeemOpen ? (
-                            <RedeemCodeForm
-                              idPrefix="profile-redeem"
-                              loggedIn={Boolean(userIdentity)}
-                              onActivated={endsOn => {
-                                setProfileRedeemedTo(endsOn);
-                                setUnlocksNonce(n => n + 1);
-                              }}
-                            />
-                          ) : (
-                            <button
-                              type="button"
-                              id="profile-redeem-open"
-                              onClick={() => setProfileRedeemOpen(true)}
-                              className="w-full px-3 py-2 bg-white hover:bg-brand-sage/20 border border-brand-stone/40 text-brand-forest rounded-lg text-xs font-bold transition cursor-pointer text-left"
-                            >
-                              {TRAINING_PLAN_PAGE.profileRedeemHint}
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* 3. Completed Screening Scores */}
-                      <div className="pt-3.5 space-y-2.5">
-                        <h4 className="font-extrabold text-brand-forest flex items-center gap-1.5">
-                          <FileText size={13} className="text-brand-moss" />
-                          {PRODUCT.features.ui1022 ? '已完成的评估' : '已完成的评估成绩'}
-                        </h4>
-                        
-                        {completedScores.length === 0 ? (
-                          <div className="text-center py-4 text-xs text-brand-charcoal/80">
-                            {PRODUCT.features.ui1022 ? '还没有完成评估' : '尚未完成任何康复测评'}
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1">
-                            {(PRODUCT.features.ui1022 ? panelScores : completedScores).map((score) => (
-                              <div key={`${score.dimensionId}-${score.tierId}`} className="p-1.5 bg-brand-sage/10 rounded-lg border border-brand-stone/20 flex flex-col justify-between">
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="font-bold text-brand-forest truncate text-xs">{score.dimensionName}</span>
-                                  {/* 1022：不出「T1层」與分數 —— 報告的「关注分」是越高越需要支持，這裡的得分是越高越好，
-                                      同一個方面兩頁的數字方向相反（2026-11-10 實際走一遍清單第 4 條）。家長端只留判定。 */}
-                                  {!PRODUCT.features.ui1022 && (
-                                    <span className="px-1 py-0.2 bg-white border border-brand-stone/30 rounded text-xs font-bold text-brand-moss shrink-0">{score.tierId}层</span>
-                                  )}
-                                </div>
-                                <div className={`flex items-center mt-1 ${PRODUCT.features.ui1022 ? 'justify-end' : 'justify-between'}`}>
-                                  {!PRODUCT.features.ui1022 && <span className="text-xs font-bold text-brand-forest/70">{score.score}分</span>}
-                                  <span className={`text-xs font-extrabold ${
-                                    score.status === 'delay' ? 'text-rose-600' :
-                                    score.status === 'borderline' ? 'text-amber-600' : 'text-emerald-600'
-                                  }`}>
-                                    {STATUS_WORDING[score.status].label}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {PRODUCT.features.ui1022 && mallOrdersSection}
-
-                      {/* 5. Logout Profile Button */}
-                      <div className="pt-3.5 pb-0.5">
-                        <button
-                          type="button"
-                          id="logout-profile-btn"
-                          onClick={handleLogout}
-                          className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition duration-200 active:scale-[0.98] shadow-sm cursor-pointer"
-                        >
-                          <LogOut size={13} className="shrink-0 text-rose-600" />
-                          <span>{PRODUCT.features.ui1022 ? '退出登录' : '登出账户'}</span>
-                        </button>
-                      </div>
-
-                    </div>
-                  </>
-                )}
-              </div>
+              {customerMenu(false, child)}
             </div>
           ) : homeV2 && !userIdentity ? (
             /* 新版首頁、未登入：右上「登录、注册」（規格 §5.1）。純驗證碼登入沒有另外的註冊，兩顆到同一個登入頁。
@@ -1468,10 +1512,22 @@ export default function App() {
             </div>
           ) : null}
         </div>
-      </header>
+      </header>}
 
       {/* Main Container Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
+      {/* 電腦版分屏導覽：左邊 300px 情境欄、右邊頁面內容（內容靠上，不上下置中）。 */}
+      <main className={desktopLayout ? `flex-1 ${DESKTOP_FRAME} py-8 grid grid-cols-[300px_minmax(0,1fr)] items-start gap-8` : "flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center"}>
+        {desktopLayout && child && (
+          <DesktopContext
+            childName={child.name}
+            childAge={formatAge(child.ageMonth)}
+            childGender={child.gender}
+            scores={panelScores}
+            showStatus={currentView !== 'home' && currentView !== 'dashboard'}
+            next={desktopNextStep}
+            onOpenStatus={PRODUCT.features.ui1022 && PRODUCT.features.tier2And3 ? goToT2Entrance : undefined}
+          />
+        )}
         {handoffStage === 'redeeming' ? (
           <div id="handoff-landing" role="status" className="py-24 flex flex-col items-center gap-3 text-center">
             <Loader2 size={28} className="animate-spin text-brand-moss" />
@@ -2157,5 +2213,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </DesktopLayoutScope.Provider>
   );
 }

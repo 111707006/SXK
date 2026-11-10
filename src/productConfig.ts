@@ -269,6 +269,12 @@ export interface ProductProfile {
      * 家長端的字從 `src/wording1022.ts` 取。B 的建置不讀它（永遠 false）。後台不吃這個開關。
      */
     ui1022: boolean;
+    /**
+     * 電腦版側欄工作台（使用者 2026-11-10 選原型 desktop-v2 的版型 A）：**建置期**開關 `VITE_DESKTOP_LAYOUT`，
+     * 只在專案 A、預設關、只有明講 `1` 才開。開著時視窗 ≥ 1024px 改畫側欄外框（`src/desktop/`）；
+     * 1024px 以下一行不動。只換版面，內容與手機同一份。B 的建置不讀它（永遠 false）。後台不吃這個開關。
+     */
+    desktopLayout: boolean;
   };
 }
 
@@ -345,6 +351,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       home: true,
       ledo: import.meta.env.VITE_UI_LEDO !== '0',
       ui1022: UI_1022_A,
+      desktopLayout: import.meta.env.VITE_DESKTOP_LAYOUT === '1',
     },
   },
 
@@ -422,6 +429,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       home: false,
       ledo: import.meta.env.VITE_UI_LEDO === '1',
       ui1022: false,
+      desktopLayout: false,
     },
   },
 };

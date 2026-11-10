@@ -70,6 +70,7 @@ import { useActivity, useLibraryList } from './useActivity';
 import { LightNav, StepImage } from './ui';
 import { PRODUCT } from '../../productConfig';
 import { WORDING_1022 } from '../../wording1022';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 /** 在畫面裡沒有（捲到外面、或瀏覽器沒有 IntersectionObserver 時一律當作在畫面裡）。 */
 function useInView(ref: RefObject<HTMLElement | null>): boolean {
@@ -249,6 +250,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
 }) {
   const { data, nav, childName } = useTraining();
   const [allPrinciples, setAllPrinciples] = useState(false);
+  const desk = useDesktopLayout();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const clip = hasClip(a) ? a.videoUrl : null;
@@ -295,10 +297,8 @@ function DetailBody({ activity: a, place, from, active, series }: {
 
   const tags = [DETAIL.sourceTag[from], dimension ? SITE_DIMENSION_NAME[dimension] : '', DETAIL.atHome, a.people, a.ageLabel].filter(Boolean);
 
-  return (
-    <div className="h-full flex flex-col bg-white" data-testid="training-detail">
-      <LightNav onBack={nav.back} />
-      <div className="flex-1 overflow-y-auto training-no-scrollbar pb-40">
+  const dHero = (
+    <>
         {/* 大圖：有示範片就靜音循環播；沒有就封面＋「示范片制作中」 */}
         <div className="px-4">
           <div
@@ -335,7 +335,10 @@ function DetailBody({ activity: a, place, from, active, series }: {
             </div>
           </div>
         </div>
-
+    </>
+  );
+  const dSeries = (
+    <>
         {series && (
           <SeriesRow
             series={series}
@@ -344,7 +347,10 @@ function DetailBody({ activity: a, place, from, active, series }: {
             onPick={next => nav.replacePage({ name: 'detail', id: next, from })}
           />
         )}
-
+    </>
+  );
+  const dHead = (
+    <>
         <h1 className="px-4 mt-4 text-[24px] leading-[1.3] font-black text-brand-forest">{detailHeadline(a)}</h1>
         {fit === 'tooYoung' && childAge !== null && a.ageLabel && (
           <p className="mx-4 mt-3 rounded-lg bg-brand-sand px-3 py-2 text-[13px] text-brand-charcoal leading-relaxed" data-testid="detail-age-reminder">
@@ -392,7 +398,10 @@ function DetailBody({ activity: a, place, from, active, series }: {
             </span>
           ))}
         </div>
-
+    </>
+  );
+  const dIcons = (
+    <>
         <div className="px-3 mt-6 grid grid-cols-4">
           <ActionIcon
             icon={<CalendarPlus size={26} />}
@@ -404,7 +413,10 @@ function DetailBody({ activity: a, place, from, active, series }: {
           <ActionIcon icon={<MessageCircle size={26} />} label={DETAIL.expert} onClick={() => nav.openSheet({ kind: 'expert' })} />
           <ActionIcon icon={<CircleCheck size={26} />} label={practicedIcon(totalTimes)} onClick={() => nav.openPage({ name: 'calendar' })} />
         </div>
-
+    </>
+  );
+  const dRest = (
+    <>
         {/* 這個活動練什麼：手冊一句＋腳本的原理＋為什麼這週排它＋為什麼練這一塊 */}
         <Section title={DETAIL.trainsTitle} tone="soft">
           {a.trains && <p className="text-[15px] font-bold text-brand-forest leading-relaxed">{a.trains}</p>}
@@ -519,6 +531,22 @@ function DetailBody({ activity: a, place, from, active, series }: {
               </p>
             )}
           </Section>
+        )}
+    </>
+  );
+
+  return (
+    <div className="h-full flex flex-col bg-white" data-testid="training-detail">
+      <LightNav onBack={nav.back} />
+      <div className="flex-1 overflow-y-auto training-no-scrollbar pb-40">
+        {desk ? (
+          // 電腦版：左邊大圖、系列與四個圖示（捲動時停在原位），右邊標題、數字與各段說明。
+          <div className="grid grid-cols-2 items-start gap-6 pt-1">
+            <div className="sticky top-0 min-w-0">{dHero}{dSeries}{dIcons}</div>
+            <div className="min-w-0 [&>h1]:mt-0">{dHead}{dRest}</div>
+          </div>
+        ) : (
+          <>{dHero}{dSeries}{dHead}{dIcons}{dRest}</>
         )}
       </div>
 

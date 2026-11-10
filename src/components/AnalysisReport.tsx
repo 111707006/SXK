@@ -34,6 +34,7 @@ import T2Entrance from './T2Entrance';
 import { WecomQrBlock, WecomQrModal, expertBookingIsQr } from './WecomQr';
 import HandoffCard from './HandoffCard';
 import type { DimensionAccess } from '../utils/access';
+import { useDesktopLayout } from '../desktop/useDesktopLayout';
 
 /** 沒有照片時的替代標記 —— 合作公司多半不會有每位治療師的沙龍照。 */
 function SpecialistAvatar({ spec, size }: { spec: ReportSpecialist; size: number }) {
@@ -244,6 +245,8 @@ interface AnalysisReportProps {
 
 export default function AnalysisReport({ child, completedScores, onBack, onSaveReportToHistory, t2, handoff, historicalRecord, focusBooking, focusBookingService, resumeFrom, generateOnOpen, focusT2, onOpenTraining, reportHistory }: AnalysisReportProps) {
   const resumed = !historicalRecord && resumeFrom?.aiReport ? resumeFrom : null;
+  // 電腦版側欄工作台：報告寬一點，ReportBody 裡兩兩並排。
+  const desk = useDesktopLayout();
   const hasT1 = completedScores.some(s => s.tierId === 'T1');
   /**
    * 1022（issue #82）：還沒有 T1 成績的家長（T1 範圍外的孩子從紅燈卡來約專家）—— 沒有報告可生成，
@@ -681,7 +684,7 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   );
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12">
+    <div className={desk ? 'max-w-6xl mx-auto space-y-8 pb-12' : 'max-w-4xl mx-auto space-y-8 pb-12'}>
       {/* Back navigation header */}
       <div className={PRODUCT.features.ledo
         ? 'flex items-center justify-between gap-2 bg-white px-4 py-3 rounded-full shadow-sm'

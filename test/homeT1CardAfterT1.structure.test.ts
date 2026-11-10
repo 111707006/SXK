@@ -34,8 +34,11 @@ describe('1022 首頁的 T1、T2 卡與訓練卡', () => {
   });
 
   it('1022 首頁沒有「看报告」與練習天數', () => {
-    const start = home.indexOf('{PRODUCT.features.ui1022 ? (');
-    const v1022 = home.slice(start, home.indexOf(') : (', start));
+    // 1022 的區塊（概況、訓練卡、T1／T2 卡）抽成變數，手機與電腦版（VITE_DESKTOP_LAYOUT）共用：
+    // 從那幾個變數開始，到舊版那一支（`) : (` 後面接 `<>`）為止。
+    const start = home.indexOf('const desk = ');
+    const v1022 = home.slice(start, home.indexOf(') : (\n      <>', start));
+    expect(start).toBeGreaterThan(-1);
     expect(v1022).not.toContain("'看报告'");
     expect(v1022).not.toContain('onAction');
     expect(v1022).not.toContain('practiceDays');

@@ -47,6 +47,7 @@ import { planPositionOf } from './trainingData';
 import { useCalendarData } from './useCalendarData';
 import { Cover, LightNav } from './ui';
 import { PRODUCT } from '../../productConfig';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 /** 還在讀「…」、讀不出來「–」：不寫 0。 */
 function statValue(value: string | number | null, loading: boolean): string {
@@ -84,6 +85,7 @@ function dayClass(d: CalendarDay): string {
 
 export default function CalendarScreen() {
   const { data, nav } = useTraining();
+  const desk = useDesktopLayout();
   const [today] = useState(() => calendarDateOf(new Date()));
   const [cursor, setCursor] = useState(() => monthOf(today));
   const plan = data.plan;
@@ -117,10 +119,8 @@ export default function CalendarScreen() {
   const reminderText =
     data.prefsStatus === 'error' ? CALENDAR.reminderError : data.prefsStatus === 'ready' ? reminderLine(prefs) : '…';
 
-  return (
-    <div className="h-full flex flex-col bg-brand-cream" data-testid="training-calendar">
-      <LightNav title={CALENDAR.title} onBack={nav.back} />
-      <div className="flex-1 overflow-y-auto training-no-scrollbar pb-10">
+  const cLeft = (
+    <>
         <div className="bg-white px-4 pt-2 pb-5">
           {/* 三個數字 */}
           <div className="grid grid-cols-3 gap-2" data-testid="calendar-stats">
@@ -199,7 +199,10 @@ export default function CalendarScreen() {
             )}
           </div>
         </div>
-
+    </>
+  );
+  const cRight = (
+    <>
         {/* 提醒列 → 加到日历抽屜 */}
         <button
           type="button"
@@ -246,6 +249,22 @@ export default function CalendarScreen() {
             </ul>
           )}
         </section>
+    </>
+  );
+
+  return (
+    <div className="h-full flex flex-col bg-brand-cream" data-testid="training-calendar">
+      <LightNav title={CALENDAR.title} onBack={nav.back} />
+      <div className="flex-1 overflow-y-auto training-no-scrollbar pb-10">
+        {desk ? (
+          // 電腦版（VITE_DESKTOP_LAYOUT）：左邊三個數字與月曆，右邊提醒與最近的打卡。
+          <div className="grid grid-cols-2 items-start gap-4 p-4 [&>div]:overflow-hidden [&>div]:rounded-[24px]">
+            <div className="min-w-0 bg-white pt-3">{cLeft}</div>
+            <div className="min-w-0 bg-white [&>button]:mt-0 [&>section]:mt-0">{cRight}</div>
+          </div>
+        ) : (
+          <>{cLeft}{cRight}</>
+        )}
       </div>
     </div>
   );

@@ -18,6 +18,7 @@ import { AnswersOverview, RelatedProducts, ScreeningHistory } from './ReportReal
 import { AbilityLinksMap } from './AbilityLinksMap';
 import { toConcernScore } from '../t1report/answers';
 import { isRealT1Report } from '../t1report/shape';
+import { useDesktopLayout } from '../desktop/useDesktopLayout';
 
 /**
  * 報告本體 —— 家長手機上看到的那一頁，後台的家長詳情看到的也是這一頁（ADR-0007）。
@@ -197,6 +198,14 @@ export default function ReportBody({
    * 看建置開關，不看快照：舊快照照樣畫得出來，只是少那兩塊。
    */
   const ui1022 = PRODUCT.features.ui1022;
+  /**
+   * 電腦版側欄工作台（VITE_DESKTOP_LAYOUT，只在家長端的 App 裡成立；後台、掃碼頁、列印永遠 false）：
+   * 同一組區塊兩兩並排（雷達圖｜作答的樣子、關聯圖｜歷次對照與接下来怎么做）。關著時兩個區塊照舊上下排。
+   */
+  const desk = useDesktopLayout() && Boolean(ledoSummary);
+  const pair = (a: React.ReactNode, b: React.ReactNode) => desk
+    ? <div className="grid grid-cols-2 items-start gap-8"><div className="min-w-0 space-y-8">{a}</div><div className="min-w-0 space-y-8">{b}</div></div>
+    : <>{a}{b}</>;
 
   return (
     <div className={ledoSummary
@@ -339,8 +348,8 @@ export default function ReportBody({
       </div>
       )}
 
-      {/* SECTION 3: 重点问题标注 KEY FINDINGS - 雷达图 */}
-      <RadarSection scores={scores} />
+      {/* SECTION 3: 重点问题标注 KEY FINDINGS - 雷达图（電腦版與下一塊並排） */}
+      {pair(<RadarSection scores={scores} />, <>
 
       {/*
         語言專項評估的入口原本在這裡，2026-10-11 依使用者要求從 T1 報告拿掉（「这个板块不要在 T1 报告中体现」）。
@@ -366,6 +375,7 @@ export default function ReportBody({
           {aiReport.criticalMetrics && <IntegrationGauges criticalMetrics={aiReport.criticalMetrics} />}
         </>
       )}
+      </>)}
 
       {/* 2. Interactive Synaptic Connection Topology Diagram & Pathway Analysis */}
       {/*
@@ -378,13 +388,13 @@ export default function ReportBody({
         （使用者 2026-10-08「照你想法」）。換成「九大能力关联图」（使用者 2026-10-08）：九個能力照判定上色、十二條固定的關聯。
         舊版報告照舊。
       */}
-      {real ? (
+      {pair(<>{real ? (
         <AbilityLinksMap scores={scores} />
       ) : (
         <div className="space-y-4">
           <NeuralNetworkTopology completedScores={scores} />
         </div>
-      )}
+      )}</>, <>
 
       {/* 4. Smooth trajectory 3-month forecast line-graph & Prognosis Narrative */}
       <div className="space-y-4">
@@ -404,6 +414,7 @@ export default function ReportBody({
           </p>
         </div>
       </div>
+      </>)}
 
       {/*
         家長端專屬：T2 深度評估入口。後台不放 —— 那是一顆按下去會開始做事的按鈕。

@@ -26,6 +26,7 @@ import LibraryScreen from './LibraryScreen';
 import PlanScreen from './PlanScreen';
 import PlayerScreen from './PlayerScreen';
 import ReminderSheet from './ReminderSheet';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 function PageContent({ route, active }: { route: Route; active: boolean }) {
   switch (route.name) {
@@ -81,17 +82,22 @@ function layerKey(layer: Layer, index: number): string {
 }
 
 export default function TrainingOverlay({ layers }: { layers: Layer[] }) {
+  // 電腦版（VITE_DESKTOP_LAYOUT）：面板放寬到內容區那麼寬、上下留邊、圓角；各頁自己分兩欄。
+  const desk = useDesktopLayout();
   if (layers.length === 0 || typeof document === 'undefined') return null;
 
   let topPage = -1;
   layers.forEach((l, i) => {
     if (l.type === 'page') topPage = i;
   });
+  // 電腦版：跟練（播放器）與打卡成功是一步一步的流程，面板維持窄的置中；其他頁用寬面板、分兩欄。
+  const top = topPage >= 0 ? layers[topPage] : null;
+  const focused = top?.type === 'page' && (top.route.name === 'go' || top.route.name === 'checkin');
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex justify-center" data-testid="training-overlay">
       {topPage >= 0 && <div className="absolute inset-0 bg-black/40 training-fade" aria-hidden="true" />}
-      <div className="relative w-full max-w-3xl h-full overflow-hidden">
+      <div className={desk ? `relative my-6 w-full ${focused ? 'max-w-3xl' : 'max-w-6xl'} h-[calc(100%-48px)] overflow-hidden rounded-[32px] shadow-2xl` : 'relative w-full max-w-3xl h-full overflow-hidden'}>
         {layers.map((layer, i) => {
           if (layer.type === 'sheet') {
             return (

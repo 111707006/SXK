@@ -12,6 +12,7 @@ import { WORDING_1022 } from '../wording1022';
 import HomeCarousel from './HomeCarousel';
 import { TRAINING_PLAN_PAGE, planListPriceFen, planYuan } from '../t2/trainingPlanCopy';
 import { homeCardImage, useHomeMedia } from './homeMediaClient';
+import { useDesktopLayout } from '../desktop/useDesktopLayout';
 
 /**
  * Ledo 版首頁（設計稿第 2 頁）：打招呼、示範片大卡、孩子的概況、三個去處改成清單行。
@@ -118,14 +119,16 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
     offline: `${HOME_COPY.offline.hospital} · ${HOME_COPY.offline.status}`,
   };
 
-  return (
-    <div id="home-page" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
+  const desk = useDesktopLayout() && PRODUCT.features.ui1022;
+
+  const greeting = (
       <Greeting
         small={childName ? `${childName}的家长，${greetingFor(new Date())}` : `${greetingFor(new Date())}，欢迎使用`}
         title={PRODUCT.features.ui1022 ? WORDING_1022.home.heroTitle : '今天也陪孩子玩一下'}
       />
+  );
 
-      {banners.length > 0 ? <HomeCarousel items={banners} /> : (
+  const hero = banners.length > 0 ? <HomeCarousel items={banners} /> : (
       <button
         type="button"
         onClick={() => onOpen('training')}
@@ -151,14 +154,13 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
           <Chip on>{PRODUCT.features.ui1022 ? WORDING_1022.home.heroButton : '去线上干预'}</Chip>
         </span>
       </button>
-      )}
+  );
 
-      {PRODUCT.features.ui1022 ? (
-        // 1022 首頁三排（簡報 11/03 第 12–13 頁，使用者 2026-11-06）：①評估結果（綠、紅）②線上家庭個性化訓練寬卡（附價錢）③T1、T2。
-        // 拿掉「看报告」與「本周练过的天数」；三塊各有自己的底色或分隔線。
-        <>
-          {t1.length > 0 && (
-            <section id="home-overview-block" className="space-y-3 rounded-[28px] bg-ledo-field p-3">
+  /** 電腦版概況多一段：哪幾個方面落在哪一種判定（這一次 T1 成績的維度名，不另外算）。 */
+  const namesOf = (st: DimensionScore['status']) => t1.filter(s => s.status === st).map(s => s.dimensionName);
+
+  const overview = t1.length > 0 && (
+            <section id="home-overview-block" className={desk ? 'flex flex-col gap-3 rounded-[28px] bg-white p-5 shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)]' : 'space-y-3 rounded-[28px] bg-ledo-field p-3'}>
               <SectionHead title={childName ? `${childName}的概况` : '孩子的概况'} />
               <div id="home-overview" className="grid grid-cols-2 gap-2">
                 <Tile tone="ok" value={count('normal')} label={`个方面${STATUS_WORDING.normal.label}`} />
@@ -169,45 +171,101 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
                   note={count('borderline') > 0 ? `另有 ${count('borderline')} 个方面${SHORT.borderline}` : undefined}
                 />
               </div>
+              {desk && (namesOf('delay').length > 0 || namesOf('borderline').length > 0) && (
+                <dl id="home-overview-names" className="space-y-1.5 rounded-2xl bg-ledo-field px-3.5 py-3 text-xs leading-relaxed text-ledo-ink-2">
+                  {(['delay', 'borderline'] as const).map(st => namesOf(st).length > 0 && (
+                    <div key={st} className="flex gap-2">
+                      <dt className={`shrink-0 font-bold ${st === 'delay' ? 'text-ledo-more-ink' : 'text-ledo-mild-ink'}`}>{STATUS_WORDING[st].label}</dt>
+                      <dd>{namesOf(st).join('、')}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </section>
-          )}
+  );
 
+  const trainingCard = (
           <button
             type="button"
             id={`home-card-${HOME_TRAINING_CARD_1022.id}`}
             onClick={() => onOpen(HOME_TRAINING_CARD_1022.target)}
-            className="flex w-full overflow-hidden rounded-[28px] bg-ledo-accent-soft text-left transition active:scale-[0.99] cursor-pointer"
+            className={desk ? 'flex w-full flex-1 overflow-hidden rounded-[28px] bg-ledo-accent-soft text-left transition hover:brightness-[0.98] cursor-pointer' : 'flex w-full overflow-hidden rounded-[28px] bg-ledo-accent-soft text-left transition active:scale-[0.99] cursor-pointer'}
           >
-            <span className="relative w-[38%] shrink-0 overflow-hidden">
+            <span className={desk ? 'relative min-h-[150px] w-[40%] shrink-0 overflow-hidden' : 'relative w-[38%] shrink-0 overflow-hidden'}>
               <img src={homeCardImage(media, 'training', CARD_ART_1022.training)} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             </span>
-            <span className="flex min-w-0 flex-1 flex-col gap-1 p-3.5">
-              <span className="text-sm font-black text-ledo-ink">{HOME_TRAINING_CARD_1022.title}</span>
-              <span className="text-xs leading-relaxed text-ledo-ink-2">{HOME_TRAINING_CARD_1022.sub}</span>
+            <span className={desk ? 'flex min-w-0 flex-1 flex-col justify-center gap-1.5 p-5' : 'flex min-w-0 flex-1 flex-col gap-1 p-3.5'}>
+              <span className={desk ? 'text-base font-black text-ledo-ink' : 'text-sm font-black text-ledo-ink'}>{HOME_TRAINING_CARD_1022.title}</span>
+              <span className={desk ? 'text-sm leading-relaxed text-ledo-ink-2' : 'text-xs leading-relaxed text-ledo-ink-2'}>{HOME_TRAINING_CARD_1022.sub}</span>
               <TrainingCardPrice priceFen={oneMonthFen} />
               <span className="mt-1 self-start"><Chip on>{WORDING_1022.home.trainingPrice.cta}</Chip></span>
             </span>
           </button>
+  );
 
-          <div className="grid grid-cols-2 gap-3 border-t border-ledo-line pt-4">
+  const assessCards = (
+          <div className={desk ? 'grid grid-cols-2 gap-5' : 'grid grid-cols-2 gap-3 border-t border-ledo-line pt-4'}>
             {HOME_CARDS_1022.map(card => (
               <button
                 key={card.id}
                 type="button"
                 id={`home-card-${card.id}`}
                 onClick={() => onOpen(card.target)}
-                className="group flex min-w-0 flex-col overflow-hidden rounded-3xl border-[1.5px] border-ledo-line bg-white text-left shadow-sm transition active:scale-[0.99] cursor-pointer"
+                className={desk ? 'group grid min-w-0 grid-cols-[minmax(0,44%)_1fr] overflow-hidden rounded-[28px] bg-white text-left shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)] transition hover:shadow-[0_18px_40px_-24px_rgba(36,51,44,0.55)] cursor-pointer' : 'group flex min-w-0 flex-col overflow-hidden rounded-3xl border-[1.5px] border-ledo-line bg-white text-left shadow-sm transition active:scale-[0.99] cursor-pointer'}
               >
-                <span className="relative block aspect-[4/3] w-full overflow-hidden bg-ledo-accent-soft">
+                <span className={desk ? 'relative block min-h-[170px] overflow-hidden bg-ledo-accent-soft' : 'relative block aspect-[4/3] w-full overflow-hidden bg-ledo-accent-soft'}>
                   <img src={homeCardImage(media, card.id, CARD_ART_1022[card.id])} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                  {!desk && (
                   <span className="absolute inset-x-2 bottom-2 flex">
                     <Chip on>{card.title}</Chip>
                   </span>
+                  )}
                 </span>
+                {desk ? (
+                  <span className="flex min-w-0 flex-col justify-center gap-2 p-5">
+                    <span className="self-start"><Chip on>{card.title}</Chip></span>
+                    <span className="text-sm leading-relaxed text-ledo-ink-2">{cardSub1022(card.id)}</span>
+                  </span>
+                ) : (
                 <span className="px-3 py-2.5 text-xs leading-relaxed text-ledo-ink-2">{cardSub1022(card.id)}</span>
+                )}
               </button>
             ))}
           </div>
+  );
+
+  if (desk) {
+    // 電腦版（側欄工作台，VITE_DESKTOP_LAYOUT）：同一組區塊排成兩欄 —— 左邊示範片，右邊概況與訓練卡；T1、T2 一排兩張橫卡。
+    return (
+      <div id="home-page" className="mx-auto w-full max-w-6xl space-y-5 text-left animate-fade-in">
+        <div className="px-1">{greeting}</div>
+        <div className="grid grid-cols-12 gap-5">
+          <div className="col-span-7 min-w-0 [&>*]:h-full [&>*]:aspect-auto [&>*]:min-h-[340px]">{hero}</div>
+          <div className="col-span-5 flex min-w-0 flex-col gap-5">
+            {overview}
+            {trainingCard}
+          </div>
+        </div>
+        {assessCards}
+      </div>
+    );
+  }
+
+  return (
+    <div id="home-page" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6 animate-fade-in">
+      {greeting}
+
+      {hero}
+
+      {PRODUCT.features.ui1022 ? (
+        // 1022 首頁三排（簡報 11/03 第 12–13 頁，使用者 2026-11-06）：①評估結果（綠、紅）②線上家庭個性化訓練寬卡（附價錢）③T1、T2。
+        // 拿掉「看报告」與「本周练过的天数」；三塊各有自己的底色或分隔線。
+        <>
+          {overview}
+
+          {trainingCard}
+
+          {assessCards}
         </>
       ) : (
       <>

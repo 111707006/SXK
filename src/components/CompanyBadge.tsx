@@ -53,13 +53,11 @@ export default function CompanyBadge({ enabled, identity }: { enabled: boolean; 
     };
   }, [enabled, identity]);
 
-  if (!badge) return null;
+  // 使用者 2026-11-10：頁首不寫公司名，只畫 LOGO；沒有 LOGO 或載不出來就整個不畫。
+  if (!badge || !badge.logoUrl || broken) return null;
   return (
-    <span id="company-badge" className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-brand-stone/60 bg-white py-0.5 pl-0.5 pr-2.5">
-      {badge.logoUrl && !broken && (
-        <img src={badge.logoUrl} alt="" className="h-6 w-6 shrink-0 rounded-full bg-white object-contain" onError={() => setBroken(true)} />
-      )}
-      <span className="truncate text-xs font-bold text-brand-forest">{badge.name}</span>
+    <span id="company-badge" className="inline-flex shrink-0 items-center">
+      <img src={badge.logoUrl} alt="" className="h-6 w-6 shrink-0 rounded-full bg-white object-contain" onError={() => setBroken(true)} />
     </span>
   );
 }

@@ -50,4 +50,10 @@ describe('頁首徽章', () => {
     expect(app).toContain("{PRODUCT.mode === 'full' && <CompanyBadge enabled={companiesOn} identity={userIdentity} />}");
     expect(app).toContain('setCompaniesOn(body?.companies === true)');
   });
+
+  it('頁首只畫 LOGO，不寫公司名（使用者 2026-11-10）', () => {
+    const src = readFileSync('src/components/CompanyBadge.tsx', 'utf8');
+    expect(src).not.toContain('{badge.name}');
+    expect(src).toContain('if (!badge || !badge.logoUrl || broken) return null;');
+  });
 });

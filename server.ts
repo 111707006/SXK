@@ -104,6 +104,7 @@ import { createHandoffSourceRouter, createHandoffTargetRouter, type ParentData a
 import { createHandoffCode, recordHandoffImport, redeemHandoffCode } from './src/db/handoffs';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
+import { CSP_REPORT_PATH, cspDirectives, readCspMode, summariseCspReport } from './src/security/csp';
 import helmet from 'helmet';
 import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
@@ -481,9 +482,14 @@ async function placeChannelOrder(
 }
 
 // Security headers (X-Content-Type-Options, frameguard, HSTS, etc.).
-// CSP is disabled so the Vite-built SPA's inline styles/scripts still load;
 // TLS is terminated by nginx (see deploy/nginx.conf).
-app.use(helmet({ contentSecurityPolicy: false }));
+// CSP 照 `CSP_MODE`（src/security/csp.ts）：不設＝不送（照舊）；`report` 只回報不擋；`enforce` 才擋。
+const CSP_MODE = readCspMode(process.env.CSP_MODE);
+app.use(helmet({
+  contentSecurityPolicy: CSP_MODE === 'off'
+    ? false
+    : { useDefaults: false, directives: cspDirectives(), reportOnly: CSP_MODE === 'report' },
+}));
 
 // Raised limit so base64-encoded audio clips (<=10MB) can reach the ASR endpoint.
 //
@@ -563,6 +569,28 @@ const bookingLimiter = rateLimit({
 });
 
 app.use('/api', apiLimiter);
+
+// CSP 違規回報（`CSP_MODE` 是 report／enforce 才註冊）：瀏覽器送 `application/csp-report`（舊）或
+// `application/reports+json`（新），一般的 express.json 不吃這兩種。同一種違規只記一次（最多 500 種），
+// 一支迴圈灌不爆日誌；回 204、不給任何內容。
+if (CSP_MODE !== 'off') {
+  const seenCsp = new Set<string>();
+  app.post(
+    CSP_REPORT_PATH,
+    express.json({ type: ['application/csp-report', 'application/reports+json', 'application/json'], limit: '16kb' }),
+    (req, res) => {
+      const items = Array.isArray(req.body) ? req.body.map((r: any) => r?.body ?? r) : [req.body];
+      for (const item of items.slice(0, 10)) {
+        const line = summariseCspReport(item);
+        if (line && !seenCsp.has(line) && seenCsp.size < 500) {
+          seenCsp.add(line);
+          console.warn(`[CSP ${CSP_MODE}] ${line}`);
+        }
+      }
+      res.status(204).end();
+    },
+  );
+}
 // 掃碼報告是 /api 之外唯一的公開路徑（issue #22）。token 猜不到，所以這不是
 // 防暴力破解 —— 是防一支迴圈把一條打得到資料庫的公開路徑當成免費的壓力測試。
 app.use('/r', apiLimiter);

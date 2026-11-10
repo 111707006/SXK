@@ -20,31 +20,26 @@ import { SHOW_LIBRARY } from './visibility';
 import { useLastWeek } from './useLastWeek';
 import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
-/** 本週／上週的大圖卡（簡報 11/03 第 25 頁：用「换着玩」那種卡）。 */
-function BigCard({ activity, sub, badge, tone, onClick }: {
-  activity: Activity; sub: string; badge?: { text: string; tone: 'more' | 'ok' }; tone: 'ok' | 'mild'; onClick: () => void;
-}) {
+/**
+ * 本週／上週一行一支（客戶 11/10 簡報：左邊示範片、中間題目與說明、右邊播放）。
+ * 說明用手冊的「练什么」；底下那行維度與已練次數的小標籤拿掉。
+ */
+function WeekRow({ activity, badge, onClick }: { activity: Activity; badge?: { text: string; tone: 'more' | 'ok' }; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex min-w-0 flex-col gap-2 rounded-[22px] p-2.5 text-left cursor-pointer ${tone === 'ok' ? 'bg-ledo-ok' : 'bg-ledo-mild'}`}
-    >
-      <span className="relative block aspect-[4/3] overflow-hidden rounded-2xl bg-white">
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 rounded-2xl bg-white p-2.5 text-left cursor-pointer active:scale-[0.99] transition">
+      <span className="relative block aspect-[4/3] w-24 shrink-0 overflow-hidden rounded-xl bg-ledo-field">
         {activity.posterUrl && <img src={activity.posterUrl} alt="" loading="lazy" className="h-full w-full object-cover" />}
         {badge && (
-          <span className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-xs font-black ${badge.tone === 'more' ? 'bg-ledo-more text-ledo-more-ink' : 'bg-white text-ledo-ok-ink'}`}>
+          <span className={`absolute left-1 top-1 rounded-full px-1.5 py-0.5 text-xs font-black ${badge.tone === 'more' ? 'bg-ledo-more text-ledo-more-ink' : 'bg-white text-ledo-ok-ink'}`}>
             {badge.text}
           </span>
         )}
       </span>
-      <span className="flex items-center justify-between gap-1.5">
-        <span className="min-w-0">
-          <b className="block truncate text-[13px] font-bold text-ledo-ink">{activity.title}</b>
-          <span className="block truncate text-xs text-ledo-ink-2">{sub}</span>
-        </span>
-        <RoundArrow />
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-sm font-black text-ledo-ink">{activity.title}</b>
+        {activity.trains && <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-ledo-ink-2">{activity.trains}</span>}
       </span>
+      <PlayButton size="sm" />
     </button>
   );
 }
@@ -95,7 +90,7 @@ export default function LedoEntry() {
 
 /**
  * 1022（簡報 11/03 第 24–25 頁，使用者 2026-11-06）：固定副標題、家長常問（按鈕，點開看說明）、
- * 本週與上週兩組大圖卡；拿掉維度膠囊與按維度分的「换着玩」，不再用標籤分組。
+ * 本週與上週各一列一支（示範片、題目與「练什么」、播放；客戶 11/10）；拿掉維度膠囊與按維度分的「换着玩」，不再用標籤分組。
  */
 function Entry1103() {
   const { data, nav, childName, onBookService } = useTraining();
@@ -188,21 +183,15 @@ function Entry1103() {
       {plan.activities.length === 0 ? (
         <p className="text-xs leading-relaxed text-ledo-ink-2">{ENTRY.noActivities}</p>
       ) : (
-        <section id="training-this-week" className="space-y-2.5 rounded-[28px] bg-ledo-accent-soft p-3">
+        <section id="training-this-week" className="space-y-2.5 rounded-[28px] bg-ledo-mild p-3">
           <SectionHead
             title={ENTRY_1103.thisWeek(plan.activities.length)}
             action={SHOW_LIBRARY ? ENTRY.tabs.library : undefined}
             onAction={SHOW_LIBRARY ? () => nav.openPage({ name: 'library' }) : undefined}
           />
-          <div className={desk ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-2.5'}>
-            {plan.activities.map(({ activity, dimension }, i) => (
-              <BigCard
-                key={activity.id}
-                activity={activity}
-                tone={i % 2 === 0 ? 'ok' : 'mild'}
-                sub={`${SITE_DIMENSION_NAME[dimension]}${practice ? ` · ${practicedTimes(practice.timesByActivity[activity.id] ?? 0)}` : ''}`}
-                onClick={() => nav.openPage({ name: 'detail', id: activity.id, from: 'plan' })}
-              />
+          <div className="space-y-2">
+            {plan.activities.map(({ activity }) => (
+              <WeekRow key={activity.id} activity={activity} onClick={() => nav.openPage({ name: 'detail', id: activity.id, from: 'plan' })} />
             ))}
           </div>
         </section>
@@ -215,15 +204,13 @@ function Entry1103() {
         <section id="training-last-week" className="space-y-2.5 rounded-[28px] bg-ledo-field p-3">
           <SectionHead title={ENTRY_1103.lastWeek(last.picks.length)} />
           <p className="-mt-1.5 px-1 text-xs text-ledo-ink-2">{ENTRY_1103.lastWeekSub}</p>
-          <div className={desk ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-2.5'}>
-            {last.picks.map(({ activity, dimension }, i) => {
+          <div className="space-y-2">
+            {last.picks.map(({ activity }) => {
               const done = last.practiced.has(activity.id);
               return (
-                <BigCard
+                <WeekRow
                   key={activity.id}
                   activity={activity}
-                  tone={i % 2 === 0 ? 'ok' : 'mild'}
-                  sub={SITE_DIMENSION_NAME[dimension]}
                   badge={done ? { text: ENTRY_1103.practiced, tone: 'ok' } : { text: ENTRY_1103.notPracticed, tone: 'more' }}
                   onClick={() => nav.openPage({ name: 'detail', id: activity.id, from: 'swap' })}
                 />

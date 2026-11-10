@@ -36,8 +36,8 @@ function WeekRow({ activity, badge, onClick }: { activity: Activity; badge?: { t
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <b className="block truncate text-sm font-black text-ledo-ink">{activity.title}</b>
-        {activity.trains && <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-ledo-ink-2">{activity.trains}</span>}
+        <b className="block truncate text-[17px] font-black leading-snug text-ledo-ink">{activity.title}</b>
+        {activity.trains && <span className="mt-1 line-clamp-1 block text-xs text-ledo-ink-2">{activity.trains}</span>}
       </span>
       <PlayButton size="sm" />
     </button>

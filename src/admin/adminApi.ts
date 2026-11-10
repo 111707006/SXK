@@ -8,6 +8,11 @@
 
 import type { CouponDiscount } from '../t2/coupon';
 import type { LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
+/** 企業微信客服二維碼：預設那張與每家公司的（鍵是公司 id），都是 `/media/wecom/…?v=` 網址。 */
+export interface WecomQrList {
+  default: string | null;
+  companies: Record<number, string>;
+}
 import type { HomeMediaItem, HomeMediaKind, HomeMediaSlot } from '../homeMedia/shape';
 import type { LegalDoc, LegalDocKey, LegalDocs } from '../legal/shape';
 import type { AdminCenterShape } from './companyScope';
@@ -565,6 +570,30 @@ export const adminApi = {
       throw new AdminApiError(parsed.error || `上传失败（HTTP ${resp.status}）`, (parsed.code as AdminErrorCode) || 'UNKNOWN', resp.status);
     }
     return parsed as { item: HomeMediaItem };
+  },
+
+  // ── 企業微信客服二維碼（使用者 2026-11-10；只在專案 A，B 是 404）──
+  // `key` 是 `'default'` 或公司 id。三支都回整份清單。
+  wecomQrs: () => request<WecomQrList>('/wecom-qr'),
+  removeWecomQr: (key: 'default' | number) => request<WecomQrList>(`/wecom-qr/${key}`, { method: 'DELETE' }),
+  uploadWecomQr: async (key: 'default' | number, file: Blob) => {
+    const token = getAdminToken();
+    const resp = await fetch(`/api/admin/wecom-qr/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'image/jpeg', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: file,
+    });
+    let parsed: any = {};
+    try {
+      parsed = await resp.json();
+    } catch {
+      // 反向代理回的 HTML
+    }
+    if (!resp.ok) {
+      if (resp.status === 413 && !parsed.error) throw new AdminApiError('档案太大，主机拒收（请联系技术人员调高上传上限）。', 'UNKNOWN', 413);
+      throw new AdminApiError(parsed.error || `上传失败（HTTP ${resp.status}）`, (parsed.code as AdminErrorCode) || 'UNKNOWN', resp.status);
+    }
+    return parsed as WecomQrList;
   },
 
   uploadHomeMediaPoster: async (id: number, poster: Blob) => {

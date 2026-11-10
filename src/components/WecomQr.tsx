@@ -1,20 +1,26 @@
 import { X } from 'lucide-react';
 import { PRODUCT } from '../productConfig';
 import { WORDING_1022 } from '../wording1022';
+import { useWecomQrSrc } from './useWecomQrSrc';
 
 /**
  * 1022（使用者 2026-10-24）：「预约 1 对 1 专家」一律改成企業微信二維碼 —— 家長掃碼加客服，
  * 不在系統裡選專家、選時段。只在專案 A、`VITE_UI_1022` 開著時用（`expertBookingIsQr`）；
- * 關著時照舊開預約表。二維碼沿用 `PRODUCT.expertBooking.wechatQrSrc`（企業微信客服）。
+ * 關著時照舊開預約表。二維碼由 `useWecomQrSrc` 給：後台上傳的（2026-11-10 起）→ 內建的 `PRODUCT.expertBooking.wechatQrSrc`。
  */
 export const expertBookingIsQr = (): boolean => PRODUCT.features.ui1022 && Boolean(PRODUCT.expertBooking.wechatQrSrc);
 
 export function WecomQrBlock({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
-  const src = PRODUCT.expertBooking.wechatQrSrc;
-  if (!src) return null;
+  // 後台「合作公司」分頁可以換（使用者 2026-11-10）；還在問（`undefined`）先畫空框，別先畫內建那張再換掉。
+  const src = useWecomQrSrc();
+  if (src === null) return null;
   return (
     <div id="wecom-qr" className="flex flex-col items-center gap-2 text-center">
-      <img src={src} alt={WORDING_1022.expertQr.alt} className="w-44 h-44 rounded-2xl bg-white p-2 border border-brand-stone/60" />
+      {src ? (
+        <img src={src} alt={WORDING_1022.expertQr.alt} className="w-44 h-44 rounded-2xl bg-white p-2 border border-brand-stone/60" />
+      ) : (
+        <div className="w-44 h-44 rounded-2xl bg-white border border-brand-stone/60" aria-hidden="true" />
+      )}
       <p className={`text-sm font-bold ${tone === 'dark' ? 'text-white' : 'text-brand-forest'}`}>{WORDING_1022.expertQr.scan}</p>
       <p className={`text-xs leading-relaxed ${tone === 'dark' ? 'text-white/80' : 'text-brand-charcoal/80'}`}>{WORDING_1022.expertQr.hint}</p>
     </div>

@@ -405,6 +405,26 @@ export async function findCompanyBadgeByUserId(userId: number): Promise<CompanyB
   return row ? { name: row.name, logoUrl: row.logo_url ?? null } : null;
 }
 
+/** 企業微信客服二維碼（`/api/wecom-qr`）：家長歸屬、而且還啟用中的公司 id。只取 id。 */
+export async function findActiveCompanyIdByUserId(userId: number): Promise<number | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    'SELECT c.id FROM companies c JOIN users u ON u.company_id = c.id WHERE u.id = ? AND c.active = 1 LIMIT 1',
+    [userId]
+  );
+  const row = (rows as any[])[0];
+  return row ? Number(row.id) : null;
+}
+
+export async function findActiveCompanyIdBySlug(slug: string): Promise<number | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute('SELECT id FROM companies WHERE slug = ? AND active = 1 LIMIT 1', [slug]);
+  const row = (rows as any[])[0];
+  return row ? Number(row.id) : null;
+}
+
 export async function findCompanyBadgeBySlug(slug: string): Promise<CompanyBadgeRow | null> {
   const p = getPool();
   if (!p) return null;

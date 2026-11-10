@@ -32,6 +32,7 @@ import { WORDING_1022 } from '../wording1022';
 import { useReportLayout } from '../utils/reportLayout';
 import T2Entrance from './T2Entrance';
 import { WecomQrBlock, WecomQrModal, expertBookingIsQr } from './WecomQr';
+import { useWecomQrSrc } from './useWecomQrSrc';
 import HandoffCard from './HandoffCard';
 import type { DimensionAccess } from '../utils/access';
 import { useDesktopLayout } from '../desktop/useDesktopLayout';
@@ -290,6 +291,8 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
   const [showBookingModal, setShowBookingModal] = useState(false);
   /** 1022：預約改成企業微信二維碼（`expertBookingIsQr`）。 */
   const [showWecomQr, setShowWecomQr] = useState(false);
+  /** 客服二維碼：後台「合作公司」分頁可以換（`/api/wecom-qr`），讀不到用內建的。`undefined`＝還在問。 */
+  const wecomQrSrc = useWecomQrSrc();
   /** `focusBookingService` 已經自動開過一次表；`focusBooking` 回到 false 時重置。 */
   const bookingAutoOpenedRef = useRef(false);
   /**
@@ -1319,9 +1322,11 @@ export default function AnalysisReport({ child, completedScores, onBack, onSaveR
                       <QrCode size={14} />
                       也可以直接加微信客服
                     </div>
-                    {PRODUCT.expertBooking.wechatQrSrc ? (
+                    {wecomQrSrc === undefined ? (
+                      <div className="w-36 h-36 mx-auto rounded-xl border border-brand-stone/60 bg-brand-cream/40" />
+                    ) : wecomQrSrc ? (
                       <img
-                        src={PRODUCT.expertBooking.wechatQrSrc}
+                        src={wecomQrSrc}
                         alt="微信客服二维码"
                         className="w-36 h-36 mx-auto rounded-xl border border-brand-stone/60"
                       />

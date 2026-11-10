@@ -55,6 +55,7 @@ import { isLegalDocKey } from '../legal/shape';
 import { HOME_CARD_SLOTS, isHomeMediaSlot, isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
 import path from 'path';
 import crypto from 'crypto';
+import { listWecomQrs, removeWecomQr, saveWecomQr, type WecomQrKey } from '../wecomQr/store';
 import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf } from './parentSummary';
 import { developmentIndex } from '../developmentIndex/developmentIndex';
 import type { DevelopmentIndexOf } from './parentSummary';
@@ -138,6 +139,11 @@ export interface AdminRouterHooks {
    * 只有專案 A、開關 `HOME_MEDIA` 開著才傳；沒有就是關閉 —— 那幾支不註冊（404）。
    */
   homeMediaDir?: string;
+  /**
+   * 企業微信客服二維碼（使用者 2026-11-10，`src/wecomQr/store.ts`）要寫進的目錄（同一個 `MEDIA_DIR`，檔案在 `wecom/`）。
+   * 只有專案 A 傳（`/media` 只在 A 掛）；沒有就那幾支不註冊（404），後台「合作公司」分頁就不畫那一塊。
+   */
+  wecomQrDir?: string;
   /** 兌換碼（#110）：只有專案 A、`TRAINING_PLAN` 開著才傳 `true`；沒有就那幾支不註冊。 */
   redeemCodes?: boolean;
   /** 後台可編輯的條款（11/03 第 14 頁）：只有專案 A、`LEGAL_DOCS` 開著才傳 `true`；沒有就那兩支不註冊（404）。 */
@@ -1548,6 +1554,64 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     router.put('/activities/:id/video', uploadActivityMedia('video'));
     router.put('/activities/:id/poster', uploadActivityMedia('poster'));
     router.put('/activities/:id/steps/:n/image', uploadStepImage);
+  }
+
+  // ── 企業微信客服二維碼（使用者 2026-11-10；`src/wecomQr/store.ts`）──
+  //
+  // 全域管理員才碰得到，畫在「合作公司」分頁：一張預設＋每家公司各一張（選填）。上傳＝請求本體就是圖（同首頁素材），
+  // 檔名由伺服器決定；DELETE 拿掉，回到上一層。
+  const wecomDir = hooks.wecomQrDir;
+  if (wecomDir) {
+    const keyOf = async (raw: string): Promise<WecomQrKey | null> => {
+      if (raw === 'default') return 'default';
+      if (!/^\d{1,9}$/.test(raw)) return null;
+      const company = await store.findCompanyById(Number(raw));
+      return company ? { companyId: company.id } : null;
+    };
+    router.get('/wecom-qr', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      try {
+        res.json(await listWecomQrs(wecomDir));
+      } catch (err: any) {
+        console.error('[Admin] list wecom qr failed:', err.message);
+        res.status(500).json({ error: '读取二维码失败。' });
+      }
+    });
+    router.put('/wecom-qr/:key', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) { req.resume(); return; }
+      try {
+        const key = await keyOf(String(req.params.key));
+        if (!key) {
+          req.resume();
+          res.status(404).json({ error: '找不到这家公司。' });
+          return;
+        }
+        const saved = await saveWecomQr(req, req.headers['content-type'], wecomDir, key);
+        if (!saved.ok) {
+          res.status(saved.status).json({ error: saved.error });
+          return;
+        }
+        res.json(await listWecomQrs(wecomDir));
+      } catch (err: any) {
+        console.error('[Admin] upload wecom qr failed:', err.message);
+        res.status(500).json({ error: '上传二维码失败，请再试一次。' });
+      }
+    });
+    router.delete('/wecom-qr/:key', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      try {
+        const key = await keyOf(String(req.params.key));
+        if (!key) {
+          res.status(404).json({ error: '找不到这家公司。' });
+          return;
+        }
+        await removeWecomQr(wecomDir, key);
+        res.json(await listWecomQrs(wecomDir));
+      } catch (err: any) {
+        console.error('[Admin] remove wecom qr failed:', err.message);
+        res.status(500).json({ error: '移除二维码失败。' });
+      }
+    });
   }
 
   // ── 首頁素材（客戶 10/22，#87／#88；`src/homeMedia/shape.ts`）──

@@ -15,6 +15,7 @@ import { grantTrainingPass, trainingPassState, type TrainingPassDeps, type Train
 import { NON_SCALE_TOOLKITS, PROXY_TOOLKIT } from './src/t2/snapshotKinds';
 import { loadPublicHomeMedia } from './src/db/homeMedia';
 import { EMPTY_HOME_MEDIA } from './src/homeMedia/shape';
+import { findWecomQr } from './src/wecomQr/store';
 import { loadLegalDocs } from './src/db/legalDocs';
 import { EMPTY_LEGAL_DOCS } from './src/legal/shape';
 import express from 'express';
@@ -4345,6 +4346,40 @@ tier2Only.get('/api/home/config', (_req, res) => {
 });
 
 /**
+ * 企業微信客服二維碼（使用者 2026-11-10，`src/wecomQr/store.ts`）：回 `{url}`，家長端「1 对 1 专家咨询」那張圖。**公開**（只回一個圖片網址）。
+ * 先看家長歸屬那家公司自己的（`A_COMPANIES` 開著才看；登入看帳號、沒登入看 `?c=`），沒有退預設那張，都沒有回 `null`
+ * （前端照舊用內建的 `/kefu-qr.jpg`）。只在專案 A（B 沒有 `/media`）。
+ */
+tier2Only.get('/api/wecom-qr', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    if (A_COMPANIES && mysqlDb.isConfigured()) {
+      const userId = toDbUserId(currentUserId(req));
+      let companyId: number | null = null;
+      if (userId !== null) {
+        companyId = await withTimeout(mysqlDb.findActiveCompanyIdByUserId(userId), 2000);
+      } else {
+        const raw = req.query.c;
+        const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+        if (slug && isValidCompanySlug(slug)) companyId = await withTimeout(mysqlDb.findActiveCompanyIdBySlug(slug), 2000);
+      }
+      if (companyId !== null) {
+        const own = await findWecomQr(MEDIA_DIR, { companyId });
+        if (own) return res.json({ url: own });
+      }
+    }
+    return res.json({ url: await findWecomQr(MEDIA_DIR, 'default') });
+  } catch (err: any) {
+    console.error('[WecomQr] Lookup failed:', err.message);
+    try {
+      return res.json({ url: await findWecomQr(MEDIA_DIR, 'default') });
+    } catch {
+      return res.json({ url: null });
+    }
+  }
+});
+
+/**
  * 訓練計劃的方案（`TRAINING_PLAN`，#110）：一個月、三個月、六個月，價錢（#111 由 `TRAINING_PLAN_PRICES_FEN` 給，
  * 沒設是 null＝價格待定）與一句說明（暫採字，`src/t2/trainingPlanCopy.ts`）。`payAvailable`：微信支付設齊才 true。
  * **公開**（未登入也看得到方案頁）。開關關著、或 B，不註冊（404）。
@@ -4689,6 +4724,8 @@ app.use(
       activityMediaDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
       // 首頁素材（#87）：只在專案 A、`HOME_MEDIA` 開著。
       homeMediaDir: HOME_MEDIA ? MEDIA_DIR : undefined,
+      // 企業微信客服二維碼（使用者 2026-11-10）：只在專案 A（`/media` 只在 A 掛）。
+      wecomQrDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
       // 兌換碼（#110）：只在專案 A、`TRAINING_PLAN` 開著。
       redeemCodes: TRAINING_PLAN,
       // 條款（11/03 第 14 頁）：只在專案 A、`LEGAL_DOCS` 開著。

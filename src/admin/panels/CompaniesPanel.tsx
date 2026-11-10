@@ -6,9 +6,9 @@
  * 兩家公司共用一個識別碼等於把家長送給錯的公司，而那件事沒有補救的方法。
  */
 import EntryLinkQr from '../EntryLinkQr';
-import { useCallback, useState } from 'react';
-import { Plus, Save } from 'lucide-react';
-import { adminApi } from '../adminApi';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Plus, Save, Trash2, Upload } from 'lucide-react';
+import { AdminApiError, adminApi, type WecomQrList } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import {
   Button,
@@ -41,6 +41,23 @@ export default function CompaniesPanel({
 
   const companies = data?.companies ?? [];
   const origin = window.location.origin;
+
+  // 企業微信客服二維碼（使用者 2026-11-10）：B 沒有這幾支（404）→ 整塊不畫。
+  const [qrs, setQrs] = useState<WecomQrList | null>(null);
+  const [qrFailure, setQrFailure] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    adminApi.wecomQrs().then(
+      list => alive && setQrs(list),
+      err => {
+        if (!alive || (err instanceof AdminApiError && err.status === 404)) return;
+        setQrFailure(toErrorView(err).message);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function create() {
     setBusy(true);
@@ -112,6 +129,24 @@ export default function CompaniesPanel({
         </div>
       )}
 
+      {qrs && (
+        <div className="mb-5 flex flex-wrap items-center gap-4 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4">
+          <WecomQrCell
+            keyId="default"
+            url={qrs.default}
+            fallback="/kefu-qr.jpg"
+            onChanged={setQrs}
+            onFailure={setQrFailure}
+          />
+          <div className="min-w-[200px] flex-1 space-y-1 text-xs leading-relaxed text-brand-charcoal/70">
+            <p className="text-sm font-bold text-brand-forest">客服二维码（预设）</p>
+            <p>家长按「1 对 1 专家咨询」看到的企业微信二维码。没归属公司的家长、以及没设自己二维码的公司，都用这一张。</p>
+            <p>只收 jpg／png，2 MB 以内。还没上传时用系统内建的那一张。</p>
+          </div>
+        </div>
+      )}
+      {qrFailure && <ErrorNote message={qrFailure} />}
+
       {loading ? (
         <Spinner />
       ) : failure ? (
@@ -120,13 +155,14 @@ export default function CompaniesPanel({
         <EmptyState title="还没有合作公司" hint="建立第一家之后，就可以开设它的后台帐号并把进站连结交给对方。" />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-xs">
+          <table className="w-full min-w-[720px] text-left text-xs">
             <thead>
               <tr className="border-b border-brand-stone text-[10px] uppercase tracking-wide text-brand-charcoal/45">
                 <th className="py-2 pr-3 font-bold">公司</th>
                 <th className="py-2 pr-3 font-bold">识别码</th>
                 <th className="py-2 pr-3 font-bold">进站连结</th>
-                <th className="py-2 font-bold">通知位置</th>
+                <th className="py-2 pr-3 font-bold">通知位置</th>
+                {qrs && <th className="py-2 font-bold">客服二维码</th>}
               </tr>
             </thead>
             <tbody>
@@ -138,13 +174,24 @@ export default function CompaniesPanel({
                     {/* 11/03 第 2 頁：連結旁加二維碼，可下載 PNG */}
                     <EntryLinkQr url={`${origin}/?c=${c.slug}`} code={c.slug} />
                   </td>
-                  <td className="py-2.5">
+                  <td className="py-2.5 pr-3">
                     {c.wecomWebhookUrl ? (
                       <span className="text-brand-moss">已设定</span>
                     ) : (
                       <span className="text-brand-charcoal/40">未设定（退回全域）</span>
                     )}
                   </td>
+                  {qrs && (
+                    <td className="py-2.5">
+                      <WecomQrCell
+                        keyId={c.id}
+                        url={qrs.companies[c.id] ?? null}
+                        fallbackLabel="用预设"
+                        onChanged={setQrs}
+                        onFailure={setQrFailure}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -152,5 +199,85 @@ export default function CompaniesPanel({
         </div>
       )}
     </Panel>
+  );
+}
+
+/** 一張客服二維碼：縮圖、上傳（換掉）、移除。`keyId` 是 `'default'` 或公司 id。 */
+function WecomQrCell({
+  keyId,
+  url,
+  fallback,
+  fallbackLabel,
+  onChanged,
+  onFailure,
+}: {
+  keyId: 'default' | number;
+  url: string | null;
+  /** 沒上傳時畫的圖（預設那張畫內建的）。 */
+  fallback?: string;
+  /** 沒上傳、也沒有 fallback 圖時寫的字。 */
+  fallbackLabel?: string;
+  onChanged: (list: WecomQrList) => void;
+  onFailure: (message: string | null) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const shown = url ?? fallback ?? null;
+
+  async function run(job: () => Promise<WecomQrList>) {
+    setBusy(true);
+    onFailure(null);
+    try {
+      onChanged(await job());
+    } catch (err) {
+      onFailure(toErrorView(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {shown ? (
+        <img
+          src={shown}
+          alt="客服二维码"
+          className={`h-16 w-16 shrink-0 rounded-lg border border-brand-stone/60 bg-white object-contain p-0.5 ${url ? '' : 'opacity-50'}`}
+        />
+      ) : (
+        <span className="text-brand-charcoal/40">{fallbackLabel}</span>
+      )}
+      <div className="flex flex-col gap-1">
+        <input
+          ref={input}
+          type="file"
+          accept="image/jpeg,image/png"
+          className="hidden"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void run(() => adminApi.uploadWecomQr(keyId, file));
+          }}
+        />
+        <Button variant="ghost" busy={busy} onClick={() => input.current?.click()}>
+          <Upload size={12} />
+          {url ? '更换' : '上传'}
+        </Button>
+        {url && (
+          <Button
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(keyId === 'default' ? '移除后改用系统内建的二维码，确定吗？' : '移除后这家公司的家长改看预设二维码，确定吗？')) {
+                void run(() => adminApi.removeWecomQr(keyId));
+              }
+            }}
+          >
+            <Trash2 size={12} />
+            移除
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }

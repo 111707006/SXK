@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useWecomQrSrc } from './useWecomQrSrc';
 import { Child } from '../types';
 import { transcribeWithQwenASR, judgeArticulation } from '../utils/asr';
 import { bookingDateError, bookingWindow } from '../utils/bookingWindow';
@@ -220,6 +221,8 @@ function getAgeMatchedQuestions(ageMonth: number): AssessmentQuestion[] {
 
 export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpecialAssessmentProps) {
   const ageQuestions = getAgeMatchedQuestions(child.ageMonth);
+  /** 客服二維碼：後台「合作公司」分頁可以換（`/api/wecom-qr`），讀不到用內建的。 */
+  const wecomQrSrc = useWecomQrSrc();
   
   const [questions, setQuestions] = useState<AssessmentQuestion[]>(ageQuestions);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -2226,9 +2229,9 @@ export default function LanguageSpecialAssessment({ child, onBack }: LanguageSpe
                       <strong className="text-xs text-brand-forest flex items-center gap-1">
                         <UserCheck size={12} /> 想更快联系上？加微信客服
                       </strong>
-                      {PRODUCT.expertBooking.wechatQrSrc && (
+                      {wecomQrSrc && (
                         <img
-                          src={PRODUCT.expertBooking.wechatQrSrc}
+                          src={wecomQrSrc}
                           alt="微信客服二维码"
                           className="w-28 h-28 rounded-lg border border-brand-stone/60 bg-white p-1"
                         />

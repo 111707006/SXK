@@ -361,8 +361,27 @@ function AdminCenter() {
           {activeTab === 'videos' && <VideoTaggingPanel onError={handleError} />}
           {activeTab === 'homeMedia' && <HomeMediaPanel onError={handleError} />}
           {activeTab === 'legal' && <LegalPanel onError={handleError} />}
+          {/* 兌換碼與優惠券（2026-11-10 使用者：合成一個分頁）：上面推薦人與兌換碼、下面 T2 優惠券。 */}
           {activeTab === 'referrers' && (
-            <ReferrersPanel onError={handleError} companies={companies} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
+            <div className="space-y-10">
+              <div className="rounded-xl border border-stone-200 bg-stone-50 px-5 py-4 text-sm leading-relaxed text-stone-700">
+                <p className="mb-2 font-bold text-stone-900">这一页有两样东西，用途不同：</p>
+                <ul className="list-disc space-y-1.5 pl-5">
+                  <li>
+                    <span className="font-bold text-stone-900">推荐人与兑换码（VIP 兑换）</span>：开渠道商、治疗师的推荐人帐号；在每位推荐人底下产生兑换码。
+                    家长在「线上家庭个性化训练」方案页点「VIP 兑换」输入，<span className="font-bold">直接开通线上家庭训练</span>（1／3／6／12 个月），不用付钱。
+                  </li>
+                  <li>
+                    <span className="font-bold text-stone-900">优惠券</span>：T1 转 T2 的折扣码。家长在报告上「T2 深度评估」价钱下面输入，
+                    <span className="font-bold">T2 照折后价付款</span>（预设半价）；每位家长只能用一张，不开通线上家庭训练。
+                  </li>
+                </ul>
+              </div>
+              <ReferrersPanel onError={handleError} companies={companies} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
+              <div className="border-t border-stone-200 pt-8">
+                <CouponsPanel onError={handleError} />
+              </div>
+            </div>
           )}
           {activeTab === 'coupons' && <CouponsPanel onError={handleError} />}
           {activeTab === 'revenueSplit' && <RevenueSplitPanel onError={handleError} />}

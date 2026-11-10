@@ -207,7 +207,7 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
 
   const description =
     'T1 转 T2 的折扣码：家长在报告上「T2 深度评估」卡的价钱下面输入，之后 T2 照折后价收。预设五折（半价），每位家长只能用一张，不分渠道。' +
-    '和「推荐人与兑换码」（VIP 兑换，换线上家庭训练的使用时长）是两回事。';
+    '和上面的兑换码（VIP 兑换，换线上家庭训练的使用时长）是两回事。';
 
   let body: ReactNode;
   if (loading) body = <Spinner />;

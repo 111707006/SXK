@@ -112,6 +112,20 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.DEPLOY_RUN_PORT || process.env.PORT) || 5000;
 
+/**
+ * 綁在哪個位址（2026-11-10 稽核）：不設＝`0.0.0.0`（照舊，Render 等平台要這個）。正式站 A、B 都在 nginx 後面，
+ * 設 `127.0.0.1` 就只收本機（nginx 與 A→B 的交接都走 127.0.0.1），外面直接打 5000／5001 連不到 ——
+ * 不必只靠雲端安全組那一層。只收這四個值，打錯字就起不來（安靜地退回 0.0.0.0 等於沒設）。
+ */
+const LISTEN_HOST = (() => {
+  const raw = process.env.LISTEN_HOST?.trim();
+  if (!raw) return '0.0.0.0';
+  if (!['0.0.0.0', '127.0.0.1', '::', '::1'].includes(raw)) {
+    throw new Error(`LISTEN_HOST="${raw}" 不认得：只收 0.0.0.0、127.0.0.1、::、::1`);
+  }
+  return raw;
+})();
+
 // ── Product mode (backend counterpart of src/productConfig.ts) ──
 // Both must be set on a deployment; they control different halves:
 //   VITE_APP_MODE  — build time, decides what the bundle renders
@@ -4643,8 +4657,8 @@ export async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[SenXinKang Server] Server is booted successfully on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, LISTEN_HOST, () => {
+    console.log(`[SenXinKang Server] Server is booted successfully on http://${LISTEN_HOST}:${PORT}`);
     // Log the mode and where the port came from. Both have burned us before:
     // a wrong APP_MODE silently exposes the tier-2/3 endpoints, and
     // DEPLOY_RUN_PORT taking precedence over the platform-injected PORT makes a

@@ -1631,7 +1631,7 @@ export async function proxyFill(
         [userId]
       );
       const passes = (passRows as any[]).map(r => ({ startsOn: String(r.starts_on), endsOn: String(r.ends_on), months: 1 as const, source: 'proxy' as const }));
-      const range = nextPassRange(passes, input.today, input.months as 1 | 3 | 6);
+      const range = nextPassRange(passes, input.today, input.months as 1 | 3 | 6 | 12);
       await conn.execute(
         "INSERT INTO training_passes (user_id, starts_on, ends_on, months, source, ref_id, unique_key) VALUES (?, ?, ?, ?, 'proxy', ?, ?)",
         [userId, range.startsOn, range.endsOn, input.months, consumedCodeId, `proxy:${consumedCodeId}`]

@@ -3024,7 +3024,7 @@ function trainingPlanPayAvailable(): boolean {
 async function createPlanPayment(req: express.Request, res: express.Response, userId: UserId): Promise<void> {
   const months = req.body?.months;
   if (!TRAINING_PLAN) return void res.status(400).json({ error: '购买范围不正确。' });
-  if (!isPassMonths(months)) return void res.status(400).json({ error: '方案只有 1、3、6 个月。' });
+  if (!isPassMonths(months)) return void res.status(400).json({ error: '方案只有 1、3、6、12 个月。' });
   if (!mysqlDb.isConfigured()) return void res.status(503).json({ error: '支付服务暂未开放，请稍后再试。' });
   if (!trainingPlanPayAvailable() || !TRAINING_PLAN_PRICES) {
     return void res.status(409).json({ error: '暂未开放付款，可以使用兑换码。', code: 'PAY_UNAVAILABLE' });
@@ -3032,6 +3032,9 @@ async function createPlanPayment(req: express.Request, res: express.Response, us
   const user = await findSessionUser(userId);
   if (!user) return void res.status(401).json({ error: '登录状态已失效，请重新登录。' });
   const amountFen = TRAINING_PLAN_PRICES[months];
+  if (amountFen === undefined) {
+    return void res.status(409).json({ error: '这个方案暂未开放付款，可以使用兑换码。', code: 'PAY_UNAVAILABLE' });
+  }
   const channel = await resolvePayChannel(req, user.id);
   if (refusePayChannel(res, channel)) return;
   const split = await resolvePaymentSplit(user.id);

@@ -54,7 +54,7 @@ export function readProxyInput(body: unknown, now: Date = new Date()): ProxyInpu
   if (rawTags.length > 60 || rawTags.some(t => typeof t !== 'string' || !ACTIVITY_TAG_SET.has(t))) {
     return { error: '标签只能从清单里勾。' };
   }
-  if (!isPassMonths(b.months)) return { error: '方案只有 1、3、6 个月。' };
+  if (!isPassMonths(b.months)) return { error: '方案只有 1、3、6、12 个月。' };
   return { phone, child: { name, birthDate, gender }, colors, tags: [...new Set(rawTags as ActivityTag[])], months: b.months };
 }
 

@@ -11,11 +11,12 @@ import { calendarDateOf } from '../src/t2/weeks';
 const pass = (startsOn: string, endsOn: string, over: Partial<TrainingPass> = {}): TrainingPass => ({ startsOn, endsOn, months: 1, source: 'code', ...over });
 
 describe('長度', () => {
-  it('一個月 28 天、三個月 84 天（一期 12 週）、六個月 168 天（兩期）', () => {
-    expect(PASS_DAYS).toEqual({ 1: 28, 3: 84, 6: 168 });
-    expect(nextPassRange([], '2026-10-23', 1)).toEqual({ startsOn: '2026-10-23', endsOn: '2026-11-19' });
-    expect(nextPassRange([], '2026-10-23', 3)).toEqual({ startsOn: '2026-10-23', endsOn: '2027-01-14' });
-    expect(nextPassRange([], '2026-10-23', 6)).toEqual({ startsOn: '2026-10-23', endsOn: '2027-04-08' });
+  it('一個月 30 天、三個月 90 天、六個月 180 天、十二個月 365 天（文字文稿16）', () => {
+    expect(PASS_DAYS).toEqual({ 1: 30, 3: 90, 6: 180, 12: 365 });
+    expect(nextPassRange([], '2026-10-23', 1)).toEqual({ startsOn: '2026-10-23', endsOn: '2026-11-21' });
+    expect(nextPassRange([], '2026-10-23', 3)).toEqual({ startsOn: '2026-10-23', endsOn: '2027-01-20' });
+    expect(nextPassRange([], '2026-10-23', 6)).toEqual({ startsOn: '2026-10-23', endsOn: '2027-04-20' });
+    expect(nextPassRange([], '2026-10-23', 12)).toEqual({ startsOn: '2026-10-23', endsOn: '2027-10-22' });
   });
 });
 
@@ -30,15 +31,15 @@ describe('有效與續接', () => {
   });
 
   it('還在有效期內續買：接在迄日後面，不重疊', () => {
-    expect(nextPassRange([p1], '2026-10-20', 1)).toEqual({ startsOn: '2026-10-29', endsOn: '2026-11-25' });
+    expect(nextPassRange([p1], '2026-10-20', 1)).toEqual({ startsOn: '2026-10-29', endsOn: '2026-11-27' });
   });
 
   it('過期再買：從今天起', () => {
-    expect(nextPassRange([p1], '2026-12-01', 1)).toEqual({ startsOn: '2026-12-01', endsOn: '2026-12-28' });
+    expect(nextPassRange([p1], '2026-12-01', 1)).toEqual({ startsOn: '2026-12-01', endsOn: '2026-12-30' });
   });
 
   it('跨年', () => {
-    expect(nextPassRange([pass('2026-12-10', '2027-01-06')], '2026-12-20', 1)).toEqual({ startsOn: '2027-01-07', endsOn: '2027-02-03' });
+    expect(nextPassRange([pass('2026-12-10', '2027-01-06')], '2026-12-20', 1)).toEqual({ startsOn: '2027-01-07', endsOn: '2027-02-05' });
   });
 
   it('「到哪天」看接得上的最後一天；斷開的那一段不算', () => {
@@ -78,7 +79,7 @@ describe('附送一個月與加一段', () => {
 
   it('有 T2 報告：第一次查發一個月，之後不再發', async () => {
     const m = memory(true);
-    expect(await trainingPassState(m.deps, 1, '2026-10-23')).toEqual({ active: true, endsOn: '2026-11-19', lastEndsOn: '2026-11-19' });
+    expect(await trainingPassState(m.deps, 1, '2026-10-23')).toEqual({ active: true, endsOn: '2026-11-21', lastEndsOn: '2026-11-21' });
     await trainingPassState(m.deps, 1, '2026-10-24');
     expect(m.rows.filter(r => r.source === 't2_bonus')).toHaveLength(1);
   });
@@ -92,7 +93,7 @@ describe('附送一個月與加一段', () => {
     const m = memory(true);
     await grantTrainingPass(m.deps, 1, '2026-10-23', { months: 3, source: 'code', refId: 5, uniqueKey: 'code:5' });
     const state = await trainingPassState(m.deps, 1, '2026-10-23');
-    expect(state.endsOn).toBe('2027-02-11'); // 84 天到 2027-01-14，再接 28 天
+    expect(state.endsOn).toBe('2027-02-19'); // 90 天到 2027-01-20，再接 30 天
   });
 
   it('同一件事（同一組碼）只發一段', async () => {
@@ -105,6 +106,6 @@ describe('附送一個月與加一段', () => {
   it('到期之後 lastEndsOn 還在（畫「已经到期」）', async () => {
     const m = memory(false);
     await grantTrainingPass(m.deps, 1, '2026-10-01', { months: 1, source: 'code', refId: 1, uniqueKey: null });
-    expect(await trainingPassState(m.deps, 1, '2026-11-30')).toEqual({ active: false, endsOn: null, lastEndsOn: '2026-10-28' });
+    expect(await trainingPassState(m.deps, 1, '2026-11-30')).toEqual({ active: false, endsOn: null, lastEndsOn: '2026-10-30' });
   });
 });

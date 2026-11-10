@@ -1144,7 +1144,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       const id = referrerIdParam(req);
       const months = req.body?.months;
       const quantity = req.body?.quantity;
-      if (!isPassMonths(months)) return void res.status(400).json({ error: '方案只有 1、3、6 个月。' });
+      if (!isPassMonths(months)) return void res.status(400).json({ error: '方案只有 1、3、6、12 个月。' });
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_BATCH) {
         return void res.status(400).json({ error: `一次产 1 到 ${MAX_BATCH} 组。` });
       }

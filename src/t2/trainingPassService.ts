@@ -41,7 +41,7 @@ export async function grantTrainingPass(
   deps: Pick<TrainingPassDeps, 'list' | 'insert'>,
   userId: number,
   today: string,
-  grant: { months: 1 | 3 | 6; source: 'payment' | 'code' | 'proxy'; refId: number | null; uniqueKey: string | null },
+  grant: { months: 1 | 3 | 6 | 12; source: 'payment' | 'code' | 'proxy'; refId: number | null; uniqueKey: string | null },
 ): Promise<boolean> {
   const passes = await deps.list(userId);
   const range = nextPassRange(passes, today, grant.months);

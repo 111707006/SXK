@@ -4,18 +4,40 @@
  */
 import type { PassMonths } from './trainingPass';
 
-export const PLAN_BLURBS: Record<PassMonths, { title: string; blurb: string }> = {
-  1: { title: '一个月', blurb: '先试一个月：每周 3 个家庭活动，附示范片与打卡。' },
-  3: { title: '三个月', blurb: '完整一期 12 周，期末按练习情况调整下一期的难度。' },
-  6: { title: '六个月', blurb: '两期 24 周，适合需要长期陪练的方面。' },
+/**
+ * 方案卡的字（客戶 2026-11-10 文字文稿16，照抄）：名稱、權益清單、底下一行「部分功能限免生效中」。
+ * `blurb` 是手機版卡片那一行的短說明（取權益第一條以外的訓練天數）。
+ * ⚠️ 「免费T2深度评估N次」「N次线上专业咨询」「专属客服」系統不計次（使用者 11/10：照文稿寫，人工兌現）。
+ */
+export const PLAN_BLURBS: Record<PassMonths, { title: string; blurb: string; features: string[] }> = {
+  1: {
+    title: '一个月',
+    blurb: '30天线上家庭个性化训练',
+    features: ['免费T1儿少综合发展评估', '30天线上家庭个性化训练', '30天线上专属客服服务'],
+  },
+  3: {
+    title: '三个月',
+    blurb: '90天线上家庭个性化训练',
+    features: ['免费T1儿少综合发展评估', '免费T2深度评估1次', '90天线上家庭个性化训练', '90天线上专属客服服务', '1次线上专业咨询（每次10分钟）'],
+  },
+  6: {
+    title: '六个月',
+    blurb: '180天线上家庭个性化训练',
+    features: ['免费T1儿少综合发展评估', '免费T2深度评估1次', '180天线上家庭个性化训练', '180天线上专属客服服务', '3次线上专业咨询（每次10分钟）'],
+  },
+  12: {
+    title: '十二个月',
+    blurb: '365天线上家庭个性化训练',
+    features: ['免费T1儿少综合发展评估', '免费T2深度评估3次', '365天线上家庭个性化训练', '365天线上专属客服服务', '5次线上专业咨询（每次10分钟）'],
+  },
 };
 
 /**
- * 方案的原價（劃掉的那一個）。使用者 2026-11-10：原價 ¥199／299／399，現在照折扣價 ¥19.9／29.9／39.9 收
- * （正式站 `TRAINING_PLAN_PRICES_FEN=1:1990,3:2990,6:3990`）。只是顯示用：實際收多少一律照伺服器的
- * `TRAINING_PLAN_PRICES_FEN`（`/api/training/plans` 的 `priceFen`）；原價不高於實收價時不畫。
+ * 方案的原價（劃掉的那一個）。客戶 2026-11-10 文字文稿16：原價 ¥199／399／699／999；實收照
+ * `TRAINING_PLAN_PRICES_FEN`（正式站 `1:1990,3:2990,6:3990,12:9990`）。只是顯示用：實際收多少一律照伺服器
+ * （`/api/training/plans` 的 `priceFen`）；原價不高於實收價時不畫。
  */
-export const PLAN_LIST_PRICE_FEN: Partial<Record<PassMonths, number>> = { 1: 19900, 3: 29900, 6: 39900 };
+export const PLAN_LIST_PRICE_FEN: Partial<Record<PassMonths, number>> = { 1: 19900, 3: 39900, 6: 69900, 12: 99900 };
 
 /** 分 → 「¥19.9」「¥199」。 */
 export function planYuan(fen: number): string {
@@ -30,7 +52,9 @@ export function planListPriceFen(months: PassMonths, priceFen: number | null): n
 
 export const TRAINING_PLAN_PAGE = {
   title: '线上家庭个性化训练',
-  sub: '按孩子的评估结果安排每周的家庭活动。开通后 T1、T2 评估都免费。',
+  sub: '按孩子的评估结果安排每周的家庭活动。',
+  /** 每張方案卡底下那一行（文字文稿16）。 */
+  limitedFree: '部分功能限免生效中',
   pay: '开通',
   payUnavailable: '暂未开放',
   priceTbd: '价格待定',

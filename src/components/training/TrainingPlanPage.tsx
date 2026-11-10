@@ -1,30 +1,56 @@
 /**
  * 訓練計劃頁（客戶 10/22，#110，開關 `TRAINING_PLAN`）：首頁「线上家庭个性化训练」與續買入口在沒有有效使用權時到這裡。
- * 「VIP 兑换」一格（簡報 11/03 第 8 頁）＋三張方案卡（月數、價錢、一句說明）、付款鈕（微信支付沒設齊時「暂未开放」，#111）。
+ * 「VIP 兑换」一格（簡報 11/03 第 8 頁）＋四張方案卡（月數、價錢、權益清單、「部分功能限免生效中」，文字文稿16）、付款鈕（微信支付沒設齊時「暂未开放」，#111）。
  * 兌換成功當場說「已开通，到 X 月 X 日」，按鈕帶去居家訓練。
  */
 import { useEffect, useState } from 'react';
-import { Gift, Loader2 } from 'lucide-react';
+import { Check, Gift, Loader2 } from 'lucide-react';
 import { TRAINING_PLAN_PAGE, planListPriceFen, planYuan } from '../../t2/trainingPlanCopy';
 import RedeemCodeForm from './RedeemCodeForm';
 import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 interface PlanCard {
-  months: 1 | 3 | 6;
+  months: 1 | 3 | 6 | 12;
   priceFen: number | null;
   title: string;
   blurb: string;
+  /** 權益清單（文字文稿16）；舊伺服器沒給就是空的，只畫 blurb。 */
+  features: string[];
 }
 
 export function readPlans(body: unknown): { plans: PlanCard[]; payAvailable: boolean } {
   const b = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
   const plans = Array.isArray(b.plans)
-    ? (b.plans as any[]).filter(p => [1, 3, 6].includes(p?.months) && typeof p.title === 'string' && typeof p.blurb === 'string')
-        .map(p => ({ months: p.months, priceFen: typeof p.priceFen === 'number' && p.priceFen > 0 ? p.priceFen : null, title: p.title, blurb: p.blurb }))
+    ? (b.plans as any[]).filter(p => [1, 3, 6, 12].includes(p?.months) && typeof p.title === 'string' && typeof p.blurb === 'string')
+        .map(p => ({
+          months: p.months,
+          priceFen: typeof p.priceFen === 'number' && p.priceFen > 0 ? p.priceFen : null,
+          title: p.title,
+          blurb: p.blurb,
+          features: Array.isArray(p.features) ? p.features.filter((f: unknown): f is string => typeof f === 'string') : [],
+        }))
     : [];
   return { plans, payAvailable: b.payAvailable === true };
 }
 
+
+/** 一張方案卡的權益清單＋底下那一行「部分功能限免生效中」；沒有清單時畫舊的一行說明。 */
+function PlanFeatures({ plan }: { plan: PlanCard }) {
+  if (plan.features.length === 0) return <p className="text-xs leading-relaxed text-ledo-ink-2">{plan.blurb}</p>;
+  return (
+    <div className="space-y-2">
+      <ul className="space-y-1.5">
+        {plan.features.map(f => (
+          <li key={f} className="flex items-start gap-1.5 text-xs leading-relaxed text-ledo-ink">
+            <Check size={13} className="mt-0.5 shrink-0 text-ledo-accent" />
+            <span>{f}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-ledo-ink-2">{TRAINING_PLAN_PAGE.limitedFree}</p>
+    </div>
+  );
+}
 
 export default function TrainingPlanPage({
   loggedIn,
@@ -40,7 +66,7 @@ export default function TrainingPlanPage({
   onActivated: () => void;
   onGoTraining: () => void;
   /** 付款（#111）；沒給或 `payAvailable` 是 false 時按鈕不能按。 */
-  onPay?: (months: 1 | 3 | 6) => void;
+  onPay?: (months: 1 | 3 | 6 | 12) => void;
 }) {
   const [data, setData] = useState<{ plans: PlanCard[]; payAvailable: boolean } | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
@@ -61,8 +87,8 @@ export default function TrainingPlanPage({
   const payable = (p: PlanCard) => Boolean(data?.payAvailable && onPay && p.priceFen !== null);
 
   if (desk) {
-    // 電腦版（VITE_DESKTOP_LAYOUT，客戶 11/03 第 8 頁的參考圖）：「VIP 兑换」與三張方案卡橫排一列，
-    // 每張由上而下：名稱、價錢、按鈕、說明。字與資料同手機版，沒有另外的特色清單或「推荐」標籤。
+    // 電腦版（VITE_DESKTOP_LAYOUT，客戶 11/03 第 8 頁的參考圖）：「VIP 兑换」一條在上面，四張方案卡橫排一列，
+    // 每張由上而下：名稱、價錢、按鈕、權益清單（文字文稿16）。字與資料同手機版，沒有「推荐」標籤。
     const activeBox = (endsOnText: string) => (
       <div className="flex items-center justify-between gap-4 rounded-[28px] bg-ledo-ok px-6 py-4 text-ledo-ok-ink">
         <p className="text-sm font-black">{endsOnText}</p>
@@ -79,18 +105,18 @@ export default function TrainingPlanPage({
         {active && !activatedTo && <div id="training-plan-active">{activeBox(active.endsOn ? TRAINING_PLAN_PAGE.activated(active.endsOn) : TRAINING_PLAN_PAGE.activeNoEnd)}</div>}
         {activatedTo && <div id="training-plan-activated">{activeBox(TRAINING_PLAN_PAGE.activated(activatedTo))}</div>}
 
-        <div className="grid grid-cols-4 items-stretch gap-4">
-          <div id="training-plan-vip" className="flex flex-col gap-4 rounded-[28px] border-[1.5px] border-ledo-accent bg-ledo-accent-soft/50 p-5">
-            <p className="flex items-center gap-1.5 text-base font-black text-ledo-ink"><Gift size={16} />{TRAINING_PLAN_PAGE.vipTitle}</p>
-            <button type="button" id="training-plan-redeem-entry" onClick={() => setRedeemOpen(o => !o)}
-              className="w-full rounded-full bg-ledo-accent py-2.5 text-sm font-black text-white cursor-pointer">
-              {TRAINING_PLAN_PAGE.redeemSubmit}
-            </button>
-            <p className="border-t border-ledo-accent/20 pt-4 text-xs leading-relaxed text-ledo-ink-2">{TRAINING_PLAN_PAGE.vipBlurb}</p>
-          </div>
+        <div id="training-plan-vip" className="flex items-center gap-4 rounded-[28px] border-[1.5px] border-ledo-accent bg-ledo-accent-soft/50 px-6 py-4">
+          <p className="flex shrink-0 items-center gap-1.5 text-base font-black text-ledo-ink"><Gift size={16} />{TRAINING_PLAN_PAGE.vipTitle}</p>
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-ledo-ink-2">{TRAINING_PLAN_PAGE.vipBlurb}</p>
+          <button type="button" id="training-plan-redeem-entry" onClick={() => setRedeemOpen(o => !o)}
+            className="shrink-0 rounded-full bg-ledo-accent px-6 py-2.5 text-sm font-black text-white cursor-pointer">
+            {TRAINING_PLAN_PAGE.redeemSubmit}
+          </button>
+        </div>
 
+        <div className="grid grid-cols-4 items-stretch gap-4">
           {data === null ? (
-            <div className="col-span-3 grid place-items-center rounded-[28px] bg-white"><Loader2 size={18} className="animate-spin text-ledo-ink-2" /></div>
+            <div className="col-span-4 grid place-items-center rounded-[28px] bg-white py-10"><Loader2 size={18} className="animate-spin text-ledo-ink-2" /></div>
           ) : data.plans.map(p => {
             const list = planListPriceFen(p.months, p.priceFen);
             return (
@@ -108,7 +134,7 @@ export default function TrainingPlanPage({
                 >
                   {payable(p) ? TRAINING_PLAN_PAGE.pay : TRAINING_PLAN_PAGE.payUnavailable}
                 </button>
-                <p className="border-t border-ledo-line pt-4 text-xs leading-relaxed text-ledo-ink-2">{p.blurb}</p>
+                <div className="border-t border-ledo-line pt-4"><PlanFeatures plan={p} /></div>
               </div>
             );
           })}
@@ -169,10 +195,10 @@ export default function TrainingPlanPage({
       ) : (
         <div className="space-y-2.5">
           {data.plans.map(p => (
-            <div key={p.months} id={`training-plan-${p.months}`} className="flex items-center gap-3 rounded-3xl border-[1.5px] border-ledo-line p-4">
+            <div key={p.months} id={`training-plan-${p.months}`} className="flex items-start gap-3 rounded-3xl border-[1.5px] border-ledo-line p-4">
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-base font-black text-ledo-ink">{p.title}</p>
-                <p className="text-xs leading-relaxed text-ledo-ink-2">{p.blurb}</p>
+                <PlanFeatures plan={p} />
               </div>
               <div className="shrink-0 space-y-1.5 text-right">
                 <p className="text-lg font-black text-ledo-ink">{p.priceFen === null ? TRAINING_PLAN_PAGE.priceTbd : planYuan(p.priceFen)}</p>

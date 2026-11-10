@@ -9,10 +9,10 @@
  */
 import { addCalendarDays, isCalendarDate } from './weeks';
 
-export const PASS_MONTHS = [1, 3, 6] as const;
+export const PASS_MONTHS = [1, 3, 6, 12] as const;
 export type PassMonths = (typeof PASS_MONTHS)[number];
 
-export const PASS_DAYS: Record<PassMonths, number> = { 1: 28, 3: 84, 6: 168 };
+export const PASS_DAYS: Record<PassMonths, number> = { 1: 30, 3: 90, 6: 180, 12: 365 };
 
 /**
  * 一段使用權從哪裡來：付款買的、兌換碼、推薦人代填、T2 附送一個月。

@@ -37,7 +37,7 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
   const [child, setChild] = useState({ name: '', birthDate: '', gender: 'boy' as 'boy' | 'girl' });
   const [colors, setColors] = useState<Partial<Record<DimensionCode, ProxyColor>>>({});
   const [tags, setTags] = useState<Set<ActivityTag>>(new Set());
-  const [months, setMonths] = useState<1 | 3 | 6>(3);
+  const [months, setMonths] = useState<1 | 3 | 6 | 12>(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [doneNote, setDoneNote] = useState<string | null>(null);
@@ -139,10 +139,11 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
           </ul>
           <div className="flex flex-wrap items-end gap-3">
             <Field label="方案">
-              <Select value={months} onChange={e => setMonths(Number(e.target.value) as 1 | 3 | 6)} className="w-auto">
+              <Select value={months} onChange={e => setMonths(Number(e.target.value) as 1 | 3 | 6 | 12)} className="w-auto">
                 <option value={1}>一个月</option>
                 <option value={3}>三个月</option>
                 <option value={6}>六个月</option>
+                <option value={12}>十二个月</option>
               </Select>
             </Field>
             <Button busy={busy} disabled={!allColored || !child.name.trim() || !child.birthDate} onClick={() => void submit()}>送出代填</Button>

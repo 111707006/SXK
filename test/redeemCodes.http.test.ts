@@ -168,7 +168,7 @@ describe('推薦人看自己的碼', () => {
 describe('方案', () => {
   it('公開讀得到三種方案；付款沒開', async () => {
     const body = await (await client.get('/api/training/plans')).json();
-    expect(body.plans.map((p: any) => p.months)).toEqual([1, 3, 6]);
+    expect(body.plans.map((p: any) => p.months)).toEqual([1, 3, 6, 12]);
     expect(body.payAvailable).toBe(false);
   });
 });

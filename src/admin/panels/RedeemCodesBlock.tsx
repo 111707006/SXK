@@ -22,7 +22,7 @@ export default function RedeemCodesBlock({
   const asAdmin = referrerId !== null;
   const load = useCallback(() => (asAdmin ? adminApi.referrerCodes(referrerId!) : adminApi.myCodes()), [asAdmin, referrerId]);
   const { data, loading, failure, reload } = useAsyncData(load, [referrerId], onError);
-  const [months, setMonths] = useState<1 | 3 | 6>(1);
+  const [months, setMonths] = useState<1 | 3 | 6 | 12>(1);
   const [quantity, setQuantity] = useState('10');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -79,10 +79,11 @@ export default function RedeemCodesBlock({
       {asAdmin && (
         <div className="flex flex-wrap items-end gap-2">
           <Field label="方案">
-            <Select value={months} onChange={e => setMonths(Number(e.target.value) as 1 | 3 | 6)} className="w-auto">
+            <Select value={months} onChange={e => setMonths(Number(e.target.value) as 1 | 3 | 6 | 12)} className="w-auto">
               <option value={1}>一个月</option>
               <option value={3}>三个月</option>
               <option value={6}>六个月</option>
+              <option value={12}>十二个月</option>
             </Select>
           </Field>
           <Field label="张数（1–500）">

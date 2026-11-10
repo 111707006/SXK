@@ -505,7 +505,7 @@ export const adminApi = {
 
   // ── 兌換碼（客戶 10/22，#110；伺服器開關 TRAINING_PLAN 關著時這幾支是 404）──
   referrerCodes: (referrerId: number) => request<{ codes: AdminRedeemCode[] }>(`/referrers/${referrerId}/codes`),
-  createCodes: (referrerId: number, months: 1 | 3 | 6, quantity: number) =>
+  createCodes: (referrerId: number, months: 1 | 3 | 6 | 12, quantity: number) =>
     request<{ codes: AdminRedeemCode[] }>(`/referrers/${referrerId}/codes`, { method: 'POST', body: JSON.stringify({ months, quantity }) }),
   voidCode: (codeId: number) => request<{ ok: true }>(`/redeem-codes/${codeId}/void`, { method: 'POST', body: '{}' }),
   myCodes: () => request<{ codes: AdminRedeemCode[] }>('/referrer/codes'),
@@ -536,7 +536,7 @@ export const adminApi = {
   proxyLookup: (phone: string) =>
     request<{ status: 'new' } | { status: 'mine' | 'unbound'; child: { name: string; birthDate: string; gender: string } | null }>(
       '/referrer/proxy/lookup', { method: 'POST', body: JSON.stringify({ phone }) }),
-  proxyFill: (input: { phone: string; child: { name: string; birthDate: string; gender: 'boy' | 'girl' }; colors: Record<string, string>; tags: string[]; months: 1 | 3 | 6 }) =>
+  proxyFill: (input: { phone: string; child: { name: string; birthDate: string; gender: 'boy' | 'girl' }; colors: Record<string, string>; tags: string[]; months: 1 | 3 | 6 | 12 }) =>
     request<{ ok: true; consumedCode: boolean }>('/referrer/proxy', { method: 'POST', body: JSON.stringify(input) }),
 
   // ── 首頁素材（客戶 10/22，#87；伺服器開關 HOME_MEDIA 關著時這幾支是 404）──

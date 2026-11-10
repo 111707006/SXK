@@ -98,19 +98,19 @@ describe('下單', () => {
   it('方案頁說可以付款、價錢照設定', async () => {
     const body = await (await client.get('/api/training/plans')).json();
     expect(body.payAvailable).toBe(true);
-    expect(body.plans.map((p: any) => p.priceFen)).toEqual([2990, 7990, 13990]);
+    expect(body.plans.map((p: any) => p.priceFen)).toEqual([2990, 7990, 13990, null]);
   });
 });
 
 describe('結算', () => {
-  it('發一段 payment 使用權（3 個月＝84 天）；不發 unlocks 的權益', async () => {
+  it('發一段 payment 使用權（3 個月＝90 天）；不發 unlocks 的權益', async () => {
     const resp = await client.get(`/api/payment/status?outTradeNo=${PLAN_ORDER}`, bearer(PARENT_ID));
     expect(resp.status).toBe(200);
     const mine = db.passes.filter(p => p.userId === PARENT_ID && p.source === 'payment');
     expect(mine).toHaveLength(1);
     expect(mine[0]).toMatchObject({ months: 3, refId: 21, uniqueKey: 'payment:21' });
     const days = (Date.parse(mine[0].endsOn) - Date.parse(mine[0].startsOn)) / 86_400_000 + 1;
-    expect(days).toBe(84);
+    expect(days).toBe(90);
     expect(db.grants).toEqual([]);
   });
 

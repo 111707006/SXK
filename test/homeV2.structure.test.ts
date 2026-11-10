@@ -66,7 +66,7 @@ describe('開關關著：畫面一行不動', () => {
 
   it('未登入：開關開著先給首頁，點了卡或登录才是 AuthScreen', () => {
     expect(app).toMatch(/homeV2 && !homeLoginOpen \? \(/);
-    expect(app).toContain('<AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} />');
+    expect(app).toContain('<AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} wide={desktopWide} />');
   });
 
   it('登入之後去哪走 viewAfterLogin（從卡片來的帶到那一頁）', () => {

@@ -1574,11 +1574,11 @@ export default function App() {
             )}
             {homeV2 && !homeLoginOpen ? (
               <LazyBoundary>
-                {PRODUCT.features.ledo ? <LedoHomePage onOpen={openHomeTarget} /> : <HomePage onOpen={openHomeTarget} />}
+                {PRODUCT.features.ledo ? <LedoHomePage onOpen={openHomeTarget} wide={desktopWide} /> : <HomePage onOpen={openHomeTarget} />}
               </LazyBoundary>
             ) : (
               <>
-                <AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} />
+                <AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} wide={desktopWide} />
                 {homeV2 && (
                   <button
                     type="button"

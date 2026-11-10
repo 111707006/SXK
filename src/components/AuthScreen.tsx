@@ -1,3 +1,4 @@
+import { LEDO_ART } from './ledo/ui';
 import { PRODUCT } from '../productConfig';
 import { peekCompanySlug } from '../utils/attribution';
 // 條款內文的唯一來源。頁尾那兩個彈窗（App.tsx）渲染的是同一份 —— 見該檔說明。
@@ -11,6 +12,8 @@ interface AuthScreenProps {
   /** `identity` 只是畫面上顯示的標籤（家長的手機號），不是識別鍵。 */
   onAuthSuccess: (identity: string, token: string | null, childData: any, scores: any[], orders: any[], history: any[]) => void;
   dbConfigured: boolean | null;
+  /** 電腦版（≥1024px、`VITE_DESKTOP_LAYOUT`，App 給）：左邊插畫、右邊表單；手機一字不改 */
+  wide?: boolean;
 }
 
 /**
@@ -24,7 +27,7 @@ interface AuthScreenProps {
 /** 與後端 `PHONE_PATTERN` 相同。 */
 const PHONE_PATTERN = /^1[3-9]\d{9}$/;
 
-export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenProps) {
+export default function AuthScreen({ onAuthSuccess, dbConfigured, wide = false }: AuthScreenProps) {
   const [phone, setPhone] = useState<string>('');
   const [smsCode, setSmsCode] = useState<string>('');
   const [codeSent, setCodeSent] = useState<boolean>(false);
@@ -146,8 +149,13 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
     : 'w-full pl-10 pr-4 py-2.5 bg-brand-cream/40 focus:bg-white border border-brand-stone/80 focus:border-brand-forest focus:ring-1 focus:ring-brand-forest rounded-2xl text-xs font-medium transition outline-none';
   const label = ledo ? 'sr-only' : 'text-xs font-extrabold text-brand-forest/80 tracking-wider uppercase block';
 
-  return (
-    <div className={ledo
+  // 電腦版分屏（原型版型 C 的登入頁）：只在 Ledo＋wide 成立，同一組表單放進右半邊，外面那張卡的 class 改由外框給。
+  const desk = ledo && wide;
+
+  const card = (
+    <div className={desk
+      ? 'w-full max-w-[400px] text-left animate-fade-in relative'
+      : ledo
       ? 'max-w-md w-full mx-auto bg-white rounded-[32px] p-6 shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] text-left animate-fade-in relative overflow-hidden'
       : 'max-w-md w-full mx-auto bg-white border border-brand-stone rounded-3xl p-8 shadow-xl text-left animate-fade-in relative overflow-hidden'}>
       {/* Visual embellishment */}
@@ -351,6 +359,16 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured }: AuthScreenPr
           </div>
         )}
       </div>
+    </div>
+  );
+
+  if (!desk) return card;
+  return (
+    <div id="auth-desktop" className="grid w-full max-w-5xl mx-auto grid-cols-2 overflow-hidden rounded-[32px] bg-white shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)]">
+      <div className="relative min-h-[560px] bg-ledo-accent-soft">
+        <img src={LEDO_ART.training} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+      </div>
+      <div className="flex items-center justify-center px-10 py-12">{card}</div>
     </div>
   );
 }

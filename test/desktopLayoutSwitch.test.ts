@@ -68,4 +68,48 @@ describe('VITE_DESKTOP_LAYOUT', () => {
       expect(readFileSync(f, 'utf8')).not.toContain('DesktopLayoutScope');
     }
   });
+
+  it('登入前首頁與登入頁：wide 只從 App 給、只在 useDesktopWide 成立時；手機那一份不吃 wide', () => {
+    const app = readFileSync('src/App.tsx', 'utf8');
+    expect(app).toContain('<LedoHomePage onOpen={openHomeTarget} wide={desktopWide} />');
+    expect(app).toContain('<AuthScreen onAuthSuccess={handleAuthSuccess} dbConfigured={dbConfigured} wide={desktopWide} />');
+    const auth = readFileSync('src/components/AuthScreen.tsx', 'utf8');
+    expect(auth).toContain('const desk = ledo && wide;');
+    expect(auth).toContain('if (!desk) return card;');
+  });
+
+  it('T1 作答：不在電腦版外框裡畫的是手機那一份（沒有右邊的方面清單）；在外框裡才換', async () => {
+    vi.resetModules();
+    const { renderToString } = await import('react-dom/server');
+    const { createElement } = await import('react');
+    const { DesktopLayoutScope } = await import('../src/desktop/useDesktopLayout');
+    const { default: LedoT1Questions } = await import('../src/components/ledo/LedoT1Questions');
+    const questions = [
+      { id: 'a1', dimensionId: 'cognitive', dimensionName: '认知', text: '题一', options: [{ label: '可以做到', score: 2 }, { label: '还不能', score: 0 }] },
+      { id: 'b1', dimensionId: 'language', dimensionName: '语言', text: '题二', options: [{ label: '可以做到', score: 2 }, { label: '还不能', score: 0 }] },
+    ] as never;
+    const props = { questions, answers: {}, ageBandName: 'C 段', onSelect: () => {}, onSubmit: () => {}, onExit: () => {} };
+    const mobile = renderToString(createElement(LedoT1Questions, props));
+    expect(mobile).toContain('id="ledo-t1"');
+    expect(mobile).not.toContain('ledo-t1-dims');
+    const desk = renderToString(createElement(DesktopLayoutScope.Provider, { value: true }, createElement(LedoT1Questions, props)));
+    expect(desk).toContain('id="ledo-t1-dims"');
+    expect(desk.replace(/<!-- -->/g, '')).toContain('已答 0 / 2 题');
+    // 還沒答到的方面不能跳過去
+    const side = desk.slice(desk.indexOf('ledo-t1-dims'));
+    const items = side.split('<li>').slice(1);
+    expect(items[0]).toContain('认知');
+    expect(items[0]).not.toContain('disabled=""');
+    expect(items[1]).toContain('语言');
+    expect(items[1]).toContain('disabled=""');
+  });
+
+  it('T2 付費頁、線下服務點：電腦版是另一個分支，手機那一份原樣留著', () => {
+    const pay = readFileSync('src/components/Paywall.tsx', 'utf8');
+    expect(pay).toContain('id="paywall-desktop"');
+    expect(pay).toContain('<div className="max-w-2xl mx-auto">');
+    const off = readFileSync('src/home/OfflineServicePage.tsx', 'utf8');
+    expect(off).toContain('const desk = useDesktopLayout();');
+    expect(off).toContain('mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4');
+  });
 });

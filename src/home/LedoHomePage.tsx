@@ -36,6 +36,8 @@ export interface LedoHomeProps {
   childName?: string;
   /** 這一次的 T1 成績（沒做過＝空陣列） */
   scores?: DimensionScore[];
+  /** 登入前、視窗夠寬（`useDesktopWide()`，App 給）：沒有側欄外框，但同樣排成電腦版的兩欄 */
+  wide?: boolean;
 }
 
 /** 色塊小字放不下「需要少量支持」的全名（375px 會折行）：「需要」縮成「需」，報告與面板照用全名。 */
@@ -87,7 +89,7 @@ function useWeekPracticeDays(enabled: boolean): number | null {
   return days;
 }
 
-export default function LedoHomePage({ onOpen, onOpenReport, childName, scores = [] }: LedoHomeProps) {
+export default function LedoHomePage({ onOpen, onOpenReport, childName, scores = [], wide = false }: LedoHomeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = videoRef.current;
@@ -119,7 +121,8 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
     offline: `${HOME_COPY.offline.hospital} · ${HOME_COPY.offline.status}`,
   };
 
-  const desk = useDesktopLayout() && PRODUCT.features.ui1022;
+  const inFrame = useDesktopLayout();
+  const desk = (inFrame || wide) && PRODUCT.features.ui1022;
 
   const greeting = (
       <Greeting

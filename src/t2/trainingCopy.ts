@@ -130,8 +130,8 @@ export const ENTRY_1103 = {
     { q: '什么时候再评估？', a: '练满 12 周（大约三个月）再做一次评估，看看哪些方面有进步。' },
   ],
   thisWeek: (n: number) => `本周 ${n} 个活动`,
-  lastWeek: (n: number) => `上周 ${n} 个活动`,
-  lastWeekSub: '上周还没练的，这周可以补上',
+  lastWeek: (_n: number) => '上周未完成的活动',
+  lastWeekSub: '还没练习的记得补上喔',
   notPracticed: '还没练',
   practiced: '练过了',
 } as const;

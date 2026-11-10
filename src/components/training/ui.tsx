@@ -11,16 +11,19 @@ import type { ReactNode } from 'react';
 import { ChevronLeft, X } from 'lucide-react';
 import { PRODUCT } from '../../productConfig';
 import { COMMON } from '../../t2/trainingCopy';
+import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
 /**
  * 底部抽屜（樣品的 `Sheet`）。它是堆疊裡的一層：關掉＝`nav.back()`，與返回鍵同一個出口
  *（`layerStack.ts`）。遮罩是 `fixed`，桌機上整個畫面都暗下來；抽屜本身在報告那一欄的寬度裡。
  */
 export function Sheet({ onClose, children, tall = false }: { onClose: () => void; children: ReactNode; tall?: boolean }) {
+  // 電腦版（VITE_DESKTOP_LAYOUT）：寬面板上從下往上拉滿整片太空，改成貼右邊的側抽屜。
+  const desk = useDesktopLayout();
   return (
-    <div className="absolute inset-0 flex flex-col justify-end">
+    <div className={desk ? 'absolute inset-0 flex justify-end' : 'absolute inset-0 flex flex-col justify-end'}>
       <button type="button" aria-label={COMMON.close} className="fixed inset-0 bg-black/45 training-fade cursor-default" onClick={onClose} />
-      <div role="dialog" aria-modal="true" className={`relative bg-white rounded-t-[22px] training-up flex flex-col ${tall ? 'h-[94%]' : 'max-h-[86%]'}`}>
+      <div role="dialog" aria-modal="true" className={desk ? 'relative bg-white h-full w-[440px] max-w-full rounded-l-[28px] training-up flex flex-col' : `relative bg-white rounded-t-[22px] training-up flex flex-col ${tall ? 'h-[94%]' : 'max-h-[86%]'}`}>
         <button
           type="button"
           aria-label={COMMON.close}

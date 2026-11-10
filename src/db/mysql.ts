@@ -537,6 +537,29 @@ export async function findPaymentByOutTradeNo(outTradeNo: string): Promise<any |
 }
 
 /**
+ * 對帳補結要問微信的那幾張（src/payments/reconcile.ts）：還是 pending、開單超過 `olderThanMinutes` 分鐘、
+ * 不超過 `newerThanHours` 小時，舊的先問。時間用資料庫自己的 NOW()，不受 Node 的時區影響。
+ */
+export async function listPendingPaymentsForReconcile(
+  olderThanMinutes: number,
+  newerThanHours: number,
+  limit: number
+): Promise<Array<{ outTradeNo: string }>> {
+  const p = getPool();
+  if (!p) return [];
+  const [rows] = await p.query(
+    `SELECT out_trade_no FROM payments
+      WHERE status = 'pending'
+        AND created_at <= NOW() - INTERVAL ? MINUTE
+        AND created_at >= NOW() - INTERVAL ? HOUR
+      ORDER BY created_at ASC
+      LIMIT ?`,
+    [olderThanMinutes, newerThanHours, limit]
+  );
+  return (rows as any[]).map(r => ({ outTradeNo: String(r.out_trade_no) }));
+}
+
+/**
  * Moves a payment pending → success. Returns true only for the call that
  * actually performed the transition.
  *

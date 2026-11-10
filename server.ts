@@ -106,6 +106,7 @@ import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import { CSP_REPORT_PATH, cspDirectives, readCspMode, summariseCspReport } from './src/security/csp';
 import { checkPaidOrder, type PaidOrderFacts } from './src/payments/paidOrderCheck';
+import { readReconcileMinutes, reconcilePendingOnce } from './src/payments/reconcile';
 import helmet from 'helmet';
 import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
@@ -3274,6 +3275,51 @@ async function settlePayment(
 }
 
 /**
+ * 對帳補結（`PAY_RECONCILE_MINUTES`，src/payments/reconcile.ts）：回調丟了、家長又沒回到頁面的單，
+ * 定時去問微信，付了的走同一個 settlePayment（核對金額、擋重複）。只在專案 A、微信支付與資料庫都設好時跑；
+ * 只在 `startServer` 裡啟動，測試載入 server.ts 不會有計時器。
+ */
+const PAY_RECONCILE_MINUTES = readReconcileMinutes(process.env.PAY_RECONCILE_MINUTES);
+
+function startPaymentReconcile(): void {
+  if (PAY_RECONCILE_MINUTES === 0) return;
+  if (APP_MODE !== 'full' || !wechatPayStatus.config || !mysqlDb.isConfigured()) {
+    console.warn('[Reconcile] PAY_RECONCILE_MINUTES is set but WeChat Pay or the database is not configured; not running.');
+    return;
+  }
+  const config = wechatPayStatus.config;
+  let running = false;
+  // 開單失敗的單（例如 H5 還沒開通時開的）在微信那邊不存在，48 小時內每一輪都會問不到：同一句只記一次
+  const logged = new Set<string>();
+  const logOnce = (line: string) => {
+    if (logged.has(line)) return;
+    if (logged.size > 1000) logged.clear();
+    logged.add(line);
+    console.log(line);
+  };
+  const tick = async () => {
+    if (running) return; // 上一輪還沒問完（微信慢）就不疊上去
+    running = true;
+    try {
+      const r = await reconcilePendingOnce({
+        listPending: mysqlDb.listPendingPaymentsForReconcile,
+        query: no => wechatPay.queryOrderByOutTradeNo(config, no),
+        settle: (no, remote) => settlePayment(no, remote.transactionId, { appid: remote.appid, mchid: remote.mchid, totalFen: remote.amountFen }),
+        log: logOnce,
+      });
+      if (r.settled > 0) console.log(`[Reconcile] checked ${r.checked}, settled ${r.settled}, failed ${r.failed}`);
+    } catch (err: any) {
+      console.error('[Reconcile] run failed:', err?.message ?? err);
+    } finally {
+      running = false;
+    }
+  };
+  setInterval(tick, PAY_RECONCILE_MINUTES * 60_000).unref();
+  setTimeout(tick, 60_000).unref(); // 開機一分鐘後先跑一輪，補上重啟那段時間丟的回調
+  console.log(`[Reconcile] every ${PAY_RECONCILE_MINUTES} min: pending orders 5 min – 48 h old are checked with WeChat Pay.`);
+}
+
+/**
  * WeChat Pay result callback.
  *
  * On `paidOnly` like the rest of payments: project B never submits a notify_url,
@@ -4710,6 +4756,8 @@ export async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  startPaymentReconcile();
 
   app.listen(PORT, LISTEN_HOST, () => {
     console.log(`[SenXinKang Server] Server is booted successfully on http://${LISTEN_HOST}:${PORT}`);

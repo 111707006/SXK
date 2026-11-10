@@ -4623,6 +4623,20 @@ export async function startServer() {
         maxAge: '365d',
       })
     );
+    // Vite 打包出來的檔名都帶內容雜湊（`index-CU_f4pr3.js`），內容一換檔名就換，所以可以快取一年。
+    // 以前寫在 nginx 的 `proxy_set_header Cache-Control` 是送給 Node 的請求標頭，瀏覽器根本收不到，
+    // 每次開頁都重新驗證 680 KB 的主程式。找不到的一律 404，不落到 SPA 兜底（把 index.html 當 JS 回去只會更難查）。
+    // index.html 本身仍由下面的 static／兜底回，沒有長快取 —— 部署後家長下一次開頁就拿到新的檔名。
+    app.use(
+      '/assets',
+      express.static(path.join(distPath, 'assets'), {
+        index: false,
+        redirect: false,
+        fallthrough: false,
+        immutable: true,
+        maxAge: '365d',
+      })
+    );
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

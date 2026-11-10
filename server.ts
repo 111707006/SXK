@@ -4275,7 +4275,12 @@ async function couponUserOf(req: express.Request): Promise<number | null> {
   return dbUserId;
 }
 
-const parentCouponOf = (c: StoredCoupon): ParentCoupon => ({ code: formatCode(c.code), discount: c.discount, label: couponDiscountLabel(c.discount) });
+/** 家長端看到的那一張。測試優惠碼那一批顯示家長輸入的測試碼（系統替每位家長另產的那一張碼家長沒見過，2026-11-10）。 */
+const parentCouponOf = (c: StoredCoupon): ParentCoupon => ({
+  code: formatCode(TEST_COUPON_CODE && c.batchNote === TEST_COUPON_BATCH_NOTE ? TEST_COUPON_CODE : c.code),
+  discount: c.discount,
+  label: couponDiscountLabel(c.discount),
+});
 
 /**
  * T2 優惠券（`T2_COUPON`，客戶 11/03）：`GET` 這位家長用了哪一張（`{coupon: null}`＝還沒用）；`POST {code}` 兌一張，兌到就算用掉、

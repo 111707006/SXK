@@ -15,6 +15,8 @@ export interface StoredCoupon {
   id: number;
   code: string;
   discount: CouponDiscount;
+  /** 那一批的備註（測試優惠碼那一批用它認，家長端顯示測試碼本身而不是系統產的那一張）。 */
+  batchNote?: string | null;
 }
 
 function rowToCoupon(row: any): StoredCoupon {
@@ -22,6 +24,7 @@ function rowToCoupon(row: any): StoredCoupon {
     id: Number(row.id),
     code: String(row.code),
     discount: { kind: row.discount_kind === 'amount' ? 'amount' : 'percent', value: Number(row.discount_value) },
+    batchNote: row.note ?? null,
   };
 }
 
@@ -30,7 +33,7 @@ export async function couponOfUser(userId: number): Promise<StoredCoupon | null>
   const p = getPool();
   if (!p) throw new Error('MySQL pool is not available');
   const [rows] = await p.execute(
-    `SELECT c.id, c.code, b.discount_kind, b.discount_value
+    `SELECT c.id, c.code, b.discount_kind, b.discount_value, b.note
        FROM coupon_codes c JOIN coupon_batches b ON b.id = c.batch_id
       WHERE c.used_by = ? AND c.status = 'used' LIMIT 1`,
     [userId],

@@ -90,8 +90,9 @@ export default function TrainingPlanPage({
             {TRAINING_PLAN_PAGE.redeemSubmit}
           </button>
         </div>
-        {redeemOpen && !activatedTo && (
-          <RedeemCodeForm loggedIn={loggedIn} onActivated={endsOn => { setActivatedTo(endsOn); onActivated(); }} />
+        {/* 兌換成功就收起來（上面的綠框寫開通到哪天）；再按「兑换」會開一個新的空表單，不必重新整理（2026-11-10） */}
+        {redeemOpen && (
+          <RedeemCodeForm loggedIn={loggedIn} onActivated={endsOn => { setActivatedTo(endsOn); setRedeemOpen(false); onActivated(); }} />
         )}
       </div>
 

@@ -149,10 +149,9 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
     }
   };
 
-  // 電腦版（版型 C）：同一組區塊排成兩欄 —— 左邊包含什麼與付款說明，右邊價錢、優惠碼與付款鍵。
-  if (desk) {
-    return (
-      <div id="paywall-desktop" className="w-full text-left">
+  // 手機與電腦版共用的區塊：字、價錢、按鈕只寫一次，兩種排法只管擺在哪裡。
+  const backButton = (
+    <>
       <button
         onClick={onBack}
         className="flex items-center gap-1.5 text-xs font-bold text-brand-charcoal/80 hover:text-brand-forest transition mb-4 cursor-pointer"
@@ -160,7 +159,10 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
         <ArrowLeft size={14} />
         返回维度总览
       </button>
-        <div className="bg-white rounded-3xl border border-brand-stone shadow-sm overflow-hidden">
+    </>
+  );
+  const header = (
+    <>
         <div className="bg-brand-sage/40 px-6 py-5 border-b border-brand-stone/60">
           <div className="flex items-center gap-2 text-xs font-bold text-brand-moss">
             <Lock size={12} />
@@ -171,8 +173,28 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
             按孩子的筛查结果安排要填的问卷，答完生成深度报告与每周家庭活动。
           </p>
         </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 px-6 py-6">
-            <div className="space-y-4">
+    </>
+  );
+  const price = (
+    <>
+          <div className="flex items-baseline gap-1">
+            <span className="text-sm font-bold text-brand-forest">¥</span>
+            <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(listFen)}</span>
+            <span className="text-xs text-brand-charcoal/80 ml-1">/ {pricing ? `${pricing.items} 项深度评估` : '整份一次'}</span>
+            {pricing && (
+              <span className="text-xs text-brand-charcoal/80 line-through ml-2">{PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}</span>
+            )}
+          </div>
+    </>
+  );
+  const couponBlock = (
+    <>
+          {/* 優惠碼兌換（`T2_COUPON`）：與 T2 卡同一個元件；兌到之後下單照折後價收 */}
+          {pricing && <T2CouponField priceFen={pricing.priceFen} onApplied={setCoupon} />}
+    </>
+  );
+  const features = (
+    <>
           <ul className="space-y-2">
             {[
               { icon: FileText, text: PRODUCT.features.ui1022 ? 'T2 深度评估的问卷，由家长填写' : '第二层能力量表，由家长填写' },
@@ -186,30 +208,30 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
               </li>
             ))}
           </ul>
+    </>
+  );
+  const note = (
+    <>
           <div className="flex items-start gap-2 text-xs text-brand-charcoal/80 bg-brand-cream rounded-xl p-3 border border-brand-stone/40">
             <ShieldCheck size={12} className="shrink-0 mt-0.5 text-brand-moss" />
             <span>
               一次解锁整份{PRODUCT.features.ui1022 ? ' T2 深度评估' : '第二层深度评估'}。解锁后跟着您的账号，以后重新筛查也能用。付款由微信支付处理，本平台不接触您的支付信息。
             </span>
           </div>
-            </div>
-            <div className="space-y-4 rounded-2xl border border-brand-stone/60 bg-brand-cream/40 p-5">
-          <div className="flex items-baseline gap-1">
-            <span className="text-sm font-bold text-brand-forest">¥</span>
-            <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(listFen)}</span>
-            <span className="text-xs text-brand-charcoal/80 ml-1">/ {pricing ? `${pricing.items} 项深度评估` : '整份一次'}</span>
-            {pricing && (
-              <span className="text-xs text-brand-charcoal/80 line-through ml-2">{PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}</span>
-            )}
-          </div>
-          {/* 優惠碼兌換（`T2_COUPON`）：與 T2 卡同一個元件；兌到之後下單照折後價收 */}
-          {pricing && <T2CouponField priceFen={pricing.priceFen} onApplied={setCoupon} />}
+    </>
+  );
+  const errorBox = (
+    <>
           {error && (
             <div className="flex items-start gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
+    </>
+  );
+  const demo = (
+    <>
           {/*
             展示模式的略過入口。
             付費牆在這種環境下擋不住任何東西，藏起來只是讓展示站的深度評估無路可走。
@@ -238,6 +260,10 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
             </div>
           )}
 
+    </>
+  );
+  const pay = (
+    <>
           {pendingOrder ? (
             /*
              * 訂單開出來了，但微信下單那一段還沒接。**不能**顯示成功。
@@ -286,6 +312,26 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
               )}
             </button>
           )}
+    </>
+  );
+  // 電腦版（版型 C）：同一組區塊排成兩欄 —— 左邊包含什麼與付款說明，右邊價錢、優惠碼與付款鍵。
+  if (desk) {
+    return (
+      <div id="paywall-desktop" className="w-full text-left">
+        {backButton}
+        <div className="bg-white rounded-3xl border border-brand-stone shadow-sm overflow-hidden">
+          {header}
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,22rem)] gap-6 px-6 py-6">
+            <div className="space-y-4">
+              {features}
+              {note}
+            </div>
+            <div className="space-y-4 rounded-2xl border border-brand-stone/60 bg-brand-cream/40 p-5">
+              {price}
+              {couponBlock}
+              {errorBox}
+              {demo}
+              {pay}
             </div>
           </div>
         </div>
@@ -295,143 +341,24 @@ export default function Paywall({ priceFen, isDemo = false, onBack, onAlreadyUnl
 
   return (
     <div className="max-w-2xl mx-auto">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-xs font-bold text-brand-charcoal/80 hover:text-brand-forest transition mb-4 cursor-pointer"
-      >
-        <ArrowLeft size={14} />
-        返回维度总览
-      </button>
+      {backButton}
 
       <div className="bg-white rounded-3xl border border-brand-stone shadow-sm overflow-hidden">
-        <div className="bg-brand-sage/40 px-6 py-5 border-b border-brand-stone/60">
-          <div className="flex items-center gap-2 text-xs font-bold text-brand-moss">
-            <Lock size={12} />
-            深度评估 · 待解锁
-          </div>
-          <h2 className="text-lg font-extrabold text-brand-forest mt-1">{PRODUCT.features.ui1022 ? 'T2 深度评估 · 整份解锁' : '第二层深度评估 · 整份解锁'}</h2>
-          <p className="text-xs text-brand-charcoal/80 mt-1">
-            按孩子的筛查结果安排要填的问卷，答完生成深度报告与每周家庭活动。
-          </p>
-        </div>
+        {header}
 
         <div className="px-6 py-5 space-y-4">
-          <div className="flex items-baseline gap-1">
-            <span className="text-sm font-bold text-brand-forest">¥</span>
-            <span className="text-4xl font-extrabold text-brand-forest tracking-tight">{formatFen(listFen)}</span>
-            <span className="text-xs text-brand-charcoal/80 ml-1">/ {pricing ? `${pricing.items} 项深度评估` : '整份一次'}</span>
-            {pricing && (
-              <span className="text-xs text-brand-charcoal/80 line-through ml-2">{PROMO_GUIDE_LABEL} ¥{formatFen(pricing.guidePriceFen)}</span>
-            )}
-          </div>
+          {price}
 
-          {/* 優惠碼兌換（`T2_COUPON`）：與 T2 卡同一個元件；兌到之後下單照折後價收 */}
-          {pricing && <T2CouponField priceFen={pricing.priceFen} onApplied={setCoupon} />}
+          {couponBlock}
 
-          <ul className="space-y-2">
-            {[
-              { icon: FileText, text: PRODUCT.features.ui1022 ? 'T2 深度评估的问卷，由家长填写' : '第二层能力量表，由家长填写' },
-              { icon: Activity, text: '筛查中被标记的能力方面全部涵盖，不分开购买' },
-              { icon: Sparkles, text: 'AI 生成的深度报告与每周家庭活动' },
-              { icon: InfinityIcon, text: '永久有效，重做筛查后依然可用，可免费重测' },
-            ].map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-start gap-2 text-xs text-brand-charcoal/80">
-                <Icon size={14} className="text-brand-moss shrink-0 mt-0.5" />
-                <span>{text}</span>
-              </li>
-            ))}
-          </ul>
+          {features}
 
-          <div className="flex items-start gap-2 text-xs text-brand-charcoal/80 bg-brand-cream rounded-xl p-3 border border-brand-stone/40">
-            <ShieldCheck size={12} className="shrink-0 mt-0.5 text-brand-moss" />
-            <span>
-              一次解锁整份{PRODUCT.features.ui1022 ? ' T2 深度评估' : '第二层深度评估'}。解锁后跟着您的账号，以后重新筛查也能用。付款由微信支付处理，本平台不接触您的支付信息。
-            </span>
-          </div>
+          {note}
 
-          {error && (
-            <div className="flex items-start gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
-              <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
+          {errorBox}
 
-          {/*
-            展示模式的略過入口。
-            付費牆在這種環境下擋不住任何東西，藏起來只是讓展示站的深度評估無路可走。
-
-            觸發它的後端狀況有兩種（都由 `/api/unlocks` 的 `available: false` 表示）：
-            沒有持久層，或 `PAYWALL_DEMO_OPEN=1`。文案刻意**不說是哪一種** ——
-            早期版本寫死「未连接数据库」，開關上線後那句話在資料庫連著的展示站上
-            就成了畫面上的假話，而這個畫面正是要拿給人看的那一個。
-            正式環境兩種都不成立，這整塊從畫面上消失。
-          */}
-          {isDemo && (
-            <div className="rounded-2xl border border-dashed border-brand-moss/50 bg-brand-sage/10 p-4 space-y-2.5">
-              <div className="flex items-center gap-1.5 text-xs font-extrabold text-brand-forest">
-                <Eye size={14} />
-                展示模式
-              </div>
-              <p className="text-xs text-brand-charcoal/80 leading-relaxed">
-                当前为展示环境，不会产生真实订单，付费墙仅供预览。正式环境不会出现下面这个按钮。
-              </p>
-              <button
-                onClick={onAlreadyUnlocked}
-                className="w-full py-2.5 rounded-xl border border-brand-moss/40 bg-white hover:bg-brand-cream text-brand-forest text-xs font-bold transition active:scale-[0.99] cursor-pointer"
-              >
-                跳过付费，直接查看深度评估（展示用）
-              </button>
-            </div>
-          )}
-
-          {pendingOrder ? (
-            /*
-             * 訂單開出來了，但微信下單那一段還沒接。**不能**顯示成功。
-             * 訂單號有印出來是為了讓客服對得上單 —— 家長真的按到這一步時，
-             * 手動處理是唯一誠實的選項。
-             */
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-800">
-                <AlertCircle size={14} />
-                支付通道尚未开放
-              </div>
-              <p className="text-xs text-amber-800/90 leading-relaxed">
-                订单已为您保留，但微信支付尚未开通，暂时无法完成付款。开通后您可凭订单号继续支付，无需重新下单。
-              </p>
-              {pendingOrder.reason && (
-                <p className="text-xs text-amber-800/60">{pendingOrder.reason}</p>
-              )}
-              <div className="text-xs text-amber-900/70 font-mono bg-white/60 rounded-lg px-2.5 py-1.5 border border-amber-200 break-all">
-                订单号：{pendingOrder.outTradeNo}
-              </div>
-              <p className="text-xs text-amber-800/70">
-                金额：¥{formatFen(pendingOrder.amountFen)}
-              </p>
-            </div>
-          ) : (
-            <button
-              onClick={handleCreateOrder}
-              disabled={isCreating || isChecking}
-              className="w-full py-3.5 rounded-2xl bg-brand-moss hover:bg-brand-moss/90 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-extrabold transition flex items-center justify-center gap-2 shadow-md shadow-brand-moss/25 active:scale-[0.99] cursor-pointer"
-            >
-              {isChecking ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  正在确认支付结果...
-                </>
-              ) : isCreating ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  正在创建订单...
-                </>
-              ) : (
-                <>
-                  <Lock size={14} />
-                  ¥{formatFen(shownFen)} 解锁深度评估
-                </>
-              )}
-            </button>
-          )}
+          {demo}
+          {pay}
         </div>
       </div>
     </div>

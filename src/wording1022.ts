@@ -93,6 +93,7 @@ export const WORDING_1022 = {
   buttons: {
     generateReport: '生成报告',
     deepAssess: '深度评估',
+    startAssess: '开始评估',
   },
 
   /** T1 最後一步「补充资料」（issue #83）。題目本身沿用 `src/t2/recommend/childFieldsCopy.ts`。 */

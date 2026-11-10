@@ -32,7 +32,8 @@ export default function LedoT1Questions({ questions, answers, ageBandName, onSel
   const last = at === total - 1;
   const answered = answers[q.id] !== undefined;
   const allAnswered = questions.every(x => answers[x.id] !== undefined);
-  if (desk) return <DeskT1 {...{ questions, answers, ageBandName, onSelect, onSubmit, onExit, submitLabel, at, setAt }} />;
+  // 作答規則（哪一題、最後一題、答了沒、全答完沒）只算這一次，電腦版只換排法
+  if (desk) return <DeskT1 {...{ questions, answers, ageBandName, onSelect, onSubmit, onExit, submitLabel, at, setAt, last, answered, allAnswered }} />;
 
   return (
     <div id="ledo-t1" className="mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4 text-left shadow-[0_22px_50px_-28px_rgba(36,51,44,0.45)] sm:p-6">
@@ -109,7 +110,7 @@ export default function LedoT1Questions({ questions, answers, ageBandName, onSel
  * 電腦版（版型 C 的 T1 作答）：左邊題目卡、答案三個並排；右邊「九个方面」每一方面答了幾題（照 `answers` 算），
  * 點一個方面跳到它第一題。題目、作答、交卷與手機版同一份，只換排法。
  */
-function DeskT1({ questions, answers, ageBandName, onSelect, onSubmit, onExit, submitLabel, at, setAt }: {
+function DeskT1({ questions, answers, ageBandName, onSelect, onSubmit, onExit, submitLabel, at, setAt, last, answered, allAnswered }: {
   questions: T1Question[];
   answers: Record<string, number>;
   ageBandName: string;
@@ -119,13 +120,13 @@ function DeskT1({ questions, answers, ageBandName, onSelect, onSubmit, onExit, s
   submitLabel: string;
   at: number;
   setAt: (fn: (i: number) => number) => void;
+  last: boolean;
+  answered: boolean;
+  allAnswered: boolean;
 }) {
   const q = questions[at];
   const total = questions.length;
-  const last = at === total - 1;
-  const answered = answers[q.id] !== undefined;
   const done = questions.filter(x => answers[x.id] !== undefined).length;
-  const allAnswered = done === total;
   // 手機版是一題一題往下（沒答不能下一题）；跳方面也只跳到已經答到的地方，不讓人跳過沒答的題
   const firstOpen = questions.findIndex(x => answers[x.id] === undefined);
   const reachable = (first: number) => firstOpen < 0 || first <= firstOpen;

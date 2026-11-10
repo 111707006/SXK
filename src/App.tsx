@@ -112,7 +112,6 @@ export default function App() {
   const child = useMemo(() => refreshChildAge(childProfile, today), [childProfile, today]);
   // 電腦版側欄（`VITE_DESKTOP_LAYOUT`，≥ 1024px）：只在有孩子檔案（登入後的工作台）時換外框；登入前照舊。
   const desktopWide = useDesktopWide();
-  const desktopLayout = desktopWide && Boolean(child);
 
   // Navigation: 'dashboard' | 't1_screening' | 'assessment' | 'report' | 'mall' | 'language_special' | 'specialized_report' | 'paywall' | 't2_assessment' | 't2_report'
   /**
@@ -192,6 +191,8 @@ export default function App() {
    * 家長在下次開啟時被登出，而它只是一個鍵名。
    */
   const [userIdentity, setUserIdentity] = useState<string | null>(() => localStorage.getItem('senxinkang_user_email'));
+  // 電腦版外框只給登入後、有孩子檔案的家長：通行證過期（`sessionNotice`）時孩子檔案可能還在，那時畫的是登入頁，不該套外框。
+  const desktopLayout = desktopWide && Boolean(child) && Boolean(userIdentity);
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('senxinkang_token'));
 
   // ── 付費解鎖狀態 ──
@@ -1183,7 +1184,7 @@ export default function App() {
   const desktopNextStep: DesktopNextStep | null = !PRODUCT.features.ui1022
     ? null
     : desktopT1.length === 0
-      ? { title: WORDING_1022.t1Name, action: '开始评估', onClick: startT1Screening }
+      ? { title: WORDING_1022.t1Name, action: WORDING_1022.buttons.startAssess, onClick: startT1Screening }
       : desktopFlagged.length > 0 && PRODUCT.features.tier2And3
         ? { title: PRODUCT.nextStep.actionLabelHigh, detail: desktopFlagged.join('、'), action: WORDING_1022.buttons.deepAssess, onClick: goToT2Entrance }
         : null;
@@ -1384,7 +1385,7 @@ export default function App() {
       )}
       
       {/* Top Professional Master Header Navbar */}
-      {!desktopLayout && <header className="sticky top-0 z-40 w-full bg-white border-b border-brand-stone/60 shadow-sm backdrop-blur-md">
+      {!desktopLayout && <header className="sticky top-0 z-40 w-full bg-white border-b border-brand-stone/60 shadow-sm">
         {/*
           平板（640–1023px）也上下兩列：標題一列、導覽＋孩子一列。原本 sm 就並排，820px 寬時標題擠成兩行、
           孩子的選單掉到導覽底下（2026-09-29 三種寬度截圖時看到的）。

@@ -53,7 +53,9 @@ describe('頁首徽章', () => {
 
   it('頁首只畫 LOGO，不寫公司名（使用者 2026-11-10）', () => {
     const src = readFileSync('src/components/CompanyBadge.tsx', 'utf8');
-    expect(src).not.toContain('{badge.name}');
+    // 名字只在 alt（螢幕閱讀器），不當文字畫出來
+    expect(src).not.toMatch(/>\s*\{badge\.name\}\s*</);
+    expect(src).toContain('alt={badge.name}');
     expect(src).toContain('if (!badge || !badge.logoUrl || broken) return null;');
   });
 });

@@ -41,7 +41,7 @@ export function DesktopTopBar({
   right: ReactNode;
 }) {
   return (
-    <header id="desktop-topbar" className="sticky top-0 z-40 w-full border-b border-ledo-line bg-white/95 backdrop-blur">
+    <header id="desktop-topbar" className="sticky top-0 z-40 w-full border-b border-ledo-line bg-white">
       <div className={`${DESKTOP_FRAME} flex items-center gap-8`}>
         <div className="flex shrink-0 items-center gap-2 py-4">
           <h1 className="text-base font-black text-ledo-ink">{title}</h1>

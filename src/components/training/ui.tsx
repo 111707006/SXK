@@ -23,7 +23,7 @@ export function Sheet({ onClose, children, tall = false }: { onClose: () => void
   return (
     <div className={desk ? 'absolute inset-0 flex justify-end' : 'absolute inset-0 flex flex-col justify-end'}>
       <button type="button" aria-label={COMMON.close} className="fixed inset-0 bg-black/45 training-fade cursor-default" onClick={onClose} />
-      <div role="dialog" aria-modal="true" className={desk ? 'relative bg-white h-full w-[440px] max-w-full rounded-l-[28px] training-up flex flex-col' : `relative bg-white rounded-t-[22px] training-up flex flex-col ${tall ? 'h-[94%]' : 'max-h-[86%]'}`}>
+      <div role="dialog" aria-modal="true" className={desk ? 'relative bg-white h-full w-[440px] max-w-full rounded-l-[28px] training-side flex flex-col' : `relative bg-white rounded-t-[22px] training-up flex flex-col ${tall ? 'h-[94%]' : 'max-h-[86%]'}`}>
         <button
           type="button"
           aria-label={COMMON.close}

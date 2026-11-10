@@ -112,4 +112,19 @@ describe('VITE_DESKTOP_LAYOUT', () => {
     expect(off).toContain('const desk = useDesktopLayout();');
     expect(off).toContain('mx-auto w-full max-w-xl space-y-4 rounded-[32px] bg-white p-4');
   });
+
+  it('外框只給登入的家長：通行證過期、孩子檔案還在時畫登入頁，不套外框', () => {
+    const app = readFileSync('src/App.tsx', 'utf8');
+    expect(app).toContain('const desktopLayout = desktopWide && Boolean(child) && Boolean(userIdentity);');
+  });
+
+  it('孩子選單的遮罩要蓋住整個畫面：頁首（手機與電腦版）不能有 backdrop-filter（會把 fixed 的遮罩關在頁首裡）', () => {
+    const app = readFileSync('src/App.tsx', 'utf8');
+    const header = app.slice(app.indexOf('{!desktopLayout && <header'), app.indexOf('>', app.indexOf('{!desktopLayout && <header')));
+    expect(header).not.toContain('backdrop-blur');
+    const shell = readFileSync('src/desktop/DesktopShell.tsx', 'utf8');
+    const top = shell.slice(shell.indexOf('<header id="desktop-topbar"'), shell.indexOf('>', shell.indexOf('<header id="desktop-topbar"')));
+    expect(top).not.toContain('backdrop-blur');
+  });
 });
+

@@ -50,12 +50,17 @@ export function planListPriceFen(months: PassMonths, priceFen: number | null): n
   return list !== undefined && priceFen !== null && list > priceFen ? list : null;
 }
 
+/** 凸顯的那一張（使用者 2026-11-10：照參考圖凸顯六個月，標「最佳选择」）。 */
+export const BEST_PLAN_MONTHS: PassMonths = 6;
+
 export const TRAINING_PLAN_PAGE = {
   title: '线上家庭个性化训练',
   sub: '按孩子的评估结果安排每周的家庭活动。',
   /** 每張方案卡底下那一行（文字文稿16）。 */
   limitedFree: '部分功能限免生效中',
   pay: '开通',
+  /** 凸顯那張卡頂端的標籤（`BEST_PLAN_MONTHS`）。 */
+  bestChoice: '最佳选择',
   payUnavailable: '暂未开放',
   priceTbd: '价格待定',
   /** 劃掉的原價（`PLAN_LIST_PRICE_FEN`）。 */

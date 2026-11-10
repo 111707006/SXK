@@ -1,11 +1,11 @@
 /**
  * 訓練計劃頁（客戶 10/22，#110，開關 `TRAINING_PLAN`）：首頁「线上家庭个性化训练」與續買入口在沒有有效使用權時到這裡。
- * 「VIP 兑换」一格（簡報 11/03 第 8 頁）＋四張方案卡（月數、價錢、權益清單、「部分功能限免生效中」，文字文稿16）、付款鈕（微信支付沒設齊時「暂未开放」，#111）。
+ * 四張方案卡（六個月凸顯、標「最佳选择」，使用者 2026-11-10）＋底下「VIP 兑换」一格（簡報 11/03 第 8 頁；11/10 移到十二個月底下）＋（月數、價錢、權益清單、「部分功能限免生效中」，文字文稿16）、付款鈕（微信支付沒設齊時「暂未开放」，#111）。
  * 兌換成功當場說「已开通，到 X 月 X 日」，按鈕帶去居家訓練。
  */
 import { useEffect, useState } from 'react';
 import { Check, Gift, Loader2 } from 'lucide-react';
-import { TRAINING_PLAN_PAGE, planListPriceFen, planYuan } from '../../t2/trainingPlanCopy';
+import { BEST_PLAN_MONTHS, TRAINING_PLAN_PAGE, planListPriceFen, planYuan } from '../../t2/trainingPlanCopy';
 import RedeemCodeForm from './RedeemCodeForm';
 import { useDesktopLayout } from '../../desktop/useDesktopLayout';
 
@@ -49,6 +49,15 @@ function PlanFeatures({ plan }: { plan: PlanCard }) {
       </ul>
       <p className="text-xs text-ledo-ink-2">{TRAINING_PLAN_PAGE.limitedFree}</p>
     </div>
+  );
+}
+
+/** 凸顯那張卡頂端的標籤（`BEST_PLAN_MONTHS`，參考圖「人气首选」那一條）。 */
+function BestBadge() {
+  return (
+    <span className="absolute -top-3 left-4 rounded-full bg-ledo-accent px-3 py-1 text-xs font-black text-white shadow-sm">
+      {TRAINING_PLAN_PAGE.bestChoice}
+    </span>
   );
 }
 
@@ -105,22 +114,15 @@ export default function TrainingPlanPage({
         {active && !activatedTo && <div id="training-plan-active">{activeBox(active.endsOn ? TRAINING_PLAN_PAGE.activated(active.endsOn) : TRAINING_PLAN_PAGE.activeNoEnd)}</div>}
         {activatedTo && <div id="training-plan-activated">{activeBox(TRAINING_PLAN_PAGE.activated(activatedTo))}</div>}
 
-        <div id="training-plan-vip" className="flex items-center gap-4 rounded-[28px] border-[1.5px] border-ledo-accent bg-ledo-accent-soft/50 px-6 py-4">
-          <p className="flex shrink-0 items-center gap-1.5 text-base font-black text-ledo-ink"><Gift size={16} />{TRAINING_PLAN_PAGE.vipTitle}</p>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-ledo-ink-2">{TRAINING_PLAN_PAGE.vipBlurb}</p>
-          <button type="button" id="training-plan-redeem-entry" onClick={() => setRedeemOpen(o => !o)}
-            className="shrink-0 rounded-full bg-ledo-accent px-6 py-2.5 text-sm font-black text-white cursor-pointer">
-            {TRAINING_PLAN_PAGE.redeemSubmit}
-          </button>
-        </div>
-
         <div className="grid grid-cols-4 items-stretch gap-4">
           {data === null ? (
             <div className="col-span-4 grid place-items-center rounded-[28px] bg-white py-10"><Loader2 size={18} className="animate-spin text-ledo-ink-2" /></div>
           ) : data.plans.map(p => {
             const list = planListPriceFen(p.months, p.priceFen);
             return (
-              <div key={p.months} id={`training-plan-${p.months}`} className="flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)]">
+              <div key={p.months} id={`training-plan-${p.months}`} data-best={p.months === BEST_PLAN_MONTHS || undefined}
+                className={`relative flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-[0_14px_34px_-26px_rgba(36,51,44,0.5)] ${p.months === BEST_PLAN_MONTHS ? 'border-2 border-ledo-accent pt-10' : ''}`}>
+                {p.months === BEST_PLAN_MONTHS && <BestBadge />}
                 <p className="text-sm font-black text-ledo-ink-2">{p.title}</p>
                 <div className="flex flex-wrap items-baseline gap-x-2">
                   <span className="text-[30px] font-black leading-none text-ledo-ink tabular-nums">{p.priceFen === null ? TRAINING_PLAN_PAGE.priceTbd : planYuan(p.priceFen)}</span>
@@ -130,7 +132,7 @@ export default function TrainingPlanPage({
                   type="button"
                   disabled={!payable(p)}
                   onClick={() => onPay?.(p.months)}
-                  className="w-full rounded-full bg-ledo-bar py-2.5 text-sm font-black text-white disabled:bg-ledo-field disabled:text-ledo-ink-2 cursor-pointer disabled:cursor-default"
+                  className={`w-full rounded-full ${p.months === BEST_PLAN_MONTHS ? 'bg-ledo-accent' : 'bg-ledo-bar'} py-2.5 text-sm font-black text-white disabled:bg-ledo-field disabled:text-ledo-ink-2 cursor-pointer disabled:cursor-default`}
                 >
                   {payable(p) ? TRAINING_PLAN_PAGE.pay : TRAINING_PLAN_PAGE.payUnavailable}
                 </button>
@@ -138,6 +140,15 @@ export default function TrainingPlanPage({
               </div>
             );
           })}
+        </div>
+
+        <div id="training-plan-vip" className="flex items-center gap-4 rounded-[28px] border-[1.5px] border-ledo-accent bg-ledo-accent-soft/50 px-6 py-4">
+          <p className="flex shrink-0 items-center gap-1.5 text-base font-black text-ledo-ink"><Gift size={16} />{TRAINING_PLAN_PAGE.vipTitle}</p>
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-ledo-ink-2">{TRAINING_PLAN_PAGE.vipBlurb}</p>
+          <button type="button" id="training-plan-redeem-entry" onClick={() => setRedeemOpen(o => !o)}
+            className="shrink-0 rounded-full bg-ledo-accent px-6 py-2.5 text-sm font-black text-white cursor-pointer">
+            {TRAINING_PLAN_PAGE.redeemSubmit}
+          </button>
         </div>
 
         {/* 兌換表單在電腦版放在整排卡片底下（第一欄太窄放不下）。 */}
@@ -172,30 +183,14 @@ export default function TrainingPlanPage({
         </div>
       )}
 
-      {/* 「VIP 兑换」一格（簡報 11/03 第 8 頁：參考圖「免费使用」那一格改成 VIP 兌換；取代原本右上角的「兑换码」小鈕）。 */}
-      <div id="training-plan-vip" className="space-y-3 rounded-3xl border-[1.5px] border-ledo-accent bg-ledo-accent-soft/50 p-4">
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="flex items-center gap-1.5 text-base font-black text-ledo-ink"><Gift size={15} />{TRAINING_PLAN_PAGE.vipTitle}</p>
-            <p className="text-xs leading-relaxed text-ledo-ink-2">{TRAINING_PLAN_PAGE.vipBlurb}</p>
-          </div>
-          <button type="button" id="training-plan-redeem-entry" onClick={() => setRedeemOpen(o => !o)}
-            className="shrink-0 rounded-full bg-ledo-accent px-3.5 py-1.5 text-xs font-black text-white cursor-pointer">
-            {TRAINING_PLAN_PAGE.redeemSubmit}
-          </button>
-        </div>
-        {/* 兌換成功就收起來（上面的綠框寫開通到哪天）；再按「兑换」會開一個新的空表單，不必重新整理（2026-11-10） */}
-        {redeemOpen && (
-          <RedeemCodeForm loggedIn={loggedIn} onActivated={endsOn => { setActivatedTo(endsOn); setRedeemOpen(false); onActivated(); }} />
-        )}
-      </div>
-
       {data === null ? (
         <Loader2 size={16} className="animate-spin text-ledo-ink-2" />
       ) : (
         <div className="space-y-2.5">
           {data.plans.map(p => (
-            <div key={p.months} id={`training-plan-${p.months}`} className="flex items-start gap-3 rounded-3xl border-[1.5px] border-ledo-line p-4">
+            <div key={p.months} id={`training-plan-${p.months}`} data-best={p.months === BEST_PLAN_MONTHS || undefined}
+              className={`relative flex items-start gap-3 rounded-3xl p-4 ${p.months === BEST_PLAN_MONTHS ? 'mt-3 border-2 border-ledo-accent bg-ledo-accent-soft/30 pt-6' : 'border-[1.5px] border-ledo-line'}`}>
+              {p.months === BEST_PLAN_MONTHS && <BestBadge />}
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-base font-black text-ledo-ink">{p.title}</p>
                 <PlanFeatures plan={p} />
@@ -218,6 +213,24 @@ export default function TrainingPlanPage({
           ))}
         </div>
       )}
+
+      {/* 「VIP 兑换」一格（2026-11-10 移到十二個月底下；簡報 11/03 第 8 頁：參考圖「免费使用」那一格改成 VIP 兌換；取代原本右上角的「兑换码」小鈕）。 */}
+      <div id="training-plan-vip" className="space-y-3 rounded-3xl border-[1.5px] border-ledo-accent bg-ledo-accent-soft/50 p-4">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="flex items-center gap-1.5 text-base font-black text-ledo-ink"><Gift size={15} />{TRAINING_PLAN_PAGE.vipTitle}</p>
+            <p className="text-xs leading-relaxed text-ledo-ink-2">{TRAINING_PLAN_PAGE.vipBlurb}</p>
+          </div>
+          <button type="button" id="training-plan-redeem-entry" onClick={() => setRedeemOpen(o => !o)}
+            className="shrink-0 rounded-full bg-ledo-accent px-3.5 py-1.5 text-xs font-black text-white cursor-pointer">
+            {TRAINING_PLAN_PAGE.redeemSubmit}
+          </button>
+        </div>
+        {/* 兌換成功就收起來（上面的綠框寫開通到哪天）；再按「兑换」會開一個新的空表單，不必重新整理（2026-11-10） */}
+        {redeemOpen && (
+          <RedeemCodeForm loggedIn={loggedIn} onActivated={endsOn => { setActivatedTo(endsOn); setRedeemOpen(false); onActivated(); }} />
+        )}
+      </div>
     </div>
   );
 }

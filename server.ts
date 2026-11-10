@@ -107,6 +107,7 @@ import rateLimit from 'express-rate-limit';
 import { CSP_REPORT_PATH, cspDirectives, readCspMode, summariseCspReport } from './src/security/csp';
 import { checkPaidOrder, type PaidOrderFacts } from './src/payments/paidOrderCheck';
 import { readReconcileMinutes, reconcilePendingOnce } from './src/payments/reconcile';
+import { Alerter, readAlertWebhook, wecomSender } from './src/alerts';
 import helmet from 'helmet';
 import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
@@ -487,6 +488,21 @@ async function placeChannelOrder(
 // TLS is terminated by nginx (see deploy/nginx.conf).
 // CSP 照 `CSP_MODE`（src/security/csp.ts）：不設＝不送（照舊）；`report` 只回報不擋；`enforce` 才擋。
 const CSP_MODE = readCspMode(process.env.CSP_MODE);
+
+// 出事通知（`ALERT_WEBHOOK_URL`，src/alerts.ts）：沒設＝不送。標籤寫是哪一站，群裡同時收 A、B 時分得出來。
+const ALERT_WEBHOOK = readAlertWebhook(process.env.ALERT_WEBHOOK_URL);
+const alerter = new Alerter(
+  ALERT_WEBHOOK ? wecomSender(ALERT_WEBHOOK) : null,
+  `${APP_MODE === 'full' ? 'A' : 'B'} ${(process.env.PUBLIC_BASE_URL || '').replace(/^https?:\/\//, '') || 'server'}`,
+);
+if (alerter.enabled) {
+  app.use((req, res, next) => {
+    res.on('finish', () => {
+      if (res.statusCode >= 500) alerter.recordServerError(req.method, req.originalUrl, res.statusCode);
+    });
+    next();
+  });
+}
 app.use(helmet({
   contentSecurityPolicy: CSP_MODE === 'off'
     ? false
@@ -3241,6 +3257,7 @@ async function settlePayment(
     : { ok: false as const, reason: 'WeChat Pay is not configured' };
   if (!check.ok) {
     console.error(`[Payment] ALERT settlement refused for ${outTradeNo}: ${check.reason}; nothing granted, order left pending`);
+    void alerter.alert('payment', `订单 ${outTradeNo} 微信说已付款，但与订单对不上（${check.reason}）。没有发放权益，订单留在 pending，请人工核对。`, `mismatch:${outTradeNo}`);
     return 'mismatch';
   }
   const moved = await mysqlDb.markPaymentSuccess(outTradeNo, transactionId);
@@ -3403,6 +3420,7 @@ paidOnly.post('/api/pay/wechat/notify', async (req: any, res) => {
     });
   } catch (err: any) {
     console.error(`[Payment] Settlement failed for ${outTradeNo}: ${err.message}`);
+    void alerter.alert('payment', `订单 ${outTradeNo} 回调结算失败：${err.message}。对账补结（PAY_RECONCILE_MINUTES）或家长回到页面查单会再试。`, `settle:${outTradeNo}`);
   }
 });
 
@@ -4758,6 +4776,19 @@ export async function startServer() {
   }
 
   startPaymentReconcile();
+
+  // 程序要掛了：先通知（最多等 3 秒），再照 Node 的預設結束、讓 pm2 重開。只在真的起伺服器時裝，測試不受影響。
+  if (alerter.enabled) {
+    const dying = (what: string) => (err: unknown) => {
+      console.error(`[Process] ${what}:`, err);
+      const msg = err instanceof Error ? `${err.name}: ${err.message}\n${(err.stack || '').split('\n').slice(1, 4).join('\n')}` : String(err);
+      const done = () => process.exit(1);
+      setTimeout(done, 3000).unref();
+      alerter.alert('crash', `${what}，程序将重启。\n${msg}`).finally(done);
+    };
+    process.on('uncaughtException', dying('uncaughtException'));
+    process.on('unhandledRejection', dying('unhandledRejection'));
+  }
 
   app.listen(PORT, LISTEN_HOST, () => {
     console.log(`[SenXinKang Server] Server is booted successfully on http://${LISTEN_HOST}:${PORT}`);

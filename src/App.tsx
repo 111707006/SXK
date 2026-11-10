@@ -1515,8 +1515,8 @@ export default function App() {
       </header>}
 
       {/* Main Container Workspace */}
-      {/* 電腦版分屏導覽：左邊 300px 情境欄、右邊頁面內容（內容靠上，不上下置中）。 */}
-      <main className={desktopLayout ? `flex-1 ${DESKTOP_FRAME} py-8 grid grid-cols-[300px_minmax(0,1fr)] items-start gap-8` : "flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center"}>
+      {/* 電腦版分屏導覽：左邊情境欄（≥1280 寬 300px；1024–1279 收成 248px，內容才不擠）、右邊頁面內容（內容靠上，不上下置中）。 */}
+      <main className={desktopLayout ? `flex-1 ${DESKTOP_FRAME} py-8 grid grid-cols-[248px_minmax(0,1fr)] items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)] xl:gap-8` : "flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center"}>
         {desktopLayout && child && (
           <DesktopContext
             childName={child.name}

@@ -488,6 +488,17 @@ function ParentDetailModal({
   const { data, loading, failure, reload } = useAsyncData(load, [id], onError);
   const [confirming, setConfirming] = useState(false);
 
+  // Esc 關掉抽屜（2026-11-11：原本只能點右上角的 ✕，它緊貼著「删除家长」）。確認框開著時 Esc 先只關確認框。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (confirming) setConfirming(false);
+      else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirming, onClose]);
+
   return (
     /*
       確認框是這個抽屜的**兄弟，不是子孫**。

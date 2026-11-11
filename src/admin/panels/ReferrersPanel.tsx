@@ -91,8 +91,8 @@ export default function ReferrersPanel({
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </Field>
-          <Field label="登入信箱"><TextInput value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" /></Field>
-          <Field label="初始密码" hint="至少 8 个字元，交给推荐人后请他自己保管。"><TextInput value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} type="password" /></Field>
+          <Field label="登入信箱"><TextInput value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" autoComplete="off" /></Field>
+          <Field label="初始密码" hint="至少 8 个字元，交给推荐人后请他自己保管。"><TextInput value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} type="password" autoComplete="new-password" /></Field>
           <div className="sm:col-span-2 flex items-center gap-3">
             <Button type="submit" busy={busy}><UserPlus size={12} />开设推荐人</Button>
             {error && <span className="text-[11px] font-bold text-red-700">{error}</span>}

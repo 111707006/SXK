@@ -206,9 +206,13 @@ function toIso(value: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/**
+ * 被標記的維度：只看 **T1**（同 `screeningTotal`）。`completed_scores` 裡還躺著改版前的專項評估成績
+ * （語言 40/120、動作 20/50），混進來會讓一個維度出現兩三次、滿分也對不上（2026-11-11 後台測試）。
+ */
 function flaggedFrom(scores: DimensionScore[]): ParentListItem['flaggedDimensions'] {
   return scores
-    .filter(s => s.status === 'delay' || s.status === 'borderline')
+    .filter(s => s.tierId === 'T1' && (s.status === 'delay' || s.status === 'borderline'))
     .map(s => ({
       dimensionId: s.dimensionId,
       dimensionName: s.dimensionName,

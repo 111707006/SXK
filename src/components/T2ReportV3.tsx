@@ -27,6 +27,7 @@ import ScaleDetailCard from './ScaleDetailCard';
 import type { T2ReportActions } from './T2Report';
 import { SCALE_DETAIL_FOOTER, SCALE_DETAIL_LEAD, SCALE_DETAIL_TITLE } from '../t2/scaleDetailCopy';
 import { useDesktopLayout } from '../desktop/useDesktopLayout';
+import TrainingPromoCard from '../home/TrainingPromoCard';
 
 /** 氣質與生活品質那兩支的客規代碼（不進九宮格，各有一段）。 */
 const TEMPERAMENT_TOOL = 'ITQ/TTS/BSQ';
@@ -333,8 +334,14 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
       ) : (
         <>{secOverview}{secPerDim}{secScale}{secNoTool}{secQol}{secTemp}</>
       )}
-      {/* 6. 線上干預：只留一行連結（2026-09-28 起不放在報告裡） */}
-      {actions?.onOpenTraining && (
+      {/* 6. 線上干預。1022（使用者 2026-11-11：T2 報告缺這一塊）：放首頁那張「线上家庭个性化训练」卡（圖、價錢、选方案），點了到方案頁。 */}
+      {actions?.onOpenTraining && PRODUCT.features.ui1022 && (
+        <section id="t2v3-weekly" className="print:hidden">
+          <div className="max-w-2xl"><TrainingPromoCard id="t2v3-training-card" desk={desk} onOpen={actions.onOpenTraining} /></div>
+        </section>
+      )}
+      {/* 舊版（沒開 1022）：只留一行連結（2026-09-28 起不放在報告裡） */}
+      {actions?.onOpenTraining && !PRODUCT.features.ui1022 && (
         <section id="t2v3-weekly" className="print:hidden">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-2xl bg-brand-forest text-white px-5 py-4">
             <p className="text-xs leading-relaxed">{REPORT_TRAINING_LINK.text}</p>

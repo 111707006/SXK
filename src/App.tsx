@@ -2028,7 +2028,8 @@ export default function App() {
                     generateOnOpen={t2ReportGenerate}
                     onBack={() => setCurrentView('t2_assessment')}
                     onBookService={type => goToExpertBooking(type)}
-                    onOpenTraining={() => setCurrentView('training')}
+                    // 1022：報告裡那張「线上家庭个性化训练」卡與首頁同一個去處（方案頁；已開通的在那裡直接進去，2026-11-11）
+                    onOpenTraining={PRODUCT.features.ui1022 ? () => openHomeTarget('training') : () => setCurrentView('training')}
                   />
                 </LazyBoundary>
               </div>

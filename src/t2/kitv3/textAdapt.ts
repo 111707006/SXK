@@ -281,5 +281,29 @@ export function adaptForParents(text: string): string {
       if (Object.prototype.hasOwnProperty.call(REWRITES, s)) return REWRITES[s] ?? '';
       return findBannedWords(s).length === 0 ? s : '';
     })
+    .map(localize)
     .join('');
+}
+
+/**
+ * 逐句查表之後再換的用語（使用者 2026-11-16）：題庫原文是臺灣寫法，大陸家長習慣的說法不同；
+ * 「（4–6 分）」指的分數畫面上沒有給。只換字、不動句子。
+ */
+const TERMS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/复健科/g, '康复科'],
+  [/讯号/g, '信号'],
+  [/本次检核/g, '这次填写'],
+  [/再检核一次/g, '再填一次'],
+  [/本次记录中/g, '这次填写里'],
+  [/本次记录/g, '这次填写里'],
+  [/本次/g, '这次'],
+  [/本表没有常模/g, '这份问卷没有同龄孩子的对照数据'],
+  [/本表/g, '这份问卷'],
+  [/各面向/g, '各方面'],
+  [/单一面向/g, '单一方面'],
+  [/（4–6 分）/g, ''],
+];
+
+function localize(sentence: string): string {
+  return TERMS.reduce((t, [from, to]) => t.replace(from, to), sentence);
 }

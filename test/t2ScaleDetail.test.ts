@@ -59,8 +59,8 @@ describe('達成率族：範例那個孩子（粗大動作）', () => {
   });
 
   it('整支 91% 是最好那段，總覽不說「各面向都好」，而是點名平衡', () => {
-    expect(d.overall).toContain('76 题里已经会 69 题');
-    expect(d.overall).toContain('「平衡与球类协调」还在发展中，是这次最需要练的地方');
+    expect(d.overall).toContain('76 题里，孩子已经会 69 题');
+    expect(d.overall).toContain('最需要练的是平衡与球类协调，其次是跑跳与下肢力量');
     expect(d.overall).not.toContain('达成良好');
   });
 
@@ -79,7 +79,7 @@ describe('達成率族：其他情形', () => {
   it('全部都會：不展開，總覽用題庫最好那段的建議（改寫後）', () => {
     const d = detailFor('SXK-GM', 48);
     expect(d.focus).toEqual([]);
-    expect(d.overall).toContain('各面向没有集中需要留意的地方');
+    expect(d.overall).toContain('各方面没有集中需要留意的地方');
   });
 
   it('整支落在需要評估的那段：總覽接上題庫的建議（含物理治疗评估）', () => {

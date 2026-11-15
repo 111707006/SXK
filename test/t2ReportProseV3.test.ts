@@ -140,8 +140,10 @@ describe('面向的說法（使用者 2026-10-08）', () => {
     expect(heavy.length).toBeGreaterThanOrEqual(4);
 
     const sen = templateProseV3({ findings }).perDimension.find(p => p.dimensionId === 'SEN')!.whatWeSaw;
-    const named = [...sen.slice(sen.indexOf('其中')).matchAll(/「(.+?)」/g)].map(m => m[1]);
-    expect(named.length).toBe(4);
+    // 2026-11-16：句子改成「『感觉处理』的问卷里，『a』『b』『c』等 N 个部分…」—— 點名前三個、後面寫總數
+    const named = [...sen.slice(sen.indexOf('问卷里'), sen.indexOf('个部分')).matchAll(/「(.+?)」/g)].map(m => m[1]);
+    expect(named.length).toBe(3);
+    expect(sen).toMatch(/等 \d+ 个部分/);
     for (const n of named) expect(heavy, `模板點名了 ${n}`).toContain(n);
 
     const line = buildProsePromptV3({ findings }).user.split('\n').find(l => l.startsWith('- SEN') && l.includes('比较弱的几面'))!;

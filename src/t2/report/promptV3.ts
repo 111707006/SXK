@@ -47,7 +47,7 @@ function buildSystem(): string {
     '只输出一个 JSON 对象，不要有任何其他文字、不要包在代码块里。字段如下：',
     `- overview：${range(CHAR_RANGES_V3.overview)}，概括各方面落在什么范围，先讲需要优先关注的。`,
     '- perDimension：数组，每个元素是 { dimensionId, whatWeSaw, whyItMatters }，素材里列了哪几个维度就写哪几个，不多不少。',
-    `  - whatWeSaw：${range(CHAR_RANGES_V3.whatWeSaw)}，讲这次看到的情况（可以点出素材里比较弱的那几面）。`,
+    `  - whatWeSaw：${range(CHAR_RANGES_V3.whatWeSaw)}，讲这次看到的情况（可以点出素材里比较弱的那几面）。先讲看到什么、再讲建议；弱的面超过三个时点名前三个、写出一共几个；每个维度的句子不要都用同一个句型；「优先安排专业咨询」与在家练要接得通（例如「等待的这段时间，在家可以先练起来」）。`,
     `  - whyItMatters：${range(CHAR_RANGES_V3.whyItMatters)}，讲这项能力在日常生活里撑着什么、家长可以怎么陪。`,
     `- closing：${range(CHAR_RANGES_V3.closing)}，鼓励家长照「线上干预」里的家庭活动陪孩子练，必须含「${CLOSING_SENTENCE}」这几个字；不要再写「三个月后重评」，系统会另外列出。`,
     '不要加任何没有要求的字段。',

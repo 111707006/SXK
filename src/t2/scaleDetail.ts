@@ -33,6 +33,7 @@ import {
   MCHAT_PLAIN,
   TIC_KINDS,
   mchatOverall,
+  LEVEL_NOTE_LEAD,
   SCALE_DISPLAY,
   SNAP_KINDS,
   achievementAllSteady,
@@ -335,7 +336,9 @@ export function scaleDetailOf({ bank, answers, score, context }: ScaleDetailInpu
     ? style.overallByBand(totalAsked, total, band)
     : focus.length > 0
     ? style.overall(totalAsked, total, focus.map(f => ({ name: f.name, short: shortOf(style, n, facetLines.find(x => x.f.key === f.key)!.f.band) })), style.kinds)
-      + ((style.appendLevelTxt ? style.appendLevelTxt(score.total.bandName, band) : band !== null && band > 0) && levelTxt ? levelTxt : '')
+      + ((style.appendLevelTxt ? style.appendLevelTxt(score.total.bandName, band) : band !== null && band > 0) && levelTxt ? `
+
+${LEVEL_NOTE_LEAD}${levelTxt}` : '')
     : (band === 0 && levelTxt) || style.allSteady(totalAsked, total, style.kinds);
 
   return {

@@ -122,7 +122,7 @@ export default function ScaleDetailCard({ entry }: { entry: ScaleDetailEntry }) 
             </span>
           ) : null))}
         </div>
-        <p className="text-sm text-brand-charcoal leading-relaxed">{d.overall}</p>
+        <p className="text-sm text-brand-charcoal leading-relaxed whitespace-pre-line">{d.overall}</p>
       </div>
 
       {d.facets.length > 1 && (

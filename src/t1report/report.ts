@@ -172,13 +172,15 @@ const NOTE_QUOTES_1022 = 2;
  * 不寫題數、不寫合計分數；沒有逐題作答（舊成績）就只講這一方面的中性描述。
  */
 function templateNote1022(d: T1DimensionAnswers, group: AgeGroup): string {
-  const quote = (xs: ReadonlyArray<{ text: string }>) => xs.map(x => `「${x.text}」`).join('、');
+  const quote = (xs: ReadonlyArray<{ text: string }>) => xs.map(x => `「${x.text}」`).join('');
   const seen = (quotes: number): string => {
     const notYet = itemsAnswered(d, 0).slice(0, quotes);
     const partly = itemsAnswered(d, 1).slice(0, quotes - notYet.length);
-    if (notYet.length && partly.length) return `孩子还做不到${quote(notYet)}；${quote(partly)}有时做得到。`;
-    if (notYet.length) return `孩子还做不到${quote(notYet)}。`;
-    if (partly.length) return `孩子${quote(partly)}有时做得到，还不太稳定。`;
+    // 使用者 2026-11-16：題目是一句觀察，接在「还做不到」後面讀不通（「还做不到『不容易失控』」）；改成把題目當「一项」來講。
+    const these = (xs: ReadonlyArray<unknown>) => (xs.length === 1 ? '这一项' : `这${xs.length === 2 ? '两' : xs.length}项`);
+    if (notYet.length && partly.length) return `${quote(notYet)}${these(notYet)}，孩子目前还做不到；${quote(partly)}有时做得到。`;
+    if (notYet.length) return `${quote(notYet)}${these(notYet)}，孩子目前还做不到。`;
+    if (partly.length) return `${quote(partly)}${these(partly)}，孩子有时做得到，还不太稳定。`;
     return `这一方面${STATUS_WORDING[d.status].describe}。`;
   };
   const noteOf = (quotes: number) => `${NOTE_OPENING_1022}${seen(quotes)}可以这样练：${practiceOf(group, d.dimensionId)}`;
@@ -188,6 +190,9 @@ function templateNote1022(d: T1DimensionAnswers, group: AgeGroup): string {
   }
   return noteOf(1);
 }
+
+/** 結論裡黃燈逐一點名的上限；超過就只寫幾個方面。 */
+const YELLOW_NAMED_MAX = 4;
 
 /** 新寫法的首席專家結論（#81）：整體一句、先關注哪幾方面一句（紅燈在前、點名）、下一步一句。不寫題數。 */
 function templateSummary1022(input: T1ReportInput): string {
@@ -209,14 +214,25 @@ function templateSummary1022(input: T1ReportInput): string {
     ? `${who}这次筛查，大部分方面发展稳定，有${some}方面还需要多陪孩子练一练。`
     : stable > 0
       ? `${who}这次筛查，有一些方面发展稳定，也有${some}方面还需要多陪孩子练一练。`
-      : `${who}这次筛查，各个方面都还需要多陪孩子练一练。`;
+      // 全部被標記：有紅燈時不說「没有哪一项特别突出」（紅燈就是突出的）；全黃時這一句只講「沒有特別突出」，
+      // 「都仍在建立中」留給下一句，不講兩次（使用者 2026-11-16）。
+      : red.length
+        ? `${who}这次筛查，各个方面都还需要多陪孩子练一练。`
+        : `${who}这次筛查，没有哪一个方面特别突出。`;
   // 紅燈在前、分號隔開黃燈：「优先安排专业咨询」只落在紅燈那一段（`findAdviceMismatch`）
   const parts: string[] = [];
   if (red.length) parts.push(`${red.join('、')}方面${STATUS_WORDING.delay.describe}，${STATUS_WORDING.delay.tag}`);
-  if (yellow.length) parts.push(`${yellow.join('、')}方面${STATUS_WORDING.borderline.describe}，${STATUS_WORDING.borderline.tag}`);
+  // 黃燈超過四項不逐一點名（使用者 2026-11-16：九項都列，「先关注」就沒有意思了）；紅燈照舊點名。
+  const CN = ['零', '一', '两', '三', '四', '五', '六', '七', '八', '九'];
+  const many = yellow.length > YELLOW_NAMED_MAX;
+  if (yellow.length) {
+    parts.push(many
+      ? `${red.length ? '另有' : stable === 0 ? '' : '这次'}${CN[yellow.length] ?? yellow.length}个方面${!red.length && stable === 0 ? '都' : ''}${STATUS_WORDING.borderline.describe}，${STATUS_WORDING.borderline.tag}`
+      : `${yellow.join('、')}方面${STATUS_WORDING.borderline.describe}，${STATUS_WORDING.borderline.tag}`);
+  }
   return [
     overall,
-    `需要先关注的是：${parts.join('；')}。`,
+    many && !red.length ? `${parts[0]}。` : `需要先关注的是：${parts.join('；')}。`,
     `下一步建议做「T2 深度评估」，把${flagged === 1 ? '这个' : '这几个'}方面看得更细，再决定在家怎么练。`,
   ].join('');
 }
@@ -291,6 +307,13 @@ export function templateT1Report(input: T1ReportInput, options: T1ReportOptions 
   };
 }
 
+/** 被標記的方面怎麼安排練習（1022 的「建議」欄；練法本身在各方面的段落裡）。 */
+const PRACTICE_ARRANGEMENT: ReadonlyArray<string> = [
+  '一次只练一个方面，一项练顺了再换下一项，不用同时全部开始。',
+  '把练习放进固定的时间，比如晚饭后或洗澡前，孩子比较容易配合。',
+  '孩子不愿意就先停，隔天再试；每次都在玩得开心的时候收尾。',
+];
+
 function templateT1ReportRaw(input: T1ReportInput, options: T1ReportOptions): T1RealReport {
   const { answers } = input;
   const is1022 = options.writing === '1022';
@@ -298,11 +321,13 @@ function templateT1ReportRaw(input: T1ReportInput, options: T1ReportOptions): T1
   const flagged = flaggedDimensions(answers);
   const rehab = flagged.slice(0, 4).map(d => `「${d.dimensionName}」：${practiceOf(group, d.dimensionId)}`);
   for (const g of GENERAL_PRACTICE[group]) if (rehab.length < 3) rehab.push(g);
+  // 1022：每個方面的練法已經寫在那一段裡（「可以这样练：」），這一欄不再原樣重複，改講怎麼安排（使用者 2026-11-16）。
+  const arranged = is1022 && flagged.length > 0;
   return {
     version: T1_REPORT_REAL_VERSION,
     summary: is1022 ? templateSummary1022(input) : templateSummary(input),
     perDimension: flagged.map(d => ({ dimensionId: d.dimensionId, note: is1022 ? templateNote1022(d, group) : templateNote(d) })),
-    rehabSuggestions: rehab,
+    rehabSuggestions: arranged ? [...PRACTICE_ARRANGEMENT] : rehab,
     homeGuidance: templateHome(answers, group, is1022),
     prognosisPrediction: templateNextSteps(answers, group),
     neuralPathwayAnalysis: '',

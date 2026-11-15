@@ -59,9 +59,8 @@ export const FEW_ITEMS = '题数太少，这次不单独判断';
 /** 總覽：有需要練的面向時（規格 §5 第 1 條）。 */
 export function achievementOverall(asked: number, counts: readonly [number, number, number], focus: ReadonlyArray<{ name: string; short: string }>): string {
   const [a, b] = focus;
-  return `这次 ${asked} 题里已经会 ${counts[0]} 题。`
-    + `「${a.name}」${a.short ? `${a.short}，` : ''}是这次最需要练的地方`
-    + (b ? `；「${b.name}」${b.short || '也还有几项不稳'}` : '')
+  return `这次 ${asked} 题里，孩子已经会 ${counts[0]} 题。`
+    + `最需要练的是${a.name}${b ? `，其次是${b.name}，可以先从这两块练起` : '，可以先从这一块练起'}`
     + '。下面把还不稳的题目列出来，可以直接当作练习目标。';
 }
 
@@ -94,15 +93,19 @@ export const CONCERN_SHORT: Readonly<Record<3 | 4, readonly string[]>> = {
 
 export function concernOverall(asked: number, counts: readonly [number, number, number], focus: ReadonlyArray<{ name: string; short: string }>, kinds: readonly string[]): string {
   const [a, b] = focus;
-  return `这次 ${asked} 题里，「${kinds[2]}」的有 ${counts[2]} 题、「${kinds[1]}」的有 ${counts[1]} 题。`
-    + `「${a.name}」${a.short ? `${a.short}，` : ''}是这次最需要先关心的地方`
-    + (b ? `；「${b.name}」${b.short || '也有几项需要留意'}` : '')
-    + '。下面列出比较常出现的情形，可以从这几项开始调整。';
+  // 使用者 2026-11-16：「『视觉』常出现」讀不通（常出現的是那一塊的情形）；0 題的那一類不寫。
+  const k = counts[2] > 0 ? 2 : 1;
+  return `这次 ${asked} 题里，有 ${counts[k]} 题是「${kinds[k]}」。`
+    + `最集中的是${a.name}${b ? `，其次是${b.name}，可以先从这两块看起` : '，可以先从这一块看起'}`
+    + '。下面把比较常出现的情形列出来，挑一两项开始调整就好。';
 }
 
 export function concernAllSteady(asked: number, counts: readonly [number, number, number], kinds: readonly string[]): string {
   return `这次 ${asked} 题里，「${kinds[2]}」的有 ${counts[2]} 题，各方面没有集中需要留意的地方。维持现在的作息与相处方式就好，三个月后可以再做一次，看看前后的变化。`;
 }
+
+/** 題庫自己的分段建議接在總覽後面時，另起一段、前面加這一句（語氣與我們寫的那幾句不同，讀的人知道為什麼）。 */
+export const LEVEL_NOTE_LEAD = '这份问卷对结果的说明：';
 
 /** 頻率族不講「下一步先练」，講這一句。 */
 export const FREQUENT_START = '先从这几种情形着手';
@@ -119,9 +122,8 @@ export const ADL_SHORT = ADL_PLAIN;
 export function adlOverall(asked: number, counts: readonly [number, number, number], focus: ReadonlyArray<{ name: string; short: string }>): string {
   const [a, b] = focus;
   return `这次 ${asked} 题里，孩子自己做到 ${counts[0]} 题。`
-    + `「${a.name}」${a.short ? `${a.short}，` : ''}是这次最需要练的地方`
-    + (b ? `；「${b.name}」${b.short || '也有几项还需要帮忙'}` : '')
-    + '。下面列出还需要帮忙的事，可以从最先列出的那一项开始，让孩子多做一点。';
+    + `最需要练的是${a.name}${b ? `，其次是${b.name}，可以先从这两块练起` : '，可以先从这一块练起'}`
+    + '。下面列出还需要帮忙的事，从最先列出的那一项开始，让孩子多做一点。';
 }
 
 export function adlAllSteady(asked: number, counts: readonly [number, number, number]): string {

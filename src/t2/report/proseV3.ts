@@ -115,11 +115,15 @@ function templateWhatWeSaw(input: T2ReportInputV3, d: DimensionFindingV3): strin
     return `筛查时「${name}」这一项有标记，但这个年龄还没有适合家长在家填写的问卷，这次没有结果；可以预约专家当面多了解。`;
   }
   const status = STATUS_WORDING[STATUS_OF_BAND[d.band as 'watch' | 'refer']];
-  const weak = weakFacetsV3(input.findings, d).slice(0, 4);
-  const detail = weak.length
-    ? `其中「${weak.join('」、「')}」${weak.length === 1 ? '这一方面' : '这几方面'}比较需要多陪孩子练。`
-    : '这一项整体都可以在日常里多陪孩子练。';
-  return `从这次「${name}」的问卷看，这一方面${status.describe}，${status.tag}。${detail}`;
+  // 使用者 2026-11-16：先講看到什麼、再講建議；列前三個＋總數（只列四個會像只有那四個）；「找專業」與「在家練」接起來不打架。
+  const weak = weakFacetsV3(input.findings, d);
+  const shown = weak.slice(0, 3).map(w => `「${w}」`).join('');
+  const which = weak.length === 0
+    ? '各个部分'
+    : weak.length === 1 ? `${shown}这一部分` : weak.length <= 3 ? `${shown}这 ${weak.length} 个部分` : `${shown}等 ${weak.length} 个部分`;
+  return d.band === 'refer'
+    ? `「${name}」的问卷里，${which}比较需要支持。这一方面${status.describe}，${status.tag}；等待的这段时间，在家可以先照活动练起来。`
+    : `「${name}」的问卷里，${which}还不太稳。这一方面${status.describe}，${status.tag}，平时可以多陪孩子练。`;
 }
 
 /** 模板退路。產出一定過 `validateProseV3`（`t2ReportProseV3.test.ts` 窮舉盯著）。 */

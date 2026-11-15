@@ -119,3 +119,63 @@ describe('2026-11-07-videos.json', () => {
     }
   });
 });
+
+/**
+ * `2026-11-16-videos.json`：正式站 2026-11-16 有示範片的 207 支（取代 11-07 那份）。11-07 的 94 支標籤原樣沿用，
+ * 新增的 113 支照手冊「练什么」貼；`targetMonth`：模組一 17 支用 09-27 的里程碑值，其餘＝適齡下限＋區間的 15%。
+ */
+describe('2026-11-16-videos.json', () => {
+  type Row = { id: string; moduleNo: number; targetMonth: number; targets: string[] };
+  const read = (name: string) => (JSON.parse(fs.readFileSync(path.join(DIR, name), 'utf8')) as { rows: Row[] }).rows;
+  const rows = read('2026-11-16-videos.json');
+  const content = new Map(ACTIVITY_CONTENT.map(a => [a.id, a]));
+
+  it('後台的匯入一列不退、一欄不忽略；207 支、編號不重複且由小到大', () => {
+    const plan = planActivityImport({ rows, dryRun: true }, EXISTING);
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.failed).toEqual([]);
+    expect(plan.warnings).toEqual([]);
+    expect(plan.ready).toHaveLength(207);
+    expect(rows.map(r => r.id)).toEqual([...new Set(rows.map(r => r.id))].sort());
+  });
+
+  it('11-07 那 94 支都在，標籤原樣沿用', () => {
+    const byId = new Map(rows.map(r => [r.id, r]));
+    for (const old of read('2026-11-07-videos.json')) expect(byId.get(old.id)?.targets, old.id).toEqual(old.targets);
+  });
+
+  it('targetMonth：模組一 17 支是 09-27 的值，其餘是適齡下限＋區間的 15%；都落在手冊適齡裡', () => {
+    const milestone = new Map(read('2026-09-27-module1-videos.json').map(r => [r.id, r.targetMonth]));
+    for (const r of rows) {
+      const { min, max } = parseAgeRange(content.get(r.id)!.ageLabel);
+      expect(r.targetMonth, r.id).toBe(milestone.get(r.id) ?? min + Math.floor((max - min) * 0.15));
+      expect(r.targetMonth, r.id).toBeGreaterThanOrEqual(min);
+      expect(r.targetMonth, r.id).toBeLessThanOrEqual(max);
+    }
+  });
+
+  it('每支 1–3 個標籤、不重複；九個維度每個至少 10 支', () => {
+    const perDim = new Map<string, number>();
+    for (const r of rows) {
+      expect(r.targets.length, r.id).toBeGreaterThanOrEqual(1);
+      expect(r.targets.length, r.id).toBeLessThanOrEqual(3);
+      expect(new Set(r.targets).size, r.id).toBe(r.targets.length);
+      for (const d of new Set(r.targets.map(t => t.split('.')[0]))) perDim.set(d, (perDim.get(d) ?? 0) + 1);
+    }
+    expect([...perDim.keys()].sort()).toEqual(['adl', 'att', 'cog', 'emo', 'lang', 'learn', 'mot', 'sen', 'soc']);
+    for (const [d, n] of perDim) expect(n, d).toBeGreaterThanOrEqual(10);
+  });
+
+  it('README 的表與檔案一致', () => {
+    const readme = fs.readFileSync(path.join(DIR, 'README.md'), 'utf8');
+    const section = readme.slice(readme.indexOf('## 2026-11-16-videos.json'));
+    for (const r of rows) {
+      const line = section.split('\n').find(l => l.startsWith(`| ${r.id} |`));
+      expect(line, r.id).toBeDefined();
+      const cells = line!.split('|').map(c => c.trim());
+      expect(cells[5], r.id).toBe(String(r.targetMonth));
+      expect(cells[6], r.id).toBe(r.targets.join(', '));
+    }
+  });
+});

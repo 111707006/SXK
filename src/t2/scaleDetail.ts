@@ -326,7 +326,9 @@ export function scaleDetailOf({ bank, answers, score, context }: ScaleDetailInpu
   const band = score.total.band;
   // 題庫的分段建議：先照名稱對（LQ 的 RULES 依序不是好 → 壞），對不到照位置。
   const levels = bank.texts?.levels ?? [];
-  const level = levels.find(l => l.head && l.head === score.total.bandName) ?? (band === null ? undefined : levels[band]);
+  // LDP／LDS 的建議在題庫裡是壞 → 好（「多个方面同时出现明显困难」在最前面），計分的段是好 → 壞，名稱也對不上：照位置要倒過來。
+  const byPosition = band === null ? undefined : bank.family === 'ld' ? levels[levels.length - 1 - band] : levels[band];
+  const level = levels.find(l => l.head && l.head === score.total.bandName) ?? byPosition;
   const levelTxt = adaptForParents(level?.txt ?? '');
   // 規格 §5：有需要練的面向時，不用「各面向都好」的那一段（它會被早就會的題撐高）；整支分段不是最好那段時，接上題庫那一段的建議。
   const overall = style.overallByBand

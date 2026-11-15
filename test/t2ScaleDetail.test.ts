@@ -272,3 +272,17 @@ describe('D-5', () => {
     expect(Object.values(KITV3_BANKS).filter(b => !hasScaleDetail(b)).map(b => b.code)).toEqual(['ITQ/TTS/BSQ']);
   });
 });
+
+// 2026-11-16 實走發現：LDP／LDS 題庫的分段建議是壞 → 好，照位置取會整個顛倒（全部「常出現」寫「落在一般范围内」）。
+describe('LDP／LDS 的分段建議不顛倒', () => {
+  for (const [code, ageM] of [['SXK-LDP', 96], ['SXK-LDS', 160]] as const) {
+    it(`${code}：全部最好 → 一般範圍；全部最差 → 建議安排評估`, () => {
+      const best = detailFor(code, ageM, {}, () => 0);
+      const worst = detailFor(code, ageM);
+      expect(best.overall).toContain('一般范围内');
+      expect(best.overall).not.toContain('学习能力评估');
+      expect(worst.overall).not.toContain('一般范围内');
+      expect(worst.overall).toMatch(/评估/);
+    });
+  }
+});

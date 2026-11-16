@@ -1566,12 +1566,15 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       if (raw === 'default') return 'default';
       if (!/^\d{1,9}$/.test(raw)) return null;
       const company = await store.findCompanyById(Number(raw));
-      return company ? { companyId: company.id } : null;
+      return company && company.active ? { companyId: company.id } : null;
     };
+    /** 清單只留啟用中公司的；停用或已不存在的公司，檔案順手清掉（`listWecomQrs` 的 `keepCompanyIds`）。 */
+    const listActiveWecomQrs = async () =>
+      listWecomQrs(wecomDir, new Set((await store.listCompanies()).filter(c => c.active).map(c => c.id)));
     router.get('/wecom-qr', async (req: AuthedRequest, res) => {
       if (!requireGlobal(req, res)) return;
       try {
-        res.json(await listWecomQrs(wecomDir));
+        res.json(await listActiveWecomQrs());
       } catch (err: any) {
         console.error('[Admin] list wecom qr failed:', err.message);
         res.status(500).json({ error: '读取二维码失败。' });
@@ -1591,7 +1594,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
           res.status(saved.status).json({ error: saved.error });
           return;
         }
-        res.json(await listWecomQrs(wecomDir));
+        res.json(await listActiveWecomQrs());
       } catch (err: any) {
         console.error('[Admin] upload wecom qr failed:', err.message);
         res.status(500).json({ error: '上传二维码失败，请再试一次。' });
@@ -1606,7 +1609,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
           return;
         }
         await removeWecomQr(wecomDir, key);
-        res.json(await listWecomQrs(wecomDir));
+        res.json(await listActiveWecomQrs());
       } catch (err: any) {
         console.error('[Admin] remove wecom qr failed:', err.message);
         res.status(500).json({ error: '移除二维码失败。' });

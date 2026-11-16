@@ -77,6 +77,8 @@ export interface T2ReportActions {
   serviceButtons: React.ReactNode;
   /** 第六段的連結 → 導覽列那一頁「线上干预」。沒給就不出連結。 */
   onOpenTraining?: () => void;
+  /** 已經有有效的居家訓練使用權：報告裡那張訓練卡改寫「已开通」。 */
+  trainingActive?: { endsOn: string | null } | null;
 }
 
 interface T2ReportProps {
@@ -89,6 +91,8 @@ interface T2ReportProps {
   generateOnOpen?: boolean;
   /** 第六段的連結 → 導覽列那一頁「线上干预」（2026-09-28 起線上干預不放在報告裡）。沒給就不出連結。 */
   onOpenTraining?: () => void;
+  /** 已經有有效的居家訓練使用權（`/api/unlocks` 的 `trainingPass`）。 */
+  trainingActive?: { endsOn: string | null } | null;
 }
 
 /** 「9 月 12 日」。 */
@@ -139,7 +143,7 @@ function formatDay(iso: string): string {
  * band 只走 `statusWording.ts`（經 `reportCopy.ts`）；tier 的內部名稱一個都不出現（快照裡有，
  * 畫面不讀它）。題目原文只在回顧那一段（`reviewGroups`），敘述段不引用。
  */
-export default function T2Report({ onBack, onBookService, childName, generateOnOpen, onOpenTraining }: T2ReportProps) {
+export default function T2Report({ onBack, onBookService, childName, generateOnOpen, onOpenTraining, trainingActive = null }: T2ReportProps) {
   // 電腦版（VITE_DESKTOP_LAYOUT）：外框放寬，T2ReportV3 裡分兩欄。
   const desk = useDesktopLayout();
   const [entry, setEntry] = useState<FindingsEntry | null>(null);
@@ -319,7 +323,7 @@ export default function T2Report({ onBack, onBookService, childName, generateOnO
       key={entry!.id}
       entry={entry!}
       childName={childName}
-      actions={{ regenerate, errorLine, serviceButtons, onOpenTraining }}
+      actions={{ regenerate, errorLine, serviceButtons, onOpenTraining, trainingActive }}
     />,
   );
 }

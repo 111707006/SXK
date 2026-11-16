@@ -9,7 +9,8 @@ import { HOME_CARDS_1022, HOME_TRAINING_CARD_1022, viewAfterLogin } from '../src
  */
 describe('1022 首頁的 T1、T2 卡與訓練卡', () => {
   const app = readFileSync('src/App.tsx', 'utf8');
-  const home = readFileSync('src/home/LedoHomePage.tsx', 'utf8');
+  // Windows 簽出（autocrlf）是 CRLF：下面用換行找切片的結束標記，先換成 LF，不然 indexOf 回 -1、切到舊版那一支。
+  const home = readFileSync('src/home/LedoHomePage.tsx', 'utf8').replace(/\r\n/g, '\n');
   const body = app.slice(app.indexOf('const openHomeTarget = ('), app.indexOf('const openHomeLogin = ('));
 
   it('第三排是 T1、T2，訓練卡另外一張', () => {
@@ -25,8 +26,9 @@ describe('1022 首頁的 T1、T2 卡與訓練卡', () => {
     expect(body).not.toMatch(/step\.view === 'dashboard' && completedScores/);
   });
 
-  it('訓練卡在 1022 一律先到方案頁', () => {
-    expect(body).toMatch(/\(PRODUCT\.features\.ui1022 \|\| !trainingPass\.active\) \? 'training_plan'/);
+  // 2026-11-17：已開通的卡上寫「已开通，开始线上家庭训练」，直接進訓練頁；沒開通的才先到方案頁（原本 1022 一律先到方案頁）。
+  it('訓練卡：沒開通先到方案頁，已開通直接進訓練頁', () => {
+    expect(body).toMatch(/trainingPass !== null && !trainingPass\.active \? 'training_plan'/);
   });
 
   it('未登入點 T2 卡，登入後先到評估面板', () => {

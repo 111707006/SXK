@@ -239,6 +239,21 @@ function currentAgeMonth(child: any): number | null {
   return typeof child?.ageMonth === 'number' ? child.ageMonth : null;
 }
 
+/**
+ * 「最近筛查」：T1 成績裡最晚的 `completedAt`（2026-11-17 code review 第 2 項）。以前直接讀 `user_data.updated_at`，
+ * 家長只改孩子資料、下一張訂單、或手動改這張表，都會被當成剛篩查。舊成績沒有 `completedAt` 時回 null，
+ * 呼叫端退回 `updated_at`。
+ */
+function lastScreenedAt(scores: DimensionScore[]): string | null {
+  let latest = NaN;
+  for (const s of scores) {
+    if (s?.tierId !== 'T1') continue;
+    const t = Date.parse(String(s.completedAt ?? ''));
+    if (!Number.isNaN(t) && !(t <= latest)) latest = t;
+  }
+  return Number.isNaN(latest) ? null : new Date(latest).toISOString();
+}
+
 function rowToListItem(row: any): ParentListItem {
   const scores = parseJson<DimensionScore[]>(row.completed_scores, []);
   const child = parseJson<any>(row.child, null);
@@ -252,7 +267,7 @@ function rowToListItem(row: any): ParentListItem {
     childGender: child?.gender ?? null,
     flaggedDimensions: flaggedFrom(scores),
     screeningTotal: screeningTotal(scores),
-    screenedAt: toIso(row.screened_at),
+    screenedAt: lastScreenedAt(scores) ?? toIso(row.screened_at),
     registeredAt: toIso(row.created_at),
     hasBooking: Number(row.booking_count) > 0,
     lastInvitedAt: toIso(row.last_invited_at),
@@ -341,7 +356,10 @@ export async function listParents(
       LIMIT 500`,
     scope.params
   );
-  return (rows as any[]).map(rowToListItem);
+  // SQL 照 `updated_at` 先排（取前 500 位）；畫面上的「最近筛查」是成績的時間，照它再排一次，兩邊才一致。
+  const key = (x: ParentListItem) => x.screenedAt ?? x.registeredAt ?? '';
+  const sign = options.sort === 'oldest' ? 1 : -1;
+  return (rows as any[]).map(rowToListItem).sort((a, b) => (key(a) < key(b) ? -sign : key(a) > key(b) ? sign : 0));
 }
 
 /**

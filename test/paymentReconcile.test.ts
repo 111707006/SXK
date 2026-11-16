@@ -11,7 +11,7 @@ describe('對帳補結：一輪', () => {
     const states: Record<string, RemoteOrder | Error> = {
       A: remote('SUCCESS'),
       B: remote('NOTPAY'),
-      C: new Error('ORDER_NOT_EXIST'),
+      C: new Error('connect ETIMEDOUT'),
       D: remote('CLOSED'),
       E: remote('SUCCESS'),
     };
@@ -27,7 +27,26 @@ describe('對帳補結：一輪', () => {
     });
     expect(settled).toEqual(['A', 'E']);
     expect(r).toEqual({ checked: 5, settled: 2, failed: 1 });
-    expect(logs.some(l => l.includes('C') && l.includes('ORDER_NOT_EXIST'))).toBe(true);
+    expect(logs.some(l => l.includes('C') && l.includes('ETIMEDOUT'))).toBe(true);
+  });
+
+  it('微信說沒有這張單（開單就失敗的）：記一行、不算失敗，下一輪不再問', async () => {
+    const asked: string[] = [];
+    const logs: string[] = [];
+    const deps = {
+      listPending: async () => [{ outTradeNo: 'GHOST-1' }, { outTradeNo: 'PAID-1' }],
+      query: async (no: string) => {
+        asked.push(no);
+        if (no === 'GHOST-1') throw new Error('WeChat Pay query failed: ORDER_NOT_EXIST 订单不存在');
+        return remote('SUCCESS');
+      },
+      settle: async () => 'granted',
+      log: (l: string) => logs.push(l),
+    };
+    expect(await reconcilePendingOnce(deps)).toEqual({ checked: 2, settled: 1, failed: 0 });
+    expect(await reconcilePendingOnce(deps)).toEqual({ checked: 1, settled: 1, failed: 0 });
+    expect(asked.filter(no => no === 'GHOST-1')).toHaveLength(1);
+    expect(logs.filter(l => l.includes('GHOST-1'))).toHaveLength(1);
   });
 
   it('已經結過的（回調先到了）、金額對不上的：不算成補結', async () => {

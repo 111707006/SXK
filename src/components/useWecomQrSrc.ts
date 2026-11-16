@@ -10,6 +10,24 @@ import { peekCompanySlug } from '../utils/attribution';
  * 回 `null`、讀不到、或 B，都用建置內建的 `PRODUCT.expertBooking.wechatQrSrc`。
  * 回 `undefined` ＝ 還在問（別先畫內建那張再換掉，家長可能剛好掃到舊的）。
  */
+/**
+ * 同一個網址只問一次（比照 `homeMediaClient` 的 pending）：報告頁同時掛著兩三個用到二維碼的元件，
+ * 以前各打一次。記 60 秒就丟，後台換圖後家長重新進頁面看得到新的。
+ */
+const pending = new Map<string, { at: number; result: Promise<string | null> }>();
+const SHARE_MS = 60_000;
+
+function askWecomQr(url: string): Promise<string | null> {
+  const hit = pending.get(url);
+  if (hit && Date.now() - hit.at < SHARE_MS) return hit.result;
+  const result = authFetch(url)
+    .then(resp => (resp.ok ? resp.json() : null))
+    .then(body => (body && typeof body.url === 'string' && body.url.startsWith('/media/wecom/') ? (body.url as string) : null))
+    .catch(() => null);
+  pending.set(url, { at: Date.now(), result });
+  return result;
+}
+
 export function useWecomQrSrc(): string | null | undefined {
   const builtIn = PRODUCT.expertBooking.wechatQrSrc;
   const ask = PRODUCT.features.tier2And3 && builtIn !== null;
@@ -20,15 +38,9 @@ export function useWecomQrSrc(): string | null | undefined {
     let alive = true;
     const slug = peekCompanySlug();
     const url = slug ? `/api/wecom-qr?c=${encodeURIComponent(slug)}` : '/api/wecom-qr';
-    authFetch(url)
-      .then(resp => (resp.ok ? resp.json() : null))
-      .then(body => {
-        const u = body && typeof body.url === 'string' && body.url.startsWith('/media/wecom/') ? body.url : null;
-        if (alive) setSrc(u ?? builtIn);
-      })
-      .catch(() => {
-        if (alive) setSrc(builtIn);
-      });
+    void askWecomQr(url).then(u => {
+      if (alive) setSrc(u ?? builtIn);
+    });
     return () => {
       alive = false;
     };

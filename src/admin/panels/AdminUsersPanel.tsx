@@ -208,7 +208,7 @@ export default function AdminUsersPanel({
                   <tr key={u.id} className="border-b border-brand-stone/60 last:border-0">
                     <td className="py-2.5 pr-3 text-brand-forest">{u.email}</td>
                     <td className="py-2.5 pr-3 text-brand-charcoal/70">
-                      {u.role === 'global_admin' ? '全域管理员' : '公司成员'}
+                      {u.role === 'global_admin' ? '全域管理员' : (u.role as string) === 'referrer' ? '推荐人' : '公司成员'}
                     </td>
                     <td className="py-2.5 pr-3 text-brand-charcoal/70">{companyName(u.companyId)}</td>
                     <td className="py-2.5 pr-3">

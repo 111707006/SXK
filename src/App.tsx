@@ -285,6 +285,7 @@ export default function App() {
     setCompletedScores([]);
     setOrders([]);
     setReportHistory([]);
+    syncBase.current = { revision: null, reportIds: [] };
     setUserIdentity(null);
     setAuthToken(null);
 
@@ -326,6 +327,15 @@ export default function App() {
     return () => setUnauthorizedHandler(null);
   }, []);
 
+  /**
+   * 上次從伺服器讀到（或存成功）的版本，與那時有的報告 id（`src/utils/syncMerge.ts`）：存檔時帶回去，
+   * 伺服器發現這個分頁不是最新的就合併、不整份蓋掉，並把合好的那一份回來。
+   */
+  const syncBase = useRef<{ revision: number | null; reportIds: string[] }>({ revision: null, reportIds: [] });
+  const rememberSyncBase = (revision: unknown, history: AssessmentRecord[]) => {
+    syncBase.current = { revision: typeof revision === 'number' ? revision : null, reportIds: history.map(r => r.id) };
+  };
+
   // Helper to sync state to cloud
   const syncToCloud = async (
     currentChild: Child | null,
@@ -345,7 +355,8 @@ export default function App() {
           child: currentChild,
           completedScores: currentScores,
           orders: currentOrders,
-          reportHistory: currentHistory
+          reportHistory: currentHistory,
+          ...(syncBase.current.revision !== null ? { baseRevision: syncBase.current.revision, baseReportIds: syncBase.current.reportIds } : {}),
         })
       });
       // 401 的處置已經在 `authFetch` 裡發生（登出並回登入頁）。這裡只是不要
@@ -361,6 +372,20 @@ export default function App() {
       const data = await resp.json();
       if (data.success) {
         setSyncError(null);
+        // 伺服器合併過（這個分頁不是最新的）：照合好的那一份換掉畫面與本機的。
+        const m = data.merged;
+        const history: AssessmentRecord[] = m && Array.isArray(m.reportHistory) ? m.reportHistory : currentHistory;
+        if (m) {
+          setChildProfile(m.child ?? null);
+          setCompletedScores(m.completedScores || []);
+          setOrders(m.orders || []);
+          setReportHistory(history);
+          if (m.child) localStorage.setItem('senxinkang_child', JSON.stringify(m.child));
+          localStorage.setItem('senxinkang_scores', JSON.stringify(m.completedScores || []));
+          localStorage.setItem('senxinkang_orders', JSON.stringify(m.orders || []));
+          localStorage.setItem('senxinkang_history', JSON.stringify(history));
+        }
+        if (typeof data.revision === 'number') rememberSyncBase(data.revision, history);
       }
     } catch (err: any) {
       console.warn('Sync Error:', err.message);
@@ -425,7 +450,8 @@ export default function App() {
     }
     // 訓練計劃（`TRAINING_PLAN`，#110）：沒有有效使用權的家長點「线上家庭个性化训练」先到方案頁。
     // 1022（簡報 11/03 第 13 頁，使用者 2026-11-06）：首頁那張卡一律先到方案頁（一／三／六個月＋VIP 兌換）；已開通的在方案頁上直接進去。
-    setCurrentView(step.view === 'training' && trainingPass !== null && (PRODUCT.features.ui1022 || !trainingPass.active) ? 'training_plan' : step.view);
+    // 已開通的直接進訓練頁（2026-11-17：卡上已經寫「已开通，开始线上家庭训练」，不再繞方案頁）；沒開通的照舊先到方案頁。
+    setCurrentView(step.view === 'training' && trainingPass !== null && !trainingPass.active ? 'training_plan' : step.view);
     setSelectedDimensionId(null);
   };
 
@@ -515,6 +541,7 @@ export default function App() {
             setCompletedScores(loadData.completedScores || []);
             setOrders(loadData.orders || []);
             setReportHistory(loadData.reportHistory || []);
+            rememberSyncBase(loadData.revision, loadData.reportHistory || []);
 
             if (loadData.child) {
               localStorage.setItem('senxinkang_child', JSON.stringify(loadData.child));
@@ -720,6 +747,8 @@ export default function App() {
     setCompletedScores(cloudScores);
     setOrders(cloudOrders);
     setReportHistory(cloudHistory);
+    // 登入回來的資料沒帶版本：第一次存檔照舊整份存，存完伺服器回版本，之後才比。
+    rememberSyncBase(null, cloudHistory);
 
     // Save locally
     if (cloudChild) {
@@ -1648,6 +1677,7 @@ export default function App() {
                     childName={child?.name}
                     scores={panelScores}
                     onOpenReport={completedScores.length > 0 ? navItems.find(i => i.key === 'report')?.onClick : undefined}
+                    trainingActive={trainingPass?.active ? { endsOn: trainingPass.endsOn } : null}
                   />
                 ) : (
                   <HomePage onOpen={openHomeTarget} />
@@ -2030,6 +2060,7 @@ export default function App() {
                     onBookService={type => goToExpertBooking(type)}
                     // 1022：報告裡那張「线上家庭个性化训练」卡與首頁同一個去處（方案頁；已開通的在那裡直接進去，2026-11-11）
                     onOpenTraining={PRODUCT.features.ui1022 ? () => openHomeTarget('training') : () => setCurrentView('training')}
+                    trainingActive={trainingPass?.active ? { endsOn: trainingPass.endsOn } : null}
                   />
                 </LazyBoundary>
               </div>

@@ -337,7 +337,7 @@ export default function T2ReportV3({ entry, actions, onReady, formatDay }: T2Rep
       {/* 6. 線上干預。1022（使用者 2026-11-11：T2 報告缺這一塊）：放首頁那張「线上家庭个性化训练」卡（圖、價錢、选方案），點了到方案頁。 */}
       {actions?.onOpenTraining && PRODUCT.features.ui1022 && (
         <section id="t2v3-weekly" className="print:hidden">
-          <div className="max-w-2xl"><TrainingPromoCard id="t2v3-training-card" desk={desk} onOpen={actions.onOpenTraining} /></div>
+          <div className="max-w-2xl"><TrainingPromoCard id="t2v3-training-card" desk={desk} active={actions.trainingActive ?? null} onOpen={actions.onOpenTraining} /></div>
         </section>
       )}
       {/* 舊版（沒開 1022）：只留一行連結（2026-09-28 起不放在報告裡） */}

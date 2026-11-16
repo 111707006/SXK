@@ -38,10 +38,16 @@ export const RECONCILE_MIN_AGE_MINUTES = 5;
 export const RECONCILE_MAX_AGE_HOURS = 48;
 export const RECONCILE_BATCH = 50;
 
+/** 微信回過「訂單不存在」的單號（只記在這個行程裡；重啟後各再問一次）。 */
+const unknownToWechat = new Set<string>();
+
 export async function reconcilePendingOnce(deps: ReconcileDeps, batch = RECONCILE_BATCH): Promise<ReconcileResult> {
   const pending = await deps.listPending(RECONCILE_MIN_AGE_MINUTES, RECONCILE_MAX_AGE_HOURS, batch);
   const result: ReconcileResult = { checked: 0, settled: 0, failed: 0 };
   for (const order of pending) {
+    // 微信說過沒有這張單（開單那一步就失敗了，本地留著 pending）：這個行程不再問它，
+    // 不然 48 小時內每一輪都拋同一個錯，把真的對帳失敗淹掉（2026-11-17 code review 第 3 項）。訂單狀態照舊不改。
+    if (unknownToWechat.has(order.outTradeNo)) continue;
     result.checked += 1;
     try {
       const remote = await deps.query(order.outTradeNo);
@@ -52,6 +58,12 @@ export async function reconcilePendingOnce(deps: ReconcileDeps, batch = RECONCIL
         deps.log(`[Reconcile] settled ${order.outTradeNo} (callback never arrived)`);
       }
     } catch (err: any) {
+      if (/ORDER_?NOT_?EXIST/i.test(String(err?.message ?? err))) {
+        if (unknownToWechat.size >= 1000) unknownToWechat.clear();
+        unknownToWechat.add(order.outTradeNo);
+        deps.log(`[Reconcile] ${order.outTradeNo} does not exist at WeChat Pay (order creation failed); not asking again`);
+        continue;
+      }
       result.failed += 1;
       deps.log(`[Reconcile] query failed for ${order.outTradeNo}: ${err?.message ?? err}`);
     }

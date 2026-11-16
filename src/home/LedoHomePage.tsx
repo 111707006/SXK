@@ -40,6 +40,8 @@ export interface LedoHomeProps {
   scores?: DimensionScore[];
   /** 登入前、視窗夠寬（`useDesktopWide()`，App 給）：沒有側欄外框，但同樣排成電腦版的兩欄 */
   wide?: boolean;
+  /** 已經有有效的居家訓練使用權：訓練卡改寫「已开通」（沒有就照舊畫價錢） */
+  trainingActive?: { endsOn: string | null } | null;
 }
 
 /** 色塊小字放不下「需要少量支持」的全名（375px 會折行）：「需要」縮成「需」，報告與面板照用全名。 */
@@ -91,7 +93,7 @@ function useWeekPracticeDays(enabled: boolean): number | null {
   return days;
 }
 
-export default function LedoHomePage({ onOpen, onOpenReport, childName, scores = [], wide = false }: LedoHomeProps) {
+export default function LedoHomePage({ onOpen, onOpenReport, childName, scores = [], wide = false, trainingActive = null }: LedoHomeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = videoRef.current;
@@ -190,7 +192,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
   );
 
   const trainingCard = (
-          <TrainingPromoCard desk={desk} media={media} priceFen={oneMonthFen} onOpen={() => onOpen(HOME_TRAINING_CARD_1022.target)} />
+          <TrainingPromoCard desk={desk} media={media} priceFen={oneMonthFen} active={trainingActive} onOpen={() => onOpen(HOME_TRAINING_CARD_1022.target)} />
   );
 
   const assessCards = (

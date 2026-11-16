@@ -16,6 +16,7 @@ import { NON_SCALE_TOOLKITS, PROXY_TOOLKIT } from './src/t2/snapshotKinds';
 import { loadPublicHomeMedia } from './src/db/homeMedia';
 import { EMPTY_HOME_MEDIA } from './src/homeMedia/shape';
 import { findWecomQr } from './src/wecomQr/store';
+import { mergeStaleSave, revisionOf } from './src/utils/syncMerge';
 import { loadLegalDocs } from './src/db/legalDocs';
 import { EMPTY_LEGAL_DOCS } from './src/legal/shape';
 import express from 'express';
@@ -4136,7 +4137,8 @@ app.get('/api/db/load', async (req, res) => {
 
         if (row) {
           const parsed = mysqlDb.parseUserDataRow(row);
-          res.json({ source: 'mysql', ...parsed });
+          // `revision`：這一列的版本，前端存檔時帶回來（`src/utils/syncMerge.ts`）。
+          res.json({ source: 'mysql', ...parsed, revision: revisionOf(row) });
         } else {
           res.json({ source: 'mysql', child: null, completedScores: [], orders: [], reportHistory: [] });
         }
@@ -4163,8 +4165,8 @@ app.get('/api/db/load', async (req, res) => {
 // Endpoint to save child assessment records
 app.post('/api/db/save', async (req, res) => {
   try {
-    const { deviceId, completedScores, orders, reportHistory } = req.body;
-    let { child } = req.body;
+    const { deviceId, baseRevision, baseReportIds } = req.body;
+    let { child, completedScores, orders, reportHistory } = req.body;
     const identity = resolveSyncIdentity(req);
     if (identity === 'unauthorized') {
       res.status(401).json({ error: '未授权：请重新登录' });
@@ -4186,12 +4188,36 @@ app.post('/api/db/save', async (req, res) => {
 
     if (userId) child = await withT2Since(userId, child);
 
+    const dbUserId = toDbUserId(userId);
+
+    // 這個分頁讀的不是最新那一份（別的裝置或後台之後改過）→ 合併，不整份蓋掉（`src/utils/syncMerge.ts`）。
+    // 舊版前端不帶 `baseRevision`，照舊整份存。讀不到現有那一列也照舊（下面的存檔自己會報錯）。
+    let merged = false;
+    if (mysqlDb.isConfigured() && dbUserId !== null && typeof baseRevision === 'number') {
+      try {
+        const row = await withTimeout(mysqlDb.getUserDataByUserId(dbUserId), 2000);
+        const storedRevision = revisionOf(row);
+        if (row && storedRevision !== null && storedRevision !== baseRevision) {
+          const stored = mysqlDb.parseUserDataRow(row);
+          const out = mergeStaleSave(
+            { child: stored.child ?? null, completedScores: stored.completedScores || [], orders: stored.orders || [], reportHistory: stored.reportHistory || [] },
+            { child: child ?? null, completedScores: completedScores || [], orders: orders || [], reportHistory: reportHistory || [] },
+            Array.isArray(baseReportIds) ? baseReportIds.filter((x: unknown): x is string => typeof x === 'string') : [],
+          );
+          ({ child, completedScores, orders, reportHistory } = out as any);
+          merged = true;
+          console.log(`[MySQL] Stale save for user ${dbUserId} merged (base ${baseRevision}, stored ${storedRevision})`);
+        }
+      } catch (err: any) {
+        console.warn('[MySQL] Revision check failed, saving as sent:', err.message);
+      }
+    }
+
     // Always save to memory as hot-backup
     if (userId) {
       offlineUserData.set(userId, { child, completedScores, orders, reportHistory });
     }
 
-    const dbUserId = toDbUserId(userId);
     if (mysqlDb.isConfigured() && dbUserId !== null) {
       try {
         // 通行證保證這個 id 來自一次成功的登入，帳號因此已經存在 ——
@@ -4201,7 +4227,9 @@ app.post('/api/db/save', async (req, res) => {
           2000
         );
         console.log(`[MySQL] Saved data for user ${dbUserId}`);
-        res.json({ success: true });
+        // 新的版本給前端記著；合併過就把合好的那一份一起回，前端照它換掉畫面上的。
+        const revision = revisionOf(await withTimeout(mysqlDb.getUserDataByUserId(dbUserId), 2000).catch(() => null));
+        res.json({ success: true, revision, ...(merged ? { merged: { child, completedScores, orders, reportHistory } } : {}) });
         return;
       } catch (err: any) {
         console.warn('[MySQL] Save failed, data in memory backup:', err.message);

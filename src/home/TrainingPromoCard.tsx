@@ -54,16 +54,19 @@ export default function TrainingPromoCard({
   desk = false,
   media,
   priceFen,
+  active = null,
   id = `home-card-${HOME_TRAINING_CARD_1022.id}`,
 }: {
   onOpen: () => void;
   desk?: boolean;
   media?: PublicHomeMedia | null;
   priceFen?: number | null;
+  /** 已經有有效使用權（`endsOn` 沒有＝免費期）：不畫價錢與「选方案」，寫開通到哪天、按鈕「开始线上家庭训练」。 */
+  active?: { endsOn: string | null } | null;
   id?: string;
 }) {
   const ownMedia = useHomeMedia();
-  const ownFen = useOneMonthPriceFen(priceFen === undefined);
+  const ownFen = useOneMonthPriceFen(priceFen === undefined && !active);
   const art = homeCardImage(media === undefined ? ownMedia : media, 'training', LEDO_ART.training);
   return (
     <button
@@ -78,8 +81,17 @@ export default function TrainingPromoCard({
       <span className={desk ? 'flex min-w-0 flex-1 flex-col justify-center gap-1.5 p-5' : 'flex min-w-0 flex-1 flex-col gap-1 p-3.5'}>
         <span className={desk ? 'text-base font-black text-ledo-ink' : 'text-sm font-black text-ledo-ink'}>{HOME_TRAINING_CARD_1022.title}</span>
         <span className={desk ? 'text-sm leading-relaxed text-ledo-ink-2' : 'text-xs leading-relaxed text-ledo-ink-2'}>{HOME_TRAINING_CARD_1022.sub}</span>
-        <TrainingCardPrice priceFen={priceFen === undefined ? ownFen : priceFen} />
-        <span className="mt-1 self-start"><Chip on>{WORDING_1022.home.trainingPrice.cta}</Chip></span>
+        {active ? (
+          <>
+            <span id="home-training-active" className="mt-1 text-xs font-bold text-ledo-ok-ink">{active.endsOn ? TRAINING_PLAN_PAGE.activated(active.endsOn) : TRAINING_PLAN_PAGE.activeNoEnd}</span>
+            <span className="mt-1 self-start"><Chip on>{TRAINING_PLAN_PAGE.goTraining}</Chip></span>
+          </>
+        ) : (
+          <>
+            <TrainingCardPrice priceFen={priceFen === undefined ? ownFen : priceFen} />
+            <span className="mt-1 self-start"><Chip on>{WORDING_1022.home.trainingPrice.cta}</Chip></span>
+          </>
+        )}
       </span>
     </button>
   );

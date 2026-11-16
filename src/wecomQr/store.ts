@@ -49,8 +49,15 @@ export async function findWecomQr(mediaDir: string, key: WecomQrKey): Promise<st
   return null;
 }
 
-/** 目錄裡全部：預設那一張與每家公司的（鍵是公司 id）。 */
-export async function listWecomQrs(mediaDir: string): Promise<{ default: string | null; companies: Record<number, string> }> {
+/**
+ * 目錄裡全部：預設那一張與每家公司的（鍵是公司 id）。
+ * `keepCompanyIds` 有給時，不在裡面的公司（停用或已不存在）的檔案**當場刪掉**、不回：
+ * 那是對方的企業微信聯絡方式，公司停用後不該還掛在公開的 `/media` 底下（2026-11-17 code review 第 9 項）。
+ */
+export async function listWecomQrs(
+  mediaDir: string,
+  keepCompanyIds?: ReadonlySet<number>,
+): Promise<{ default: string | null; companies: Record<number, string> }> {
   let files: string[] = [];
   try {
     files = await fs.promises.readdir(folderOf(mediaDir));
@@ -60,6 +67,10 @@ export async function listWecomQrs(mediaDir: string): Promise<{ default: string 
   const companies: Record<number, string> = {};
   for (const f of files) {
     const m = /^company-(\d{1,9})\.(jpg|png)$/.exec(f);
+    if (m && keepCompanyIds && !keepCompanyIds.has(Number(m[1]))) {
+      await removeWecomQr(mediaDir, { companyId: Number(m[1]) });
+      continue;
+    }
     if (m && companies[Number(m[1])] === undefined) {
       const url = await findWecomQr(mediaDir, { companyId: Number(m[1]) });
       if (url) companies[Number(m[1])] = url;

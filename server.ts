@@ -5,6 +5,7 @@ import { claimCouponForUser, claimTestCouponForUser, couponOfUser, type StoredCo
 import { assertDistinctTestCodes, resolveTestCode, TEST_COUPON_BATCH_NOTE, TEST_COUPON_DISCOUNT, TEST_VIP_MONTHS } from './src/redeem/testCodes';
 import { loadSplitAttribution, loadSplitRates, saveSplitSnapshot } from './src/db/revenueSplit';
 import * as profitSharingDb from './src/db/profitSharing';
+import { isH5NotOpened } from './src/payments/h5NotOpened';
 import { readProfitSharingConfig, shouldFlagOrder } from './src/profitSharing/plan';
 import { createProfitSharingApi, type EncryptKey } from './src/profitSharing/wechatApi';
 import { runProfitSharingOnce, type RunResult } from './src/profitSharing/run';
@@ -3268,6 +3269,12 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     });
   } catch (err: any) {
     console.error('[Payment] Failed to create payment:', err.message);
+    // 商戶號還沒開通 H5 支付（微信回 NO_AUTH）：不是伺服器壞了，是微信外現在付不了 —— 說清楚要用微信打開，
+    // 也不算進 5xx 告警。JSAPI 的 NO_AUTH 是別的問題（授權目錄等），照舊 500。
+    if (isH5NotOpened(err, req.body?.channel, PAY_TRADE_TYPE)) {
+      res.status(409).json({ error: '请用微信打开本页再付款。', code: 'WECHAT_ONLY' });
+      return;
+    }
     res.status(500).json({ error: '创建订单失败，请稍后重试。' });
   }
 });

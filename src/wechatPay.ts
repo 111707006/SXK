@@ -187,6 +187,12 @@ export interface OrderRequest {
   payerClientIp: string;
   /** JSAPI 必填 —— 需先透過網頁授權取得。 */
   openid?: string;
+  /**
+   * 這一筆之後要不要分账（`settle_info.profit_sharing`，ADR-0017）。帶了之後款項先冻结在商戶號，
+   * 分完或解凍才進可用餘額（最長 30 天）；不帶＝跟以前一樣。
+   * 來源：https://pay.weixin.qq.com/doc/v3/merchant/4012068033
+   */
+  profitSharing?: boolean;
 }
 
 /**
@@ -215,6 +221,7 @@ export function buildOrderBody(
     if (!req.openid) throw new Error('JSAPI 下單需要 openid（先走服務號網頁授權，src/wechatOauth.ts）。');
     base.payer = { openid: req.openid };
   }
+  if (req.profitSharing) base.settle_info = { profit_sharing: true };
 
   return JSON.stringify(base);
 }

@@ -3,7 +3,7 @@
  *
  * 上半：比例。一個預設＋每家合作公司、每位推薦人的覆寫；留空＝沿用上一層。改了只對之後的新訂單生效（訂單成立時記在訂單上），不留修改紀錄。
  * 下半：對帳。選一段日期，看每筆付款各方的金額（扣掉微信手續費之後分）、依對方合計，匯出 .xlsx。
- * 微信分賬的介面還沒接（商戶號沒開通）：這一頁只算，不出錢。伺服器開關關著時整頁說一句「還沒開」。
+ * 最下面：微信分账（`ProfitSharingSection`，開關 `PROFIT_SHARING`，ADR-0017）；沒開時這一頁只算，不出錢。伺服器開關關著時整頁說一句「還沒開」。
  */
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Download } from 'lucide-react';
@@ -12,6 +12,7 @@ import type { AdminErrorView } from '../adminView';
 import { percentLabel } from '../../revenueSplit/split';
 import { yuan } from '../../revenueSplit/ledger';
 import { Button, EmptyState, ErrorNote, Field, Panel, Spinner, TextInput, dateBounds, useAsyncData } from '../ui';
+import ProfitSharingSection from './ProfitSharingSection';
 
 const KIND = { channel: '渠道商', therapist: '治疗师' } as const;
 
@@ -279,7 +280,7 @@ export default function RevenueSplitPanel({ onError }: { onError: (view: AdminEr
   );
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
   const description =
-    '每笔订单成立时记下对方（合作公司、推荐人）与比例，这里算出各方该分多少、导出对帐。微信分账还没接（商户号开通后才接），这一页只算，不出钱。';
+    '每笔订单成立时记下对方（合作公司、推荐人）与比例，这里算出各方该分多少、导出对帐。实际把钱分出去在最下面的「微信分账」（要另外开启）；没开启时这一页只算，不出钱。';
 
   let body: ReactNode;
   if (loading) body = <Spinner />;
@@ -293,6 +294,7 @@ export default function RevenueSplitPanel({ onError }: { onError: (view: AdminEr
           <h3 className="mb-2 text-xs font-bold text-brand-forest">对帐</h3>
           <LedgerSection onError={onError} />
         </section>
+        <ProfitSharingSection settings={data.settings} onError={onError} />
       </div>
     );
   }

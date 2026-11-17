@@ -897,6 +897,53 @@ CREATE TABLE IF NOT EXISTS `revenue_split_rates` (
   PRIMARY KEY (`scope`, `ref_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 微信分账（ADR-0017，PROFIT_SHARING，deploy/migrations/2026-11-17-profit-sharing.sql）
+CREATE TABLE IF NOT EXISTS `profit_sharing_receivers` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  -- 对方是谁：company＝合作公司（companies.id）；referrer＝推荐人（referrers.id）。一个对方一个接收方。
+  `party_kind` ENUM('company','referrer') NOT NULL,
+  `ref_id` INT UNSIGNED NOT NULL,
+  -- MERCHANT_ID：对方的微信支付商户号；PERSONAL_OPENID：个人在服务号底下的 openid（钱进微信零钱）。
+  `account_type` ENUM('MERCHANT_ID','PERSONAL_OPENID') NOT NULL,
+  `account` VARCHAR(64) NOT NULL,
+  -- 商户全称（MERCHANT_ID 必填，送给微信前加密）；个人不存姓名。
+  `name` VARCHAR(128) NULL,
+  `relation_type` VARCHAR(32) NOT NULL DEFAULT 'PARTNER',
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  -- 微信那边「添加分账接收方」成功的时间；NULL＝还没加成功，不能分。
+  `wx_added_at` DATETIME NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_party` (`party_kind`, `ref_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `profit_sharing_orders` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  -- 一笔订单一列（payments.id）。开单时带了 profit_sharing 的订单才有这一列。
+  `payment_id` BIGINT UNSIGNED NOT NULL,
+  -- awaiting：开单时记下、等付款与退款期；created：金额算好、微信还没受理；processing：微信处理中；
+  -- finished：分完（个别接收方失败写在 error）；failed：没分出去（看 error）。
+  `state` ENUM('awaiting','created','processing','finished','failed') NOT NULL DEFAULT 'awaiting',
+  -- share＝请求分账（剩下的同时解冻）；unfreeze＝没有可分的，只解冻。
+  `kind` ENUM('share','unfreeze') NULL,
+  -- 第几次送（失败重试换一个商户分账单号 PS<订单 id>A<第几次>）。
+  `attempt` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `out_order_no` VARCHAR(64) NULL,
+  -- 微信分账单号；NULL＝微信没受理过。
+  `wx_order_id` VARCHAR(64) NULL,
+  -- 每一方该拿多少、这次分了多少、没分的原因（src/profitSharing/plan.ts 的 PlanLine[]）。
+  `detail` JSON NULL,
+  `shared_fen` INT UNSIGNED NOT NULL DEFAULT 0,
+  -- 该给对方、但没从微信分出去的（超过最高分账比例、对方没登记接收方、分账失败）：线下结。
+  `offline_fen` INT UNSIGNED NOT NULL DEFAULT 0,
+  `error` VARCHAR(255) NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_payment` (`payment_id`),
+  UNIQUE KEY `uniq_out_order_no` (`out_order_no`),
+  INDEX `idx_state` (`state`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 家长在服务号底下的微信 openid（JSAPI 支付，2026-11-08，deploy/migrations/2026-11-08-wechat-openids.sql）
 CREATE TABLE IF NOT EXISTS `wechat_openids` (
   `user_id` INT UNSIGNED NOT NULL,

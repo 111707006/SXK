@@ -144,6 +144,22 @@ export class PlatformCertStore {
     return this.inflight;
   }
 
+  /**
+   * 一張現在有效的證書（加密敏感欄位用，例如分账接收方的商戶全稱）：到期日最晚的那一張。
+   * 快取是空的或太舊先重新下載；拿不到回 null。
+   */
+  async current(): Promise<PlatformCert | null> {
+    if (this.certs.size === 0 || this.now() - this.fetchedAt > REFRESH_INTERVAL_MS) {
+      try {
+        await this.refresh();
+      } catch (err: any) {
+        console.error(`[WechatPay] Platform certificates refresh failed: ${err.message}`);
+      }
+    }
+    const valid = [...this.certs.values()].filter(c => c.expiresAt > this.now());
+    return valid.sort((a, b) => b.expiresAt - a.expiresAt)[0] ?? null;
+  }
+
   /** 現在認得的序列號（日誌用）。 */
   serials(): string[] {
     return [...this.certs.keys()];

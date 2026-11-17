@@ -89,6 +89,7 @@
 │   │   ├── passRates.ts   # 180 题逐题通过率：denver（Denver II-Jimma Table 3，CC BY 4.0）／cdc（2022 里程碑）／ai；档头写出处与已知限制
 │   │   └── developmentIndex.ts # T1 逐题作答＋篩查月龄 → 100／90／80／75／70（题目独立卷积）；读不到逐题作答回 null
 │   ├── revenueSplit/      # 清分（ADR-0016）：split.ts 对方与比例的快照、金额怎么取整；ledger.ts 对帐列与合计（前端也载）；`.xlsx` 在 src/admin/splitXlsx.ts
+│   ├── profitSharing/     # 微信分账（ADR-0017，`PROFIT_SHARING`）：plan.ts 一笔实际分多少（最高分账比例、线下结）与设定；wechatApi.ts 四支 APIv3（添加接收方、请求分账、解冻、查询）与敏感栏位加密；run.ts 执行一轮；adminRoutes.ts 后台端点；资料层 src/db/profitSharing.ts；画面 src/admin/panels/ProfitSharingSection.tsx
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
 │   │   ├── core.ts        # 产码、杂凑、设定（HANDOFF_*）、两端之间那一包的形状（伺服器专用）
 │   │   ├── routes.ts      # 发出端三支（B）＋接收端一支（A）；server.ts 只注册、注入依赖
@@ -328,6 +329,11 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `/api/admin/revenue-split/rates` | PUT | 改一组比例：`scope`（default／company／referrer）、`refId`、`platformPercent`／`companyPercent`（0–100，最多两位小数；`null` 或空＝沿用上一层），整组换掉；两个都空就删掉那一组。只对之后的新订单生效 | 同上 |
 | `/api/admin/revenue-split/orders` | GET | 一段日期（`from`、`to`，含头尾，最多一年）付款成功／已退款的订单，每笔各方金额（`ledgerRows`）、合计、依对方合计；开关打开之前的订单写「未记录」 | 同上 |
 | `/api/admin/revenue-split/export` | POST | 同上导出 `.xlsx`（订单明细＋按对方汇总，档名 `清分对帐-起-迄.xlsx`），每次记一笔 `admin_exports`（`revenue_split`），记不下就 500 | `from`, `to`（body）；同上 |
+| `/api/admin/profit-sharing` | GET | 微信分账（`PROFIT_SHARING`，ADR-0017，全域管理员）：回 `{config: {maxBp, delayDays, autoMinutes}, ready, receivers, records}`（最近 200 张分账单；还没送的附「现在送会怎么分」的试算） | `Authorization: Bearer <后台 token>` |
+| `/api/admin/profit-sharing/receivers` | PUT | 存一个对方的分账接收方（`partyKind` company／referrer、`refId`、`type` `MERCHANT_ID`（要 `name` 商户全称，送微信前加密）／`PERSONAL_OPENID`、`account`），接着向微信「添加分账接收方」；微信没加成功照存、回 `{registered: false, wechatError}`（不能分）。`/receivers/active` POST 停用／启用 | 同上 |
+| `/api/admin/profit-sharing/openid` | GET | 用手机号查那个人在服务号底下的 openid（个人接收方用；他要先用微信在站上走过一次付款授权），回 `{openid}` 或 `null` | `phone`（query）；同上 |
+| `/api/admin/profit-sharing/run` | POST | 跑一轮分账（`src/profitSharing/run.ts`：到期的算好、送出；处理中的查到终态），回 `{started, requested, finished, failed, retryLater}`。**真的把钱转出去**。微信支付没设好 503、上一轮还在跑 409 | 同上 |
+| `/api/admin/profit-sharing/orders/:id/retry` | POST | 被微信拒绝、还没受理过的分账单：`mode: 'share'` 重新算再送（换单号）、`'unfreeze'` 放弃分账只解冻（全部线下结）；其他状态 409 | `mode`；同上 |
 | `/api/admin/coupons/:id` | PATCH | 改一批的折法、到期日、备注（带了才改；之后开的订单照新的收） | 同上 |
 | `/api/admin/coupons/:id/codes`（`.csv`） | GET | 一批的每一张（状态、家长编号、用的时间；不 JOIN users）；`.csv` 只给未用的 | 同上 |
 | `/api/admin/coupon-codes/:id/void` | POST | 作废一张未用的（其他 409） | 同上 |
@@ -512,6 +518,7 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `TRAINING_PLAN_PRICES_FEN` | 训练计划的价钱（#111，只在 `TRAINING_PLAN` 开着时有作用）：写成 `1:1990,3:2990,6:3990,12:9990`（分），1／3／6 都要、12 可省（省了那张卡「价格待定」）、正整数，认不得起不来（`src/t2/trainingPlanPrices.ts`）。没设＝价格待定、方案卡不能付款、只剩兑换码；设了且微信支付设齐（H5）才开单（`POST /api/payment/create` 带 `scope: 'plan', months`，金额只照这里），结算发一段 `payment` 使用权。**要先跑 `2026-10-24-payments-plan.sql`** | 否 |
 | `REVENUE_SPLIT` | 清分（客户 11/03〈清分〉，ADR-0016，**只在专案 A**）：`1` ＝ 每笔订单开单那一刻把对方（合作公司／推荐人／公司旗下治疗师）与比例记进 `payments.split_snapshot`（记不下就 500、不开单）；后台「清分」分页（全域管理员）改比例（预设＋每家公司、每位推荐人，留空＝沿用上一层）、看一段日期每笔各方金额、导出 `.xlsx`（记 `admin_exports`）。只算不出钱（微信分账还没接）。不设或 `0` ＝ 那几支不注册、订单不记快照。B 设了不生效。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-11-07-revenue-split.sql`** | 否 |
 | `WECHAT_FEE_BP` | 清分估微信手续费用的费率（万分比，预设 60＝0.6%，暂采；以商户号签约的为准），开单时记在快照上。0–1000 的整数，认不得起不来 | 否 |
+| `PROFIT_SHARING` | 微信分账（ADR-0017，`src/profitSharing/`，**只在专案 A**）：`1` ＝ 对方（合作公司／推荐人）在后台「清分 → 微信分账」登记了接收方、微信那边也添加成功的订单，开单时带 `settle_info.profit_sharing`（款项先冻结在商户号）并在 `profit_sharing_orders` 记一列（记不下就不开单）；付款满 `PROFIT_SHARING_DELAY_DAYS` 天（预设 7，0–25，退款期）由后台「执行分账」按钮或定时器（`PROFIT_SHARING_AUTO_MINUTES`，预设 0＝关，10–1440）向微信请求分账，一笔只分一次、剩下的同时解冻。金额照清分快照算，但不超过订单金额 × `PROFIT_SHARING_MAX_BP`（预设 3000＝30%，**要等于商户平台「分账管理比例」**），超过的与没有接收方的记「线下结」。不设或 `0` ＝ 那几支不注册、订单不带分账标记。**要同时开 `REVENUE_SPLIT`**，否则起不来；B 设了不生效。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-11-17-profit-sharing.sql`，商户平台要先开通分账**。⚠️ 没有打过微信的伺服器（分账没有沙箱） | 否 |
 | `T2_COUPON` | T1→T2 优惠券（客户 11/03 简报第 21、29 页，规格 `docs/specs/client-changes-2026-11-03.md`〈優惠券〉，**只在专案 A**）：`1` ＝ 后台多「优惠券」分页（全域管理员批量产码，预设半价、折法与金额可调、到期日、作废、看使用状况）；T2 卡与解锁页的价钱下面多「优惠码兑换」（`src/components/T2CouponField.tsx`，读 `GET /api/coupon`，404 就不画）；兑到之后 T2 订单照折后价收。每位家长一张、不绑渠道。免费期（`PAYWALL_FREE`）照样能兑、会记下用掉，但不开单就不影响金额。不设或 `0` ＝ 那几支不注册、价钱照旧。B 设了不生效（启动印一行）。只收 `1`/`true`/`0`/`false`。**要先跑 `2026-11-07-t2-coupons.sql`** | 否 |
 | `WECHATPAY_*` | 微信支付（`src/wechatPay.ts` 的 `loadConfig`，名单见 `.env.example`）：APPID、MCHID、SERIAL_NO、PRIVATE_KEY(_PATH)、APIV3_KEY、NOTIFY_URL 必填。回调验签两种：`WECHATPAY_PUBLIC_KEY(_PATH)`＋`WECHATPAY_PUBLIC_KEY_ID` **都不设＝平台证书模式**（正式站，使用者 2026-11-10：商户号不切公钥；伺服器用 APIv3 密钥下载平台证书、12 小时更新、依 `Wechatpay-Serial` 找，`src/wechatPlatformCerts.ts`），两个都设＝公钥模式，设一半起不来付款（列在缺项里） | 否 |
 | `WECHAT_MP_APPSECRET` | 在微信里付款（JSAPI，2026-11-08，**只在专案 A**）：服务号的 AppSecret（AppID 用 `WECHATPAY_APPID`）。与 `PUBLIC_BASE_URL`（https 的协定＋网域，要等于服务号的「网页授权域名」）一起设了才开：前端在微信里下单带 `channel: 'jsapi'`，没有 openid 先走一次服务号网页授权（`src/wechatOauth.ts`、`src/utils/wechatPayClient.ts`）；微信外照旧 H5。商户平台要加 JSAPI 支付授权目录 `https://sxkscreen.com/`。不设＝跟以前一样。**要先跑 `2026-11-08-wechat-openids.sql`** | 否 |

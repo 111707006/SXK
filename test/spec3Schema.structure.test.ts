@@ -20,6 +20,7 @@ describe.each([
   ['deploy/migrations/2026-10-24-redeem-codes.sql', ['redeem_batches', 'redeem_codes']],
   ['deploy/migrations/2026-11-07-t2-coupons.sql', ['coupon_batches', 'coupon_codes']],
   ['deploy/migrations/2026-11-07-revenue-split.sql', ['revenue_split_rates']],
+  ['deploy/migrations/2026-11-17-profit-sharing.sql', ['profit_sharing_receivers', 'profit_sharing_orders']],
 ] as const)('%s', (file, tables) => {
   const migration = read(file);
 

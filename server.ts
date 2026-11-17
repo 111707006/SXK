@@ -4,6 +4,10 @@ import { grantTestPassForUser, redeemCodeForUser } from './src/db/redeemCodes';
 import { claimCouponForUser, claimTestCouponForUser, couponOfUser, type StoredCoupon } from './src/db/coupons';
 import { assertDistinctTestCodes, resolveTestCode, TEST_COUPON_BATCH_NOTE, TEST_COUPON_DISCOUNT, TEST_VIP_MONTHS } from './src/redeem/testCodes';
 import { loadSplitAttribution, loadSplitRates, saveSplitSnapshot } from './src/db/revenueSplit';
+import * as profitSharingDb from './src/db/profitSharing';
+import { readProfitSharingConfig, shouldFlagOrder } from './src/profitSharing/plan';
+import { createProfitSharingApi, type EncryptKey } from './src/profitSharing/wechatApi';
+import { runProfitSharingOnce, type RunResult } from './src/profitSharing/run';
 import { resolveFeeBp, resolveSplit, type SplitSnapshot } from './src/revenueSplit/split';
 import { applyCouponDiscount, couponDiscountLabel, COUPON_ALREADY_CLAIMED, COUPON_INVALID, COUPON_RATE_LIMITED, type ParentCoupon } from './src/t2/coupon';
 import { isPassMonths, PASS_MONTHS } from './src/t2/trainingPass';
@@ -340,6 +344,34 @@ async function recordPaymentSplit(paymentId: number | null, split: SplitSnapshot
   if (!split || paymentId === null) return;
   await saveSplitSnapshot(paymentId, split);
 }
+
+// ── 微信分账（ADR-0017，`src/profitSharing/`）──
+// `PROFIT_SHARING=1`：對方登記了分账接收方的訂單，開單時帶分账標記（款項先冻结）；付款成功、過了退款期
+// （`PROFIT_SHARING_DELAY_DAYS`，預設 7 天）由後台按鈕或定時器（`PROFIT_SHARING_AUTO_MINUTES`，預設關）向微信請求分账，
+// 一筆只分一次、剩下的同時解凍。超過最高分账比例（`PROFIT_SHARING_MAX_BP`，預設 3000＝30%，要等於商戶平台設的）
+// 或對方沒登記接收方的部分記成「線下結」。**只在專案 A**，而且要同時開 `REVENUE_SPLIT`（金額照清分快照算），否則起不來。
+// ⚠️ 要先跑 `2026-11-17-profit-sharing.sql`，商戶平台也要先開通分账。
+const PROFIT_SHARING_REQUESTED = resolvePaywallSwitch('PROFIT_SHARING', process.env.PROFIT_SHARING);
+if (PROFIT_SHARING_REQUESTED && APP_MODE === 'full' && !REVENUE_SPLIT) {
+  throw new Error('PROFIT_SHARING=1 needs REVENUE_SPLIT=1: the amounts to share come from the split snapshot of each order.');
+}
+const PROFIT_SHARING = PROFIT_SHARING_REQUESTED && APP_MODE === 'full';
+const PROFIT_SHARING_CONFIG = readProfitSharingConfig(process.env);
+
+/**
+ * 這一筆要不要帶分账標記：對方有登記好的接收方、而且分得出錢才帶（不然白白冻结 30 天）。
+ * **開單之前**讀好 —— 讀不到就丟錯、不開單（同清分快照）。
+ */
+async function resolveProfitSharingFlag(amountFen: number, split: SplitSnapshot | null): Promise<boolean> {
+  if (!PROFIT_SHARING || !split || split.party.kind === 'none') return false;
+  return shouldFlagOrder(amountFen, split, await profitSharingDb.loadReceiverMap(), PROFIT_SHARING_CONFIG.maxBp);
+}
+
+/** 開單之後記一列「這一筆帶了分账標記」。寫不進去就丟錯 —— 不往微信下單（否則款項冻结了卻沒有人去分或解凍）。 */
+async function recordProfitSharingFlag(paymentId: number | null, flagged: boolean): Promise<void> {
+  if (!flagged || paymentId === null) return;
+  await profitSharingDb.flagPayment(paymentId);
+}
 // 訓練計劃的價錢（#111，`src/t2/trainingPlanPrices.ts`）：`1:…,3:…,6:…`（分），三個都要；認不得起不來。沒設＝價格待定、只能兌換。
 const TRAINING_PLAN_PRICES = resolvePlanPrices(process.env.TRAINING_PLAN_PRICES_FEN);
 
@@ -471,7 +503,7 @@ function refusePayChannel(res: express.Response, channel: PayChannel): boolean {
 async function placeChannelOrder(
   req: express.Request,
   channel: PayChannel,
-  order: { description: string; outTradeNo: string; amountFen: number },
+  order: { description: string; outTradeNo: string; amountFen: number; profitSharing?: boolean },
 ): Promise<{ tradeType: 'h5'; h5Url?: string } | { tradeType: 'jsapi'; jsapi: wechatPay.JsapiPayParams }> {
   const config = wechatPayStatus.config!;
   if (channel.kind === 'jsapi') {
@@ -3043,8 +3075,10 @@ async function createPlanPayment(req: express.Request, res: express.Response, us
   const outTradeNo = generateOutTradeNo();
   if (!isValidOutTradeNo(outTradeNo)) throw new Error(`generated out_trade_no violates the official contract: ${outTradeNo}`);
   const paymentId = await mysqlDb.createPayment({ userId: user.id, outTradeNo, amountFen, scope: 'plan', dimensionId: null, months });
+  const profitSharing = await resolveProfitSharingFlag(amountFen, split);
   await recordPaymentSplit(paymentId, split);
-  const placed = await placeChannelOrder(req, channel, { description: `居家训练 ${months} 个月`, outTradeNo, amountFen });
+  await recordProfitSharingFlag(paymentId, profitSharing);
+  const placed = await placeChannelOrder(req, channel, { description: `居家训练 ${months} 个月`, outTradeNo, amountFen, profitSharing });
   res.json({ outTradeNo, paymentId, amountFen, scope: 'plan', months, wechatReady: true, ...placed });
 }
 
@@ -3198,6 +3232,9 @@ paidOnly.post('/api/payment/create', async (req, res) => {
       ...(appliedCoupon ? { coupon: appliedCoupon } : {}),
     });
     await recordPaymentSplit(paymentId, split);
+    // 微信支付沒設好就開不了單，也就不必記分账標記
+    const profitSharing = wechatPayStatus.config ? await resolveProfitSharingFlag(amountFen, split) : false;
+    await recordProfitSharingFlag(paymentId, profitSharing);
 
     // Credentials missing → the order row exists but there is nothing to pay
     // with. Say so; the client must never read this as success.
@@ -3216,7 +3253,7 @@ paidOnly.post('/api/payment/create', async (req, res) => {
     const orderDescription = scope === 't2'
       ? '森心康 深度评估解锁'
       : `森心康 ${dimensionName} 深度评估解锁`;
-    const placed = await placeChannelOrder(req, channel, { description: orderDescription, outTradeNo, amountFen });
+    const placed = await placeChannelOrder(req, channel, { description: orderDescription, outTradeNo, amountFen, profitSharing });
 
     res.json({
       alreadyUnlocked: false,
@@ -3339,6 +3376,60 @@ function startPaymentReconcile(): void {
   setInterval(tick, PAY_RECONCILE_MINUTES * 60_000).unref();
   setTimeout(tick, 60_000).unref(); // 開機一分鐘後先跑一輪，補上重啟那段時間丟的回調
   console.log(`[Reconcile] every ${PAY_RECONCILE_MINUTES} min: pending orders 5 min – 48 h old are checked with WeChat Pay.`);
+}
+
+/** 加密敏感欄位（分账接收方的商戶全稱）用的那一把：公鑰模式用微信支付公鑰，平台證書模式用一張現在有效的平台證書。 */
+async function wechatEncryptKey(): Promise<EncryptKey | null> {
+  const config = wechatPayStatus.config;
+  if (!config) return null;
+  if (config.verifyMode === 'public_key') return { serial: config.platformKeyId, publicKey: config.platformPublicKey };
+  const cert = await platformCerts?.current();
+  return cert ? { serial: cert.serialNo, publicKey: cert.publicKey } : null;
+}
+
+const profitSharingApi = wechatPayStatus.config ? createProfitSharingApi(wechatPayStatus.config, wechatEncryptKey) : null;
+
+/** 微信分账跑一輪（後台按鈕與定時器共用，`src/profitSharing/run.ts`）。 */
+async function runProfitSharing(): Promise<RunResult> {
+  if (!profitSharingApi) throw new Error('WeChat Pay is not configured');
+  return runProfitSharingOnce({
+    listDue: profitSharingDb.listDue,
+    listOpen: profitSharingDb.listOpen,
+    loadReceivers: profitSharingDb.loadReceiverMap,
+    startRecord: profitSharingDb.startRecord,
+    updateRecord: profitSharingDb.updateRecord,
+    api: profitSharingApi,
+    maxBp: PROFIT_SHARING_CONFIG.maxBp,
+    delayDays: PROFIT_SHARING_CONFIG.delayDays,
+    log: line => console.log(line),
+    alert: (text, key) => void alerter.alert('payment', text, key),
+  });
+}
+
+/** 定時分账（`PROFIT_SHARING_AUTO_MINUTES`，預設關＝只有後台按鈕）。只在 `startServer` 裡啟動。 */
+function startProfitSharingTimer(): void {
+  if (!PROFIT_SHARING || PROFIT_SHARING_CONFIG.autoMinutes === 0) return;
+  if (!profitSharingApi || !mysqlDb.isConfigured()) {
+    console.warn('[ProfitSharing] PROFIT_SHARING_AUTO_MINUTES is set but WeChat Pay or the database is not configured; not running.');
+    return;
+  }
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const r = await runProfitSharing();
+      if (r.started + r.requested + r.finished + r.failed > 0) {
+        console.log(`[ProfitSharing] started ${r.started}, requested ${r.requested}, finished ${r.finished}, failed ${r.failed}, retry later ${r.retryLater}`);
+      }
+    } catch (err: any) {
+      console.error('[ProfitSharing] run failed:', err?.message ?? err);
+    } finally {
+      running = false;
+    }
+  };
+  setInterval(tick, PROFIT_SHARING_CONFIG.autoMinutes * 60_000).unref();
+  console.log(`[ProfitSharing] every ${PROFIT_SHARING_CONFIG.autoMinutes} min: orders paid ${PROFIT_SHARING_CONFIG.delayDays}+ days ago are shared.`);
 }
 
 /**
@@ -4762,6 +4853,27 @@ app.use(
       coupons: T2_COUPON,
       // 清分（ADR-0016）：只在專案 A、`REVENUE_SPLIT` 開著。
       revenueSplit: REVENUE_SPLIT ? { feeBp: WECHAT_FEE_BP } : undefined,
+      // 微信分账（ADR-0017）：只在專案 A、`PROFIT_SHARING` 開著。
+      profitSharing: PROFIT_SHARING
+        ? {
+            config: PROFIT_SHARING_CONFIG,
+            ready: Boolean(profitSharingApi),
+            listReceivers: profitSharingDb.listReceivers,
+            loadReceiverMap: profitSharingDb.loadReceiverMap,
+            saveReceiver: profitSharingDb.saveReceiver,
+            addReceiverAtWechat: r => {
+              if (!profitSharingApi) throw new Error('WeChat Pay is not configured');
+              return profitSharingApi.addReceiver(r);
+            },
+            markReceiverRegistered: profitSharingDb.markReceiverRegistered,
+            setReceiverActive: profitSharingDb.setReceiverActive,
+            listRecords: profitSharingDb.listRecords,
+            findRecord: profitSharingDb.findRecord,
+            restartRecord: profitSharingDb.restartRecord,
+            findOpenidByPhone: phone => profitSharingDb.findOpenidByPhone(phone, wechatPayStatus.config?.appid ?? ''),
+            run: runProfitSharing,
+          }
+        : undefined,
       // 家長詳情與列印帶出最新的 T2 報告（#67）。只有專案 A（B 沒有 T2）。
       t2Reports: APP_MODE === 'full',
       // 發育指數的算法（`DEV_INDEX_BASIS`）。
@@ -4844,6 +4956,7 @@ export async function startServer() {
   }
 
   startPaymentReconcile();
+  startProfitSharingTimer();
 
   // 程序要掛了：先通知（最多等 3 秒），再照 Node 的預設結束、讓 pm2 重開。只在真的起伺服器時裝，測試不受影響。
   if (alerter.enabled) {
@@ -4910,6 +5023,13 @@ export async function startServer() {
         LEGAL_DOCS
           ? '[SenXinKang Server] LEGAL_DOCS=1: terms come from the admin editor (legal_documents) once saved.'
           : '[SenXinKang Server] LEGAL_DOCS is set but ignored: project B keeps the built-in terms (A only).'
+      );
+    }
+    if (PROFIT_SHARING_REQUESTED) {
+      console.log(
+        PROFIT_SHARING
+          ? `[SenXinKang Server] PROFIT_SHARING=1: orders whose partner has a registered receiver are flagged for WeChat profit sharing (cap ${PROFIT_SHARING_CONFIG.maxBp} bp, ${PROFIT_SHARING_CONFIG.delayDays} days after payment, ${PROFIT_SHARING_CONFIG.autoMinutes ? `every ${PROFIT_SHARING_CONFIG.autoMinutes} min` : 'manual only'}).`
+          : '[SenXinKang Server] PROFIT_SHARING is set but ignored: project B has no paid orders to share (A only).'
       );
     }
     if (REVENUE_SPLIT_REQUESTED) {

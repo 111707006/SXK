@@ -8,6 +8,9 @@
 
 import type { CouponDiscount } from '../t2/coupon';
 import type { LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
+import type { AdminReceiver, AdminSharingRecord } from '../profitSharing/adminRoutes';
+import type { PartyKind, ProfitSharingConfig, ReceiverType } from '../profitSharing/plan';
+import type { RunResult } from '../profitSharing/run';
 /** 企業微信客服二維碼：預設那張與每家公司的（鍵是公司 id），都是 `/media/wecom/…?v=` 網址。 */
 export interface WecomQrList {
   default: string | null;
@@ -55,6 +58,14 @@ export interface AdminSplitOrders {
   rows: LedgerRow[];
   totals: LedgerTotals;
   byParty: Array<{ party: string; orders: number; companyFen: number; referrerFen: number; platformFen: number }>;
+}
+
+/** 微信分账（ADR-0017）：`GET /api/admin/profit-sharing`。 */
+export interface AdminProfitSharing {
+  config: ProfitSharingConfig;
+  ready: boolean;
+  receivers: AdminReceiver[];
+  records: Array<Omit<AdminSharingRecord, 'snapshot'>>;
 }
 
 /** 一批 T2 優惠券（`src/admin/adminStore.ts` 的 `CouponBatchRecord`）。 */
@@ -533,6 +544,16 @@ export const adminApi = {
     request<AdminSplitOrders>(`/revenue-split/orders?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   exportSplit: (from: string, to: string) =>
     download('/revenue-split/export', { method: 'POST', body: JSON.stringify({ from, to }) }, `清分对帐-${from}-${to}.xlsx`),
+  // ── 微信分账（ADR-0017；只有全域管理員、`PROFIT_SHARING` 開著）──
+  profitSharing: () => request<AdminProfitSharing>('/profit-sharing'),
+  saveProfitSharingReceiver: (input: { partyKind: PartyKind; refId: number; type: ReceiverType; account: string; name: string | null }) =>
+    request<{ ok: true; registered: boolean; wechatError?: string }>('/profit-sharing/receivers', { method: 'PUT', body: JSON.stringify(input) }),
+  setProfitSharingReceiverActive: (partyKind: PartyKind, refId: number, active: boolean) =>
+    request<{ ok: true }>('/profit-sharing/receivers/active', { method: 'POST', body: JSON.stringify({ partyKind, refId, active }) }),
+  profitSharingOpenid: (phone: string) => request<{ openid: string | null }>(`/profit-sharing/openid?phone=${encodeURIComponent(phone)}`),
+  runProfitSharing: () => request<RunResult>('/profit-sharing/run', { method: 'POST', body: '{}' }),
+  retryProfitSharing: (id: number, mode: 'share' | 'unfreeze') =>
+    request<{ ok: true }>(`/profit-sharing/orders/${id}/retry`, { method: 'POST', body: JSON.stringify({ mode }) }),
   /** 未用碼的 CSV：全域管理員給推薦人編號，推薦人自己不給。 */
   codesCsv: (referrerId: number | null) =>
     download(referrerId === null ? '/referrer/codes.csv' : `/referrers/${referrerId}/codes.csv`, { method: 'GET' }, '未用兑换码.csv'),

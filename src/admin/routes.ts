@@ -44,6 +44,7 @@ import { redeemLedgerFileName, redeemLedgerWorkbook } from './redeemXlsx';
 import { splitLedgerFileName, splitLedgerWorkbook } from './splitXlsx';
 import { ledgerByParty, ledgerRows, ledgerTotals, SPLIT_ORDERS_MAX, SPLIT_TOO_MANY } from '../revenueSplit/ledger';
 import { DEFAULT_COMPANY_BP, DEFAULT_PLATFORM_BP, bpFromPercent } from '../revenueSplit/split';
+import { registerProfitSharingRoutes, type ProfitSharingAdminDeps } from '../profitSharing/adminRoutes';
 import { isPassMonths } from '../t2/trainingPass';
 import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
 import { calculateAgeMonth } from '../utils/dateUtils';
@@ -152,6 +153,8 @@ export interface AdminRouterHooks {
   coupons?: boolean;
   /** 清分（客戶 11/03，`REVENUE_SPLIT`，ADR-0016）：只在專案 A、開關開著才傳；`feeBp` 是伺服器的微信手續費設定。 */
   revenueSplit?: { feeBp: number };
+  /** 微信分账（`PROFIT_SHARING`，ADR-0017）：只在專案 A、開關開著才傳；資料層與微信 API 由伺服器注入。 */
+  profitSharing?: Omit<ProfitSharingAdminDeps, 'partyExists'>;
   /**
    * 家長詳情帶不帶最新的 T2 報告快照（#67）。只有專案 A 傳 `true`；B 沒有 T2，
    * 詳情裡就沒有 `t2Report` 這一欄，資料層也一次都不問。
@@ -979,6 +982,13 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         console.error('[Admin] revenue split export failed:', err.message);
         res.status(500).json({ error: '导出失败，请稍后再试。' });
       }
+    });
+  }
+
+  if (hooks.profitSharing) {
+    registerProfitSharingRoutes(router, requireGlobal, {
+      ...hooks.profitSharing,
+      partyExists: async (kind, refId) => Boolean(kind === 'company' ? await store.findCompanyById(refId) : await store.findReferrer(refId)),
     });
   }
 

@@ -94,7 +94,7 @@ describe('關著照舊', () => {
     const html = await render('0', report);
     expect(html).toContain('先看这几项');
     expect(html).toContain('9 维度评估结果明细');
-    expect(html).toContain('儿童综合发展评估报告');
+    expect(html).toContain('儿少综合发展评估报告');
     expect(html).toContain('第二层');
   });
 

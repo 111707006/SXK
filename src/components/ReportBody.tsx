@@ -223,7 +223,7 @@ export default function ReportBody({
               {sourceLabel}
             </div>
           )}
-          <h2 className="text-xl font-bold text-brand-forest mt-1">{ui1022 ? WORDING_1022.report.title : '儿童综合发展评估报告'}</h2>
+          <h2 className="text-xl font-bold text-brand-forest mt-1">{ui1022 ? WORDING_1022.report.title : '儿少综合发展评估报告'}</h2>
           {/* 對照表要求固定放在報告最上方的定位句，原句照抄（見 statusWording.ts）；1022 換客戶指定的那一句。 */}
           <p id="report-disclaimer" className="text-xs text-brand-charcoal/80 mt-1.5">{ui1022 ? WORDING_1022.report.disclaimer : SCREENING_DISCLAIMER}</p>
         </div>

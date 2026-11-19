@@ -1899,7 +1899,7 @@ export default function App() {
                             <Layers size={16} />
                           </div>
                           <div>
-                            <h3 className="text-sm font-black text-brand-charcoal">{PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿童综合发展评估报告'}</h3>
+                            <h3 className="text-sm font-black text-brand-charcoal">{PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿少综合发展评估报告'}</h3>
                             <p className="text-xs text-brand-charcoal/80">9维度多感官神经网络基础评估</p>
                           </div>
                         </div>
@@ -1958,7 +1958,7 @@ export default function App() {
                                         查看报告 <ChevronRight size={10} />
                                       </span>
                                     </div>
-                                    <h5 className="text-xs font-bold text-brand-charcoal mt-1">{PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿童综合发展评估报告'}</h5>
+                                    <h5 className="text-xs font-bold text-brand-charcoal mt-1">{PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿少综合发展评估报告'}</h5>
                                     <div className="flex items-center gap-2 mt-2">
                                       <span className="text-xs bg-red-50 text-red-600 border border-red-100 rounded px-1.5 font-medium">
                                         {STATUS_WORDING.delay.label}: {delayCount}

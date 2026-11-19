@@ -44,7 +44,7 @@ export const HOME_CARDS_1022: ReadonlyArray<HomeCard & { sub: string }> = [
 
 export const HOME_COPY = {
   /** 頁首中間那一行（客戶示意圖原字）。 */
-  siteTitle: '儿童综合发展评估网',
+  siteTitle: '儿少综合发展评估网',
   navLabel: '首页',
   login: '登录',
   register: '注册',

@@ -59,7 +59,7 @@ export default function LedoReportLibrary({ childName, t1Count, history, onOpenL
               <ListRow
                 key={rec.id}
                 avatar={<Avatar tone={delay > 0 ? 'more' : mild > 0 ? 'mild' : 'ok'} text={md(rec.createdAt)} />}
-                title={PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿童综合发展评估报告'}
+                title={PRODUCT.features.ui1022 ? WORDING_1022.report.listItemTitle : '儿少综合发展评估报告'}
                 sub={parts.length > 0 ? parts.join(' · ') : STATUS_WORDING.normal.label}
                 onClick={() => onOpenRecord(rec)}
               />

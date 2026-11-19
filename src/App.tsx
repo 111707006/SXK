@@ -1639,12 +1639,12 @@ export default function App() {
               {/* 專案 B 的 welcomeName 是 null —— 整個強調 span 不渲染，不是留一個空的。1022 只寫平台名稱。 */}
               {PRODUCT.features.ui1022
                 ? WORDING_1022.profile.title
-                : <>欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span> </>}儿童综合发展评估</>}
+                : <>欢迎使用{PRODUCT.brand.welcomeName && <> <span className="text-brand-moss">{PRODUCT.brand.welcomeName}</span> </>}儿少综合发展评估</>}
             </h2>
             {/* 1022：建檔頁標題是「T1 儿少综合发展评估」、說明一句（issue #83）；歡迎語放在標題上面一行。 */}
             {PRODUCT.features.ui1022 ? (
               <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
-                {/* 系統名照各產品自己的（A 1022＝平台名稱；B＝儿童综合发展评估系统，2026-11-19） */}
+                {/* 系統名照各產品自己的（A 1022＝平台名稱；B＝儿少综合发展评估系统，2026-11-19） */}
                 欢迎使用{PRODUCT.brand.headerTitle}。{WORDING_1022.profile.intro}
               </p>
             ) : (

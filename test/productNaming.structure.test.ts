@@ -31,7 +31,7 @@ function read(rel: string): string {
 }
 
 /** 兩個產品共同的系統名。A 在前面多一個品牌前綴。 */
-const SYSTEM_NAME = '儿童综合发展评估系统';
+const SYSTEM_NAME = '儿少综合发展评估系统';
 
 /** 要求說同一件事的三個欄位。 */
 const NAME_FIELDS = ['documentTitle', 'headerTitle', 'copyright'] as const;

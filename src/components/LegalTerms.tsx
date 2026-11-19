@@ -180,7 +180,7 @@ export const BUILTIN_LEGAL_TERMS = {
 function BuiltinPrivacyTerms() {
   return (
     <div>
-      <p>本条款是《儿童综合发展评估系统服务协议》的组成部分，与前述服务协议具有同等法律效力。</p>
+      <p>本条款是《儿少综合发展评估系统服务协议》的组成部分，与前述服务协议具有同等法律效力。</p>
 
       <Heading>一、总则</Heading>
       <p>

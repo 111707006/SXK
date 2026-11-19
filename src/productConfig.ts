@@ -43,7 +43,7 @@ export interface ProductProfile {
      * 頁首寫「儿童综合发展评估」（少了「系统」）、頁尾寫「儿童神经网络分层评估
      * 系统」。同一個畫面上三個名字，使用者當然會問哪一個才是真的。
      *
-     * 現在統一成 **儿童综合发展评估系统**（A 前面加「森心康」）。
+     * 現在統一成 **儿少综合发展评估系统**（A 前面加「森心康」）。
      * `test/productNaming.structure.test.ts` 擋住它再次分岔。
      *
      * 不在這個約定裡的兩個：`reportTitle`（那是**報告產生器**的名字，不是系統名）
@@ -282,7 +282,7 @@ export interface ProductProfile {
 const UI_1022_A = import.meta.env.VITE_UI_1022 === '1';
 /**
  * 專案 B 也吃 1022 的版面（使用者 2026-11-19：給合作公司的 T1 一起更新）。同一個建置期開關 `VITE_UI_1022`；
- * 名字**不換**，照舊「儿童综合发展评估系统」（同日使用者：名字改回去，其他維持）。A 的文案（T2、训练、價錢）由各處的 `tier2And3` 擋。
+ * 名字**不換**，照舊「儿少综合发展评估系统」（同日使用者：名字改回去，其他維持）。A 的文案（T2、训练、價錢）由各處的 `tier2And3` 擋。
  */
 const UI_1022_B = import.meta.env.VITE_UI_1022 === '1';
 
@@ -291,8 +291,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     mode: 'full',
     brand: {
       // 系統名三處（documentTitle、headerTitle、copyright）在 1022 開著時一起換成平台名稱。
-      documentTitle: UI_1022_A ? WORDING_1022.documentTitle : '森心康 - 儿童综合发展评估系统',
-      headerTitle: UI_1022_A ? WORDING_1022.platformName : '森心康儿童综合发展评估系统',
+      documentTitle: UI_1022_A ? WORDING_1022.documentTitle : '森心康 - 儿少综合发展评估系统',
+      headerTitle: UI_1022_A ? WORDING_1022.platformName : '森心康儿少综合发展评估系统',
       welcomeName: UI_1022_A ? WORDING_1022.platformName : '森心康',
       reportTitle: '森心康 AI 神经网络分层评估报告生成器',
       systemName: '森心康（SenXinKang）儿童数字测听与康复分层评估系统',
@@ -300,7 +300,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       // 兩句都照抄客戶 2026-09-04 修訂版的原文。
       operatorClause: '由森心康品牌运营（以下简称“运营方”），',
       ipHolder: '森跃诺动健康科技有限公司',
-      copyright: UI_1022_A ? WORDING_1022.copyright : '© 2026 森心康儿童综合发展评估系统',
+      copyright: UI_1022_A ? WORDING_1022.copyright : '© 2026 森心康儿少综合发展评估系统',
       // A 一家合作公司都沒有，沒有人可以問。
       logoSource: 'builtin',
       logoMark: '森',
@@ -367,8 +367,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     // 而且備案與資料掌管方仍是森心康，掛對方的名字反而與事實不符。
     brand: {
       // 1022 開著也不換成 A 的平台名稱（2026-11-19 使用者：名字改回去）。
-      documentTitle: '儿童综合发展评估系统',
-      headerTitle: '儿童综合发展评估系统',
+      documentTitle: '儿少综合发展评估系统',
+      headerTitle: '儿少综合发展评估系统',
       welcomeName: null,
       reportTitle: 'AI 神经网络分层评估报告生成器',
       systemName: '本儿童数字测听与康复分层评估系统',
@@ -377,7 +377,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       // 畫面上。改成不指名的講法 —— 條款後面整份都在說「运营方」，得先把它定義出來。
       operatorClause: '及其运营方（以下简称“运营方”）',
       ipHolder: '本系统运营方',
-      copyright: '© 2026 儿童综合发展评估系统',
+      copyright: '© 2026 儿少综合发展评估系统',
       // 各合作公司可在「本機構設定」掛自己的 LOGO；沒設定就用下面那個字標。
       logoSource: 'company',
       logoMark: '评',

@@ -76,10 +76,10 @@ export function shareCardHtml1022(html: string, name: string = WORDING_1022.plat
 }
 
 /** 專案 B 的系統名（同 `src/productConfig.ts` 的 t1only brand；這裡讀不到 `import.meta.env`，另寫一份，測試比對兩邊一致）。 */
-export const B_SYSTEM_NAME = '儿童综合发展评估系统';
+export const B_SYSTEM_NAME = '儿少综合发展评估系统';
 
 function shareCard1022(): Plugin {
-  // A、B 都寫；B 寫自己的系統名（2026-11-19 使用者：B 的名字改回「儿童综合发展评估系统」，其他維持）。
+  // A、B 都寫；B 寫自己的系統名（2026-11-19 使用者：B 的名字改回「儿少综合发展评估系统」，其他維持）。
   const on = process.env.VITE_UI_1022 === '1';
   const name = process.env.VITE_APP_MODE === 't1only' ? B_SYSTEM_NAME : WORDING_1022.platformName;
   return {

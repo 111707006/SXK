@@ -27,9 +27,9 @@ describe('VITE_UI_1022', () => {
     const product = await loadProduct(undefined);
     expect(product.mode).toBe('full');
     expect(product.features.ui1022).toBe(false);
-    expect(product.brand.headerTitle).toBe('森心康儿童综合发展评估系统');
-    expect(product.brand.documentTitle).toBe('森心康 - 儿童综合发展评估系统');
-    expect(product.brand.copyright).toBe('© 2026 森心康儿童综合发展评估系统');
+    expect(product.brand.headerTitle).toBe('森心康儿少综合发展评估系统');
+    expect(product.brand.documentTitle).toBe('森心康 - 儿少综合发展评估系统');
+    expect(product.brand.copyright).toBe('© 2026 森心康儿少综合发展评估系统');
   });
 
   it('0 也是關', async () => {
@@ -94,11 +94,11 @@ describe('靜態頁的分享卡', () => {
     expect(src).toContain("const on = process.env.VITE_UI_1022 === '1';");
   });
 
-  // 2026-11-19 使用者：B 的名字改回「儿童综合发展评估系统」，分享卡也寫這個（原本靜態頁還是舊的「儿童发育评估系统」）
+  // 2026-11-19 使用者：B 的名字改回「儿少综合发展评估系统」，分享卡也寫這個（原本靜態頁還是舊的「儿童发育评估系统」）
   it('B 寫自己的系統名，與 productConfig 的 t1only brand 一致', () => {
     const b = shareCardHtml1022(html, B_SYSTEM_NAME);
-    expect(b).toContain('<title>儿童综合发展评估系统</title>');
-    expect(b).toContain('content="欢迎体验儿童综合发展评估系统"');
+    expect(b).toContain('<title>儿少综合发展评估系统</title>');
+    expect(b).toContain('content="欢迎体验儿少综合发展评估系统"');
     expect(b).not.toContain('家庭评估与训练平台');
     const profile = readFileSync('src/productConfig.ts', 'utf8');
     const t1 = profile.slice(profile.indexOf('t1only: {'));
@@ -126,7 +126,7 @@ describe('頁首與頁尾', () => {
     expect(footer).toContain('<BeianFooter />');
   });
 
-  // 系統名照各產品自己的 headerTitle：A 1022 是平台名稱，B 是儿童综合发展评估系统（2026-11-19）
+  // 系統名照各產品自己的 headerTitle：A 1022 是平台名稱，B 是儿少综合发展评估系统（2026-11-19）
   it('歡迎語在 1022 只寫系統名（建檔頁標題下那一行，#83）', () => {
     expect(app).toContain('欢迎使用{PRODUCT.brand.headerTitle}。{WORDING_1022.profile.intro}');
   });

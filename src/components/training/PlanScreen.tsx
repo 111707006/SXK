@@ -31,6 +31,7 @@ import {
   PLAN_PAGE,
   WEEKDAYS,
   itemCount,
+  moodHint,
   othersLabel,
   othersValue,
   planGreeting,
@@ -203,16 +204,10 @@ export function PlanFaqSheet({ index }: { index: number }) {
             </li>
           ))}
         </ul>
-        <div className="mt-4 flex justify-center gap-2" aria-hidden="true">
-          {CHECKIN_MOODS.map((m, i) => (
-            <span
-              key={m}
-              className={`px-3 py-1.5 rounded-full text-[13px] ${i === 0 ? 'bg-brand-forest text-white' : 'bg-brand-cream text-brand-charcoal/80'}`}
-            >
-              {MOOD_LABEL[m]}
-            </span>
-          ))}
-        </div>
+        {/* 原本是三顆心情的膠囊（示意），看起來像按鈕卻不能按（使用者 2026-11-19）：改成一行說明，選的地方在打卡完成那一頁。 */}
+        <p className="mt-4 ml-[26px] text-[13px] text-brand-charcoal/80" data-testid="plan-faq-moods">
+          {moodHint(CHECKIN_MOODS.map(m => MOOD_LABEL[m]))}
+        </p>
       </>
     );
   } else body = <PlanWeekGrid firstWeekStart={position.firstWeekStart} today={data.today} practiced={practicedDays} compact />;

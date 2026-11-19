@@ -276,6 +276,11 @@ export const PLAN_PAGE = {
   start: '开始今天的活动',
 } as const;
 
+/** 計劃頁「孩子不配合，怎么办？」抽屜底下那一行：打卡時能選哪幾種狀態（字照 `MOOD_LABEL`）。只是說明，不是按鈕。 */
+export function moodHint(labels: ReadonlyArray<string>): string {
+  return `打卡时可以选：${labels.join('、')}`;
+}
+
 /** 半圓儀表上一段寫幾項。 */
 export function itemCount(n: number): string {
   return `${n} 项`;

@@ -1644,7 +1644,8 @@ export default function App() {
             {/* 1022：建檔頁標題是「T1 儿少综合发展评估」、說明一句（issue #83）；歡迎語放在標題上面一行。 */}
             {PRODUCT.features.ui1022 ? (
               <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">
-                {WORDING_1022.welcome}。{WORDING_1022.profile.intro}
+                {/* 系統名照各產品自己的（A 1022＝平台名稱；B＝儿童综合发展评估系统，2026-11-19） */}
+                欢迎使用{PRODUCT.brand.headerTitle}。{WORDING_1022.profile.intro}
               </p>
             ) : (
             <p className="text-xs text-brand-charcoal/80 max-w-md mx-auto mb-10 leading-relaxed">

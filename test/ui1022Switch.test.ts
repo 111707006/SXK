@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { shareCardHtml1022 } from '../vite.config';
+import { B_SYSTEM_NAME, shareCardHtml1022 } from '../vite.config';
 import { WORDING_1022 } from '../src/wording1022';
 
 /**
@@ -93,6 +93,19 @@ describe('靜態頁的分享卡', () => {
     const src = readFileSync('vite.config.ts', 'utf8');
     expect(src).toContain("const on = process.env.VITE_UI_1022 === '1';");
   });
+
+  // 2026-11-19 使用者：B 的名字改回「儿童综合发展评估系统」，分享卡也寫這個（原本靜態頁還是舊的「儿童发育评估系统」）
+  it('B 寫自己的系統名，與 productConfig 的 t1only brand 一致', () => {
+    const b = shareCardHtml1022(html, B_SYSTEM_NAME);
+    expect(b).toContain('<title>儿童综合发展评估系统</title>');
+    expect(b).toContain('content="欢迎体验儿童综合发展评估系统"');
+    expect(b).not.toContain('家庭评估与训练平台');
+    const profile = readFileSync('src/productConfig.ts', 'utf8');
+    const t1 = profile.slice(profile.indexOf('t1only: {'));
+    expect(t1).toContain(`headerTitle: '${B_SYSTEM_NAME}'`);
+    expect(t1).toContain(`documentTitle: '${B_SYSTEM_NAME}'`);
+    expect(readFileSync('vite.config.ts', 'utf8')).toContain("process.env.VITE_APP_MODE === 't1only' ? B_SYSTEM_NAME : WORDING_1022.platformName");
+  });
 });
 
 describe('頁首與頁尾', () => {
@@ -113,7 +126,8 @@ describe('頁首與頁尾', () => {
     expect(footer).toContain('<BeianFooter />');
   });
 
-  it('歡迎語在 1022 只寫平台名稱（建檔頁標題下那一行，#83）', () => {
-    expect(app).toContain('{WORDING_1022.welcome}。{WORDING_1022.profile.intro}');
+  // 系統名照各產品自己的 headerTitle：A 1022 是平台名稱，B 是儿童综合发展评估系统（2026-11-19）
+  it('歡迎語在 1022 只寫系統名（建檔頁標題下那一行，#83）', () => {
+    expect(app).toContain('欢迎使用{PRODUCT.brand.headerTitle}。{WORDING_1022.profile.intro}');
   });
 });

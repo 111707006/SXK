@@ -68,19 +68,23 @@ function assertValidDesktopLayout() {
  * 專案 A 沒有微信公眾號 JS-SDK，微信的分享卡標題取網頁標題、說明取頁面第一段文字（規格「分享卡」，暫採）——
  * 執行期才設的 `document.title` 微信不一定等得到，所以寫進靜態檔。關著時 `index.html` 原封不動。
  */
-export function shareCardHtml1022(html: string): string {
+export function shareCardHtml1022(html: string, name: string = WORDING_1022.platformName): string {
   const hidden = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
   return html
-    .replace(/<title>[^<]*<\/title>/, `<title>${WORDING_1022.documentTitle}</title>\n    <meta name="description" content="${WORDING_1022.shareDescription}" />`)
-    .replace('<body>', `<body>\n    <p style="${hidden}">${WORDING_1022.shareDescription}</p>`);
+    .replace(/<title>[^<]*<\/title>/, `<title>${name}</title>\n    <meta name="description" content="欢迎体验${name}" />`)
+    .replace('<body>', `<body>\n    <p style="${hidden}">欢迎体验${name}</p>`);
 }
 
+/** 專案 B 的系統名（同 `src/productConfig.ts` 的 t1only brand；這裡讀不到 `import.meta.env`，另寫一份，測試比對兩邊一致）。 */
+export const B_SYSTEM_NAME = '儿童综合发展评估系统';
+
 function shareCard1022(): Plugin {
-  // 2026-11-19 起 B 也用平台名稱（名字裡沒有品牌），A、B 都寫。
+  // A、B 都寫；B 寫自己的系統名（2026-11-19 使用者：B 的名字改回「儿童综合发展评估系统」，其他維持）。
   const on = process.env.VITE_UI_1022 === '1';
+  const name = process.env.VITE_APP_MODE === 't1only' ? B_SYSTEM_NAME : WORDING_1022.platformName;
   return {
     name: 'sxk-share-card-1022',
-    transformIndexHtml: html => (on ? shareCardHtml1022(html) : html),
+    transformIndexHtml: html => (on ? shareCardHtml1022(html, name) : html),
   };
 }
 

@@ -21,17 +21,19 @@ const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const stripComments = (src: string) =>
   src.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
-describe('換版：看快照、只在專案 A', () => {
+// 2026-11-19 起 A、B 都看快照換版（使用者把新版報告開給 B）；B 沒有商城，「相关产品」不出現。
+describe('換版：看快照（A、B 都是）', () => {
   const body = stripComments(read('src/components/ReportBody.tsx'));
 
-  it('新版的判斷同時要「專案 A」與「快照是新版」', () => {
-    expect(body).toMatch(/const real = PRODUCT\.features\.tier2And3 && isRealT1Report\(aiReport\)/);
+  it('新版的判斷只看「快照是新版」', () => {
+    expect(body).toMatch(/const real = isRealT1Report\(aiReport\)/);
   });
 
-  it('專案 B 的 PRODUCT 沒有 T2（tier2And3: false）—— 所以 B 永遠走舊版那幾塊', () => {
+  it('「相关产品」要有商城（B 沒有）', () => {
+    expect(body).toContain('{real && PRODUCT.features.mall && <RelatedProducts');
     const profile = read('src/productConfig.ts');
     const t1only = profile.slice(profile.indexOf('t1only: {'));
-    expect(t1only).toMatch(/tier2And3:\s*false/);
+    expect(t1only).toMatch(/mall:\s*false/);
   });
 
   it('舊版那幾塊還在，而且只在「不是新版」那一支', () => {

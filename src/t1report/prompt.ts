@@ -40,13 +40,13 @@ function predictionRule(is1022: boolean): string {
  * 客戶 10/22 的新寫法（`T1_REPORT_1022`，#81）：summary＝首席专家结论三句、perDimension 的 note 以「这次看到的是：」開頭。
  * 範例句是使用者給的目標樣子（規格 docs/specs/client-changes-2026-10-22-1-ui.md）。
  */
-function outputFormat1022(r: (x: { min: number; max: number }) => string): string[] {
+function outputFormat1022(r: (x: { min: number; max: number }) => string, nextStep: T1ReportOptions['nextStep'] = 't2'): string[] {
   const L = limits.T1_REPORT_LIMITS;
   return [
     `- summary：${r(L.summary)}。这是报告最上面的「首席专家结论」，恰好三句，每句以「。」结尾：`,
     '  第一句讲整体怎么样；',
     `  第二句讲需要先关注哪几个方面：「需要较多支持」的方面写在前面、每一个都要点名，接「${STATUS_WORDING.delay.tag}」；「需要少量支持」的方面写在后面，接「${STATUS_WORDING.borderline.tag}」，两种之间用「；」隔开；`,
-    '  第三句讲下一步：有需要关注的方面时，建议做「T2 深度评估」把这几个方面看得更细；全部稳定时，写三个月后再做一次筛查、和这一次对照。',
+    `  第三句讲下一步：有需要关注的方面时，${nextStep === 'expert' ? '建议约专家一对一说明' : '建议做「T2 深度评估」'}把这几个方面看得更细；全部稳定时，写三个月后再做一次筛查、和这一次对照。${nextStep === 'expert' ? '不要提「T2」或「深度评估」。' : ''}`,
     '  不要写题数、做到了几项、合计几分。全部稳定时第一句写「各方面发展稳定，可作为日后对照的基线记录」。',
     `- perDimension：数组，每个元素 { dimensionId, note }。素材里「需要写说明的方面」列了哪几个就写哪几个，不多不少，dimensionId 照抄。note ${r(L.note)}：`,
     `  以「${limits.NOTE_OPENING_1022}」开头，先用一句话写这一方面这次看到的具体情况（从还不能、有时做得到的那几题看出来的、日常里看得到的样子），再接在家怎么练（做什么、多久、怎么陪）。`,
@@ -55,7 +55,7 @@ function outputFormat1022(r: (x: { min: number; max: number }) => string): strin
   ];
 }
 
-function buildSystem(is1022: boolean): string {
+function buildSystem(is1022: boolean, nextStep: T1ReportOptions['nextStep'] = 't2'): string {
   const L = limits.T1_REPORT_LIMITS;
   const r = (x: { min: number; max: number }) => `${x.min}–${x.max} 字`;
   return [
@@ -79,7 +79,7 @@ function buildSystem(is1022: boolean): string {
     '',
     '【输出格式】',
     '只输出一个 JSON 对象，不要有任何其他文字、不要包在代码块里。字段如下，不要加任何没有要求的字段：',
-    ...(is1022 ? outputFormat1022(r) : [
+    ...(is1022 ? outputFormat1022(r, nextStep) : [
     `- summary：${r(L.summary)}。一句到三句的总览：这次做到了几项（用素材给的数字）、哪几方面${STATUS_WORDING.delay.tag}、哪几方面${STATUS_WORDING.borderline.tag}。「需要较多支持」的每一方面都要点名。全部稳定时写「各方面发展稳定，可作为日后对照的基线记录」。`,
     `- perDimension：数组，每个元素 { dimensionId, note }。素材里「需要写说明的方面」列了哪几个就写哪几个，不多不少，dimensionId 照抄。note ${r(L.note)}：这一方面四题各怎么答，可以先从哪一题练起、在日常里怎么练。`,
     ]),
@@ -137,5 +137,5 @@ function buildUser(input: T1ReportInput, is1022: boolean): string {
 
 export function buildT1ReportPrompt(input: T1ReportInput, options: T1ReportOptions = {}): { system: string; user: string } {
   const is1022 = options.writing === '1022';
-  return { system: buildSystem(is1022), user: buildUser(input, is1022) };
+  return { system: buildSystem(is1022, options.nextStep), user: buildUser(input, is1022) };
 }

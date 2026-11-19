@@ -2,7 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
 import { bandScores } from './helpers/t1Scores';
 
-/** 專案 B 設了 `T1_REPORT_REAL=1`、`T1_REPORT_1022=1` 也不生效：`/api/report` 照舊（#81；B 一個字都不變）。 */
+/**
+ * 專案 B 設了 `T1_REPORT_REAL=1`、`T1_REPORT_1022=1`：走 10/22 新寫法（使用者 2026-11-19 開給 B），
+ * 但結論第三句指「约专家一对一说明」，不提 T2（B 沒有 T2）。
+ */
 
 process.env.APP_MODE = 't1only';
 
@@ -30,13 +33,14 @@ afterAll(async () => {
   process.env.APP_MODE = '';
 });
 
-describe('專案 B：T1_REPORT_1022 不生效', () => {
-  it('備用模板還是舊的那一份（有 criticalMetrics、沒有 version、沒有新寫法）', async () => {
+describe('專案 B：T1_REPORT_1022 開著走新寫法、下一步是約專家', () => {
+  it('新寫法的模板：「这次看到的是」、結論第三句約專家、沒有 T2', async () => {
     const scores = bandScores(30, d => (d === 'language' ? 0 : 2));
     const data = await (await client.postJson('/api/report', { child: { name: '森森', ageMonth: 30, gender: 'boy' }, scores })).json();
-    expect(data.aiEngine).toBe('fallback_template');
-    expect(data.report.version).toBeUndefined();
-    expect(data.report.criticalMetrics).toBeTruthy();
-    expect(JSON.stringify(data.report)).not.toContain('这次看到的是');
+    expect(data.report.version).toBe('t1-real-1');
+    const text = JSON.stringify(data.report);
+    expect(text).toContain('这次看到的是');
+    expect(data.report.summary).toContain('约专家一对一说明');
+    expect(text).not.toMatch(/T2|深度评估/);
   });
 });

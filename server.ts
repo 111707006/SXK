@@ -242,14 +242,14 @@ if (TRAINING_PUSH_TAGS && TRAINING_SAMPLE_ONLY) {
 // T1 報告改用真實資料（使用者 2026-10-08）：開著時 `/api/report` 改走 `src/t1report/`——給模型逐題作答、
 // 回來先過驗證器、不過退模板；模板也照這個孩子的作答組；不再產四個儀表數字（`criticalMetrics`）。
 // 報告快照帶 `version: 't1-real-1'`，畫面看快照換版（`src/t1report/shape.ts`），前端不必知道開關。
-// **只在專案 A**：B 設了也不生效（啟動時印一行），B 的報告一個字都不變。同一套 fail-closed 解析。
+// A、B 都適用（2026-11-19 使用者把新版報告開給 B；B 的結論第三句指約專家、不提 T2，`nextStep: 'expert'`）。同一套 fail-closed 解析。
 const T1_REPORT_REAL_REQUESTED = resolvePaywallSwitch('T1_REPORT_REAL', process.env.T1_REPORT_REAL);
-const T1_REPORT_REAL = APP_MODE === 'full' && T1_REPORT_REAL_REQUESTED;
+const T1_REPORT_REAL = T1_REPORT_REAL_REQUESTED;
 
 // T1 報告客戶 10/22 的新寫法（#81，規格 docs/specs/client-changes-2026-10-22-1-ui.md「伺服器那一半的開關」）：開著時
 // 新版報告的模板與提示改寫首席專家結論（三句、不寫題數）與「接下来可以多练的」每段（「这次看到的是：」開頭接練法、
 // 沒有統計句），驗證器擋統計句、不過退模板。快照形狀不變，畫面不必知道。關著＝一字不差（`test/t1Report1022.test.ts` 的基準）。
-// **只在專案 A**、要同時開 `T1_REPORT_REAL`（否則起不來）；B 設了不生效（啟動印一行）。同一套 fail-closed 解析。
+// 要同時開 `T1_REPORT_REAL`（否則起不來）；A、B 都適用（2026-11-19 起）。同一套 fail-closed 解析。
 const T1_REPORT_1022_REQUESTED = resolvePaywallSwitch('T1_REPORT_1022', process.env.T1_REPORT_1022);
 assertT1ReportSwitches(T1_REPORT_REAL_REQUESTED, T1_REPORT_1022_REQUESTED);
 const T1_REPORT_1022 = T1_REPORT_REAL && T1_REPORT_1022_REQUESTED;
@@ -1025,7 +1025,10 @@ app.post('/api/report', async (req: express.Request, res: express.Response) => {
     }
 
     if (T1_REPORT_REAL) {
-      const outcome = await generateT1Report(t1ReportInputOf(child, scores), t1ReportEngine, T1_REPORT_1022 ? { writing: '1022' } : {});
+      const outcome = await generateT1Report(t1ReportInputOf(child, scores), t1ReportEngine, {
+        ...(T1_REPORT_1022 ? { writing: '1022' as const } : {}),
+        nextStep: APP_MODE === 't1only' ? 'expert' : 't2',
+      });
       if (!outcome.isAiGenerated) {
         console.warn(`[T1 report] template (${outcome.aiEngine}):`, outcome.errors.slice(0, 8).join(' | '));
       }
@@ -2509,6 +2512,17 @@ tier2Only.use(
     res.status(404).end();
   },
 );
+// 專案 B：只掛客服二維碼那一個子目錄（使用者 2026-11-19 把「预约专家改成二維碼、各合作公司自己上傳」開給 B）。
+// B 沒有活動與片子，其餘 `/media` 照舊不掛。
+if (APP_MODE === 't1only') {
+  app.use(
+    '/media/wecom',
+    express.static(path.join(MEDIA_DIR, 'wecom'), { index: false, redirect: false, maxAge: '1h' }),
+    (_req: express.Request, res: express.Response) => {
+      res.status(404).end();
+    },
+  );
+}
 
 /** Dimensions whose deep assessment is served by a fixed endpoint. */
 const LANGUAGE_DIMENSION_ID = 'language';
@@ -4474,12 +4488,12 @@ tier2Only.get('/api/home/config', (_req, res) => {
 /**
  * 企業微信客服二維碼（使用者 2026-11-10，`src/wecomQr/store.ts`）：回 `{url}`，家長端「1 对 1 专家咨询」那張圖。**公開**（只回一個圖片網址）。
  * 先看家長歸屬那家公司自己的（`A_COMPANIES` 開著才看；登入看帳號、沒登入看 `?c=`），沒有退預設那張，都沒有回 `null`
- * （前端照舊用內建的 `/kefu-qr.jpg`）。只在專案 A（B 沒有 `/media`）。
+ * （前端照舊用內建的 `/kefu-qr.jpg`）。A、B 都有（B 2026-11-19 起；B 本來就分合作公司，不看 `A_COMPANIES`，檔案在 `/media/wecom`）。
  */
-tier2Only.get('/api/wecom-qr', async (req, res) => {
+app.get('/api/wecom-qr', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
-    if (A_COMPANIES && mysqlDb.isConfigured()) {
+    if ((A_COMPANIES || APP_MODE === 't1only') && mysqlDb.isConfigured()) {
       const userId = toDbUserId(currentUserId(req));
       let companyId: number | null = null;
       if (userId !== null) {
@@ -4851,7 +4865,7 @@ app.use(
       // 首頁素材（#87）：只在專案 A、`HOME_MEDIA` 開著。
       homeMediaDir: HOME_MEDIA ? MEDIA_DIR : undefined,
       // 企業微信客服二維碼（使用者 2026-11-10）：只在專案 A（`/media` 只在 A 掛）。
-      wecomQrDir: APP_MODE === 'full' ? MEDIA_DIR : undefined,
+      wecomQrDir: MEDIA_DIR,
       // 兌換碼（#110）：只在專案 A、`TRAINING_PLAN` 開著。
       redeemCodes: TRAINING_PLAN,
       // 條款（11/03 第 14 頁）：只在專案 A、`LEGAL_DOCS` 開著。
@@ -4996,13 +5010,9 @@ export async function startServer() {
     );
     if (T1_REPORT_REAL) {
       console.log('[SenXinKang Server] T1_REPORT_REAL=1: T1 reports use per-item answers, validated AI text or the per-child template; no gauge numbers.');
-    } else if (T1_REPORT_REAL_REQUESTED) {
-      console.warn('[SenXinKang Server] T1_REPORT_REAL is set but ignored: project B keeps the old T1 report (A only).');
     }
     if (T1_REPORT_1022) {
       console.log('[SenXinKang Server] T1_REPORT_1022=1: T1 report summary in three sentences, per-dimension notes open with 这次看到的是 (no item tallies).');
-    } else if (T1_REPORT_1022_REQUESTED) {
-      console.warn('[SenXinKang Server] T1_REPORT_1022 is set but ignored: project B keeps the old T1 report (A only).');
     }
     if (HOME_V2_REQUESTED) {
       console.log(

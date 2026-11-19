@@ -30,7 +30,8 @@ function askWecomQr(url: string): Promise<string | null> {
 
 export function useWecomQrSrc(): string | null | undefined {
   const builtIn = PRODUCT.expertBooking.wechatQrSrc;
-  const ask = PRODUCT.features.tier2And3 && builtIn !== null;
+  // 專案 B 2026-11-19 起也問（各合作公司自己的二維碼，`/api/wecom-qr` A、B 都有）。
+  const ask = (PRODUCT.features.tier2And3 || PRODUCT.mode === 't1only') && builtIn !== null;
   const [src, setSrc] = useState<string | null | undefined>(ask ? undefined : builtIn);
 
   useEffect(() => {

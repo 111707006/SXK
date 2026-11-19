@@ -42,7 +42,7 @@ export default function CompaniesPanel({
   const companies = data?.companies ?? [];
   const origin = window.location.origin;
 
-  // 企業微信客服二維碼（使用者 2026-11-10）：B 沒有這幾支（404）→ 整塊不畫。
+  // 企業微信客服二維碼（使用者 2026-11-10；B 2026-11-19 起也有）：伺服器沒有這幾支（404）→ 整塊不畫。
   const [qrs, setQrs] = useState<WecomQrList | null>(null);
   const [qrFailure, setQrFailure] = useState<string | null>(null);
   useEffect(() => {

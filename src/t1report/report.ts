@@ -47,6 +47,19 @@ export {
  */
 export interface T1ReportOptions {
   writing?: '1022';
+  /**
+   * 1022 寫法結論第三句的下一步：不帶／`'t2'` ＝ 做「T2 深度评估」（專案 A）；`'expert'` ＝ 约专家一对一说明
+   * （專案 B 沒有 T2，使用者 2026-11-19 把新版報告開給 B）。
+   */
+  nextStep?: 't2' | 'expert';
+}
+
+/** 1022 結論第三句（有被標記的方面時）：A 指 T2，B 指約專家。模板與提示共用同一個講法。 */
+export function nextStepSentence(nextStep: T1ReportOptions['nextStep'], flagged: number): string {
+  const which = flagged === 1 ? '这个' : '这几个';
+  return nextStep === 'expert'
+    ? `下一步建议约专家一对一说明，把${which}方面看得更细，再决定在家怎么练。`
+    : `下一步建议做「T2 深度评估」，把${which}方面看得更细，再决定在家怎么练。`;
 }
 
 /** 新寫法只在新版報告裡：開了 `T1_REPORT_1022` 沒開 `T1_REPORT_REAL` → 起不來（看「設了沒」，不看專案；B 兩個都不生效）。 */
@@ -195,7 +208,7 @@ function templateNote1022(d: T1DimensionAnswers, group: AgeGroup): string {
 const YELLOW_NAMED_MAX = 4;
 
 /** 新寫法的首席專家結論（#81）：整體一句、先關注哪幾方面一句（紅燈在前、點名）、下一步一句。不寫題數。 */
-function templateSummary1022(input: T1ReportInput): string {
+function templateSummary1022(input: T1ReportInput, nextStep: T1ReportOptions['nextStep'] = 't2'): string {
   const { answers } = input;
   const who = input.child.name || '孩子';
   const red = answers.dimensions.filter(d => d.status === 'delay').map(d => d.dimensionName);
@@ -233,7 +246,7 @@ function templateSummary1022(input: T1ReportInput): string {
   return [
     overall,
     many && !red.length ? `${parts[0]}。` : `需要先关注的是：${parts.join('；')}。`,
-    `下一步建议做「T2 深度评估」，把${flagged === 1 ? '这个' : '这几个'}方面看得更细，再决定在家怎么练。`,
+    nextStepSentence(nextStep, flagged),
   ].join('');
 }
 
@@ -325,7 +338,7 @@ function templateT1ReportRaw(input: T1ReportInput, options: T1ReportOptions): T1
   const arranged = is1022 && flagged.length > 0;
   return {
     version: T1_REPORT_REAL_VERSION,
-    summary: is1022 ? templateSummary1022(input) : templateSummary(input),
+    summary: is1022 ? templateSummary1022(input, options.nextStep) : templateSummary(input),
     perDimension: flagged.map(d => ({ dimensionId: d.dimensionId, note: is1022 ? templateNote1022(d, group) : templateNote(d) })),
     rehabSuggestions: arranged ? [...PRACTICE_ARRANGEMENT] : rehab,
     homeGuidance: templateHome(answers, group, is1022),
@@ -450,6 +463,15 @@ export function validateT1Report(value: unknown, input: T1ReportInput, options: 
     if (summary !== null) {
       const count = sentencesOf(summary).length;
       if (count !== 3) errors.push(`summary：首席专家结论要三句，拿到 ${count} 句`);
+    }
+  }
+
+  if (options.nextStep === 'expert') {
+    // 專案 B 沒有 T2：模型寫了 T2／深度评估就整份退模板（題目原文先挖掉）。
+    for (const { where, text } of texts) {
+      let scrubbed = text;
+      for (const q of questions) scrubbed = scrubbed.split(q).join('');
+      if (/T2|深度评估/.test(scrubbed)) errors.push(`${where}：专案 B 没有 T2，不能写「T2」或「深度评估」`);
     }
   }
 

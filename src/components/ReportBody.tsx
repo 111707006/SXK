@@ -185,9 +185,10 @@ export default function ReportBody({
 }: ReportBodyProps) {
   /**
    * 新版 T1 報告（`T1_REPORT_REAL`）：看**快照**換版，不看開關（`src/t1report/shape.ts`）。
-   * 只在專案 A —— B 的伺服器不會產出新版，這裡再擋一次，B 的畫面一個字都不變。
+   * A、B 都是（2026-11-19 使用者把新版報告開給 B）：B 的伺服器開了 `T1_REPORT_REAL` 才產新版，舊快照照舊畫。
+   * 「相关产品」仍只在有商城時（B 沒有）。
    */
-  const real = PRODUCT.features.tier2And3 && isRealT1Report(aiReport);
+  const real = isRealT1Report(aiReport);
   const redNames = scores.filter(s => s.status === 'delay').map(s => s.dimensionName);
   const yellowNames = scores.filter(s => s.status === 'borderline').map(s => s.dimensionName);
 

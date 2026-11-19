@@ -13,7 +13,7 @@
  * 重新生成報告是新的快照（`findingsId` 不同），從第 1 期重來，不帶調整。
  */
 
-import { BAND_OF_COLOR, adjustmentFromCompletion, ageSpanOf, monthIndexOf, periodAlternates, planActivityIds, planPeriod, replaceInactive } from './trainingPush';
+import { BAND_OF_COLOR, adjustmentFromCompletion, ageSpanOf, childMatches, childTagSet, monthIndexOf, periodAlternates, planActivityIds, planPeriod, replaceInactive } from './trainingPush';
 import type { PeriodAdjustment, PeriodPlan, PeriodSlot, PlanPeriodInput } from './trainingPush';
 import { completionRate } from './practiceStats';
 import type { PracticeCheckin } from './practiceStats';
@@ -43,15 +43,24 @@ export function t1ScoresOf(scores: ReadonlyArray<unknown>): Partial<Record<Dimen
   return out;
 }
 
-/** 存進 `plan` 欄的那幾樣（同 `db/t2TrainingPeriods.ts` 的 `storedPlanOf`；這裡不載資料層）。`tagged` 只在 `true` 時存。 */
-function toStoredPlan(plan: Pick<PeriodPlan, 'perWeek' | 'sampleOnly' | 'tagged' | 'dimensions' | 'weeks'>): StoredPeriodPlan {
-  return { perWeek: plan.perWeek, sampleOnly: plan.sampleOnly, ...(plan.tagged ? { tagged: true as const } : {}), dimensions: plan.dimensions, weeks: plan.weeks };
+/** 存進 `plan` 欄的那幾樣（同 `db/t2TrainingPeriods.ts` 的 `storedPlanOf`；這裡不載資料層）。`tagged` 只在 `true` 時存，`childTags` 有才存。 */
+function toStoredPlan(plan: Pick<PeriodPlan, 'perWeek' | 'sampleOnly' | 'tagged' | 'childTags' | 'dimensions' | 'weeks'>): StoredPeriodPlan {
+  return {
+    perWeek: plan.perWeek,
+    sampleOnly: plan.sampleOnly,
+    ...(plan.tagged ? { tagged: true as const } : {}),
+    ...(plan.childTags ? { childTags: [...plan.childTags] } : {}),
+    dimensions: plan.dimensions,
+    weeks: plan.weeks,
+  };
 }
 
 /** 推送規則的版本：規則換了就換，存在每一期上。 */
 export const PUSH_RULES_VERSION = 'push-v3-2026-10-07';
 /** 標籤模式（`TRAINING_PUSH_TAGS`，ADR-0015）排的一期。 */
 export const PUSH_RULES_VERSION_TAGS = 'push-tags-2026-11-07';
+/** 標籤模式＋孩子的細項（`TRAINING_PUSH_CHILD_TAGS`，ADR-0018）排的一期。 */
+export const PUSH_RULES_VERSION_CHILD_TAGS = 'push-child-tags-2026-11-19';
 
 export interface PeriodDeps {
   /** 這份快照最新的一期。 */
@@ -71,6 +80,8 @@ export interface PeriodContext {
   sampleOnly: boolean;
   /** 標籤模式（ADR-0015）：只影響新開的一期；已經開了的照它存的規則走完 12 週。 */
   tagged?: boolean;
+  /** 孩子的細項（ADR-0018）：開關開著時由伺服器從快照算好（`childTagsOf`）；不傳＝不看。同樣只影響新開的一期。 */
+  childTags?: ReadonlyArray<string>;
   /** 那一週星期一的實足月齡；算不出來（那一週在出生之前）是 `null`。 */
   ageMonthAt(weekStart: string): number | null;
 }
@@ -127,6 +138,7 @@ export async function periodForWeek(weekStart: string, ctx: PeriodContext, deps:
     previousIds,
     sampleOnly: ctx.sampleOnly,
     tagged: ctx.tagged === true,
+    ...(ctx.childTags ? { childTags: ctx.childTags } : {}),
   });
   const stored = await deps.insert({
     findingsId: ctx.findingsId,
@@ -136,7 +148,7 @@ export async function periodForWeek(weekStart: string, ctx: PeriodContext, deps:
     adjustment,
     completion,
     plan: toStoredPlan(plan),
-    rulesVersion: plan.tagged ? PUSH_RULES_VERSION_TAGS : PUSH_RULES_VERSION,
+    rulesVersion: plan.childTags ? PUSH_RULES_VERSION_CHILD_TAGS : plan.tagged ? PUSH_RULES_VERSION_TAGS : PUSH_RULES_VERSION,
   });
   if (!stored.plan) throw new Error('trainingPeriodService：剛存的一期讀回來 plan 是壞的');
   const week = planPosition(weekStart, stored.firstWeekStart).weekIndex;
@@ -157,8 +169,12 @@ async function withReplacements(
   return { kind: 'ok', period: { ...period, plan }, week };
 }
 
-/** 格子 → 每週活動那一列的一支。`reason` 照舊形狀存一份（band 由顏色換回），v3 的東西放 `push`。 */
-function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefined, tagged = false): StoredPick {
+/**
+ * 格子 → 每週活動那一列的一支。`reason` 照舊形狀存一份（band 由顏色換回），v3 的東西放 `push`。
+ * `matchedTags`：那一期有孩子的細項（ADR-0018）時，是這支活動對中的那幾個 —— 畫面的「（这次看到：……）」照第一個寫；
+ * 沒有就是空陣列（只對上維度）。
+ */
+function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefined, tagged = false, childTags?: ReadonlySet<string>): StoredPick {
   const [lo, hi] = slot.reason.window;
   return {
     id: slot.activityId!,
@@ -166,7 +182,7 @@ function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefin
     reason: {
       band: BAND_OF_COLOR[slot.reason.color],
       window: { lo, hi },
-      matchedTags: [],
+      matchedTags: activity && childTags ? childMatches(activity, slot.dimension, childTags) : [],
       belowWindow: slot.reason.relaxed && activity !== undefined && ageSpanOf(activity, tagged).max < lo,
     },
     push: {
@@ -192,7 +208,8 @@ export function weeklyActivitiesOf(
   const byId = new Map(library.map(a => [a.id, a] as const));
   const slots = period.plan.weeks[week - 1] ?? [];
   const tagged = period.plan.tagged === true;
-  const picks = slots.filter(s => s.activityId !== null).map(s => pickOf(s, period.periodNo, byId.get(s.activityId!), tagged));
+  const child = childTagSet(period.plan);
+  const picks = slots.filter(s => s.activityId !== null).map(s => pickOf(s, period.periodNo, byId.get(s.activityId!), tagged, child));
   const preparing = DIMENSION_CODES.filter(d => slots.some(s => s.dimension === d && s.activityId === null));
   const alternates: Partial<Record<DimensionCode, string[]>> = {};
   for (const [d, list] of Object.entries(periodAlternates(period.plan, week, library)) as Array<[DimensionCode, Activity[]]>) {
@@ -202,13 +219,13 @@ export function weeklyActivitiesOf(
 }
 
 /** 報告的提示要的形狀（`WeeklyActivities`）：這一期第 `week` 週的那幾支。查不到內容的略過。 */
-export function reportActivitiesOf(plan: Pick<PeriodPlan, 'weeks' | 'tagged'>, week: number, library: ReadonlyArray<Activity>): WeeklyActivities {
+export function reportActivitiesOf(plan: Pick<PeriodPlan, 'weeks' | 'tagged' | 'childTags'>, week: number, library: ReadonlyArray<Activity>): WeeklyActivities {
   const byId = new Map(library.map(a => [a.id, a] as const));
   const slots = plan.weeks[week - 1] ?? [];
   const picks = slots.flatMap(slot => {
     const activity = slot.activityId ? byId.get(slot.activityId) : undefined;
     if (!activity) return [];
-    const { reason } = pickOf(slot, 0, activity, plan.tagged === true);
+    const { reason } = pickOf(slot, 0, activity, plan.tagged === true, childTagSet(plan));
     return [{ activity, dimension: slot.dimension, score: 0, reason }];
   });
   const preparing = DIMENSION_CODES.filter(d => slots.some(s => s.dimension === d && s.activityId === null));
@@ -234,7 +251,7 @@ export function periodSheetOf(period: TrainingPeriodRecord & { plan: StoredPerio
       activities: slots.flatMap(slot => {
         const activity = slot.activityId ? byId.get(slot.activityId) : undefined;
         if (!activity) return [];
-        const pick = pickOf(slot, period.periodNo, activity, period.plan.tagged === true);
+        const pick = pickOf(slot, period.periodNo, activity, period.plan.tagged === true, childTagSet(period.plan));
         return [{ activity, dimension: slot.dimension, reason: pick.reason, push: pick.push! }];
       }),
     })),

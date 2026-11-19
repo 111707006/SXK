@@ -20,7 +20,7 @@ import type { DimensionCode } from '../t2/types';
 import type { PeriodAdjustment, PeriodDimension, PeriodPlan, PeriodSlot } from '../t2/trainingPush';
 
 /** 存進 `plan` 欄的部分（`adjustment`、`ageMonth` 是自己的欄位）。 */
-export type StoredPeriodPlan = Pick<PeriodPlan, 'perWeek' | 'sampleOnly' | 'tagged' | 'dimensions' | 'weeks'>;
+export type StoredPeriodPlan = Pick<PeriodPlan, 'perWeek' | 'sampleOnly' | 'tagged' | 'childTags' | 'dimensions' | 'weeks'>;
 
 export interface TrainingPeriodRecord {
   id: number;
@@ -49,7 +49,7 @@ export interface TrainingPeriodInsert {
 }
 
 export function storedPlanOf(plan: PeriodPlan): StoredPeriodPlan {
-  return { perWeek: plan.perWeek, sampleOnly: plan.sampleOnly, ...(plan.tagged ? { tagged: true as const } : {}), dimensions: plan.dimensions, weeks: plan.weeks };
+  return { perWeek: plan.perWeek, sampleOnly: plan.sampleOnly, ...(plan.tagged ? { tagged: true as const } : {}), ...(plan.childTags ? { childTags: [...plan.childTags] } : {}), dimensions: plan.dimensions, weeks: plan.weeks };
 }
 
 export async function insertTrainingPeriod(userId: number, input: TrainingPeriodInsert): Promise<number> {
@@ -146,11 +146,13 @@ function slotFrom(raw: unknown): PeriodSlot | null {
 export function planFrom(raw: unknown): StoredPeriodPlan | null {
   const parsed = parseJson(raw);
   if (!isObject(parsed)) return null;
-  const { perWeek, sampleOnly, tagged, dimensions, weeks } = parsed;
+  const { perWeek, sampleOnly, tagged, childTags, dimensions, weeks } = parsed;
   if (typeof perWeek !== 'number' || !Number.isInteger(perWeek) || perWeek < 1) return null;
   if (typeof sampleOnly !== 'boolean') return null;
   // 標籤模式（ADR-0015）：只存 `true`；之前的一期沒有這一欄。
   if (tagged !== undefined && tagged !== true) return null;
+  // 孩子的細項（ADR-0018）：只在標籤模式、開關開著時存；之前的一期沒有這一欄。
+  if (childTags !== undefined && (!Array.isArray(childTags) || childTags.some(t => typeof t !== 'string'))) return null;
   if (!Array.isArray(dimensions) || !Array.isArray(weeks) || weeks.length !== 12) return null;
   const dims = dimensions.map(dimensionFrom);
   if (dims.some(d => d === null)) return null;
@@ -162,7 +164,7 @@ export function planFrom(raw: unknown): StoredPeriodPlan | null {
     if (slots.some(s => s === null || s.week !== i + 1 || !known.has(s.dimension))) return null;
     grid.push(slots as PeriodSlot[]);
   }
-  return { perWeek, sampleOnly, ...(tagged ? { tagged: true as const } : {}), dimensions: dims as PeriodDimension[], weeks: grid };
+  return { perWeek, sampleOnly, ...(tagged ? { tagged: true as const } : {}), ...(Array.isArray(childTags) ? { childTags: [...(childTags as string[])] } : {}), dimensions: dims as PeriodDimension[], weeks: grid };
 }
 
 function dateOnly(raw: unknown): string {

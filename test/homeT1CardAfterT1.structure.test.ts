@@ -13,8 +13,9 @@ describe('1022 首頁的 T1、T2 卡與訓練卡', () => {
   const home = readFileSync('src/home/LedoHomePage.tsx', 'utf8').replace(/\r\n/g, '\n');
   const body = app.slice(app.indexOf('const openHomeTarget = ('), app.indexOf('const openHomeLogin = ('));
 
-  it('第三排是 T1、T2，訓練卡另外一張', () => {
-    expect(HOME_CARDS_1022.map(c => [c.id, c.target])).toEqual([['t1', 'dashboard'], ['t2', 't2']]);
+  // 客戶 2026-11-13：首頁的 T2 卡拿掉、訓練寬卡下架，訓練卡移到 T2 的位置。
+  it('卡片那一排是 T1、訓練（沒有 T2）', () => {
+    expect(HOME_CARDS_1022.map(c => [c.id, c.target])).toEqual([['t1', 'dashboard'], ['training', 'training']]);
     expect(HOME_TRAINING_CARD_1022.target).toBe('training');
   });
 
@@ -44,7 +45,7 @@ describe('1022 首頁的 T1、T2 卡與訓練卡', () => {
     expect(v1022).not.toContain("'看报告'");
     expect(v1022).not.toContain('onAction');
     expect(v1022).not.toContain('practiceDays');
-    // 價錢照伺服器畫（2026-11-10 清單第 3 條）：訓練卡抽成 TrainingPromoCard（首頁與 T2 報告共用），價錢在它的 TrainingCardPrice 裡
-    expect(v1022).toContain('<TrainingPromoCard');
+    // 附價錢的訓練寬卡（TrainingPromoCard）2026-11-13 起只在 T2 報告，首頁不畫
+    expect(v1022).not.toContain('<TrainingPromoCard');
   });
 });

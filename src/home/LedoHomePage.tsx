@@ -6,13 +6,10 @@ import { calendarDateOf, weekEndOf, weekStartOf } from '../t2/weeks';
 import type { Checkin } from '../t2/practice';
 import { Avatar, Chip, Greeting, LEDO_ART, ListRow, SectionHead, Tile, greetingFor } from '../components/ledo/ui';
 import { BANNER, HOSPITAL_PHOTO } from './HomePage';
-import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, HOME_TRAINING_CARD_1022, type HomeTarget } from './homeNav';
+import { HOME_CARDS, HOME_CARDS_1022, HOME_COPY, type HomeTarget } from './homeNav';
 import { PRODUCT } from '../productConfig';
 import { WORDING_1022 } from '../wording1022';
 import HomeCarousel from './HomeCarousel';
-import TrainingPromoCard, { useOneMonthPriceFen } from './TrainingPromoCard';
-/** 測試與舊的 import 照舊從這裡拿。 */
-export { TrainingCardPrice } from './TrainingPromoCard';
 import { homeCardImage, useHomeMedia } from './homeMediaClient';
 import { useDesktopLayout } from '../desktop/useDesktopLayout';
 
@@ -40,8 +37,6 @@ export interface LedoHomeProps {
   scores?: DimensionScore[];
   /** 登入前、視窗夠寬（`useDesktopWide()`，App 給）：沒有側欄外框，但同樣排成電腦版的兩欄 */
   wide?: boolean;
-  /** 已經有有效的居家訓練使用權：訓練卡改寫「已开通」（沒有就照舊畫價錢） */
-  trainingActive?: { endsOn: string | null } | null;
 }
 
 /** 色塊小字放不下「需要少量支持」的全名（375px 會折行）：「需要」縮成「需」，報告與面板照用全名。 */
@@ -93,7 +88,7 @@ function useWeekPracticeDays(enabled: boolean): number | null {
   return days;
 }
 
-export default function LedoHomePage({ onOpen, onOpenReport, childName, scores = [], wide = false, trainingActive = null }: LedoHomeProps) {
+export default function LedoHomePage({ onOpen, onOpenReport, childName, scores = [], wide = false }: LedoHomeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = videoRef.current;
@@ -107,7 +102,6 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
   // 首頁素材（`HOME_MEDIA`，#87）：後台有啟用中的輪播就畫輪播，沒有（或還沒讀到、讀失敗）照舊是固定示範片。
   const media = useHomeMedia();
   const banners = media?.banners ?? [];
-  const oneMonthFen = useOneMonthPriceFen(PRODUCT.features.ui1022);
 
   const t1 = scores.filter(s => s.tierId === 'T1');
   const count = (st: DimensionScore['status']) => t1.filter(s => s.status === st).length;
@@ -116,7 +110,7 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
   const practiceDays = useWeekPracticeDays(t1.length > 0 && !PRODUCT.features.ui1022);
   const cardSub1022 = (id: string): string => {
     if (id === 't1') return t1.length > 0 && date ? WORDING_1022.home.t1CardDone(date) : WORDING_1022.home.t1Card.subtitle;
-    if (id === 't2') return t1.length > 0 ? WORDING_1022.home.t2Card.subtitle : WORDING_1022.home.t2CardNeedT1Sub;
+    if (id === 'training') return WORDING_1022.home.trainingCard.subtitle;
     return '';
   };
   const sub: Record<string, string> = {
@@ -191,10 +185,6 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
             </section>
   );
 
-  const trainingCard = (
-          <TrainingPromoCard desk={desk} media={media} priceFen={oneMonthFen} active={trainingActive} onOpen={() => onOpen(HOME_TRAINING_CARD_1022.target)} />
-  );
-
   const assessCards = (
           <div className={desk ? 'grid grid-cols-2 gap-5' : 'grid grid-cols-2 gap-3 border-t border-ledo-line pt-4'}>
             {HOME_CARDS_1022.map(card => (
@@ -227,16 +217,13 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
   );
 
   if (desk) {
-    // 電腦版（側欄工作台，VITE_DESKTOP_LAYOUT）：同一組區塊排成兩欄 —— 左邊示範片，右邊概況與訓練卡；T1、T2 一排兩張橫卡。
+    // 電腦版（側欄工作台，VITE_DESKTOP_LAYOUT）：同一組區塊排成兩欄 —— 左邊示範片，右邊概況（沒做過 T1 示範片佔滿一排）；T1、訓練一排兩張橫卡。
     return (
       <div id="home-page" className="mx-auto w-full max-w-6xl space-y-5 text-left animate-fade-in">
         <div className="px-1">{greeting}</div>
         <div className="grid grid-cols-12 gap-5">
-          <div className="col-span-7 min-w-0 [&>*]:h-full [&>*]:aspect-auto [&>*]:min-h-[340px]">{hero}</div>
-          <div className="col-span-5 flex min-w-0 flex-col gap-5">
-            {overview}
-            {trainingCard}
-          </div>
+          <div className={`${overview ? 'col-span-7' : 'col-span-12'} min-w-0 [&>*]:h-full [&>*]:aspect-auto [&>*]:min-h-[340px]`}>{hero}</div>
+          {overview && <div className="col-span-5 flex min-w-0 flex-col gap-5">{overview}</div>}
         </div>
         {assessCards}
       </div>
@@ -250,12 +237,11 @@ export default function LedoHomePage({ onOpen, onOpenReport, childName, scores =
       {hero}
 
       {PRODUCT.features.ui1022 ? (
-        // 1022 首頁三排（簡報 11/03 第 12–13 頁，使用者 2026-11-06）：①評估結果（綠、紅）②線上家庭個性化訓練寬卡（附價錢）③T1、T2。
-        // 拿掉「看报告」與「本周练过的天数」；三塊各有自己的底色或分隔線。
+        // 1022 首頁（簡報 11/03 第 12–13 頁，使用者 2026-11-06）：①評估結果（綠、紅）②T1、線上家庭個性化訓練並排。
+        // 原本中間的訓練寬卡（附價錢、选方案）與 T2 卡在客戶 2026-11-13 拿掉（見 homeNav 的 HOME_CARDS_1022）。
+        // 拿掉「看报告」與「本周练过的天数」；兩塊各有自己的底色或分隔線。
         <>
           {overview}
-
-          {trainingCard}
 
           {assessCards}
         </>

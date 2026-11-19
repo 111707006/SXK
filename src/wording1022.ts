@@ -44,7 +44,7 @@ export const WORDING_1022 = {
     t1CardDone: (date: string) => `${date}完成，可以重新评估`,
     /**
      * 第二排訓練卡上的價錢：數字不寫在這裡。實收價照伺服器的一個月方案（`/api/training/plans`，`TRAINING_PLAN_PRICES_FEN`），
-     * 原價照 `PLAN_LIST_PRICE_FEN`（使用者 2026-11-10：原價 ¥199、折價 ¥19.9）；畫法在 `LedoHomePage` 的 `TrainingCardPrice`。
+     * 原價照 `PLAN_LIST_PRICE_FEN`（使用者 2026-11-10：原價 ¥199、折價 ¥19.9）；畫法在 `TrainingPromoCard` 的 `TrainingCardPrice`（2026-11-13 起只在 T2 報告那張卡，首頁不標價）。
      * 以前寫死在這裡，方案頁照伺服器，兩邊會不一樣（2026-11-10 實際走一遍清單第 3 條）。
      */
     trainingPrice: { label: '一个月', cta: '选方案' },

@@ -1677,7 +1677,6 @@ export default function App() {
                     childName={child?.name}
                     scores={panelScores}
                     onOpenReport={completedScores.length > 0 ? navItems.find(i => i.key === 'report')?.onClick : undefined}
-                    trainingActive={trainingPass?.active ? { endsOn: trainingPass.endsOn } : null}
                   />
                 ) : (
                   <HomePage onOpen={openHomeTarget} />

@@ -30,14 +30,16 @@ export const HOME_CARDS: ReadonlyArray<HomeCard> = [
  * 副標是客戶給的固定句。去處不變（居家訓練卡改去訓練計劃頁在規格三）。
  */
 /**
- * 1022 首頁（簡報 11/03 第 13 頁，使用者 2026-11-06）：第二排一張「线上家庭个性化训练」寬卡，第三排 T1、T2 兩張卡並排。
+ * 1022 首頁（簡報 11/03 第 13 頁，使用者 2026-11-06）：原本第二排一張「线上家庭个性化训练」寬卡（附價錢、选方案），第三排 T1、T2 並排。
+ * 客戶 2026-11-13（使用者 2026-11-19）：寬卡下架、首頁的 T2 卡拿掉，訓練卡移到 T2 的位置，不標價、沒有「选方案」。
+ * 到 T2 還有 T1 報告上的購買區與評估面板的紅黃維度。`HOME_TRAINING_CARD_1022` 的字照舊給 T2 報告那張寬卡（`TrainingPromoCard`）。
  */
 export const HOME_TRAINING_CARD_1022: HomeCard & { sub: string } = {
   id: 'training', title: WORDING_1022.home.trainingCard.title, sub: WORDING_1022.home.trainingCard.subtitle, target: 'training', more: '了解更多',
 };
 export const HOME_CARDS_1022: ReadonlyArray<HomeCard & { sub: string }> = [
   { id: 't1', title: WORDING_1022.home.t1Card.title, sub: WORDING_1022.home.t1Card.subtitle, target: 'dashboard', more: '了解更多' },
-  { id: 't2', title: WORDING_1022.home.t2Card.title, sub: WORDING_1022.home.t2Card.subtitle, target: 't2', more: '了解更多' },
+  HOME_TRAINING_CARD_1022,
 ];
 
 export const HOME_COPY = {

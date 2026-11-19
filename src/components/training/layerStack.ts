@@ -69,7 +69,9 @@ export type SheetState =
   | { kind: 'equip'; id: string; from: DetailSource }
   | { kind: 'mode'; id: string; from: DetailSource }
   | { kind: 'cast'; hasVideo: boolean }
-  | { kind: 'calendar' };
+  | { kind: 'calendar' }
+  /** 計劃頁「家长最常问的四件事」點一題（0–3，`PLAN_PAGE.faq` 的順序）：答案在抽屜裡（客戶 2026-11-13）。 */
+  | { kind: 'faq'; index: number };
 
 export type Layer = { type: 'page'; route: Route } | { type: 'sheet'; sheet: SheetState };
 
@@ -150,6 +152,7 @@ function isLayer(value: unknown): value is Layer {
   if (value.type === 'sheet') {
     const sheet = value.sheet;
     if (!isObject(sheet) || typeof sheet.kind !== 'string') return false;
+    if (sheet.kind === 'faq') return Number.isInteger(sheet.index) && (sheet.index as number) >= 0 && (sheet.index as number) < 4;
     return !['actions', 'equip', 'mode'].includes(sheet.kind) || typeof sheet.id === 'string';
   }
   return false;

@@ -364,6 +364,28 @@ describe('邊界', () => {
     expect(stack.layers()).toEqual([]);
   });
 
+  // 計劃頁「家长最常问的四件事」的抽屜（客戶 2026-11-13）：題號只認 0–3 的整數，其他當成認不得
+  it('四件事的抽屜：返回鍵關得掉；題號不對的當成認不得', async () => {
+    const faq: Layer = { type: 'sheet', sheet: { kind: 'faq', index: 2 } };
+    const { browser, stack } = setup();
+    stack.push(plan);
+    stack.push(faq);
+    expect(stack.layers()).toEqual([plan, faq]);
+    browser.pressBack();
+    await flush();
+    expect(stack.layers()).toEqual([plan]);
+
+    for (const index of [4, -1, 1.5, '1']) {
+      const s = setup();
+      s.stack.push(plan);
+      s.browser.history.replaceState({ sxkTraining: [plan, { type: 'sheet', sheet: { kind: 'faq', index } }] });
+      s.stack.push(detail);
+      s.browser.pressBack();
+      await flush();
+      expect(s.stack.layers()).toEqual([]);
+    }
+  });
+
   it('推第一層時把捲動還原改成手動：卸載時退回報告那一格，瀏覽器不把下一頁捲回舊位置', () => {
     // 家長在計劃頁按「预约」→ App 換到 T1 報告並捲到預約區塊；這時卸載退格落地，
     // 捲動還原是 auto 的話，瀏覽器會把新的一頁捲回推第一層那時報告頁的高度。

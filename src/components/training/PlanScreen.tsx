@@ -2,7 +2,8 @@
  * 計劃頁（Keep 規格 §3.2）：蓋在報告上的第一層，從報告入口的計劃大卡點進來。
  *
  * 版面照樣品的 `PlanScreen`（Keep「腹肌撕裂計劃」往下滑那一頁）：頭 → 我的计划安排 → 这周练哪几块 →
- * 我的评估结果 → 本周活动 → 家长最常问的四件事 → STEP 1–4 → 约专家 → 底部固定列。
+ * 我的评估结果 → 本周活动 → 家长最常问的四件事 → 约专家 → 底部固定列。
+ * 2026-11-13（客戶）：四件事改成 2×2 可以點的卡，答案（原本的 STEP 1–4）在抽屜 `PlanFaqSheet` 裡，頁面上不再排 STEP。
  *
  * 【資料】
  * - 第幾週：每週活動回應的 `plan`（§4.5，伺服器算）；過了 12 週寫「已满 12 周，建议再评估一次」。
@@ -15,8 +16,8 @@
  * 「下周安排会参考」（配對不看心情）；頭圖、常見問題的人像不上（來源與授權不明，§9 第 4 題）。
  */
 import { PROXY_TOOLKIT, T1_ONLY_TOOLKIT } from '../../t2/snapshotKinds';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronRight, CircleCheck, Clock, Crown, MessagesSquare, Play, UserRound } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { ChevronRight, CircleCheck, Clock, Crown, Play, UserRound } from 'lucide-react';
 import { STATUS_WORDING } from '../../utils/statusWording';
 import { ServiceNote, serviceChoices } from '../serviceChoices';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
@@ -59,7 +60,7 @@ import type { PeriodSheet } from '../../t2/trainingPeriodService';
 import PrintButton from '../PrintButton';
 import PlanPrintSheet from './PlanPrintSheet';
 import { fetchPeriodSheet } from './trainingApi';
-import { Cover, DarkNav, StepImage } from './ui';
+import { Cover, DarkNav, Sheet, StepImage } from './ui';
 import { PRODUCT } from '../../productConfig';
 import { addCalendarDays } from '../../t2/weeks';
 import { Avatar, ListRow, PlayButton, SectionHead, Tile } from '../ledo/ui';
@@ -175,13 +176,55 @@ function ResultCard({ label, value, valueClass, note }: { label: string; value: 
   );
 }
 
-function StepBlock({ n, title, children, anchor }: { n: number; title: string; children: ReactNode; anchor: (el: HTMLElement | null) => void }) {
+/**
+ * 「家长最常问的四件事」點一題的抽屜（客戶 2026-11-13：原本頁面下半的 STEP 1–4 收進這裡，點哪題出哪題的答案）。
+ * 標題是問題、第一句是那一段原本的標題（＝直接的回答），下面是原本那一段的圖。`index` 是 `PLAN_PAGE.faq` 的順序。
+ */
+export function PlanFaqSheet({ index }: { index: number }) {
+  const { data, nav } = useTraining();
+  const q = PLAN_PAGE.faq[index];
+  const plan = data.plan;
+  if (!q || !plan) return null;
+  const position = planPositionOf(plan);
+  const push = pushPositionOf(plan);
+  const practicedDays = data.checkins ? new Set(data.checkins.map(c => c.checkinDate)) : null;
+  const pick = plan.activities[0];
+  let body: ReactNode = null;
+  if (q.step === 0) body = <Staircase weekIndex={position.weekIndex} push={push !== null} />;
+  else if (q.step === 1) body = pick ? <MiniPhones pick={pick} /> : null;
+  else if (q.step === 2) {
+    body = (
+      <>
+        <ul className="space-y-3">
+          {PLAN_PAGE.step3.map(t => (
+            <li key={t} className="flex items-start gap-2 text-[14px] text-brand-charcoal">
+              <CircleCheck size={18} className="text-brand-moss shrink-0 mt-px" />
+              {t}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 flex justify-center gap-2" aria-hidden="true">
+          {CHECKIN_MOODS.map((m, i) => (
+            <span
+              key={m}
+              className={`px-3 py-1.5 rounded-full text-[13px] ${i === 0 ? 'bg-brand-forest text-white' : 'bg-brand-cream text-brand-charcoal/80'}`}
+            >
+              {MOOD_LABEL[m]}
+            </span>
+          ))}
+        </div>
+      </>
+    );
+  } else body = <PlanWeekGrid firstWeekStart={position.firstWeekStart} today={data.today} practiced={practicedDays} compact />;
   return (
-    <section ref={anchor} className="bg-white mt-2 pt-7 pb-6 scroll-mt-2">
-      <p className="text-center text-[15px] tracking-[0.06em] text-brand-charcoal/80">STEP {n}</p>
-      <h3 className="text-center text-[21px] font-bold text-brand-forest mt-1 px-4">{title}</h3>
-      <div className="mt-5">{children}</div>
-    </section>
+    <Sheet onClose={nav.back}>
+      <div data-testid="plan-faq-sheet" data-faq={index}>
+        <p className="text-[13px] text-brand-charcoal/80">{q.sub}</p>
+        <h2 className="pr-12 text-[22px] font-black text-brand-forest">{q.main}</h2>
+        <p className="mt-2 text-[16px] font-bold text-brand-moss">{PLAN_PAGE.steps[q.step].replace(' ', '，')}</p>
+        <div className="mt-5 -mx-1">{body}</div>
+      </div>
+    </Sheet>
   );
 }
 
@@ -369,18 +412,22 @@ function MiniPhones({ pick }: { pick: WeeklyPick }) {
   );
 }
 
-/** STEP 4：12 週的打卡格。練過的日子實心、今天外框、最後一格是再評估。打卡讀不出來時不畫練過的日子。 */
-function PlanWeekGrid({ firstWeekStart, today, practiced }: { firstWeekStart: string; today: string; practiced: ReadonlySet<string> | null }) {
+/**
+ * STEP 4：12 週的打卡格。練過的日子實心、今天外框、最後一格是再評估。打卡讀不出來時不畫練過的日子。
+ * `compact`：放在抽屜裡（12 行一格 44px 會超過抽屜高度），格子縮成 28px（字級照全站最小 12px）。
+ */
+function PlanWeekGrid({ firstWeekStart, today, practiced, compact = false }: { firstWeekStart: string; today: string; practiced: ReadonlySet<string> | null; compact?: boolean }) {
   const grid = planGrid(firstWeekStart);
+  const cell = compact ? 'max-h-7 max-w-7 text-xs' : 'max-h-11 max-w-11 text-xs';
   return (
-    <div className="mx-4">
-      <div className="grid grid-cols-7 gap-1.5 text-center text-xs text-brand-charcoal/80">
+    <div className={compact ? 'mx-auto max-w-[300px]' : 'mx-4'}>
+      <div className={`grid grid-cols-7 text-center text-xs text-brand-charcoal/80 ${compact ? 'gap-1' : 'gap-1.5'}`}>
         {WEEKDAYS.map(d => (
           <span key={d}>{d}</span>
         ))}
       </div>
       {grid.map((week, w) => (
-        <div key={week[0]} className="mt-1.5 grid grid-cols-7 gap-1.5">
+        <div key={week[0]} className={`grid grid-cols-7 ${compact ? 'mt-1 gap-1' : 'mt-1.5 gap-1.5'}`}>
           {week.map((iso, d) => {
             const done = practiced?.has(iso) ?? false;
             const last = w === grid.length - 1 && d === 6;
@@ -389,7 +436,7 @@ function PlanWeekGrid({ firstWeekStart, today, practiced }: { firstWeekStart: st
                 key={iso}
                 data-day={iso}
                 data-done={done || undefined}
-                className={`aspect-square max-h-11 rounded-full grid place-items-center text-xs tabular-nums mx-auto w-full max-w-11 ${
+                className={`aspect-square ${cell} rounded-full grid place-items-center tabular-nums mx-auto w-full ${
                   done
                     ? 'bg-brand-forest text-white'
                     : last
@@ -399,7 +446,7 @@ function PlanWeekGrid({ firstWeekStart, today, practiced }: { firstWeekStart: st
                         : 'border border-dashed border-brand-stone text-brand-charcoal/80'
                 }`}
               >
-                {last && !done ? <Crown size={13} /> : Number(iso.slice(8))}
+                {last && !done ? <Crown size={compact ? 11 : 13} /> : Number(iso.slice(8))}
               </span>
             );
           })}
@@ -472,7 +519,6 @@ function LedoPlanTop({ weekStart, today, practiced, perDayNote, practicedOf, wee
 
 export default function PlanScreen() {
   const { data, nav, findings, childName, onBookService, onReassess } = useTraining();
-  const steps = useRef<Array<HTMLElement | null>>([]);
   // 電腦版（VITE_DESKTOP_LAYOUT）：只換 Ledo 版的排法。
   const desk = useDesktopLayout() && PRODUCT.features.ledo;
   const plan = data.plan;
@@ -707,62 +753,26 @@ export default function PlanScreen() {
   );
   const pFaqSteps = (
     <>
-        {/* 家长最常问的四件事：四個問題當目錄（常見問題的人像不上） */}
-        <section className="bg-white mt-2 pt-8 pb-4">
+        {/* 家长最常问的四件事（客戶 2026-11-13）：四張可以點的卡，點了答案從底部抽屜出來；原本下面的 STEP 1–4 不再排在頁面上。 */}
+        <section id="plan-faq" className="bg-white mt-2 px-4 pt-7 pb-6">
           <p className="text-center text-[14px] font-semibold tracking-[0.08em] text-brand-charcoal/80">{PLAN_PAGE.faqKicker}</p>
           <h3 className="text-center text-[25px] font-black text-brand-forest mt-1">{PLAN_PAGE.faqTitle}</h3>
-          <div className="relative mt-4 h-[260px] mx-4">
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] rounded-full bg-brand-sage grid place-items-center">
-              <MessagesSquare size={64} aria-hidden="true" className="text-brand-moss" />
-            </div>
-            {PLAN_PAGE.faq.map((q, i) => {
-              const right = i % 2 === 1;
-              const pos = ['left-0 top-5', 'right-0 top-5', 'left-0 bottom-7', 'right-0 bottom-7'][i];
-              return (
-                <button
-                  key={q.main}
-                  type="button"
-                  onClick={() => steps.current[q.step]?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                  className={`absolute ${pos} ${right ? 'text-right' : 'text-left'} cursor-pointer`}
-                >
-                  <span className="block text-[12px] text-brand-charcoal/80">{q.sub}</span>
-                  <span className="block text-[16px] font-bold text-brand-forest bg-white/80 rounded px-0.5">{q.main}</span>
-                  <span className={`block mt-1 h-px w-[96px] bg-brand-charcoal/60 ${right ? 'ml-auto' : ''}`} />
-                </button>
-              );
-            })}
+          <div className="mt-5 grid grid-cols-2 gap-2.5">
+            {PLAN_PAGE.faq.map((q, i) => (
+              <button
+                key={q.main}
+                type="button"
+                id={`plan-faq-${i}`}
+                onClick={() => nav.openSheet({ kind: 'faq', index: i })}
+                className="flex min-h-[88px] flex-col rounded-2xl bg-brand-cream p-3.5 text-left cursor-pointer transition active:scale-[0.98]"
+              >
+                <span className="text-[12px] text-brand-charcoal/80">{q.sub}</span>
+                <span className="mt-0.5 text-[16px] font-bold leading-snug text-brand-forest">{q.main}</span>
+                <ChevronRight size={18} aria-hidden="true" className="mt-auto self-end text-brand-moss" />
+              </button>
+            ))}
           </div>
         </section>
-
-        <StepBlock n={1} title={PLAN_PAGE.steps[0]} anchor={el => { steps.current[0] = el; }}>
-          <Staircase weekIndex={position.weekIndex} push={push !== null} />
-        </StepBlock>
-        <StepBlock n={2} title={PLAN_PAGE.steps[1]} anchor={el => { steps.current[1] = el; }}>
-          {picks[0] && <MiniPhones pick={picks[0]} />}
-        </StepBlock>
-        <StepBlock n={3} title={PLAN_PAGE.steps[2]} anchor={el => { steps.current[2] = el; }}>
-          <ul className="mx-6 space-y-3">
-            {PLAN_PAGE.step3.map(t => (
-              <li key={t} className="flex items-start gap-2 text-[14px] text-brand-charcoal">
-                <CircleCheck size={18} className="text-brand-moss shrink-0 mt-px" />
-                {t}
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4 flex justify-center gap-2" aria-hidden="true">
-            {CHECKIN_MOODS.map((m, i) => (
-              <span
-                key={m}
-                className={`px-3 py-1.5 rounded-full text-[13px] ${i === 0 ? 'bg-brand-forest text-white' : 'bg-brand-cream text-brand-charcoal/80'}`}
-              >
-                {MOOD_LABEL[m]}
-              </span>
-            ))}
-          </div>
-        </StepBlock>
-        <StepBlock n={4} title={PLAN_PAGE.steps[3]} anchor={el => { steps.current[3] = el; }}>
-          <PlanWeekGrid firstWeekStart={position.firstWeekStart} today={data.today} practiced={practicedDays} />
-        </StepBlock>
     </>
   );
   const pExpert = (

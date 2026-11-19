@@ -23,7 +23,7 @@ import DetailScreen from './DetailScreen';
 import { ActionsSheet, CastSheet, EquipSheet, ModeSheet } from './DetailSheets';
 import ExpertSheet from './ExpertSheet';
 import LibraryScreen from './LibraryScreen';
-import PlanScreen from './PlanScreen';
+import PlanScreen, { PlanFaqSheet } from './PlanScreen';
 import PlayerScreen from './PlayerScreen';
 import ReminderSheet from './ReminderSheet';
 import { useDesktopLayout } from '../../desktop/useDesktopLayout';
@@ -62,6 +62,8 @@ function SheetContent({ sheet }: { sheet: SheetState }) {
       return <CastSheet hasVideo={sheet.hasVideo} />;
     case 'calendar':
       return <ReminderSheet />;
+    case 'faq':
+      return <PlanFaqSheet index={sheet.index} />;
     default:
       return null;
   }

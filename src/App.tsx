@@ -1404,7 +1404,12 @@ export default function App() {
       {desktopLayout && child && (
         <DesktopTopBar
           title={homeV2 && !PRODUCT.features.ui1022 ? HOME_COPY.siteTitle : PRODUCT.brand.headerTitle}
-          badge={PRODUCT.mode === 'full' ? <CompanyBadge enabled={companiesOn} identity={userIdentity} /> : undefined}
+          badge={PRODUCT.mode === 'full' ? <CompanyBadge enabled={companiesOn} identity={userIdentity} /> : (
+            // 專案 B：合作公司的 LOGO（2026-11-19 B 開電腦版時補上）
+            <span className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-brand-moss text-sm font-extrabold text-white">
+              <BrandMark />
+            </span>
+          )}
           status={(syncing || syncError) ? (
             <div className="text-xs text-brand-charcoal/80 font-medium flex items-center gap-1.5">
               {syncing && <span className="text-brand-moss animate-spin text-xs" title="正在云端保存中...">⏳</span>}
@@ -1425,8 +1430,8 @@ export default function App() {
         {/* 新版首頁、未登入：標題與「登录、注册」手機上也同一列（客戶示意圖）；Ledo 版手機的導覽在底欄，頁首只剩標題與孩子，也一列。其他情況照舊。 */}
         <div className={(homeV2 && !userIdentity) || LEDO_TAB_BAR ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-row items-center justify-between gap-3' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4'}>
           <div className="flex items-center gap-2.5">
-            {/* 1022：頁首不畫「森」字方塊，只留平台名稱（規格「品牌」）。 */}
-            {!PRODUCT.features.ui1022 && (
+            {/* 1022：頁首不畫「森」字方塊，只留平台名稱（規格「品牌」）。專案 B 那一塊是合作公司的 LOGO，照畫（2026-11-19）。 */}
+            {(!PRODUCT.features.ui1022 || PRODUCT.brand.logoSource === 'company') && (
             <div className="w-10 h-10 bg-brand-moss rounded-xl flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-moss/10 scale-105">
               <BrandMark />
             </div>

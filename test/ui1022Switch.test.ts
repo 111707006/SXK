@@ -100,7 +100,8 @@ describe('頁首與頁尾', () => {
 
   it('頁首的「森」字方塊在 1022 不畫', () => {
     const header = app.slice(app.indexOf('<header'), app.indexOf('</header>'));
-    expect(header).toMatch(/\{!PRODUCT\.features\.ui1022 && \(\s*<div className="w-10 h-10[^"]*">\s*<BrandMark \/>/);
+    // 專案 B 那一塊是合作公司的 LOGO（logoSource 'company'），1022 照畫（2026-11-19）；A 是「森」字，不畫。
+    expect(header).toMatch(/\{\(!PRODUCT\.features\.ui1022 \|\| PRODUCT\.brand\.logoSource === 'company'\) && \(\s*<div className="w-10 h-10[^"]*">\s*<BrandMark \/>/);
   });
 
   it('頁尾在 1022 只留版權、兩個條款、備案號', () => {

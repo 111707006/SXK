@@ -165,6 +165,12 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured, wide = false }
       <div className={`relative z-10 ${ledo ? 'space-y-4' : 'space-y-6'}`}>
         {ledo && (
           <div className="mt-2 space-y-2">
+            {/* 專案 B：合作公司的 LOGO（`BrandMark`；2026-11-19 B 開 Ledo 時補上，原本只有非 Ledo 那一版畫）。A 不畫。 */}
+            {PRODUCT.brand.logoSource === 'company' && (
+              <div className="mb-3 inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-ledo-accent text-lg font-extrabold text-white">
+                <BrandMark />
+              </div>
+            )}
             <p className="text-xs text-ledo-ink-2">{PRODUCT.brand.headerTitle}</p>
             <h2 className="text-[22px] font-black leading-snug text-ledo-ink">欢迎，用手机号登录</h2>
             <p className="text-[13px] leading-relaxed text-ledo-ink-2">首次验证成功即为您创建账户，无需单独注册，也不需要设置密码。</p>

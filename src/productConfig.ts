@@ -278,8 +278,13 @@ export interface ProductProfile {
   };
 }
 
-/** 1022 開著時專案 A 的品牌（只在 A 用；B 的 profile 不讀這個開關）。 */
+/** 1022 開著時專案 A 的品牌（A 的 profile 用）。 */
 const UI_1022_A = import.meta.env.VITE_UI_1022 === '1';
+/**
+ * 專案 B 也吃 1022 的版面與平台名稱（使用者 2026-11-19：給合作公司的 T1 一起更新、名字也換）。
+ * 同一個建置期開關 `VITE_UI_1022`；B 只拿平台名稱與版面，A 的文案（T2、训练、價錢）由各處的 `tier2And3` 擋。
+ */
+const UI_1022_B = import.meta.env.VITE_UI_1022 === '1';
 
 const PROFILES: Record<ProductMode, ProductProfile> = {
   full: {
@@ -361,8 +366,9 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
     // 也刻意不寫成對方公司的名字：那樣每換一個合作對象就要改一次程式碼，
     // 而且備案與資料掌管方仍是森心康，掛對方的名字反而與事實不符。
     brand: {
-      documentTitle: '儿童综合发展评估系统',
-      headerTitle: '儿童综合发展评估系统',
+      // 1022 開著時換成平台名稱（與 A 同一個；名字裡沒有品牌，2026-11-19 使用者：都换）。
+      documentTitle: UI_1022_B ? WORDING_1022.documentTitle : '儿童综合发展评估系统',
+      headerTitle: UI_1022_B ? WORDING_1022.platformName : '儿童综合发展评估系统',
       welcomeName: null,
       reportTitle: 'AI 神经网络分层评估报告生成器',
       systemName: '本儿童数字测听与康复分层评估系统',
@@ -371,7 +377,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       // 畫面上。改成不指名的講法 —— 條款後面整份都在說「运营方」，得先把它定義出來。
       operatorClause: '及其运营方（以下简称“运营方”）',
       ipHolder: '本系统运营方',
-      copyright: '© 2026 儿童综合发展评估系统',
+      copyright: UI_1022_B ? WORDING_1022.copyright : '© 2026 儿童综合发展评估系统',
       // 各合作公司可在「本機構設定」掛自己的 LOGO；沒設定就用下面那個字標。
       logoSource: 'company',
       logoMark: '评',
@@ -428,8 +434,9 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       handoff: 'send',
       home: false,
       ledo: import.meta.env.VITE_UI_LEDO === '1',
-      ui1022: false,
-      desktopLayout: false,
+      // 2026-11-19 起 B 也照建置期開關（原本寫死 false）：版面、預約改二維碼、電腦版外框。
+      ui1022: UI_1022_B,
+      desktopLayout: import.meta.env.VITE_DESKTOP_LAYOUT === '1',
     },
   },
 };

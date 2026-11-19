@@ -58,10 +58,11 @@ describe('VITE_UI_1022', () => {
     }
   });
 
-  it('B 的 profile 寫死 false，不讀這個開關', () => {
+  // 2026-11-19 起 B 也照開關，但用自己的那一份（UI_1022_B），不拿 A 的品牌文案。
+  it('B 的 profile 讀同一個開關、只用 UI_1022_B', () => {
     const src = readFileSync('src/productConfig.ts', 'utf8');
     const t1 = src.slice(src.indexOf('t1only: {'));
-    expect(t1).toContain('ui1022: false,');
+    expect(t1).toContain('ui1022: UI_1022_B,');
     expect(t1).not.toContain('UI_1022_A');
   });
 
@@ -88,9 +89,9 @@ describe('靜態頁的分享卡', () => {
     expect(body.indexOf('欢迎体验家庭评估与训练平台')).toBeLessThan(body.indexOf('<div id="root">'));
   });
 
-  it('只在 A、開著時才換', () => {
+  it('開著時才換（A、B 都換，2026-11-19 起）', () => {
     const src = readFileSync('vite.config.ts', 'utf8');
-    expect(src).toContain("process.env.VITE_UI_1022 === '1' && process.env.VITE_APP_MODE !== 't1only'");
+    expect(src).toContain("const on = process.env.VITE_UI_1022 === '1';");
   });
 });
 

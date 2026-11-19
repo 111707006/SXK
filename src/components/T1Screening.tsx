@@ -189,6 +189,13 @@ export default function T1Screening({ child, onBack, onSaveT1Results, answeredBe
 
   const handleSubmitT1 = () => {
     // 1022：九個方面答完先到「补充资料」（issue #83），那一步按「生成报告」才交卷。
+    // 專案 B 不走那一步（那幾欄是給 T2 推薦與訓練用的，文案也這樣寫；2026-11-19）：結論頁在 1022 也不出現，
+    // 所以直接交給上層、到報告頁生成，跟 A 在补充资料按「生成报告」之後一樣。
+    if (PRODUCT.features.ui1022 && !PRODUCT.features.tier2And3) {
+      clearT1Draft();
+      onSaveT1Results(scoreAnswers());
+      return;
+    }
     if (PRODUCT.features.ui1022) {
       setAtSupplement(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -363,7 +370,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results, answeredBe
 
   const activeTheme = dimensionColors[activeDimId] || { bg: 'bg-emerald-50 text-emerald-700', text: 'text-emerald-800', border: 'border-emerald-200' };
 
-  if (PRODUCT.features.ui1022 && atSupplement) {
+  if (PRODUCT.features.ui1022 && PRODUCT.features.tier2And3 && atSupplement) {
     return (
       <T1SupplementStep
         value={supplement}
@@ -384,7 +391,7 @@ export default function T1Screening({ child, onBack, onSaveT1Results, answeredBe
         onSelect={handleSelectOption}
         onSubmit={handleSubmitT1}
         onExit={onBack}
-        {...(PRODUCT.features.ui1022 ? { submitLabel: '下一步' } : {})}
+        {...(PRODUCT.features.ui1022 ? { submitLabel: PRODUCT.features.tier2And3 ? '下一步' : '生成报告' } : {})}
       />
     );
   }

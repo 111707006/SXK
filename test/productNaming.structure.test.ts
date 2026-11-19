@@ -52,7 +52,7 @@ function profileBlock(name: 'full' | 't1only'): string {
  * 1022 開著時三處都是同一個平台名稱，由 `test/ui1022Switch.test.ts` 實際載入設定檢查。
  */
 function fieldValue(block: string, field: string): string {
-  const m = block.match(new RegExp(`\\n\\s*${field}:\\s*(?:UI_1022_A \\? WORDING_1022\\.\\w+ : )?'([^']*)'`));
+  const m = block.match(new RegExp(`\\n\\s*${field}:\\s*(?:UI_1022_[AB] \\? WORDING_1022\\.\\w+ : )?'([^']*)'`));
   expect(m, `${field} 讀不到 —— 它必須是單引號字串字面量，這支測試才看得到它`).not.toBeNull();
   return m![1];
 }

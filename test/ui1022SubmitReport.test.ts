@@ -57,6 +57,8 @@ describe('結論頁在 1022 走不到', () => {
   it('交卷：開著先到补充资料、那一步才交給上層（#83），不設 isCompleted', () => {
     const submit = src.slice(src.indexOf('const handleSubmitT1'), src.indexOf('const handleActivateDeepAssessment'));
     expect(submit).toMatch(/if \(PRODUCT\.features\.ui1022\) \{\s*setAtSupplement\(true\);[\s\S]*?return;\s*\}\s*const scores = scoreAnswers\(\);\s*setCalculatedScores\(scores\);\s*setIsCompleted\(true\);/);
+    // 專案 B（沒有 T2）在 1022 不走补充资料：直接交給上層（結論頁在 1022 也走不到，2026-11-19）
+    expect(submit).toMatch(/if \(PRODUCT\.features\.ui1022 && !PRODUCT\.features\.tier2And3\) \{\s*clearT1Draft\(\);\s*onSaveT1Results\(scoreAnswers\(\)\);\s*return;\s*\}/);
     expect(submit).toContain('onSaveT1Results(scoreAnswers(), applySupplement(child, supplement));');
     expect(submit).not.toMatch(/handleSubmitWithSupplement[\s\S]*setIsCompleted/);
   });
@@ -66,7 +68,8 @@ describe('結論頁在 1022 走不到', () => {
   });
 
   it('最後一題的按鈕是「下一步」，补充资料那一步是「生成报告」', () => {
-    expect(src).toContain("submitLabel: '下一步'");
+    // 專案 B 沒有补充资料那一步，最後一題直接生成報告（2026-11-19）
+    expect(src).toContain("submitLabel: PRODUCT.features.tier2And3 ? '下一步' : '生成报告'");
     expect(readFileSync('src/components/T1SupplementStep.tsx', 'utf8')).toContain('{WORDING_1022.buttons.generateReport}');
   });
 });

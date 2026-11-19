@@ -60,11 +60,11 @@ function assertValidMallOpen() {
 function assertValidDesktopLayout() {
   const raw = process.env.VITE_DESKTOP_LAYOUT;
   if (raw === undefined || raw === '' || raw === '1' || raw === '0') return;
-  throw new Error(`VITE_DESKTOP_LAYOUT 的值無法辨識: ${JSON.stringify(raw)}。只接受 '1'（電腦版側欄）或 '0'（現行）；不設＝關。只在專案 A 有效。`);
+  throw new Error(`VITE_DESKTOP_LAYOUT 的值無法辨識: ${JSON.stringify(raw)}。只接受 '1'（電腦版側欄）或 '0'（現行）；不設＝關。A、B 都適用。`);
 }
 
 /**
- * 1022 開著（而且是專案 A）時，靜態頁寫新的 title、description，body 第一段放一行視覺隱藏、讀屏可讀的歡迎句。
+ * 1022 開著時（A、B 都是，B 2026-11-19 起），靜態頁寫新的 title、description，body 第一段放一行視覺隱藏、讀屏可讀的歡迎句。
  * 專案 A 沒有微信公眾號 JS-SDK，微信的分享卡標題取網頁標題、說明取頁面第一段文字（規格「分享卡」，暫採）——
  * 執行期才設的 `document.title` 微信不一定等得到，所以寫進靜態檔。關著時 `index.html` 原封不動。
  */
@@ -76,7 +76,8 @@ export function shareCardHtml1022(html: string): string {
 }
 
 function shareCard1022(): Plugin {
-  const on = process.env.VITE_UI_1022 === '1' && process.env.VITE_APP_MODE !== 't1only';
+  // 2026-11-19 起 B 也用平台名稱（名字裡沒有品牌），A、B 都寫。
+  const on = process.env.VITE_UI_1022 === '1';
   return {
     name: 'sxk-share-card-1022',
     transformIndexHtml: html => (on ? shareCardHtml1022(html) : html),

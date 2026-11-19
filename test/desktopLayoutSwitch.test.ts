@@ -29,10 +29,13 @@ describe('VITE_DESKTOP_LAYOUT', () => {
     expect(product.features.desktopLayout).toBe(true);
   });
 
-  it('B 帶 1 也不開', async () => {
-    const product = await loadProduct({ VITE_APP_MODE: 't1only', VITE_DESKTOP_LAYOUT: '1' });
-    expect(product.mode).toBe('t1only');
-    expect(product.features.desktopLayout).toBe(false);
+  // 2026-11-19 起 B 也照開關（使用者：給合作公司的 T1 一起更新）；不帶仍是關。
+  it('B 帶 1 也開、不帶是關', async () => {
+    const on = await loadProduct({ VITE_APP_MODE: 't1only', VITE_DESKTOP_LAYOUT: '1' });
+    expect(on.mode).toBe('t1only');
+    expect(on.features.desktopLayout).toBe(true);
+    const off = await loadProduct({ VITE_APP_MODE: 't1only', VITE_DESKTOP_LAYOUT: '0' });
+    expect(off.features.desktopLayout).toBe(false);
   });
 
   it('建置前擋認不得的值', () => {

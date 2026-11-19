@@ -788,7 +788,10 @@ export default function App() {
   };
 
   const handleClearProfile = () => {
-    if (confirm(PRODUCT.features.ui1022
+    // 專案 B 沒有 T2 與訓練（2026-11-19 B 開 1022 時補上）：只說評估結果會清空。
+    if (confirm(!PRODUCT.features.tier2And3
+      ? '确定要清除孩子的档案并重新开始吗？已保存的评估结果会清空。'
+      : PRODUCT.features.ui1022
       ? `确定要清除孩子的档案并重新开始吗？已保存的评估结果会清空，T2 深度评估与${TRAINING_NAME}也会从头开始。`
       : `确认清除当前受评少儿档案并重启评测？已保存的成绩和物流状态将会复位，深度评估与${TRAINING_NAME}也会从头开始！`)) {
       setChildProfile(null);

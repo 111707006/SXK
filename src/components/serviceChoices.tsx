@@ -72,6 +72,8 @@ export function serviceChoices(on: {
   if (!PRODUCT.features.ui1022) return all;
   return all
     .filter(c => c.state === 'book' || c.state === 'training')
+    // 專案 B 四種都是 `book`（沒有線上干預）：換成同一顆「加企业微信咨询专家」會出四顆一樣的，只留第一顆（2026-11-19）。
+    .filter((c, i, list) => c.state !== 'book' || list.findIndex(x => x.state === 'book') === i)
     .map(c => (c.state === 'book'
       ? { ...c, descriptor: { ...c.descriptor, label: WECOM_CONSULT_LABEL }, description: WECOM_CONSULT_DESCRIPTION }
       : { ...c, descriptor: { ...c.descriptor, label: `${TRAINING_NAME}指导` } }));

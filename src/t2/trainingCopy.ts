@@ -276,6 +276,24 @@ export const PLAN_PAGE = {
   start: '开始今天的活动',
 } as const;
 
+/**
+ * 計劃頁「家长最常问的四件事」抽屜裡多的幾行（使用者 2026-11-19 照草稿加）。只用計劃頁別處已經有、客戶認過的話
+ * （`PLAN_PAGE.arrange`、推送的 `guidanceLines`／`periodEndRows`／`periodEndNote`／`boundary`），不另寫進度承諾。
+ * 推送（v3）才有的數字（一週幾個、期末三檔）只在推送開著時出。
+ */
+export const PLAN_FAQ_MORE = {
+  /** 要练多久：每天 10–15 分钟，分成两三小段做，重点是天天做。 */
+  perDay: `每天 ${PLAN_PAGE.arrange[0].big} ${PLAN_PAGE.arrange[0].unit}，${PLAN_PAGE.arrange[0].note.split('\n').join('，')}。`,
+  perWeek: (perWeek: number) => `一周做 ${perWeek} 个活动，每个活动一周做 4 次左右。`,
+  /** 先练哪一个 */
+  startHere: '「本周活动」里排好的就是这周要练的，从第一个开始。',
+  monthly: '难度一个月往上一点：第 1 个月用简单版，第 2 个月照手册的玩法练，第 3 个月难一点。',
+  /** 孩子不配合 */
+  succeed: '让他成功，比让他挑战重要。',
+  /** 看得出变化吗（非推送：沒有期末三檔，只說三個月後再評估） */
+  reassess: '三个月后建议重新做一次筛查和深度评估，用新的结果来安排。',
+} as const;
+
 /** 計劃頁「孩子不配合，怎么办？」抽屜底下那一行：打卡時能選哪幾種狀態（字照 `MOOD_LABEL`）。只是說明，不是按鈕。 */
 export function moodHint(labels: ReadonlyArray<string>): string {
   return `打卡时可以选：${labels.join('、')}`;

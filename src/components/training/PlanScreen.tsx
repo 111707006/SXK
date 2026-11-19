@@ -32,6 +32,7 @@ import {
   WEEKDAYS,
   itemCount,
   moodHint,
+  PLAN_FAQ_MORE,
   othersLabel,
   othersValue,
   planGreeting,
@@ -190,10 +191,23 @@ export function PlanFaqSheet({ index }: { index: number }) {
   const push = pushPositionOf(plan);
   const practicedDays = data.checkins ? new Set(data.checkins.map(c => c.checkinDate)) : null;
   const pick = plan.activities[0];
+  // 直接回答下面多的幾行（使用者 2026-11-19 照草稿加，字在 PLAN_FAQ_MORE；推送才有的數字只在推送開著時出）
+  const lines = (items: ReadonlyArray<string | false>) => (
+    <ul className="mt-3 space-y-1.5" data-testid="plan-faq-more">
+      {items.filter((t): t is string => Boolean(t)).map(t => (
+        <li key={t} className="text-[14px] leading-relaxed text-brand-charcoal">{t}</li>
+      ))}
+    </ul>
+  );
+  let more: ReactNode = null;
   let body: ReactNode = null;
-  if (q.step === 0) body = <Staircase weekIndex={position.weekIndex} push={push !== null} />;
-  else if (q.step === 1) body = pick ? <MiniPhones pick={pick} /> : null;
-  else if (q.step === 2) {
+  if (q.step === 0) {
+    more = lines([PLAN_FAQ_MORE.startHere, push !== null && PLAN_FAQ_MORE.monthly]);
+    body = <Staircase weekIndex={position.weekIndex} push={push !== null} />;
+  } else if (q.step === 1) {
+    more = lines([PLAN_FAQ_MORE.perDay, push !== null && PLAN_FAQ_MORE.perWeek(push.perWeek)]);
+    body = pick ? <MiniPhones pick={pick} /> : null;
+  } else if (q.step === 2) {
     body = (
       <>
         <ul className="space-y-3">
@@ -208,15 +222,49 @@ export function PlanFaqSheet({ index }: { index: number }) {
         <p className="mt-4 ml-[26px] text-[13px] text-brand-charcoal/80" data-testid="plan-faq-moods">
           {moodHint(CHECKIN_MOODS.map(m => MOOD_LABEL[m]))}
         </p>
+        <p className="mt-4 text-[14px] font-bold text-brand-forest">{PLAN_FAQ_MORE.succeed}</p>
+        <button
+          type="button"
+          id="plan-faq-expert"
+          onClick={() => nav.openSheet({ kind: 'expert' })}
+          className="mt-4 w-full rounded-xl bg-brand-cream px-4 py-3 text-left text-[14px] font-bold text-brand-forest flex items-center gap-2 cursor-pointer"
+        >
+          <UserRound size={16} className="shrink-0 text-brand-moss" />
+          {PLAN_PAGE.expertTitle}
+          <ChevronRight size={16} aria-hidden="true" className="ml-auto text-brand-moss" />
+        </button>
       </>
     );
-  } else body = <PlanWeekGrid firstWeekStart={position.firstWeekStart} today={data.today} practiced={practicedDays} compact />;
+  } else {
+    body = (
+      <>
+        <PlanWeekGrid firstWeekStart={position.firstWeekStart} today={data.today} practiced={practicedDays} compact />
+        {push !== null ? (
+          <div className="mt-5" data-testid="plan-faq-period-end">
+            <p className="text-[14px] font-bold text-brand-forest">{PUSH_PAGE.periodEndTitle}</p>
+            <ul className="mt-2 space-y-2">
+              {PUSH_PAGE.periodEndRows.map(r => (
+                <li key={r.when} className="text-[13px] leading-relaxed text-brand-charcoal">
+                  <b className="text-brand-forest">{r.when}：</b>{r.then}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[13px] leading-relaxed text-brand-charcoal">{PUSH_PAGE.periodEndNote}</p>
+          </div>
+        ) : (
+          <p className="mt-5 text-[14px] leading-relaxed text-brand-charcoal">{PLAN_FAQ_MORE.reassess}</p>
+        )}
+        <p className="mt-4 text-xs leading-relaxed text-brand-charcoal/80" data-testid="plan-faq-boundary">{PUSH_PAGE.boundary}</p>
+      </>
+    );
+  }
   return (
     <Sheet onClose={nav.back}>
       <div data-testid="plan-faq-sheet" data-faq={index}>
         <p className="text-[13px] text-brand-charcoal/80">{q.sub}</p>
         <h2 className="pr-12 text-[22px] font-black text-brand-forest">{q.main}</h2>
         <p className="mt-2 text-[16px] font-bold text-brand-moss">{PLAN_PAGE.steps[q.step].replace(' ', '，')}</p>
+        {more}
         <div className="mt-5 -mx-1">{body}</div>
       </div>
     </Sheet>

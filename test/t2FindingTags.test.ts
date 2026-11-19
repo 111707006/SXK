@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import {
-  ACTIVITY_TAGS, REPORT_ONLY_TAGS, FINDING_TAGS, TAG_DIMENSIONS,
+  ACTIVITY_TAGS, REPORT_ONLY_TAGS, FINDING_TAGS, TAG_DIMENSIONS, V3_ADDED_ACTIVITY_TAGS,
   isActivityTag, isFindingTag, tagDimension, tagsOfDimension,
 } from '../src/t2/findingTags';
 import type { FindingTag, TagDimension } from '../src/t2/findingTags';
@@ -76,11 +76,18 @@ const SPEC_TAGS: Record<string, { activity: string[]; reportOnly: string[] }> = 
   },
 };
 
+/** v3 加的兩個（ADR-0018）接在 §5.5 的 44 個後面；規格表那幾條比的是 v2 那一段。 */
+const V3_ADDED = new Set<string>(V3_ADDED_ACTIVITY_TAGS);
+const V2_ACTIVITY_TAGS = ACTIVITY_TAGS.filter(t => !V3_ADDED.has(t));
+const V2_FINDING_TAGS = FINDING_TAGS.filter(t => !V3_ADDED.has(t));
+
 describe('發現標籤：受控詞彙（§5.5）', () => {
-  it('★ 配活動的那一組與 §5.5 逐格相符', () => {
+  it('★ 配活動的那一組與 §5.5 逐格相符（v3 新增的兩個接在最後）', () => {
     const expected = Object.entries(SPEC_TAGS)
       .flatMap(([dim, row]) => row.activity.map(t => `${dim}.${t}`));
-    expect([...ACTIVITY_TAGS]).toEqual(expected);
+    expect(V2_ACTIVITY_TAGS).toEqual(expected);
+    expect(ACTIVITY_TAGS.slice(-V3_ADDED.size)).toEqual([...V3_ADDED_ACTIVITY_TAGS]);
+    expect([...V3_ADDED_ACTIVITY_TAGS]).toEqual(['emo.anxiety', 'mot.motor_planning']);
   });
 
   it('只進報告的那一組與 §5.5 逐格相符', () => {
@@ -89,12 +96,13 @@ describe('發現標籤：受控詞彙（§5.5）', () => {
     expect([...REPORT_ONLY_TAGS]).toEqual(expected);
   });
 
-  it('★ 與只進報告分得開：沒有交集，聯集就是全部 57 個', () => {
+  it('★ 與只進報告分得開：沒有交集，聯集就是全部 59 個（v2 的 57 個＋ v3 的 2 個）', () => {
     const activity = new Set<string>(ACTIVITY_TAGS);
     for (const tag of REPORT_ONLY_TAGS) expect(activity.has(tag)).toBe(false);
     expect(FINDING_TAGS).toHaveLength(ACTIVITY_TAGS.length + REPORT_ONLY_TAGS.length);
-    expect(FINDING_TAGS).toHaveLength(57);
-    expect(new Set(FINDING_TAGS).size).toBe(57);
+    expect(FINDING_TAGS).toHaveLength(59);
+    expect(new Set(FINDING_TAGS).size).toBe(59);
+    expect(V2_FINDING_TAGS).toHaveLength(57);
   });
 
   it('isActivityTag 認得出哪些配活動', () => {
@@ -124,7 +132,7 @@ describe('發現標籤：受控詞彙（§5.5）', () => {
     // 三個 impact_* 在 §5.1 與 §5.9 都被引用，拿掉任何一個會讓 spa／spb 的前置題
     // 產不出東西，所以照表實作，把差異釘在這裡等客戶覆核。
     for (const dim of TAG_DIMENSIONS) {
-      const n = tagsOfDimension(dim).length;
+      const n = tagsOfDimension(dim).filter(t => !V3_ADDED.has(t)).length;
       if (dim === 'sen') {
         expect(n).toBe(11);
         continue;
@@ -138,7 +146,8 @@ describe('發現標籤：受控詞彙（§5.5）', () => {
       lang: 6, soc: 8, emo: 7, att: 6, mot: 5, sen: 11, adl: 5, cog: 3, learn: 5, severity: 1,
     };
     for (const [dim, n] of Object.entries(expected)) {
-      expect({ dim, n: tagsOfDimension(dim as TagDimension).length }).toEqual({ dim, n });
+      const v2 = tagsOfDimension(dim as TagDimension).filter(t => !V3_ADDED.has(t));
+      expect({ dim, n: v2.length }).toEqual({ dim, n });
     }
   });
 });
@@ -175,16 +184,20 @@ describe('發現標籤的中文短名（v2.1 S15，只給後台）', () => {
   it('重抄的附錄 B 本身是 44 ＋ 13，而且分法與 ★／只進報告一致', () => {
     expect(starred).toHaveLength(44);
     expect(avoidOnly).toHaveLength(13);
-    expect(starred.map(([tag]) => tag).sort()).toEqual([...ACTIVITY_TAGS].sort());
+    expect(starred.map(([tag]) => tag).sort()).toEqual([...V2_ACTIVITY_TAGS].sort());
     expect(avoidOnly.map(([tag]) => tag).sort()).toEqual([...REPORT_ONLY_TAGS].sort());
   });
 
-  it('57 個都有、都非空，與附錄 B 逐字相同', () => {
+  it('59 個都有、都非空；v2 的 57 個與附錄 B 逐字相同，v3 新增的兩個照 ADR-0018', () => {
     expect(Object.keys(FINDING_TAG_LABELS).sort()).toEqual([...FINDING_TAGS].sort());
     for (const tag of FINDING_TAGS) {
       expect(FINDING_TAG_LABELS[tag].trim(), tag).not.toBe('');
     }
-    expect({ ...FINDING_TAG_LABELS }).toEqual(Object.fromEntries([...starred, ...avoidOnly]));
+    expect({ ...FINDING_TAG_LABELS }).toEqual({
+      ...Object.fromEntries([...starred, ...avoidOnly]),
+      'emo.anxiety': '焦虑与担忧',
+      'mot.motor_planning': '动作计划',
+    });
   });
 });
 
@@ -315,8 +328,8 @@ function tagSources(): Map<FindingTag, string[]> {
 describe('發現標籤：每個標籤至少一個來源（§5.9）', () => {
   const sources = tagSources();
 
-  it('57 個標籤全部產得出來，沒有死字', () => {
-    const orphans = FINDING_TAGS.filter(tag => !sources.has(tag));
+  it('v2 的 57 個標籤全部產得出來，沒有死字（v3 新增的兩個由完整版的面向對照產，見 t2FacetTagsV3.test.ts）', () => {
+    const orphans = V2_FINDING_TAGS.filter(tag => !sources.has(tag));
     expect(orphans).toEqual([]);
   });
 

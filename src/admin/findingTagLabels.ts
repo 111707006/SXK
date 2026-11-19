@@ -69,6 +69,9 @@ export const FINDING_TAG_LABELS: Readonly<Record<FindingTag, string>> = {
   'learn.number': '数学',
   'learn.phonological': '语音觉识',
   'learn.task_persistence': '持续完成',
+  // v3 新增（ADR-0018）
+  'emo.anxiety': '焦虑与担忧',
+  'mot.motor_planning': '动作计划',
   // 只進報告（後台只能貼在 avoidIf）
   'soc.response_to_name': '叫名字的反应',
   'soc.stereotyped_behavior': '重复行为',

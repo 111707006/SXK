@@ -89,7 +89,16 @@ export const ACTIVITY_TAGS = [
   'learn.number',
   'learn.phonological',
   'learn.task_persistence',
+  // v3 新增（ADR-0018，治療師 2026-11-19 同意）：完整版量表有、v2 附錄 B 沒有對得上的 —— EMO E1–E5、SP／SPB 的 PL
+  'emo.anxiety',
+  'mot.motor_planning',
 ] as const;
+
+/**
+ * v3 加進 ★ 的兩個（ADR-0018）：附錄 B 的 44 個之外。只有完整版量表的面向對照（`kitv3/facetTags.ts`）產得出來，
+ * 9/08 版的規則表（`sectionTags.ts`、`itemTags.ts`）不產。
+ */
+export const V3_ADDED_ACTIVITY_TAGS: ReadonlyArray<ActivityTag> = ['emo.anxiety', 'mot.motor_planning'];
 
 /**
  * 只進報告，不配活動。
@@ -117,7 +126,7 @@ export type ActivityTag = (typeof ACTIVITY_TAGS)[number];
 export type ReportOnlyTag = (typeof REPORT_ONLY_TAGS)[number];
 export type FindingTag = ActivityTag | ReportOnlyTag;
 
-/** 57 個，★ 在前。兩張表沒有交集 —— 一個標籤不可能既配活動又只進報告。 */
+/** 59 個（v2 的 57 個＋ v3 新增 2 個），★ 在前。兩張表沒有交集 —— 一個標籤不可能既配活動又只進報告。 */
 export const FINDING_TAGS: ReadonlyArray<FindingTag> = [...ACTIVITY_TAGS, ...REPORT_ONLY_TAGS];
 
 // 中文短名只給後台，放在 `src/admin/findingTagLabels.ts`（後台是另一個 lazy chunk，家長端下載不到）。

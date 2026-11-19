@@ -31,7 +31,7 @@ import { FINDING_TAGS } from '../findingTags';
 import type { FindingTag } from '../findingTags';
 import type { DimensionCode } from '../types';
 
-/** 57 個標籤各一句「這次看到什麼」。順序照 `FINDING_TAGS`。 */
+/** 59 個標籤各一句「這次看到什麼」。順序照 `FINDING_TAGS`。 */
 export const TAG_SENTENCES: Readonly<Record<FindingTag, string>> = {
   // lang
   'lang.comprehension': '听大人说话、听懂指令这一块还在发展中，长一点的句子需要多说几遍。',
@@ -51,6 +51,7 @@ export const TAG_SENTENCES: Readonly<Record<FindingTag, string>> = {
   'soc.stereotyped_behavior': '有一些重复的动作或固定的玩法会反复出现，换别的玩法不容易。',
   // emo
   'emo.regulation': '情绪上来的时候，自己平静下来需要比较长的时间。',
+  'emo.anxiety': '遇到分开、陌生或还没发生的事，心里的担心和紧张多一些，需要大人多给一点安全感。',
   'emo.adaptability_low': '换地方、换流程、换带的人时，需要比较长的时间才安顿下来。',
   'emo.intensity_high': '情绪来的时候力道比较大，开心和不开心都表现得很鲜明。',
   'emo.mood_negative': '一天里的心情底色偏向不太愉快，笑出来的时候少一些。',
@@ -70,6 +71,7 @@ export const TAG_SENTENCES: Readonly<Record<FindingTag, string>> = {
   'mot.balance': '单脚站、走直线、闭眼站这类平衡的动作还在练。',
   'mot.ball_skills': '丢球、接球、踢球的准头和时机还在练。',
   'mot.fine_motor': '手指的小动作——捏、扣、串、握笔——还在长。',
+  'mot.motor_planning': '碰到新的动作或玩法，想好先做什么、再做什么还在练，常常要大人先示范一次。',
   // sen
   'sen.tactile': '对碰到身上的感觉反应比较大，某些衣服、某些触感会想躲开。',
   'sen.vestibular': '对晃动、旋转、双脚离地的活动反应比较大，或者特别爱找这类活动。',

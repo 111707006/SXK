@@ -101,6 +101,8 @@ describe('導覽只經過 layerStack', () => {
     const app = stripComments(read('src/App.tsx'));
     expect(app).toContain("lazy(() => import('./components/training/TrainingPage'))");
     expect(app).toContain("id: 'nav-training-btn'");
+    // 代填過或有使用權、沒做 T1 的家長，導覽列這一格也要按得到（2026-11-20）
+    expect(app).toContain("disabled: completedScores.length === 0 && !proxyFilled && trainingPass?.active !== true");
     expect(app).toMatch(/currentView === 'training' && PRODUCT\.features\.tier2And3/);
     // 報告第六段的連結帶到同一頁
     expect(app).toContain("onOpenTraining={() => setCurrentView('training')}");

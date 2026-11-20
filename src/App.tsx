@@ -1129,7 +1129,9 @@ export default function App() {
     ...(PRODUCT.features.tier2And3
       ? [{
           key: 'training', id: 'nav-training-btn', label: TRAINING_PAGE.navLabel, short: TRAINING_PAGE.navLabel, icon: CalendarCheck,
-          active: currentView === 'training', disabled: completedScores.length === 0,
+          // 沒做 T1 也可能有居家訓練：治療師代填過（#112，家長不必作答）或已有使用權（兌換碼／方案）。
+          // 只看 T1 會讓代填的家長導覽列這一格永遠是灰的，只剩首頁那顆按鈕進得去（2026-11-20 正式站）。
+          active: currentView === 'training', disabled: completedScores.length === 0 && !proxyFilled && trainingPass?.active !== true,
           onClick: () => { setCurrentView('training'); setSelectedDimensionId(null); },
         }]
       : []),

@@ -70,9 +70,18 @@ describe('資料層的交易', () => {
   const src = readFileSync('src/admin/adminStore.ts', 'utf8');
   const fill = src.slice(src.indexOf('export async function proxyFill'));
 
-  it('與登入同一個鍵找家長；找不到才建', () => {
-    expect(fill).toContain('WHERE u.phone = ? AND u.company_id <=> ? LIMIT 1 FOR UPDATE');
+  it('已在這位推薦人名下的帳號優先（不看公司），否則與登入同一個鍵；都找不到才建', () => {
+    expect(fill).toContain('WHERE u.phone = ? AND (rb.referrer_id <=> ? OR u.company_id <=> ?)');
+    expect(fill).toContain('ORDER BY (rb.referrer_id <=> ?) DESC, u.id ASC LIMIT 1 FOR UPDATE');
+    expect(fill).toContain('[input.phone, referrer.id, referrer.companyId, referrer.id]');
     expect(fill).toContain("INSERT INTO users (phone, company_id) VALUES (?, ?)");
+  });
+
+  it('查找家長與送出找的是同一個帳號（2026-11-20：推薦人沒有公司、家長從合作公司連結註冊再兌換，查找找到同號的另一位家長）', () => {
+    const lookup = src.slice(src.indexOf('export async function proxyLookup'), src.indexOf('export type ProxyFillResult'));
+    expect(lookup).toContain('WHERE u.phone = ? AND (rb.referrer_id <=> ? OR u.company_id <=> ?)');
+    expect(lookup).toContain('ORDER BY (rb.referrer_id <=> ?) DESC, u.id ASC');
+    expect(lookup).toContain('[phone, referrer.id, referrer.companyId, referrer.id]');
   });
 
   it('別人名下的：退回、一個字都不寫', () => {

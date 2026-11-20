@@ -1546,14 +1546,18 @@ export type ProxyLookup =
 /** 代填之前用手機號找家長（推薦人的合作公司、沒有就未歸屬）。 */
 export async function proxyLookup(referrer: { id: number; companyId: number | null }, phone: string): Promise<ProxyLookup> {
   const p = requirePool();
+  // 先找「已經綁在這位推薦人名下」的那一個帳號（不看公司）：家長可能是從某家合作公司的連結註冊、再用掉這位推薦人的兌換碼，
+  // 帳號的公司與推薦人的不同；同一支手機號在別處另有一個帳號時，只照（推薦人的公司，手機號）找會找到另一位家長（2026-11-20 正式站）。
+  // 找不到才照登入的鍵（推薦人的公司，手機號）。
   const [rows] = await p.execute(
     `SELECT u.id, rb.referrer_id, ud.child
        FROM users u
        LEFT JOIN referrer_bindings rb ON rb.user_id = u.id
        LEFT JOIN user_data ud ON ud.user_id = u.id
-      WHERE u.phone = ? AND u.company_id <=> ?
+      WHERE u.phone = ? AND (rb.referrer_id <=> ? OR u.company_id <=> ?)
+      ORDER BY (rb.referrer_id <=> ?) DESC, u.id ASC
       LIMIT 1`,
-    [phone, referrer.companyId]
+    [phone, referrer.id, referrer.companyId, referrer.id]
   );
   const row = (rows as any[])[0];
   if (!row) return { status: 'new' };
@@ -1591,8 +1595,13 @@ export async function proxyFill(
   const conn = await p.getConnection();
   try {
     await conn.beginTransaction();
-    // 1. 找或建家長（與登入同一個鍵）
-    const [found] = await conn.execute('SELECT id FROM users u WHERE u.phone = ? AND u.company_id <=> ? LIMIT 1 FOR UPDATE', [input.phone, referrer.companyId]);
+    // 1. 找或建家長：已經綁在這位推薦人名下的那一個帳號優先（同 `proxyLookup`），否則照登入的鍵（推薦人的公司，手機號），都沒有才建
+    const [found] = await conn.execute(
+      `SELECT u.id FROM users u LEFT JOIN referrer_bindings rb ON rb.user_id = u.id
+        WHERE u.phone = ? AND (rb.referrer_id <=> ? OR u.company_id <=> ?)
+        ORDER BY (rb.referrer_id <=> ?) DESC, u.id ASC LIMIT 1 FOR UPDATE`,
+      [input.phone, referrer.id, referrer.companyId, referrer.id]
+    );
     let userId: number;
     if ((found as any[])[0]) {
       userId = Number((found as any[])[0].id);

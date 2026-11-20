@@ -270,7 +270,7 @@ function DetailBody({ activity: a, place, from, active, series }: {
   const mark = place.pick?.push ?? null;
   const why = place.pick
     ? mark
-      ? pushReason(place.pick.dimension, mark, a.id)
+      ? pushReason(place.pick.dimension, mark, a.id, place.pick.reason.matchedTags)
       : `${reasonSentence(place.pick.dimension, place.pick.reason)}${place.pick.reason.belowWindow ? `${BELOW_WINDOW_NOTE}。` : ''}`
     : place.swapDimension
       ? swapReason(SITE_DIMENSION_NAME[place.swapDimension], childName)

@@ -10,6 +10,8 @@
 import { STATUS_WORDING } from '../utils/statusWording';
 import { SITE_DIMENSION_NAME } from './dimensionMap';
 import { MODULE_TITLES_SC } from './trainingCopy';
+import { TAG_SENTENCES } from './report/sentences';
+import { isFindingTag } from './findingTags';
 import type { AssessmentStatus } from '../types';
 import type { DimensionCode, ModuleNo } from './types';
 
@@ -108,15 +110,27 @@ export function referralLine(dimensions: ReadonlyArray<DimensionCode>): string {
 /**
  * 詳情頁「为什么这周排这一个」（客戶第五節「为什么给」栏：哪个能力、判什么、取自哪个模组、月龄窗、编号）。
  * 放寬來的另加一句；補位的不另說（家長不需要知道原本那一支被停用）。
+ *
+ * `matchedTags`（ADR-0018）：這支是因為對中孩子的細項才排在前面的，就照實說「这次看到：……」（句子是報告審過的
+ * `TAG_SENTENCES`，同 `weeklyCopy.reasonSentence`），不說「按编号排到第 N 号」—— 那時候不是照編號挑的。沒對中照舊。
  */
 export function pushReason(
   dimension: DimensionCode,
   push: { color: PushColor; source: PushSource; module: number | null; window: readonly [number, number]; relaxed: boolean },
   activityId: string,
+  matchedTags: ReadonlyArray<string> = [],
 ): string {
   const no = Number(activityId.slice(1));
-  const from = push.module ? `从「${MODULE_TITLES_SC[push.module as ModuleNo]}」里` : '';
-  const head = `${SITE_DIMENSION_NAME[dimension]}${statusLabelOf(push.color)}（${SOURCE_LABEL[push.source]}），${from}按编号排到第 ${no} 号，练 ${monthRangeLabel(push.window)}的内容。`;
+  const status = `${SITE_DIMENSION_NAME[dimension]}${statusLabelOf(push.color)}（${SOURCE_LABEL[push.source]}）`;
+  const range = `练 ${monthRangeLabel(push.window)}的内容`;
+  const tag = matchedTags.find(isFindingTag);
+  let head: string;
+  if (tag) {
+    head = `${status}，这次看到：${TAG_SENTENCES[tag].replace(/。$/, '')}，所以排了这个活动，${range}。`;
+  } else {
+    const from = push.module ? `从「${MODULE_TITLES_SC[push.module as ModuleNo]}」里` : '';
+    head = `${status}，${from}按编号排到第 ${no} 号，${range}。`;
+  }
   return push.relaxed ? `${head}这个月龄段的活动排完了，挑了最接近的一支。` : head;
 }
 

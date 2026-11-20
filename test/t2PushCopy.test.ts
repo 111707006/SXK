@@ -13,6 +13,7 @@ import {
   variantLine,
 } from '../src/t2/pushCopy';
 import { STATUS_WORDING } from '../src/utils/statusWording';
+import { ACTIVITY_TAGS } from '../src/t2/findingTags';
 import { DIMENSION_CODES } from '../src/t2/types';
 
 /**
@@ -42,6 +43,18 @@ describe('pushCopy', () => {
     expect(pushReason('LANG', { ...base, module: null }, 'A001')).not.toContain('从「');
   });
 
+  it('對中孩子的細項（ADR-0018）：寫「这次看到」、不寫按編號；認不得的字照舊', () => {
+    const base = { color: 'red' as const, source: 't2' as const, module: 9, window: [40, 44] as const, relaxed: true };
+    const s = pushReason('LANG', base, 'A137', ['lang.pragmatics']);
+    expect(s).toContain('这次看到：');
+    expect(s).toContain('所以排了这个活动');
+    expect(s).not.toContain('按编号');
+    expect(s).not.toMatch(/。，|。。/);
+    expect(s.endsWith('挑了最接近的一支。')).toBe(true);
+    expect(pushReason('LANG', base, 'A137', ['nope.x'])).toContain('按编号排到第 137 号');
+    expect(pushReason('LANG', base, 'A137', [])).toContain('按编号排到第 137 号');
+  });
+
   it('家長端每一句都過用語對照表', () => {
     const texts: string[] = [
       ...Object.values(VARIANT_LABEL),
@@ -62,6 +75,7 @@ describe('pushCopy', () => {
         texts.push(row.title, row.source, row.detail);
         for (const relaxed of [false, true]) {
           texts.push(pushReason(d, { color, source: 't1', module: 9, window: [24, 28], relaxed }, 'A161'));
+          for (const tag of ACTIVITY_TAGS) texts.push(pushReason(d, { color, source: 't1', module: 9, window: [24, 28], relaxed }, 'A161', [tag]));
         }
       }
     }

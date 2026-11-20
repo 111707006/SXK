@@ -272,10 +272,33 @@ export function tagsFit(a: Pick<Activity, 'targets'>, dimension: DimensionCode):
 /**
  * 拿來對窗口的月齡區間：標籤模式下貼過標籤、有 `targetMonth` 的是那一點（`[t, t]`），其餘是手冊適齡 `ageMonths`。
  * 還沒貼標籤的不信 `targetMonth` —— 300 支在 2026-10-06 填的是虛構值（ADR-0015）。
+ *
+ * `manualAge`（ADR-0019，`TRAINING_PUSH_MANUAL_AGE`）：一律用手冊適齡區間對窗口，`targetMonth` 只拿來在同一窗口內排先後
+ *（`targetCloseness`）。一個點幾乎對不進三分之一期的月齡窗，2026-11-21 模擬 77% 的格子要放寬才排得進來。
  */
-export function ageSpanOf(a: Pick<Activity, 'targets' | 'targetMonth' | 'ageMonths'>, tagged: boolean): { min: number; max: number } {
-  if (tagged && isTagged(a) && a.targetMonth !== null) return { min: a.targetMonth, max: a.targetMonth };
+export function ageSpanOf(
+  a: Pick<Activity, 'targets' | 'targetMonth' | 'ageMonths'>,
+  tagged: boolean,
+  manualAge = false,
+): { min: number; max: number } {
+  if (tagged && !manualAge && isTagged(a) && a.targetMonth !== null) return { min: a.targetMonth, max: a.targetMonth };
   return a.ageMonths;
+}
+
+/**
+ * 手冊適齡模式下，同一窗口內誰先（ADR-0019）：治療師標的「最適合的月齡」離窗口越近越先；在窗口裡是 0，
+ * 同樣在窗口裡的，離窗口中間近的先。沒貼標籤或沒標月齡的排在有標的後面。
+ */
+export function targetCloseness(a: Pick<Activity, 'targets' | 'targetMonth'>, [lo, hi]: MonthRange): number {
+  if (!isTagged(a) || a.targetMonth === null) return Number.MAX_SAFE_INTEGER;
+  const t = a.targetMonth;
+  const gap = t < lo ? lo - t : t > hi ? t - hi : 0;
+  return gap * 1000 + Math.abs(t * 2 - (lo + hi));
+}
+
+/** 伺服器開關 `TRAINING_PUSH_MANUAL_AGE`（ADR-0019）要配 `TRAINING_PUSH_TAGS`：改的是標籤模式對窗口的方式。 */
+export function assertPushManualAgeSwitch(manualAge: boolean, tags: boolean): void {
+  if (manualAge && !tags) throw new Error('TRAINING_PUSH_MANUAL_AGE=1 需要同時設 TRAINING_PUSH_TAGS=1（改的是標籤模式看月齡的方式）');
 }
 
 /** 活動月齡區間與窗口的距離：有重疊是 0；活動整段在窗口下方是正的「往下」距離，上方是「往上」。 */
@@ -327,12 +350,15 @@ const byIdAsc = (a: Activity, b: Activity) => (a.id < b.id ? -1 : a.id > b.id ? 
  * 孩子的細項（`childTags`，ADR-0018，只在標籤模式有作用）：窗口內與放寬兩段裡各自把**對中孩子細項多的**排前面
  *（`childMatches`）—— 窗口內排在「貼過標籤的先」之後、「避開上一期的」之前；放寬排在「避開上一期的」之後、距離之前。
  * 對不中的照舊補在後面，不會因此排不滿。
+ *
+ * 手冊適齡（`manualAge`，ADR-0019，只在標籤模式有作用）：貼過標籤的也用手冊適齡區間對窗口（`ageSpanOf`）；窗口內在
+ *「避開上一期的」之後、編號之前，加一層「`targetMonth` 離窗口近的先」（`targetCloseness`）。
  */
 export function candidatesFor(
   dimension: DimensionCode,
   window: MonthRange,
   pool: ReadonlyArray<Activity>,
-  options: { avoid?: ReadonlySet<string>; sampleOnly?: boolean; tagged?: boolean; childTags?: ReadonlySet<string> } = {},
+  options: { avoid?: ReadonlySet<string>; sampleOnly?: boolean; tagged?: boolean; childTags?: ReadonlySet<string>; manualAge?: boolean } = {},
 ): Array<{ activity: Activity; relaxed: boolean }> {
   const avoid = options.avoid ?? new Set<string>();
   const avoided = (a: Activity) => (avoid.has(a.id) ? 1 : 0);
@@ -344,14 +370,16 @@ export function candidatesFor(
   const inGroup = tagged
     ? pool.filter(a => (isTagged(a) ? tagsFit(a, dimension) : modules.includes(a.moduleNo)))
     : pool.filter(a => modules.includes(a.moduleNo));
-  const dist = (a: Activity) => distance(ageSpanOf(a, tagged), window);
+  const manualAge = tagged && options.manualAge === true;
+  const dist = (a: Activity) => distance(ageSpanOf(a, tagged, manualAge), window);
+  const byTarget = (a: Activity, b: Activity) => (manualAge ? targetCloseness(a, window) - targetCloseness(b, window) : 0);
   const taggedFirst = (a: Activity) => (tagged && !isTagged(a) ? 1 : 0);
   const child = tagged && options.childTags && options.childTags.size > 0 ? options.childTags : null;
   const matchCount = new Map(child ? inGroup.map(a => [a.id, childMatches(a, dimension, child).length] as const) : []);
   const byMatch = (a: Activity, b: Activity) => (matchCount.get(b.id) ?? 0) - (matchCount.get(a.id) ?? 0);
   const inside = inGroup
     .filter(a => dist(a).gap === 0)
-    .sort((a, b) => taggedFirst(a) - taggedFirst(b) || byMatch(a, b) || avoided(a) - avoided(b) || byIdAsc(a, b));
+    .sort((a, b) => taggedFirst(a) - taggedFirst(b) || byMatch(a, b) || avoided(a) - avoided(b) || byTarget(a, b) || byIdAsc(a, b));
   const outside = inGroup
     .filter(a => dist(a).gap > 0)
     .sort((a, b) => {
@@ -433,6 +461,8 @@ export interface PeriodPlan {
    * 只在標籤模式、開關開著時出現（可以是空陣列）；之前存的一期沒有這一欄。
    */
   childTags?: string[];
+  /** 手冊適齡模式排的（ADR-0019）。只在 `true` 時出現；補位與換著玩照它。 */
+  manualAge?: true;
   /** 參加分配的能力，照 `sortByPush`（補進來的接在後面）。 */
   dimensions: PeriodDimension[];
   /** 12 週，每週 `perWeek` 格。 */
@@ -455,6 +485,8 @@ export interface PlanPeriodInput {
   tagged?: boolean;
   /** 孩子的細項（ADR-0018）；不傳＝不看。只在標籤模式有作用。 */
   childTags?: ReadonlyArray<string>;
+  /** 手冊適齡模式（ADR-0019）。只在標籤模式有作用。 */
+  manualAge?: boolean;
 }
 
 /**
@@ -496,6 +528,7 @@ export function planPeriod(input: PlanPeriodInput): PeriodPlan {
   const pool = pushPool(library, { sampleOnly, tagged });
   const childList = tagged && input.childTags ? [...new Set(input.childTags)] : null;
   const childTags = childList ? new Set(childList) : undefined;
+  const manualAge = tagged && input.manualAge === true;
   const avoid = new Set(adjustment === 'stable' ? input.previousIds ?? [] : []);
   const used = new Set<string>();
   const weeks: PeriodSlot[][] = [];
@@ -503,7 +536,7 @@ export function planPeriod(input: PlanPeriodInput): PeriodPlan {
   for (let m = 0; m < MONTHS_PER_PERIOD; m++) {
     const variant = variantFor(m, adjustment);
     const lists = new Map(
-      dimensions.map(d => [d.dimension, candidatesFor(d.dimension, d.monthWindows[m], pool, { avoid, sampleOnly, tagged, childTags })] as const),
+      dimensions.map(d => [d.dimension, candidatesFor(d.dimension, d.monthWindows[m], pool, { avoid, sampleOnly, tagged, childTags, manualAge })] as const),
     );
     const byDimension = new Map(dimensions.map(d => [d.dimension, d] as const));
     const sequence = interleave(dimensions.map(d => ({ dimension: d.dimension, count: d.quota })));
@@ -531,7 +564,7 @@ export function planPeriod(input: PlanPeriodInput): PeriodPlan {
     });
   }
 
-  return { adjustment, ageMonth, perWeek, sampleOnly, ...(tagged ? { tagged: true as const } : {}), ...(childList ? { childTags: childList } : {}), dimensions, weeks };
+  return { adjustment, ageMonth, perWeek, sampleOnly, ...(tagged ? { tagged: true as const } : {}), ...(childList ? { childTags: childList } : {}), ...(manualAge ? { manualAge: true as const } : {}), dimensions, weeks };
 }
 
 /**
@@ -578,7 +611,7 @@ export function childTagSet(plan: Pick<PeriodPlan, 'childTags'>): ReadonlySet<st
  * 只放有備選的能力；放寬來的不列（換著玩是「同一個難度換一支」，不是往外找）。示範片模式照 `candidatesFor`。
  */
 export function periodAlternates(
-  plan: Pick<PeriodPlan, 'weeks' | 'dimensions' | 'sampleOnly' | 'tagged' | 'childTags'>,
+  plan: Pick<PeriodPlan, 'weeks' | 'dimensions' | 'sampleOnly' | 'tagged' | 'childTags' | 'manualAge'>,
   week: number,
   library: ReadonlyArray<Activity>,
 ): Partial<Record<DimensionCode, Activity[]>> {
@@ -588,7 +621,7 @@ export function periodAlternates(
   const pool = pushPool(library, { sampleOnly: plan.sampleOnly, tagged });
   const out: Partial<Record<DimensionCode, Activity[]>> = {};
   for (const d of plan.dimensions) {
-    const list = candidatesFor(d.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly, tagged, childTags: childTagSet(plan) })
+    const list = candidatesFor(d.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly, tagged, childTags: childTagSet(plan), manualAge: plan.manualAge === true })
       .filter(c => !c.relaxed || (plan.sampleOnly && !tagged))
       .map(c => c.activity)
       .filter(a => !planned.has(a.id))
@@ -618,7 +651,7 @@ export function replaceInactive(plan: PeriodPlan, week: number, library: Readonl
   const nextSlots = slots.map(s => {
     if (usable(s.activityId)) return s;
     const d = plan.dimensions.find(x => x.dimension === s.dimension)!;
-    const next = candidatesFor(s.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly, tagged, childTags: childTagSet(plan) }).find(c => !used.has(c.activity.id));
+    const next = candidatesFor(s.dimension, d.monthWindows[m], pool, { sampleOnly: plan.sampleOnly, tagged, childTags: childTagSet(plan), manualAge: plan.manualAge === true }).find(c => !used.has(c.activity.id));
     if (next) used.add(next.activity.id);
     return {
       ...s,

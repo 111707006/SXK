@@ -39,6 +39,7 @@ process.env.TRAINING_SAMPLE_ONLY = '';
 process.env.TRAINING_PUSH_V3 = '';
 process.env.TRAINING_PUSH_TAGS = '';
 process.env.TRAINING_PUSH_CHILD_TAGS = '';
+process.env.TRAINING_PUSH_MANUAL_AGE = '';
 process.env.REVENUE_SPLIT = '';
 // 掃碼頁走 SPA（#65）同理：預設關（伺服器拼的 HTML），要驗新頁的測試自己打開（見 `reportScanSpa.http.test.ts`）。
 process.env.REPORT_SCAN_SPA = '';

@@ -74,7 +74,7 @@ import * as t2WeeklyStore from './src/db/t2WeeklyPlans';
 import * as t2PeriodStore from './src/db/t2TrainingPeriods';
 import type { TrainingPeriodRecord } from './src/db/t2TrainingPeriods';
 import { listCheckins as listT2Checkins } from './src/db/t2Checkins';
-import { assertPushChildTagsSwitch, assertPushTagsSwitch, planPeriod } from './src/t2/trainingPush';
+import { assertPushChildTagsSwitch, assertPushManualAgeSwitch, assertPushTagsSwitch, planPeriod } from './src/t2/trainingPush';
 import { childTagsOf } from './src/t2/childTagsV3';
 import { periodForWeek, periodPosition, periodSheetOf, reportActivitiesOf, t1ScoresOf, weeklyActivitiesOf } from './src/t2/trainingPeriodService';
 import type { PeriodContext, PeriodDeps } from './src/t2/trainingPeriodService';
@@ -244,6 +244,10 @@ if (TRAINING_PUSH_TAGS && TRAINING_SAMPLE_ONLY) {
 // 要同時開 `TRAINING_PUSH_TAGS`，否則起不來。
 const TRAINING_PUSH_CHILD_TAGS = resolvePaywallSwitch('TRAINING_PUSH_CHILD_TAGS', process.env.TRAINING_PUSH_CHILD_TAGS);
 assertPushChildTagsSwitch(TRAINING_PUSH_CHILD_TAGS, TRAINING_PUSH_TAGS);
+// 推送用手冊適齡區間對月齡窗（ADR-0019，使用者 2026-11-21）：貼過標籤的片也看手冊寫的適齡（例如「3–8 岁」），不再只看
+// `targetMonth` 那一個點；`targetMonth` 只在同一窗口內排先後。已經開了的一期照它存的規則走完。要同時開 `TRAINING_PUSH_TAGS`。
+const TRAINING_PUSH_MANUAL_AGE = resolvePaywallSwitch('TRAINING_PUSH_MANUAL_AGE', process.env.TRAINING_PUSH_MANUAL_AGE);
+assertPushManualAgeSwitch(TRAINING_PUSH_MANUAL_AGE, TRAINING_PUSH_TAGS);
 
 // T1 報告改用真實資料（使用者 2026-10-08）：開著時 `/api/report` 改走 `src/t1report/`——給模型逐題作答、
 // 回來先過驗證器、不過退模板；模板也照這個孩子的作答組；不再產四個儀表數字（`criticalMetrics`）。
@@ -2013,6 +2017,7 @@ tier2Only.post('/api/t2/findings', async (req, res) => {
         sampleOnly: TRAINING_SAMPLE_ONLY,
         tagged: TRAINING_PUSH_TAGS,
         ...(TRAINING_PUSH_CHILD_TAGS ? { childTags: childTagsOf(findings) } : {}),
+        manualAge: TRAINING_PUSH_MANUAL_AGE,
       });
       activities = reportActivitiesOf(plan, 1, library);
     } else {
@@ -2430,6 +2435,7 @@ function t2PeriodContext(snapshot: FindingsRecord, data: any, library: ReadonlyA
     sampleOnly: TRAINING_SAMPLE_ONLY,
     tagged: TRAINING_PUSH_TAGS,
     ...(TRAINING_PUSH_CHILD_TAGS ? { childTags: childTagsOf(snapshot.findings) } : {}),
+    manualAge: TRAINING_PUSH_MANUAL_AGE,
     ageMonthAt: weekStart => ageMonthForWeek(data?.child, weekStart, snapshot.findings.child.assessedAgeMonth),
   };
 }

@@ -44,12 +44,13 @@ export function t1ScoresOf(scores: ReadonlyArray<unknown>): Partial<Record<Dimen
 }
 
 /** 存進 `plan` 欄的那幾樣（同 `db/t2TrainingPeriods.ts` 的 `storedPlanOf`；這裡不載資料層）。`tagged` 只在 `true` 時存，`childTags` 有才存。 */
-function toStoredPlan(plan: Pick<PeriodPlan, 'perWeek' | 'sampleOnly' | 'tagged' | 'childTags' | 'dimensions' | 'weeks'>): StoredPeriodPlan {
+function toStoredPlan(plan: Pick<PeriodPlan, 'perWeek' | 'sampleOnly' | 'tagged' | 'childTags' | 'manualAge' | 'dimensions' | 'weeks'>): StoredPeriodPlan {
   return {
     perWeek: plan.perWeek,
     sampleOnly: plan.sampleOnly,
     ...(plan.tagged ? { tagged: true as const } : {}),
     ...(plan.childTags ? { childTags: [...plan.childTags] } : {}),
+    ...(plan.manualAge ? { manualAge: true as const } : {}),
     dimensions: plan.dimensions,
     weeks: plan.weeks,
   };
@@ -61,6 +62,8 @@ export const PUSH_RULES_VERSION = 'push-v3-2026-10-07';
 export const PUSH_RULES_VERSION_TAGS = 'push-tags-2026-11-07';
 /** 標籤模式＋孩子的細項（`TRAINING_PUSH_CHILD_TAGS`，ADR-0018）排的一期。 */
 export const PUSH_RULES_VERSION_CHILD_TAGS = 'push-child-tags-2026-11-19';
+/** 標籤模式＋手冊適齡（`TRAINING_PUSH_MANUAL_AGE`，ADR-0019）排的一期；有沒有孩子的細項看 `plan.childTags`。 */
+export const PUSH_RULES_VERSION_MANUAL_AGE = 'push-manual-age-2026-11-21';
 
 export interface PeriodDeps {
   /** 這份快照最新的一期。 */
@@ -82,6 +85,8 @@ export interface PeriodContext {
   tagged?: boolean;
   /** 孩子的細項（ADR-0018）：開關開著時由伺服器從快照算好（`childTagsOf`）；不傳＝不看。同樣只影響新開的一期。 */
   childTags?: ReadonlyArray<string>;
+  /** 手冊適齡模式（ADR-0019）：同樣只影響新開的一期。 */
+  manualAge?: boolean;
   /** 那一週星期一的實足月齡；算不出來（那一週在出生之前）是 `null`。 */
   ageMonthAt(weekStart: string): number | null;
 }
@@ -139,6 +144,7 @@ export async function periodForWeek(weekStart: string, ctx: PeriodContext, deps:
     sampleOnly: ctx.sampleOnly,
     tagged: ctx.tagged === true,
     ...(ctx.childTags ? { childTags: ctx.childTags } : {}),
+    manualAge: ctx.manualAge === true,
   });
   const stored = await deps.insert({
     findingsId: ctx.findingsId,
@@ -148,7 +154,7 @@ export async function periodForWeek(weekStart: string, ctx: PeriodContext, deps:
     adjustment,
     completion,
     plan: toStoredPlan(plan),
-    rulesVersion: plan.childTags ? PUSH_RULES_VERSION_CHILD_TAGS : plan.tagged ? PUSH_RULES_VERSION_TAGS : PUSH_RULES_VERSION,
+    rulesVersion: plan.manualAge ? PUSH_RULES_VERSION_MANUAL_AGE : plan.childTags ? PUSH_RULES_VERSION_CHILD_TAGS : plan.tagged ? PUSH_RULES_VERSION_TAGS : PUSH_RULES_VERSION,
   });
   if (!stored.plan) throw new Error('trainingPeriodService：剛存的一期讀回來 plan 是壞的');
   const week = planPosition(weekStart, stored.firstWeekStart).weekIndex;
@@ -174,7 +180,7 @@ async function withReplacements(
  * `matchedTags`：那一期有孩子的細項（ADR-0018）時，是這支活動對中的那幾個 —— 畫面的「（这次看到：……）」照第一個寫；
  * 沒有就是空陣列（只對上維度）。
  */
-function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefined, tagged = false, childTags?: ReadonlySet<string>): StoredPick {
+function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefined, tagged = false, childTags?: ReadonlySet<string>, manualAge = false): StoredPick {
   const [lo, hi] = slot.reason.window;
   return {
     id: slot.activityId!,
@@ -183,7 +189,7 @@ function pickOf(slot: PeriodSlot, periodNo: number, activity: Activity | undefin
       band: BAND_OF_COLOR[slot.reason.color],
       window: { lo, hi },
       matchedTags: activity && childTags ? childMatches(activity, slot.dimension, childTags) : [],
-      belowWindow: slot.reason.relaxed && activity !== undefined && ageSpanOf(activity, tagged).max < lo,
+      belowWindow: slot.reason.relaxed && activity !== undefined && ageSpanOf(activity, tagged, manualAge).max < lo,
     },
     push: {
       periodNo,
@@ -209,7 +215,8 @@ export function weeklyActivitiesOf(
   const slots = period.plan.weeks[week - 1] ?? [];
   const tagged = period.plan.tagged === true;
   const child = childTagSet(period.plan);
-  const picks = slots.filter(s => s.activityId !== null).map(s => pickOf(s, period.periodNo, byId.get(s.activityId!), tagged, child));
+  const manualAge = period.plan.manualAge === true;
+  const picks = slots.filter(s => s.activityId !== null).map(s => pickOf(s, period.periodNo, byId.get(s.activityId!), tagged, child, manualAge));
   const preparing = DIMENSION_CODES.filter(d => slots.some(s => s.dimension === d && s.activityId === null));
   const alternates: Partial<Record<DimensionCode, string[]>> = {};
   for (const [d, list] of Object.entries(periodAlternates(period.plan, week, library)) as Array<[DimensionCode, Activity[]]>) {
@@ -219,13 +226,13 @@ export function weeklyActivitiesOf(
 }
 
 /** 報告的提示要的形狀（`WeeklyActivities`）：這一期第 `week` 週的那幾支。查不到內容的略過。 */
-export function reportActivitiesOf(plan: Pick<PeriodPlan, 'weeks' | 'tagged' | 'childTags'>, week: number, library: ReadonlyArray<Activity>): WeeklyActivities {
+export function reportActivitiesOf(plan: Pick<PeriodPlan, 'weeks' | 'tagged' | 'childTags' | 'manualAge'>, week: number, library: ReadonlyArray<Activity>): WeeklyActivities {
   const byId = new Map(library.map(a => [a.id, a] as const));
   const slots = plan.weeks[week - 1] ?? [];
   const picks = slots.flatMap(slot => {
     const activity = slot.activityId ? byId.get(slot.activityId) : undefined;
     if (!activity) return [];
-    const { reason } = pickOf(slot, 0, activity, plan.tagged === true, childTagSet(plan));
+    const { reason } = pickOf(slot, 0, activity, plan.tagged === true, childTagSet(plan), plan.manualAge === true);
     return [{ activity, dimension: slot.dimension, score: 0, reason }];
   });
   const preparing = DIMENSION_CODES.filter(d => slots.some(s => s.dimension === d && s.activityId === null));
@@ -251,7 +258,7 @@ export function periodSheetOf(period: TrainingPeriodRecord & { plan: StoredPerio
       activities: slots.flatMap(slot => {
         const activity = slot.activityId ? byId.get(slot.activityId) : undefined;
         if (!activity) return [];
-        const pick = pickOf(slot, period.periodNo, activity, period.plan.tagged === true, childTagSet(period.plan));
+        const pick = pickOf(slot, period.periodNo, activity, period.plan.tagged === true, childTagSet(period.plan), period.plan.manualAge === true);
         return [{ activity, dimension: slot.dimension, reason: pick.reason, push: pick.push! }];
       }),
     })),

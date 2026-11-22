@@ -1,6 +1,7 @@
 import { LEDO_ART } from './ledo/ui';
 import { PRODUCT } from '../productConfig';
-import { peekCompanySlug, peekReferrerCode } from '../utils/attribution';
+import { peekCompanySlug, peekReferrerCode, peekVisitLink } from '../utils/attribution';
+import { offerServiceSwitch, shouldCheckVisitLink } from '../serviceRelations/promptStore';
 // 條款內文的唯一來源。頁尾那兩個彈窗（App.tsx）渲染的是同一份 —— 見該檔說明。
 // 這裡刻意用完整的兩份，不是以前那個刪節版：使用者在這一頁勾的是「已審閱並同意」。
 import { CombinedLegalBody } from './LegalTerms';
@@ -124,11 +125,16 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured, wide = false }
           companySlug: peekCompanySlug(),
           // 推薦人個人連結的 `&t=`（#118）：服務關係開關開著時伺服器據此掛上推薦人。
           referrerCode: peekReferrerCode(),
+          // 這次進站的連結（#120）：已經有人服務、這次點了別人的連結時，伺服器回換人提示。
+          visitLink: peekVisitLink(),
         }),
       });
       const data = await readJson(resp, '登录请求');
 
       if (!resp.ok) throw new Error(data.error || '登录失败，请重新获取验证码');
+      // 這次的連結登入時已經帶過了，登入後不再另外問一次；要問家長的話先掛著，登入後的畫面畫出來。
+      shouldCheckVisitLink();
+      if (data.serviceSwitch) offerServiceSwitch(data.serviceSwitch);
 
       onAuthSuccess(
         data.phone,

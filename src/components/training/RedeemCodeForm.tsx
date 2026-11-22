@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { authFetch } from '../../utils/api';
+import { offerServiceSwitch } from '../../serviceRelations/promptStore';
 import { TRAINING_PLAN_PAGE } from '../../t2/trainingPlanCopy';
 
 export default function RedeemCodeForm({ loggedIn, onActivated, idPrefix = 'training-plan' }: {
@@ -28,6 +29,8 @@ export default function RedeemCodeForm({ loggedIn, onActivated, idPrefix = 'trai
       const body = await resp.json().catch(() => ({}));
       if (resp.ok && typeof body.endsOn === 'string') {
         onActivated(body.endsOn);
+        // 用的是別的老師的碼、而現在已經有人服務（#120）：碼照樣兌好了，另外問要不要換。
+        if (body.serviceSwitch) offerServiceSwitch(body.serviceSwitch);
       } else {
         setMessage(resp.status === 429 ? TRAINING_PLAN_PAGE.redeemTooMany : resp.status === 401 ? TRAINING_PLAN_PAGE.redeemNeedLogin : TRAINING_PLAN_PAGE.redeemInvalid);
       }

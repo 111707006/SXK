@@ -77,3 +77,30 @@ export function peekReferrerCode(): string | null {
     return null;
   }
 }
+
+/** 這次進站的連結（#120 換人提示）。與上面「第一次進站那一家」分開：每次網址帶 `?c=` 就覆寫，只活在這個分頁（sessionStorage）。 */
+const VISIT_LINK_KEY = 'senxinkang_visit_link';
+
+/** 從網址取出這次的單位與推薦人代號（格式同上）；網址沒帶 `?c=` 就留著先前那一條。應用程式啟動時呼叫一次。 */
+export function captureVisitLink(search: string = window.location.search): void {
+  const params = new URLSearchParams(search);
+  const slug = (params.get(QUERY_PARAM) ?? '').trim().toLowerCase();
+  if (!SLUG_PATTERN.test(slug)) return;
+  const code = (params.get(REFERRER_PARAM) ?? '').trim().toLowerCase();
+  try {
+    sessionStorage.setItem(VISIT_LINK_KEY, JSON.stringify({ companySlug: slug, referrerCode: SLUG_PATTERN.test(code) ? code : null }));
+  } catch {
+    // 不能寫：這次就不跳換人提示，其他照常。
+  }
+}
+
+/** 這次進站的連結；沒有回 null。登入時送 `visitLink`，已登入時打 `/api/service-relation/link`。 */
+export function peekVisitLink(): { companySlug: string; referrerCode: string | null } | null {
+  try {
+    const raw = sessionStorage.getItem(VISIT_LINK_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed.companySlug === 'string' ? { companySlug: parsed.companySlug, referrerCode: parsed.referrerCode ?? null } : null;
+  } catch {
+    return null;
+  }
+}

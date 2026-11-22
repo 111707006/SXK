@@ -4,7 +4,7 @@ import App from './App.tsx';
 import LazyBoundary from './components/LazyBoundary.tsx';
 import ScanReportPage from './components/ScanReportPage.tsx';
 import {PRODUCT} from './productConfig.ts';
-import {captureCompanySlug} from './utils/attribution.ts';
+import {captureCompanySlug, captureVisitLink} from './utils/attribution.ts';
 import {loadReportLayout} from './utils/reportLayout.ts';
 import './index.css';
 
@@ -14,6 +14,8 @@ import './index.css';
  * 必須在 render 之前 —— 家長可能一進站就直接註冊，而歸屬只在註冊那一刻寫得進去。
  */
 captureCompanySlug();
+// 這次進站的連結（#120 換人提示）：每次帶 `?c=` 都記，與上面的「第一次那一家」分開。
+captureVisitLink();
 
 /**
  * 報告版面的開關（`GET /api/report-config`，#71）一進站就開始問：家長端、後台、掃碼頁都畫 `ReportBody`，

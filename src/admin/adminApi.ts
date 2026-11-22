@@ -7,7 +7,7 @@
  */
 
 import type { CouponDiscount } from '../t2/coupon';
-import type { LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
+import type { LedgerPartyTotal, LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
 import type { AdminReceiver, AdminSharingRecord } from '../profitSharing/adminRoutes';
 import type { PartyKind, ProfitSharingConfig, ReceiverType } from '../profitSharing/plan';
 import type { RunResult } from '../profitSharing/run';
@@ -61,7 +61,7 @@ export interface AdminSplitOrders {
   to: string;
   rows: LedgerRow[];
   totals: LedgerTotals;
-  byParty: Array<{ party: string; orders: number; companyFen: number; referrerFen: number; platformFen: number }>;
+  byParty: LedgerPartyTotal[];
 }
 
 /** 微信分账（ADR-0017）：`GET /api/admin/profit-sharing`。 */

@@ -985,7 +985,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       if (!range) return void res.status(400).json({ error: '日期不正确（YYYY-MM-DD，起日不晚于迄日，一次最多一年）。' });
       try {
         const rows = ledgerRows(await store.listSplitOrders(range.from, range.to));
-        const file = await splitLedgerWorkbook(rows);
+        const file = await splitLedgerWorkbook(rows, { screening });
         await store.recordExport({
           adminUserId: req.admin!.adminUserId,
           condition: { kind: 'all' },

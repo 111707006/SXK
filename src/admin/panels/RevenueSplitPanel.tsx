@@ -200,7 +200,8 @@ function RatesSection({ settings, onSaved }: { settings: AdminSplitSettings; onS
   );
 }
 
-function LedgerSection({ onError }: { onError: (v: AdminErrorView) => void }) {
+/** `screening`（#122）：清分改看服務關係時多篩查渠道那幾格。 */
+function LedgerSection({ onError, screening }: { onError: (v: AdminErrorView) => void; screening: boolean }) {
   const initial = useMemo(() => thisMonth(), []);
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
@@ -231,22 +232,28 @@ function LedgerSection({ onError }: { onError: (v: AdminErrorView) => void }) {
     body = (
       <div className="space-y-3">
         <p className="text-xs text-brand-forest">
-          已付款 {t.orders} 笔：实付 ¥{yuan(t.amountFen)}，手续费 ¥{yuan(t.feeFen)}，可分 ¥{yuan(t.netFen)} —— 平台 ¥{yuan(t.platformFen)}、合作公司 ¥{yuan(t.companyFen)}、推荐人／治疗师 ¥{yuan(t.referrerFen)}。
+          已付款 {t.orders} 笔：实付 ¥{yuan(t.amountFen)}，手续费 ¥{yuan(t.feeFen)}，可分 ¥{yuan(t.netFen)} —— 平台 ¥{yuan(t.platformFen)}、合作公司 ¥{yuan(t.companyFen)}、推荐人／治疗师 ¥{yuan(t.referrerFen)}{screening && `、筛查渠道 ¥${yuan(t.screeningFen)}`}。
           {t.unrecorded > 0 && ` 另有 ${t.unrecorded} 笔是开关打开之前的订单，没有记录比例，不在合计里。`}
         </p>
         {data.byParty.length > 0 && (
           <table className="w-full text-left text-[11px]">
-            <thead><tr className="text-brand-stone"><th>对方</th><th>笔数</th><th>合作公司</th><th>推荐人／治疗师</th><th>平台</th></tr></thead>
+            <thead><tr className="text-brand-stone"><th>对方</th>{screening && <th>筛查渠道</th>}<th>笔数</th><th>合作公司</th><th>推荐人／治疗师</th>{screening && <th>筛查渠道金额</th>}<th>平台</th></tr></thead>
             <tbody>
               {data.byParty.map(p => (
-                <tr key={p.party} className="border-t border-brand-stone/10"><td>{p.party}</td><td>{p.orders}</td><td>¥{yuan(p.companyFen)}</td><td>¥{yuan(p.referrerFen)}</td><td>¥{yuan(p.platformFen)}</td></tr>
+                <tr key={`${p.party}|${p.screeningName ?? ''}`} className="border-t border-brand-stone/10">
+                  <td>{p.party}</td>
+                  {screening && <td>{p.screeningName ?? ''}</td>}
+                  <td>{p.orders}</td><td>¥{yuan(p.companyFen)}</td><td>¥{yuan(p.referrerFen)}</td>
+                  {screening && <td>¥{yuan(p.screeningFen)}</td>}
+                  <td>¥{yuan(p.platformFen)}</td>
+                </tr>
               ))}
             </tbody>
           </table>
         )}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[44rem] text-left text-[11px]">
-            <thead><tr className="text-brand-stone"><th>付款时间</th><th>项目</th><th>状态</th><th>对方</th><th>比例</th><th>实付</th><th>可分</th><th>平台</th><th>公司</th><th>推荐人</th></tr></thead>
+            <thead><tr className="text-brand-stone"><th>付款时间</th><th>项目</th><th>状态</th><th>对方</th>{screening && <th>筛查渠道</th>}<th>比例</th><th>实付</th><th>可分</th><th>平台</th><th>公司</th><th>推荐人</th>{screening && <th>筛查渠道金额</th>}</tr></thead>
             <tbody>
               {data.rows.map(r => (
                 <tr key={r.id} className="border-t border-brand-stone/10">
@@ -254,12 +261,14 @@ function LedgerSection({ onError }: { onError: (v: AdminErrorView) => void }) {
                   <td>{r.product}</td>
                   <td>{r.status === 'refunded' ? '已退款' : '已付款'}</td>
                   <td>{r.party}</td>
+                  {screening && <td>{r.screeningName ?? ''}</td>}
                   <td>{r.rates}</td>
                   <td>{r.amounts ? `¥${yuan(r.amounts.amountFen)}` : ''}</td>
                   <td>{r.amounts ? `¥${yuan(r.amounts.netFen)}` : ''}</td>
                   <td>{r.amounts ? `¥${yuan(r.amounts.platformFen)}` : ''}</td>
                   <td>{r.amounts ? `¥${yuan(r.amounts.companyFen)}` : ''}</td>
                   <td>{r.amounts ? `¥${yuan(r.amounts.referrerFen)}` : ''}</td>
+                  {screening && <td>{r.amounts ? `¥${yuan(r.amounts.screeningFen)}` : ''}</td>}
                 </tr>
               ))}
             </tbody>
@@ -312,7 +321,7 @@ export default function RevenueSplitPanel({ onError }: { onError: (view: AdminEr
         <RatesSection settings={data.settings} onSaved={reload} />
         <section>
           <h3 className="mb-2 text-xs font-bold text-brand-forest">对帐</h3>
-          <LedgerSection onError={onError} />
+          <LedgerSection onError={onError} screening={data.settings.screening === true} />
         </section>
         <ProfitSharingSection settings={data.settings} onError={onError} />
       </div>

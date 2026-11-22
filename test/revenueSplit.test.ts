@@ -293,3 +293,33 @@ describe('資料層（#122）：比例與服務關係的列 → 設定與歸屬'
     expect(resolveSplit({ ...EMPTY, company: new Map([[5, { platformBp: null, companyBp: null, screeningBp: 1000 }]]) }, direct)).toMatchObject({ party: { kind: 'none' }, screening: null });
   });
 });
+
+describe('對帳（#122）：篩查渠道那一欄', () => {
+  const OTHER = { id: 5, name: '最早那家' };
+  const r: SplitRates = { ...EMPTY, company: new Map([[5, { platformBp: null, companyBp: null, screeningBp: 1000 }]]) };
+  const s4 = resolveSplit(r, who({ referrer: WANG, screening: OTHER }), 60);
+  const s3 = resolveSplit(EMPTY, who({ referrer: WANG }), 60);
+  const order = (id: number, snapshot: unknown, status: 'success' | 'refunded' = 'success') => ({
+    id, userId: id, outTradeNo: `N${id}`, transactionId: null, scope: 'plan' as const, months: 3, amountFen: 19900, status, paidAt: '2026-11-24T02:00:00Z', snapshot,
+  });
+
+  it('每一列：篩查渠道的名字、比例的字、金額；舊快照沒有篩查渠道', () => {
+    const [four, old, none] = ledgerRows([order(1, s4), order(2, s3), order(3, null)]);
+    expect(four).toMatchObject({ party: '某某康复 ＋ 王老师（治疗师）', screeningName: '最早那家', rates: '平台 20% · 公司 20%／治疗师 80% · 筛查渠道 10%' });
+    expect(four.amounts).toMatchObject({ screeningFen: 1582, companyFen: 2848, referrerFen: 11394, platformFen: 3957 });
+    expect(old).toMatchObject({ screeningName: null, rates: '平台 20% · 公司 20%／治疗师 80%' });
+    expect(old.amounts!.screeningFen).toBe(0);
+    expect(none.screeningName).toBeNull();
+  });
+
+  it('合計與依對方合計：篩查渠道另計，同一個對方不同篩查渠道分開列', () => {
+    const rows = ledgerRows([order(1, s4), order(2, s3), order(3, s4), order(4, s4, 'refunded')]);
+    const t = ledgerTotals(rows);
+    expect(t.screeningFen).toBe(1582 * 2);
+    expect(t.platformFen + t.companyFen + t.referrerFen + t.screeningFen).toBe(t.netFen);
+    const by = ledgerByParty(rows);
+    expect(by).toHaveLength(2);
+    expect(by.find(b => b.screeningName === '最早那家')).toMatchObject({ orders: 2, screeningFen: 3164 });
+    expect(by.find(b => b.screeningName === null)).toMatchObject({ orders: 1, screeningFen: 0 });
+  });
+});

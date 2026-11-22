@@ -251,6 +251,33 @@ ALI_SMS_INVITE_TEMPLATE_CODE=SMS_xxxxxxx
 > 同一位家长 7 天一封；没手机、没做筛查、已经去过 A 的勾不起来。**简讯按条计费、送出收不回。**
 > ADR-0009 待定第 2 项（没勾过同意的旧家长能不能发）法务答复之前，建议先不要对旧家长发。
 
+### 合并重复手机号、A 的手机号唯一（#116，ADR-0020；只有专案 A 合并）
+
+A 改成「家长身分只看手机号」之前，同一支手机号在 A 可能有两个帐号（正式站已知一组：#9 公网注册、#13 从治疗师的连结进来）。
+合并脚本 `deploy/merge-duplicate-phones.mjs`（规则在 `deploy/userMerge.mjs`）：保留有报告／订单／T2 作答的那一个，
+把另一个的使用权（`training_passes`）、解锁（`unlocks`）、推荐人绑定搬过去，另一个写 `disabled_at`、`merged_into`（**不删**，其他资料原地留着）；
+两个都有报告或订单、或绑了不同的推荐人，**不自动合并**，印出来等人决定。全部合并完才加 A 的手机号唯一键（`uk_a_active_phone`，停用的帐号不占号）。
+B 照旧是（归属，手机号）唯一；脚本看 `APP_MODE=full`，在 B 拒跑。
+
+**顺序**（每一步看完输出再走下一步）：
+
+```bash
+# ① 两个库都跑迁移：users 加 disabled_at、merged_into（2026-11-23-users-merged.sql，可重跑）
+cd /var/www/sxk   && node deploy/migrate.mjs            # 看清单 → 备份 → 加 --confirm
+cd /var/www/sxk-b && node deploy/migrate.mjs
+# ② 部署两边的程式码（登入查帐号会读这两栏：被并掉的帐号换成它并入的那一个）
+# ③ 只在 A：预演。只读，逐组印出保留哪个、搬哪些列；看清楚每一组
+cd /var/www/sxk && node deploy/merge-duplicate-phones.mjs
+# ④ 只在 A：备份 → 执行。合并完、没有待决的组才加唯一键；有待决的组结束码是 2
+cd /var/www/sxk && node deploy/merge-duplicate-phones.mjs --execute
+# ⑤ 唯一键加上之后，才打开身分开关（#115，登入只看手机号）
+```
+
+> 可以重跑：停用过的帐号不再算重复，唯一键已经在就不加。待决的组人工处理完（例如决定保留哪一个、手动搬资料）再跑一次 ④，唯一键才会加上。
+> 预演到执行之间某一组的资料变了（例如家长刚好登入做了报告），那一组不做、印出来，再跑一次看新的结果。
+> ⚠️ 被并掉的帐号**已发出的通行证**在到期前照样有效（通行证只验签章）；它的使用权与绑定已经搬走。
+> 新建的 A 库：套完 `schema.sql` 之后也跑一次 ④（没有重复，只加唯一键）。
+
 主机上各跑一次（脚本会检查 `.env` 与 `dist/` 在不在，缺了就地停下）：
 
 ```bash

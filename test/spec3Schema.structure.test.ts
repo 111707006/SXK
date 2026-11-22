@@ -9,6 +9,15 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
 const schema = read('deploy/schema.sql');
 
+/** referrers 在 #117 多的 `code` 欄、單位內唯一與那行註解拿掉，就是 10/23 建的那張。 */
+function withoutReferrerCode(sql: string): string {
+  return sql
+    .split('\n')
+    .filter(line => !line.includes('`code`'))
+    .filter(line => !/^\s*-- .*(推荐人代号|#117)/.test(line))
+    .join('\n');
+}
+
 function block(sql: string, table: string): string {
   const start = sql.indexOf(`CREATE TABLE IF NOT EXISTS \`${table}\``);
   expect(start, table).toBeGreaterThan(-1);
@@ -32,7 +41,8 @@ describe.each([
   const migration = read(file);
 
   it.each(tables)('%s 與 schema 一字不差', table => {
-    expect(block(migration, table)).toBe(laterColumnsRemoved(block(schema, table)));
+    const now = laterColumnsRemoved(block(schema, table));
+    expect(block(migration, table)).toBe(table === 'referrers' ? withoutReferrerCode(now) : now);
   });
 
   it('只加不刪', () => {
@@ -100,5 +110,32 @@ describe('清分（客戶 11/03，ADR-0016）', () => {
   it('payments.split_snapshot 在 schema 與遷移裡都有、可為 NULL', () => {
     expect(block(schema, 'payments')).toContain('`split_snapshot` JSON NULL,');
     expect(read('deploy/migrations/2026-11-07-revenue-split.sql')).toContain('ADD COLUMN `split_snapshot` JSON NULL');
+  });
+});
+
+describe('合作單位的類型、推薦人代號（#117，ADR-0020）', () => {
+  const file = 'deploy/migrations/2026-11-23-units-and-referrer-codes.sql';
+  const migration = read(file);
+  const UNIT_KIND = "`kind` ENUM('institution','therapist') NOT NULL DEFAULT 'institution'";
+  const CODE = '`code` VARCHAR(64) NULL';
+  const CODE_KEY = 'UNIQUE KEY `uk_referrers_company_code` (`company_id`, `code`)';
+
+  it('companies 多 kind（舊列是機構），接在 logo_url 後面', () => {
+    expect(block(schema, 'companies')).toMatch(/`logo_url`[^\n]*\n(?:\s*--[^\n]*\n)*\s*`kind` ENUM\('institution','therapist'\) NOT NULL DEFAULT 'institution',/);
+    expect(migration.replace(/''/g, "'")).toContain(`ADD COLUMN ${UNIT_KIND} AFTER \`logo_url\``);
+  });
+
+  it('referrers 多 code 與單位內唯一，其餘與 10/23 建的那張一字不差', () => {
+    const now = block(schema, 'referrers');
+    expect(now).toContain(`${CODE},`);
+    expect(now).toContain(`${CODE_KEY},`);
+    expect(migration).toContain(`ADD COLUMN ${CODE} AFTER \`company_id\``);
+    expect(migration).toContain(`ADD ${CODE_KEY}`);
+    expect(withoutReferrerCode(now)).toBe(block(read('deploy/migrations/2026-10-23-referrers.sql'), 'referrers'));
+  });
+
+  it('只加不刪、可以重跑（加之前先看 information_schema）', () => {
+    expect(migration).not.toMatch(/DROP |MODIFY COLUMN|CHANGE COLUMN/);
+    expect(migration.match(/SET @has_(col|idx) := \(\s*SELECT COUNT\(\*\) FROM information_schema/g)?.length).toBe(3);
   });
 });

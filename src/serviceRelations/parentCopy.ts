@@ -10,4 +10,11 @@ export const SERVICE_SWITCH_COPY = {
   keep: '不换',
   done: (to: string) => `已经换成 ${to}。`,
   failed: '暂时无法更换，请稍后再试。',
+  unchanged: '这次没有更换，现在的老师不变。',
 } as const;
+
+/** 選「换」之後的那一句：伺服器真的換了才說「已经换成」。 */
+export function switchResultMessage(ok: boolean, changed: boolean, toName: string): string {
+  if (!ok) return SERVICE_SWITCH_COPY.failed;
+  return changed ? SERVICE_SWITCH_COPY.done(toName) : SERVICE_SWITCH_COPY.unchanged;
+}

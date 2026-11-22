@@ -16,7 +16,7 @@ import {
   shouldCheckVisitLink,
   subscribeServiceSwitch,
 } from '../serviceRelations/promptStore';
-import { SERVICE_SWITCH_COPY } from '../serviceRelations/parentCopy';
+import { SERVICE_SWITCH_COPY, switchResultMessage } from '../serviceRelations/parentCopy';
 
 export default function ServiceSwitchPrompt({ loggedIn }: { loggedIn: boolean }) {
   const prompt = useSyncExternalStore(subscribeServiceSwitch, pendingServiceSwitch, () => null);
@@ -49,7 +49,9 @@ export default function ServiceSwitchPrompt({ loggedIn }: { loggedIn: boolean })
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: prompt.source }),
       });
-      setMessage(resp.ok ? SERVICE_SWITCH_COPY.done(prompt.toName) : SERVICE_SWITCH_COPY.failed);
+      const body = resp.ok ? await resp.json().catch(() => null) : null;
+      // 伺服器重算後說不用換（`changed: false`：已經是同一位、或來源已經不算數）就不能說「已经换成」。
+      setMessage(switchResultMessage(resp.ok, body?.changed === true, prompt.toName));
     } catch {
       setMessage(SERVICE_SWITCH_COPY.failed);
     }

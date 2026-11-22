@@ -35,7 +35,11 @@ const REFERRER_PARAM = 't';
  *
  * 回傳當前生效的識別碼（可能是這次帶進來的，也可能是先前記下的）。
  */
-export function captureCompanySlug(search: string = window.location.search): string | null {
+export function captureCompanySlug(
+  search: string = window.location.search,
+  /** 也記推薦人代號（`&t=`，#118）。只有專案 A 傳 true；B 照舊只記 `?c=`。 */
+  opts: { referrerCode?: boolean } = {}
+): string | null {
   const existing = peekCompanySlug();
   if (existing) return existing;
 
@@ -52,7 +56,7 @@ export function captureCompanySlug(search: string = window.location.search): str
   const code = (params.get(REFERRER_PARAM) ?? '').trim().toLowerCase();
   try {
     localStorage.setItem(COMPANY_SLUG_KEY, slug);
-    if (SLUG_PATTERN.test(code)) localStorage.setItem(REFERRER_CODE_KEY, code);
+    if (opts.referrerCode && SLUG_PATTERN.test(code)) localStorage.setItem(REFERRER_CODE_KEY, code);
   } catch {
     // 隱私模式下 localStorage 可能不可寫。歸屬抓不到不該讓整個應用程式起不來 ——
     // 未歸屬是一個正常的狀態，流程完全走得通。

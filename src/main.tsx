@@ -13,9 +13,9 @@ import './index.css';
  *
  * 必須在 render 之前 —— 家長可能一進站就直接註冊，而歸屬只在註冊那一刻寫得進去。
  */
-captureCompanySlug();
-// 這次進站的連結（#120 換人提示）：每次帶 `?c=` 都記，與上面的「第一次那一家」分開。
-captureVisitLink();
+// 推薦人代號（`&t=`，#118）與這次進站的連結（#120 換人提示）只有專案 A 記；B 一個字都不變（review）。
+captureCompanySlug(window.location.search, { referrerCode: PRODUCT.mode === 'full' });
+if (PRODUCT.mode === 'full') captureVisitLink();
 
 /**
  * 報告版面的開關（`GET /api/report-config`，#71）一進站就開始問：家長端、後台、掃碼頁都畫 `ReportBody`，

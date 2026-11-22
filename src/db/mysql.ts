@@ -118,6 +118,30 @@ export async function findUserByPhone(companyId: number | null, phone: string): 
 }
 
 /**
+ * 這支手機號底下的每一個帳號，不分歸屬（身分開關 `A_PHONE_IDENTITY`，#115，ADR-0020：只在專案 A）。
+ *
+ * 一般只有一個；重複尚未合併時（同一支手機在不同歸屬各開過一個）不止一個，登入哪一個由
+ * `src/phoneIdentity.ts` 的 `pickPhoneAccount` 決定，所以這裡附上兩個旗標、不排序也不 LIMIT：
+ * `has_reports`＝`user_data.report_history` 非空；`has_orders`＝有付款成功／已退款的 `payments`，
+ * 或 `user_data.orders` 非空（商城訂單只存在那一欄）。
+ */
+export async function listUsersByPhone(phone: string): Promise<any[]> {
+  const p = getPool();
+  if (!p) return [];
+  const [rows] = await p.execute(
+    `SELECT u.id, u.phone, u.company_id,
+            (COALESCE(JSON_LENGTH(d.report_history), 0) > 0) AS has_reports,
+            (COALESCE(JSON_LENGTH(d.orders), 0) > 0
+              OR EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.id AND p.status IN ('success', 'refunded'))) AS has_orders
+       FROM users u
+       LEFT JOIN user_data d ON d.user_id = u.id
+      WHERE u.phone = ?`,
+    [phone]
+  );
+  return rows as any[];
+}
+
+/**
  * 建立家長帳號，並在此刻**一次性**寫入歸屬。#27 之後這是唯一建帳號的地方。
  *
  * `companyId` 只在這裡寫得進去。歸屬「建立時綁定、此後不變」不是靠一條紀律

@@ -424,17 +424,29 @@ export async function findReferrerById(id: number): Promise<{ id: number; compan
   return row ? { id: Number(row.id), companyId: row.company_id === null ? null : Number(row.company_id), active: Number(row.active) === 1 } : null;
 }
 
-/** 這組兌換碼是不是**這位家長自己**用掉的；是就回那一批的推薦人，否則 null（#120 換人提示的來源）。 */
-export async function findUsedCodeReferrer(userId: number, codeId: number): Promise<number | null> {
+/**
+ * 這組兌換碼是不是**這位家長自己**用掉的；是就回那一批發給誰（推薦人，或 #124 單位層的碼的單位與它啟用沒），
+ * 否則 null（#120 換人提示的來源）。
+ */
+export async function findUsedCodeOwner(
+  userId: number,
+  codeId: number
+): Promise<{ referrerId: number | null; companyId: number | null; companyActive: boolean } | null> {
   const p = getPool();
   if (!p) return null;
   const [rows] = await p.execute(
-    `SELECT b.referrer_id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id
+    `SELECT b.referrer_id, b.company_id, co.active AS company_active
+       FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id LEFT JOIN companies co ON co.id = b.company_id
       WHERE c.id = ? AND c.used_by = ? AND c.status = 'used' LIMIT 1`,
     [codeId, userId]
   );
   const row = (rows as any[])[0];
-  return row ? Number(row.referrer_id) : null;
+  if (!row) return null;
+  return {
+    referrerId: row.referrer_id === null ? null : Number(row.referrer_id),
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyActive: Number(row.company_active) === 1,
+  };
 }
 
 /** 提示上要寫的名字（#120）：單位名與推薦人名；查不到是 null。 */

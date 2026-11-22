@@ -4062,15 +4062,23 @@ async function findLoginAccount(companyId: number | null, phone: string): Promis
  * 服務關係的來源 → 規則用的 `RelationSource`（#118／#120，ADR-0020；`SERVICE_RELATIONS` 開著才呼叫）。
  * - 連結：單位要啟用（`findCompanyBySlug` 只回啟用的）；推薦人照代號在那個單位裡找，找不到、不屬於、停用＝只帶單位
  *   （個人治療師單位的單位連結指向那位推薦人）
- * - 兌換碼：只認**這位家長自己用掉的**那一組；推薦人停用或沒有單位＝沒有來源
+ * - 兌換碼：只認**這位家長自己用掉的**那一組；推薦人停用或沒有單位＝沒有來源；單位層的碼（#124）＝那個單位
  */
 async function relationSourceOf(userId: number, source: SwitchSource): Promise<RelationSource | null> {
   if (source.kind === 'code') {
-    const referrerId = await withTimeout(mysqlDb.findUsedCodeReferrer(userId, source.codeId), 2000);
-    if (referrerId === null) return null;
-    const referrer = await withTimeout(mysqlDb.findReferrerById(referrerId), 2000);
-    if (!referrer || !referrer.active || referrer.companyId === null) return null;
-    return { kind: 'code', companyId: referrer.companyId, referrerId: referrer.id };
+    const owner = await withTimeout(mysqlDb.findUsedCodeOwner(userId, source.codeId), 2000);
+    if (!owner) return null;
+    if (owner.referrerId !== null) {
+      const referrer = await withTimeout(mysqlDb.findReferrerById(owner.referrerId), 2000);
+      if (!referrer || !referrer.active || referrer.companyId === null) return null;
+      return { kind: 'code', companyId: referrer.companyId, referrerId: referrer.id };
+    }
+    // 單位層的碼（#124）：掛到那個單位、推薦人空（規則同單位連結）；個人治療師單位掛到那位推薦人。單位停用＝沒有來源。
+    if (owner.companyId === null || !owner.companyActive) return null;
+    const unitReferrer = await withTimeout(mysqlDb.findLinkReferrer(owner.companyId, null), 2000);
+    return unitReferrer?.active
+      ? { kind: 'code', companyId: owner.companyId, referrerId: unitReferrer.id }
+      : { kind: 'company_link', companyId: owner.companyId };
   }
   const company = await withTimeout(mysqlDb.findCompanyBySlug(source.companySlug), 2000);
   if (!company) return null;

@@ -16,9 +16,10 @@ export type RedeemOutcome =
       startsOn: string;
       endsOn: string;
       boundReferrerId: number | null;
-      /** 這組碼的編號與那一批的推薦人（#120：服務關係照它掛上或問家長）。 */
+      /** 這組碼的編號與那一批發給誰（#120：服務關係照它掛上或問家長）：推薦人，或單位層的碼（#124）的單位。 */
       codeId: number;
-      referrerId: number;
+      referrerId: number | null;
+      companyId: number | null;
     }
   | { ok: false };
 
@@ -37,7 +38,7 @@ export async function redeemCodeForUser(userId: number, code: string, today: str
       return { ok: false };
     }
     const [rows] = await conn.execute(
-      'SELECT c.id, b.months, b.referrer_id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code = ? LIMIT 1',
+      'SELECT c.id, b.months, b.referrer_id, b.company_id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code = ? LIMIT 1',
       [code],
     );
     const row = (rows as any[])[0];
@@ -58,13 +59,19 @@ export async function redeemCodeForUser(userId: number, code: string, today: str
       "INSERT INTO training_passes (user_id, starts_on, ends_on, months, source, ref_id, unique_key) VALUES (?, ?, ?, ?, 'code', ?, ?)",
       [userId, range.startsOn, range.endsOn, months, Number(row.id), `code:${Number(row.id)}`],
     );
-    const [bind] = await conn.execute(
-      "INSERT IGNORE INTO referrer_bindings (user_id, referrer_id, source, ref_id) VALUES (?, ?, 'code', ?)",
-      [userId, Number(row.referrer_id), Number(row.id)],
-    );
+    // 單位層的碼（#124）沒有推薦人：不綁（推薦綁定是舊的那一套；服務關係由呼叫端照規則掛）。
+    const referrerId = row.referrer_id === null || row.referrer_id === undefined ? null : Number(row.referrer_id);
+    let bound: number | null = null;
+    if (referrerId !== null) {
+      const [bind] = await conn.execute(
+        "INSERT IGNORE INTO referrer_bindings (user_id, referrer_id, source, ref_id) VALUES (?, ?, 'code', ?)",
+        [userId, referrerId, Number(row.id)],
+      );
+      bound = (bind as { affectedRows: number }).affectedRows === 1 ? referrerId : null;
+    }
     await conn.commit();
-    const bound = (bind as { affectedRows: number }).affectedRows === 1 ? Number(row.referrer_id) : null;
-    return { ok: true, months, ...range, boundReferrerId: bound, codeId: Number(row.id), referrerId: Number(row.referrer_id) };
+    const companyId = row.company_id === null || row.company_id === undefined ? null : Number(row.company_id);
+    return { ok: true, months, ...range, boundReferrerId: bound, codeId: Number(row.id), referrerId, companyId };
   } catch (err) {
     await conn.rollback();
     throw err;

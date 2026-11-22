@@ -91,6 +91,8 @@
 │   │   └── developmentIndex.ts # T1 逐题作答＋篩查月龄 → 100／90／80／75／70（题目独立卷积）；读不到逐题作答回 null
 │   ├── revenueSplit/      # 清分（ADR-0016）：split.ts 对方与比例的快照、金额怎么取整；ledger.ts 对帐列与合计（前端也载）；`.xlsx` 在 src/admin/splitXlsx.ts
 │   ├── profitSharing/     # 微信分账（ADR-0017，`PROFIT_SHARING`）：plan.ts 一笔实际分多少（最高分账比例、线下结）与设定；wechatApi.ts 四支 APIv3（添加接收方、请求分账、解冻、查询）与敏感栏位加密；run.ts 执行一轮；adminRoutes.ts 后台端点；资料层 src/db/profitSharing.ts；画面 src/admin/panels/ProfitSharingSection.tsx
+│   ├── serviceRelations/  # 服务关系（ADR-0020，开关 `SERVICE_RELATIONS`，只在专案 A）：rules.ts 挂上／问家长／不动、改派与代填权限（纯函式）；
+│   │                      # scope.ts 后台范围看服务关系；switch.ts 开关；switchSource.ts／promptStore.ts／parentCopy.ts 换人提示；adminView.ts 后台改派画面的字
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
 │   │   ├── core.ts        # 产码、杂凑、设定（HANDOFF_*）、两端之间那一包的形状（伺服器专用）
 │   │   ├── routes.ts      # 发出端三支（B）＋接收端一支（A）；server.ts 只注册、注入依赖
@@ -349,6 +351,9 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `/api/handoff/redeem` | POST | 专案 A：家长的浏览器带交接码来 → 向 B 兑换 → 以（未归属，手机号）找或建帐号 → A 还没有 T1 才带入 → 回与 `/api/auth/sms/verify` 同形状的登入结果＋`handoff: {imported, sourceName}`。B 说无效 410、B 连不上 502、没开 503 | `code` |
 | `/api/admin/parent-summary` | GET | 后台家长汇总（#69，规格 `docs/specs/client-changes-2026-10-17.md` §3.1，A、B 都有）：一个孩子一行（最近一次 T1，没做过的不列），回 `{dimensions, rows: [{childName, phone, ageLabel（筛查当时）, channel（筛查渠道，CONTEXT.md）, screenedAt, cells（九维 `{score, maxScore, status}`）, flaggedCount}]}`；整理在 `src/admin/parentSummary.ts`（只给伺服器）。**一次一页**（`SUMMARY_PAGE_SIZE` 100 行，另回 `total`／`page`／`pageSize`；伺服器照样整批排好再切，页码超过夹回最后一页）；资料层第一句不读 `report_history`，只有成绩里找不到月龄的家长才按 id 补读。**所有后台帐号**，范围走 `withScope`、不加 `requireGlobal` | `sort`, `booked`, `page`（query，前两个同家长列表）；`Authorization: Bearer <后台 token>` |
 | `/api/admin/parent-summary/export` | POST | 同上导出成 `.xlsx`（`src/admin/summaryXlsx.ts`，exceljs，九维格保留底色，档名 `家长汇总-YYYYMMDD.xlsx`）。每次导出在 `admin_exports` 记一笔（谁、范围、笔数、筛选）；**记不下来就 500、不给档**。⚠️ `deploy/migrations/2026-10-18-admin-exports.sql`（A、B 两个库）**先于程式码部署** | `sort`, `booked`（body）；`Authorization: Bearer <后台 token>` |
+| `/api/admin/parents/:id/service` | PUT | 专案 A、`SERVICE_RELATIONS` 开着才注册（#119）：标注／改派一位家长的服务关系，`{to: {companyId, referrerId\|null} \| null}`（null＝拿掉，只有全域管理员）。看不到这位家长 404；权限照 `canReassign`（单位管理者只在本单位内、推荐人 403）；单位停用或推荐人不属于该单位 400；被别人改过 409 `STALE`；每次写一列改派纪录 | `to`；`Authorization: Bearer <后台 token>` |
+| `/api/admin/parents/:id/service-changes` | GET | 同上（#119）：一位家长的改派纪录（新的在前），看得到这位家长才读得到 | `Authorization: Bearer <后台 token>` |
+| `/api/admin/service-targets` | GET | 同上（#119）：改派能选的启用中的单位与推荐人（全域管理员全部、单位管理者只有本单位；推荐人 403） | `Authorization: Bearer <后台 token>` |
 | `/api/admin/units/:id/codes` | GET／POST | 专案 A、`SERVICE_RELATIONS` 与兑换码开着才注册（#124）：全域管理员看、替一个合作单位产码（不指定推荐人，`redeem_batches.company_id`）。单位要存在且启用；POST 收 `months`、`quantity`（同推荐人的码）。单位管理者、推荐人 403 | `months`, `quantity`（POST）；`Authorization: Bearer <后台 token>`（全域管理员） |
 | `/api/admin/unit/codes`、`/unit/codes.csv` | GET | 同上（#124）：单位管理者看与汇出本单位的码（单位取自工作阶段）；全域管理员、推荐人 403。`SERVICE_RELATIONS` 开着时单位管理者也能打 `/referrer/proxy*` 代填本单位的家长（`proxyAccess`：跨单位 409），第一次代填扣单位层的码 | `Authorization: Bearer <后台 token>` |
 | `/api/admin/activities/:id/video` | PUT | 后台上传示范片（2026-10-08）：本体就是 mp4（`Content-Type: video/mp4`，≤300 MB），存成 `MEDIA_DIR/activities/<编号>.mp4`，`videoUrl` 写 `/media/activities/<编号>.mp4?v=<时间>`、`videoSeconds` 取 `?seconds=`（1–3600，后台浏览器读的）。回 `{activity}`。认不得的编号 404、不是 mp4 415、太大 413，都不写档；**只在专案 A**、只有全域管理员 | `seconds`（query，选填）；`Authorization: Bearer <后台 token>` |

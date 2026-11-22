@@ -29,9 +29,12 @@ type Role = 'global_admin' | 'company_member';
 export default function AdminUsersPanel({
   onError,
   companies,
+  units = false,
 }: {
   onError: (view: AdminErrorView) => void;
   companies: AdminCompany[];
+  /** 專案 A 的合作單位（#117／#125，ADR-0020）：「公司成员」改叫「单位管理者」。B 照舊。 */
+  units?: boolean;
 }) {
   const load = useCallback(() => adminApi.adminUsers(), []);
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
@@ -142,7 +145,7 @@ export default function AdminUsersPanel({
                 setCompanyId('');
               }}
             >
-              <option value="company_member">合作公司成员（只看得到自己公司）</option>
+              <option value="company_member">{units ? '单位管理者（只看得到自己单位）' : '合作公司成员（只看得到自己公司）'}</option>
               <option value="global_admin">全域管理员（可切换公司，看得到汇总）</option>
             </Select>
           </Field>
@@ -208,7 +211,7 @@ export default function AdminUsersPanel({
                   <tr key={u.id} className="border-b border-brand-stone/60 last:border-0">
                     <td className="py-2.5 pr-3 text-brand-forest">{u.email}</td>
                     <td className="py-2.5 pr-3 text-brand-charcoal/70">
-                      {u.role === 'global_admin' ? '全域管理员' : (u.role as string) === 'referrer' ? '推荐人' : '公司成员'}
+                      {u.role === 'global_admin' ? '全域管理员' : (u.role as string) === 'referrer' ? '推荐人' : units ? '单位管理者' : '公司成员'}
                     </td>
                     <td className="py-2.5 pr-3 text-brand-charcoal/70">{companyName(u.companyId)}</td>
                     <td className="py-2.5 pr-3">

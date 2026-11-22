@@ -43,4 +43,12 @@ describe('SERVICE_RELATIONS 關著', () => {
     expect(res.status).toBe(200);
     expect(warn.mock.calls.flat().join('\n')).not.toMatch(/SERVICE_RELATIONS 關著時不該被呼叫/);
   });
+
+  it('換人提示的兩支（#120）沒有註冊；回應沒有 serviceSwitch', async () => {
+    for (const path of ['/api/service-relation/link', '/api/service-relation/switch']) {
+      expect((await client.postJson(path, {})).status).toBe(404);
+    }
+    const res = await client.postJson('/api/auth/sms/verify', { phone: '13800138000', code: '123456', visitLink: { companySlug: 'jia', referrerCode: 'zhang' } });
+    expect(await res.json()).not.toHaveProperty('serviceSwitch');
+  });
 });

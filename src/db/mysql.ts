@@ -415,6 +415,89 @@ export async function attachServiceRelation(
   }
 }
 
+/** 一位推薦人（兌換碼的推薦人，#120）；查不到回 null。 */
+export async function findReferrerById(id: number): Promise<{ id: number; companyId: number | null; active: boolean } | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute('SELECT id, company_id, active FROM referrers WHERE id = ? LIMIT 1', [id]);
+  const row = (rows as any[])[0];
+  return row ? { id: Number(row.id), companyId: row.company_id === null ? null : Number(row.company_id), active: Number(row.active) === 1 } : null;
+}
+
+/** 這組兌換碼是不是**這位家長自己**用掉的；是就回那一批的推薦人，否則 null（#120 換人提示的來源）。 */
+export async function findUsedCodeReferrer(userId: number, codeId: number): Promise<number | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    `SELECT b.referrer_id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id
+      WHERE c.id = ? AND c.used_by = ? AND c.status = 'used' LIMIT 1`,
+    [codeId, userId]
+  );
+  const row = (rows as any[])[0];
+  return row ? Number(row.referrer_id) : null;
+}
+
+/** 提示上要寫的名字（#120）：單位名與推薦人名；查不到是 null。 */
+export async function serviceRelationNames(rel: ServiceRelation): Promise<{ companyName: string | null; referrerName: string | null }> {
+  const p = getPool();
+  if (!p) return { companyName: null, referrerName: null };
+  const [rows] = await p.execute(
+    `SELECT c.name AS company_name, r.name AS referrer_name
+       FROM companies c LEFT JOIN referrers r ON r.id = ?
+      WHERE c.id = ? LIMIT 1`,
+    [rel.referrerId, rel.companyId]
+  );
+  const row = (rows as any[])[0];
+  return { companyName: row?.company_name ?? null, referrerName: rel.referrerId === null ? null : row?.referrer_name ?? null };
+}
+
+/**
+ * 家長在提示裡選「換」（#120）：一個交易裡鎖住這位家長，服務關係還是伺服器剛才重算時讀到的 `from` 才寫
+ * （否則 `stale`）：一列紀錄（actor＝parent）與新的服務關係。
+ */
+export async function parentSwitchServiceRelation(
+  userId: number,
+  from: ServiceRelation | null,
+  to: ServiceRelation,
+  reason: Extract<ChangeReason, 'link' | 'code'>
+): Promise<'ok' | 'stale'> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL not configured');
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.execute('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
+    const [rows] = await conn.execute('SELECT company_id, referrer_id FROM service_relations WHERE user_id = ? LIMIT 1', [userId]);
+    const row = (rows as any[])[0];
+    const current: ServiceRelation | null = row
+      ? { companyId: Number(row.company_id), referrerId: row.referrer_id === null ? null : Number(row.referrer_id) }
+      : null;
+    const same = current === null || from === null ? current === from : current.companyId === from.companyId && current.referrerId === from.referrerId;
+    if (!same) {
+      await conn.rollback();
+      return 'stale';
+    }
+    await conn.execute(
+      `INSERT INTO service_relation_changes
+         (user_id, from_company_id, from_referrer_id, to_company_id, to_referrer_id, actor, reason)
+       VALUES (?, ?, ?, ?, ?, 'parent', ?)`,
+      [userId, from?.companyId ?? null, from?.referrerId ?? null, to.companyId, to.referrerId, reason]
+    );
+    if (current === null) {
+      await conn.execute('INSERT INTO service_relations (user_id, company_id, referrer_id) VALUES (?, ?, ?)', [userId, to.companyId, to.referrerId]);
+    } else {
+      await conn.execute('UPDATE service_relations SET company_id = ?, referrer_id = ? WHERE user_id = ?', [to.companyId, to.referrerId, userId]);
+    }
+    await conn.commit();
+    return 'ok';
+  } catch (err) {
+    await conn.rollback().catch(() => undefined);
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 /** 家長所屬公司（含通知位置）。未歸屬回 `null`。 */
 export async function findCompanyByUserId(userId: number): Promise<CompanyRow | null> {
   const p = getPool();

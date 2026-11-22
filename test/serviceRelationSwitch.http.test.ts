@@ -1,0 +1,239 @@
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
+import { startTestApp, loadApp, type TestClient } from './helpers/httpApp';
+import { bearer } from './helpers/session';
+
+/**
+ * #120 換人提示（ADR-0020 第 6 點）：已經有服務關係的家長從別的單位或推薦人的連結進來、或用了別人的兌換碼，
+ * 回提示資料（現在誰服務、要換成誰、來源）；家長選換才打 `POST /api/service-relation/switch`，伺服器用同一份規則
+ * 重算再寫（原因＝連結／兌換碼、家長自己）。還沒有服務關係的直接掛上。
+ * ⚠️ 開關必須在載入 `server.ts` 之前設定。
+ */
+process.env.A_COMPANIES = '1';
+process.env.A_PHONE_IDENTITY = '1';
+process.env.SERVICE_RELATIONS = '1';
+process.env.TRAINING_PLAN = '1';
+process.env.TRAINING_PUSH_V3 = '1';
+process.env.SESSION_SECRET ||= 'test-session-secret-for-service-switch';
+
+const PHONE = '13800138000';
+const COMPANIES: Record<string, { id: number; name: string; kind: string }> = {
+  jia: { id: 7, name: '甲机构', kind: 'institution' },
+  yi: { id: 8, name: '乙机构', kind: 'institution' },
+};
+const REFERRERS = [
+  { id: 70, name: '张老师', companyId: 7, code: 'zhang', active: true },
+  { id: 71, name: '李老师', companyId: 7, code: 'li', active: true },
+  { id: 80, name: '王老师', companyId: 8, code: 'wang', active: true },
+];
+
+const db = vi.hoisted(() => ({
+  users: [] as Array<{ id: number; phone: string; company_id: number | null }>,
+  relations: {} as Record<number, { companyId: number; referrerId: number | null }>,
+  changes: [] as any[],
+  // 兌換碼：codeId → 推薦人與用掉的人
+  codes: new Map<string, { id: number; referrerId: number; usedBy: number | null }>(),
+  codeHash: '',
+}));
+
+const ref = (id: number | null | undefined) => REFERRERS.find(r => r.id === id) ?? null;
+
+vi.mock('../src/db/mysql', () => ({
+  isConfigured: () => true,
+  findUserById: async (id: number) => db.users.find(u => u.id === id) ?? null,
+  listUsersByPhone: async (phone: string) => db.users.filter(u => u.phone === phone).map(u => ({ ...u, has_reports: 0, has_orders: 0 })),
+  createPhoneUser: async (phone: string, companyId: number | null) => {
+    const row = { id: 100 + db.users.length, phone, company_id: companyId };
+    db.users.push(row);
+    return row.id;
+  },
+  findLatestSmsCode: async (phone: string) => ({ id: 1, phone, code_hash: db.codeHash, attempts: 0, consumed_at: null, is_expired: 0, age_sec: 999 }),
+  claimSmsCodeAttempt: async () => true,
+  consumeSmsCode: async () => true,
+  findCompanyBySlug: async (slug: string) => (COMPANIES[slug] ? { ...COMPANIES[slug], slug, wecomWebhookUrl: null, active: true } : null),
+  findCompanyByUserId: async () => null,
+  findLinkReferrer: async (companyId: number, code: string | null) => {
+    const r = code === null ? undefined : REFERRERS.find(x => x.companyId === companyId && x.code === code);
+    return r ? { id: r.id, companyId: r.companyId, active: r.active } : null;
+  },
+  findReferrerById: async (id: number) => {
+    const r = ref(id);
+    return r ? { id: r.id, companyId: r.companyId, active: r.active } : null;
+  },
+  findUsedCodeReferrer: async (userId: number, codeId: number) => {
+    const c = [...db.codes.values()].find(x => x.id === codeId && x.usedBy === userId);
+    return c ? c.referrerId : null;
+  },
+  getServiceRelationByUserId: async (userId: number) => db.relations[userId] ?? null,
+  serviceRelationNames: async (rel: { companyId: number; referrerId: number | null }) => ({
+    companyName: Object.values(COMPANIES).find(c => c.id === rel.companyId)?.name ?? null,
+    referrerName: ref(rel.referrerId)?.name ?? null,
+  }),
+  attachServiceRelation: async (userId: number, to: any, reason: string) => {
+    if (db.relations[userId]) return false;
+    db.relations[userId] = { ...to };
+    db.changes.push({ userId, from: null, to: { ...to }, actor: 'parent', reason });
+    return true;
+  },
+  parentSwitchServiceRelation: async (userId: number, from: any, to: any, reason: string) => {
+    const cur = db.relations[userId] ?? null;
+    if (JSON.stringify(cur) !== JSON.stringify(from)) return 'stale';
+    db.relations[userId] = { ...to };
+    db.changes.push({ userId, from, to: { ...to }, actor: 'parent', reason });
+    return 'ok';
+  },
+  getUserDataByUserId: async () => null,
+  getUserDataByDevice: async () => null,
+  parseUserDataRow: () => null,
+  listUnlockedDimensions: async () => [],
+  hasT2Unlock: async () => false,
+}));
+
+vi.mock('../src/db/redeemCodes', () => ({
+  async redeemCodeForUser(userId: number, code: string) {
+    const row = db.codes.get(code);
+    if (!row || row.usedBy !== null) return { ok: false };
+    row.usedBy = userId;
+    return { ok: true, months: 1, startsOn: '2026-11-23', endsOn: '2026-12-20', boundReferrerId: null, codeId: row.id, referrerId: row.referrerId };
+  },
+}));
+
+vi.mock('../src/db/trainingPasses', () => ({
+  listTrainingPasses: async () => [],
+  insertTrainingPass: async () => true,
+  hasScaleT2Findings: async () => false,
+}));
+
+let client: TestClient;
+beforeAll(async () => {
+  db.codeHash = (await import('bcryptjs')).default.hashSync('123456', 4);
+  client = await startTestApp(await loadApp());
+});
+afterAll(async () => {
+  await client.close();
+  for (const k of ['A_COMPANIES', 'A_PHONE_IDENTITY', 'SERVICE_RELATIONS', 'TRAINING_PLAN', 'TRAINING_PUSH_V3']) delete process.env[k];
+});
+beforeEach(() => {
+  db.users = [{ id: 40, phone: PHONE, company_id: 8 }];
+  db.relations = { 40: { companyId: 8, referrerId: 80 } };
+  db.changes = [];
+  db.codes = new Map([
+    ['ZHANGAAAA2', { id: 501, referrerId: 70, usedBy: null }],
+    ['WANGAAAAA2', { id: 502, referrerId: 80, usedBy: null }],
+  ]);
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+});
+
+const verify = (body: Record<string, unknown>) =>
+  client.postJson('/api/auth/sms/verify', { phone: PHONE, code: '123456', ...body });
+const post = (path: string, body: unknown, userId = 40) => client.postJson(path, body, bearer(userId));
+
+const ZHANG_LINK = { kind: 'link', companySlug: 'jia', referrerCode: 'zhang' };
+
+describe('登入驗證的回應', () => {
+  it('已經由王老师服務、這次點了张老师的連結：帶提示資料，什麼都不寫', async () => {
+    const res = await verify({ companySlug: 'yi', visitLink: { companySlug: 'jia', referrerCode: 'zhang' } });
+    const body = await res.json();
+    expect(body.serviceSwitch).toEqual({ currentName: '王老师', toName: '张老师', source: ZHANG_LINK });
+    expect(db.relations[40]).toEqual({ companyId: 8, referrerId: 80 });
+    expect(db.changes).toEqual([]);
+  });
+
+  it('沒帶這次的連結：用記下的單位與推薦人代號（#118 那一組）', async () => {
+    const body = await (await verify({ companySlug: 'jia', referrerCode: 'li' })).json();
+    expect(body.serviceSwitch.toName).toBe('李老师');
+  });
+
+  it('換成只有單位：寫單位名', async () => {
+    const body = await (await verify({ visitLink: { companySlug: 'jia' } })).json();
+    expect(body.serviceSwitch).toEqual({ currentName: '王老师', toName: '甲机构', source: { kind: 'link', companySlug: 'jia', referrerCode: null } });
+  });
+
+  it('不用問（同一位、或只帶同一個單位的連結）：回應裡沒有這一欄', async () => {
+    for (const visitLink of [{ companySlug: 'yi', referrerCode: 'wang' }, { companySlug: 'yi' }]) {
+      const body = await (await verify({ visitLink })).json();
+      expect(body).not.toHaveProperty('serviceSwitch');
+      expect(body.success).toBe(true);
+    }
+  });
+});
+
+describe('POST /api/service-relation/switch：家長選「換」', () => {
+  it('照來源重算規則、寫服務關係與紀錄（家長自己、原因＝連結）', async () => {
+    const res = await post('/api/service-relation/switch', { source: ZHANG_LINK });
+    expect(await res.json()).toEqual({ changed: true });
+    expect(db.relations[40]).toEqual({ companyId: 7, referrerId: 70 });
+    expect(db.changes).toEqual([{ userId: 40, from: { companyId: 8, referrerId: 80 }, to: { companyId: 7, referrerId: 70 }, actor: 'parent', reason: 'link' }]);
+  });
+
+  it('規則說不用問（已經是同一位）：不寫', async () => {
+    const res = await post('/api/service-relation/switch', { source: { kind: 'link', companySlug: 'yi', referrerCode: 'wang' } });
+    expect(await res.json()).toEqual({ changed: false });
+    expect(db.changes).toEqual([]);
+  });
+
+  it('來源認不得（單位不存在）：不寫', async () => {
+    expect(await (await post('/api/service-relation/switch', { source: { kind: 'link', companySlug: 'nope', referrerCode: null } })).json()).toEqual({ changed: false });
+    expect(db.changes).toEqual([]);
+  });
+
+  it('兌換碼來源：碼要是這位家長自己用掉的，否則不寫', async () => {
+    db.codes.get('ZHANGAAAA2')!.usedBy = 41;
+    expect(await (await post('/api/service-relation/switch', { source: { kind: 'code', codeId: 501 } })).json()).toEqual({ changed: false });
+    db.codes.get('ZHANGAAAA2')!.usedBy = 40;
+    expect(await (await post('/api/service-relation/switch', { source: { kind: 'code', codeId: 501 } })).json()).toEqual({ changed: true });
+    expect(db.changes.at(-1)).toEqual(expect.objectContaining({ reason: 'code', to: { companyId: 7, referrerId: 70 } }));
+  });
+
+  it.each([[{}], [{ source: { kind: 'link', companySlug: '../x' } }], [{ source: { kind: 'code', codeId: 'a' } }], [{ source: { kind: 'other' } }]])(
+    '形狀不對 %j：400',
+    async body => {
+      expect((await post('/api/service-relation/switch', body)).status).toBe(400);
+    },
+  );
+
+  it('沒登入：401', async () => {
+    expect((await client.postJson('/api/service-relation/switch', { source: ZHANG_LINK })).status).toBe(401);
+  });
+});
+
+describe('POST /api/service-relation/link：已登入的家長點了連結', () => {
+  it('還沒有服務關係：直接掛上', async () => {
+    db.relations = {};
+    const res = await post('/api/service-relation/link', { companySlug: 'jia', referrerCode: 'zhang' });
+    expect(await res.json()).toEqual({ attached: true });
+    expect(db.relations[40]).toEqual({ companyId: 7, referrerId: 70 });
+  });
+
+  it('已經有了、來源不同：回提示資料', async () => {
+    const res = await post('/api/service-relation/link', { companySlug: 'jia', referrerCode: 'zhang' });
+    expect(await res.json()).toEqual({ attached: false, serviceSwitch: { currentName: '王老师', toName: '张老师', source: ZHANG_LINK } });
+    expect(db.changes).toEqual([]);
+  });
+
+  it('同一個：什麼都不做', async () => {
+    expect(await (await post('/api/service-relation/link', { companySlug: 'yi' })).json()).toEqual({ attached: false });
+  });
+});
+
+describe('兌換碼', () => {
+  it('還沒有服務關係：照舊發使用權，另外掛到那位推薦人與他的單位（原因＝兌換碼）', async () => {
+    db.relations = {};
+    const body = await (await post('/api/training/redeem', { code: 'ZHANGAAAA2' })).json();
+    expect(body.months).toBe(1);
+    expect(body).not.toHaveProperty('serviceSwitch');
+    expect(db.relations[40]).toEqual({ companyId: 7, referrerId: 70 });
+    expect(db.changes).toEqual([expect.objectContaining({ reason: 'code', actor: 'parent' })]);
+  });
+
+  it('已經由別人服務：碼照樣用掉，回提示（來源是這組碼）', async () => {
+    const body = await (await post('/api/training/redeem', { code: 'ZHANGAAAA2' })).json();
+    expect(body.months).toBe(1);
+    expect(body.serviceSwitch).toEqual({ currentName: '王老师', toName: '张老师', source: { kind: 'code', codeId: 501 } });
+    expect(db.relations[40]).toEqual({ companyId: 8, referrerId: 80 });
+  });
+
+  it('用的是現在那位推薦人的碼：不問', async () => {
+    const body = await (await post('/api/training/redeem', { code: 'WANGAAAAA2' })).json();
+    expect(body).not.toHaveProperty('serviceSwitch');
+  });
+});

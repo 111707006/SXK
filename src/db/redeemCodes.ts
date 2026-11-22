@@ -10,7 +10,16 @@ import { getPool } from './mysql';
 import { isPassMonths, nextPassRange, type PassMonths, type TrainingPass } from '../t2/trainingPass';
 
 export type RedeemOutcome =
-  | { ok: true; months: PassMonths; startsOn: string; endsOn: string; boundReferrerId: number | null }
+  | {
+      ok: true;
+      months: PassMonths;
+      startsOn: string;
+      endsOn: string;
+      boundReferrerId: number | null;
+      /** 這組碼的編號與那一批的推薦人（#120：服務關係照它掛上或問家長）。 */
+      codeId: number;
+      referrerId: number;
+    }
   | { ok: false };
 
 export async function redeemCodeForUser(userId: number, code: string, today: string): Promise<RedeemOutcome> {
@@ -55,7 +64,7 @@ export async function redeemCodeForUser(userId: number, code: string, today: str
     );
     await conn.commit();
     const bound = (bind as { affectedRows: number }).affectedRows === 1 ? Number(row.referrer_id) : null;
-    return { ok: true, months, ...range, boundReferrerId: bound };
+    return { ok: true, months, ...range, boundReferrerId: bound, codeId: Number(row.id), referrerId: Number(row.referrer_id) };
   } catch (err) {
     await conn.rollback();
     throw err;

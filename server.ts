@@ -35,8 +35,14 @@ import * as mysqlDb from './src/db/mysql';
 import { isAllowedAssetUrl } from './src/utils/assetUrl';
 import { createAdminRouter } from './src/admin/routes';
 import { resolveServiceRelationsSwitch } from './src/serviceRelations/switch';
-import { decideAttach, resolveLinkSource } from './src/serviceRelations/rules';
-import { isValidReferrerCode } from './src/admin/units';
+import { decideAttach, relationAfterConsent, resolveLinkSource, type RelationSource } from './src/serviceRelations/rules';
+import {
+  displayNameOf,
+  readLinkSource,
+  readSwitchSource,
+  type ServiceSwitchPrompt,
+  type SwitchSource,
+} from './src/serviceRelations/switchSource';
 import { developmentIndexFor, resolveDevIndexBasis } from './src/developmentIndex/basis';
 import { notifyExpertBooking } from './src/notify';
 import { inviteChannelStatus, sendHandoffInvite, sendVerificationCode } from './src/sms';
@@ -4043,21 +4049,49 @@ async function findLoginAccount(companyId: number | null, phone: string): Promis
 }
 
 /**
- * 家長從單位連結（`?c=`）或推薦人個人連結（`?c=&t=`）登入時的服務關係（#118，ADR-0020；`SERVICE_RELATIONS` 開著才呼叫）。
- * 推薦人代號格式不對、查無此人、不屬於該單位、停用：當作只帶單位（個人治療師單位的單位連結就指向那位推薦人）。
- * 規則照 `decideAttach`：還沒有服務關係才掛上（紀錄原因＝連結）；已經有了而來源不同要問家長——那是 #120，這裡先不動。
+ * 服務關係的來源 → 規則用的 `RelationSource`（#118／#120，ADR-0020；`SERVICE_RELATIONS` 開著才呼叫）。
+ * - 連結：單位要啟用（`findCompanyBySlug` 只回啟用的）；推薦人照代號在那個單位裡找，找不到、不屬於、停用＝只帶單位
+ *   （個人治療師單位的單位連結指向那位推薦人）
+ * - 兌換碼：只認**這位家長自己用掉的**那一組；推薦人停用或沒有單位＝沒有來源
  */
-async function attachFromEntryLink(userId: number, companyId: number, rawCode: unknown): Promise<void> {
-  const trimmed = typeof rawCode === 'string' ? rawCode.trim().toLowerCase() : '';
-  const code = isValidReferrerCode(trimmed) ? trimmed : null;
+async function relationSourceOf(userId: number, source: SwitchSource): Promise<RelationSource | null> {
+  if (source.kind === 'code') {
+    const referrerId = await withTimeout(mysqlDb.findUsedCodeReferrer(userId, source.codeId), 2000);
+    if (referrerId === null) return null;
+    const referrer = await withTimeout(mysqlDb.findReferrerById(referrerId), 2000);
+    if (!referrer || !referrer.active || referrer.companyId === null) return null;
+    return { kind: 'code', companyId: referrer.companyId, referrerId: referrer.id };
+  }
+  const company = await withTimeout(mysqlDb.findCompanyBySlug(source.companySlug), 2000);
+  if (!company) return null;
   const referrer =
-    (code !== null ? await withTimeout(mysqlDb.findLinkReferrer(companyId, code), 2000) : null) ??
-    (await withTimeout(mysqlDb.findLinkReferrer(companyId, null), 2000));
-  // 單位由 `resolveCompanyScope`（`findCompanyBySlug` 只回啟用的）查到，所以是啟用中的。
-  const source = resolveLinkSource({ id: companyId, active: true }, referrer);
+    (source.referrerCode !== null ? await withTimeout(mysqlDb.findLinkReferrer(company.id, source.referrerCode), 2000) : null) ??
+    (await withTimeout(mysqlDb.findLinkReferrer(company.id, null), 2000));
+  return resolveLinkSource({ id: company.id, active: company.active }, referrer);
+}
+
+/**
+ * 家長自己帶來的來源（連結、兌換碼）照 `decideAttach`：還沒有服務關係就掛上（紀錄原因＝連結／兌換碼）；
+ * 已經有了而來源不同，回提示資料（#120，家長選「換」才打 `/api/service-relation/switch`）；其他不動。
+ */
+async function applyServiceSource(
+  userId: number,
+  source: SwitchSource
+): Promise<{ attached: boolean; prompt: ServiceSwitchPrompt | null }> {
+  const relationSource = await relationSourceOf(userId, source);
   const current = await withTimeout(mysqlDb.getServiceRelationByUserId(userId), 2000);
-  const decision = decideAttach(current, source);
-  if (decision.kind === 'attach') await withTimeout(mysqlDb.attachServiceRelation(userId, decision.to, 'link'), 2000);
+  const decision = decideAttach(current, relationSource);
+  if (decision.kind === 'attach') {
+    return { attached: await withTimeout(mysqlDb.attachServiceRelation(userId, decision.to, source.kind), 2000), prompt: null };
+  }
+  if (decision.kind === 'ask') {
+    const [from, to] = await Promise.all([
+      withTimeout(mysqlDb.serviceRelationNames(decision.current), 2000),
+      withTimeout(mysqlDb.serviceRelationNames(decision.to), 2000),
+    ]);
+    return { attached: false, prompt: { currentName: displayNameOf(from), toName: displayNameOf(to), source } };
+  }
+  return { attached: false, prompt: null };
 }
 
 /**
@@ -4155,11 +4189,19 @@ app.post('/api/auth/sms/verify', async (req, res) => {
       }
     }
 
-    // 服務關係（#118）：從單位／推薦人連結登入、還沒有服務關係就掛上。掛不上不擋登入（帳號已經確定），記一行。
-    if (SERVICE_RELATIONS && scope.companyId !== null) {
-      await attachFromEntryLink(Number(user.id), scope.companyId, req.body?.referrerCode).catch((err: any) =>
-        console.warn('[ServiceRelation] attach from entry link failed:', err.message)
-      );
+    // 服務關係（#118／#120）：這次進站的連結（`visitLink`），沒有就用記下的那一組（`companySlug`＋`referrerCode`）。
+    // 還沒有服務關係就掛上；已經有了而來源不同，回應多帶 `serviceSwitch`（換人提示）。出錯不擋登入（帳號已經確定），記一行。
+    let serviceSwitch: ServiceSwitchPrompt | null = null;
+    const entryLink = SERVICE_RELATIONS
+      ? readLinkSource(req.body?.visitLink) ?? readLinkSource({ companySlug: req.body?.companySlug, referrerCode: req.body?.referrerCode })
+      : null;
+    if (entryLink) {
+      serviceSwitch = await applyServiceSource(Number(user.id), entryLink)
+        .then(r => r.prompt)
+        .catch((err: any) => {
+          console.warn('[ServiceRelation] entry link failed:', err.message);
+          return null;
+        });
     }
 
     const sessionUserId: UserId = String(user.id);
@@ -4186,6 +4228,8 @@ app.post('/api/auth/sms/verify', async (req, res) => {
       phone,
       token: signToken(sessionUserId),
       child, completedScores, orders, reportHistory,
+      // 不用問的時候不帶這一欄：回應形狀與以前一樣。
+      ...(serviceSwitch ? { serviceSwitch } : {}),
     });
   } catch (err: any) {
     // 建帳號寫不進去就是失敗。**不得**退回記憶體再發一張通行證 ——
@@ -4644,10 +4688,70 @@ const redeemLimiter = createRedeemLimiter();
       return;
     }
     const state = await trainingPassOf(dbUserId);
-    res.json({ months: outcome.months, endsOn: state.endsOn ?? outcome.endsOn });
+    // 服務關係（#120）：還沒有就掛到這組碼的推薦人與他的單位；已經由別人服務就回換人提示。碼照樣用掉、使用權照樣發。
+    const serviceSwitch = SERVICE_RELATIONS
+      ? await applyServiceSource(dbUserId, { kind: 'code', codeId: outcome.codeId })
+          .then(r => r.prompt)
+          .catch((err: any) => {
+            console.warn('[ServiceRelation] redeem attach failed:', err.message);
+            return null;
+          })
+      : null;
+    res.json({ months: outcome.months, endsOn: state.endsOn ?? outcome.endsOn, ...(serviceSwitch ? { serviceSwitch } : {}) });
   } catch (err: any) {
     console.error('[Redeem] failed:', err.message);
     res.status(500).json({ error: '暂时无法兑换，请稍后再试。' });
+  }
+});
+
+/** 已登入、資料庫裡有這位家長 → 資料庫的使用者編號；否則 null（呼叫端回 401）。 */
+async function serviceParentOf(req: express.Request): Promise<number | null> {
+  const userId = currentUserId(req);
+  const dbUserId = toDbUserId(userId);
+  if (!userId || dbUserId === null || !mysqlDb.isConfigured() || (await sessionAccountMissing(userId))) return null;
+  return dbUserId;
+}
+
+/**
+ * 已登入的家長點了單位或推薦人的連結（#120）：前端一進站看到 `?c=` 就打這一支。還沒有服務關係就掛上
+ * （`{attached: true}`）；已經有了而來源不同回 `{attached: false, serviceSwitch}`；其他 `{attached: false}`。
+ * `SERVICE_RELATIONS` 關著不註冊（404）。
+ */
+(SERVICE_RELATIONS ? app : express.Router()).post('/api/service-relation/link', async (req, res) => {
+  try {
+    const userId = await serviceParentOf(req);
+    if (userId === null) return void res.status(401).json({ error: '请先登录。', code: 'UNAUTHENTICATED' });
+    const link = readLinkSource(req.body);
+    if (!link) return void res.json({ attached: false });
+    const result = await applyServiceSource(userId, link);
+    res.json({ attached: result.attached, ...(result.prompt ? { serviceSwitch: result.prompt } : {}) });
+  } catch (err: any) {
+    console.error('[ServiceRelation] link failed:', err.message);
+    res.status(500).json({ error: '暂时无法处理，请稍后再试。' });
+  }
+});
+
+/**
+ * 家長在換人提示裡選「換」（#120）：`{source}` 是提示原樣送回的來源。伺服器照來源重查、用同一份規則
+ * （`relationAfterConsent`）重算，要換才寫（紀錄：家長自己、原因＝連結／兌換碼），回 `{changed}`；
+ * 規則說不用換（已經是同一個、來源認不得、不是自己用掉的碼）就不寫。服務關係在這中間被改過回 409。
+ */
+(SERVICE_RELATIONS ? app : express.Router()).post('/api/service-relation/switch', async (req, res) => {
+  try {
+    const userId = await serviceParentOf(req);
+    if (userId === null) return void res.status(401).json({ error: '请先登录。', code: 'UNAUTHENTICATED' });
+    const source = readSwitchSource(req.body?.source);
+    if (!source) return void res.status(400).json({ error: '来源不正确。', code: 'INVALID_SOURCE' });
+    const relationSource = await relationSourceOf(userId, source);
+    const current = await withTimeout(mysqlDb.getServiceRelationByUserId(userId), 2000);
+    const to = relationAfterConsent(current, relationSource);
+    if (to === null) return void res.json({ changed: false });
+    const outcome = await withTimeout(mysqlDb.parentSwitchServiceRelation(userId, current, to, source.kind), 2000);
+    if (outcome === 'stale') return void res.status(409).json({ error: '刚刚已经有变动，请重新整理后再试。', code: 'STALE' });
+    res.json({ changed: true });
+  } catch (err: any) {
+    console.error('[ServiceRelation] switch failed:', err.message);
+    res.status(500).json({ error: '暂时无法更换，请稍后再试。' });
   }
 });
 

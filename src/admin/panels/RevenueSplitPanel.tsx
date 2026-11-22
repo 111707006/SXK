@@ -32,6 +32,7 @@ function RateRow({
   current,
   platform,
   company,
+  screening = false,
   onSaved,
 }: {
   label: ReactNode;
@@ -42,19 +43,31 @@ function RateRow({
   /** 這一列能不能設平台比例；能的話，沒設時顯示的是沿用到的值。 */
   platform: { inherited: number } | null;
   company: { inherited: number } | null;
+  /** 這一列能不能設篩查渠道比例（#122，只有單位那一層、服務關係開著）；沒設＝0，不沿用。 */
+  screening?: boolean;
   onSaved: () => void;
 }) {
   const [p, setP] = useState(inputOf(current?.platformBp ?? null));
   const [c, setC] = useState(inputOf(current?.companyBp ?? null));
+  const [sc, setSc] = useState(inputOf(current?.screeningBp ?? null));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const dirty = p !== inputOf(current?.platformBp ?? null) || c !== inputOf(current?.companyBp ?? null);
+  const dirty =
+    p !== inputOf(current?.platformBp ?? null) ||
+    c !== inputOf(current?.companyBp ?? null) ||
+    (screening && sc !== inputOf(current?.screeningBp ?? null));
 
   async function save() {
     setBusy(true);
     setNote(null);
     try {
-      await adminApi.setSplitRate({ scope, refId, platformPercent: platform ? p.trim() || null : null, companyPercent: company ? c.trim() || null : null });
+      await adminApi.setSplitRate({
+        scope,
+        refId,
+        platformPercent: platform ? p.trim() || null : null,
+        companyPercent: company ? c.trim() || null : null,
+        ...(screening ? { screeningPercent: sc.trim() || null } : {}),
+      });
       setNote('已保存，之后的新订单照这个分。');
       onSaved();
     } catch (err) {
@@ -78,6 +91,11 @@ function RateRow({
       {company && (
         <Field label="公司拿几 %（其余给治疗师）">
           <TextInput value={c} placeholder={`沿用 ${percentLabel(company.inherited)}`} onChange={e => setC(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" className="w-28" />
+        </Field>
+      )}
+      {screening && (
+        <Field label="当筛查渠道拿几 %（从对方那一份先切）">
+          <TextInput value={sc} placeholder="没设＝0" onChange={e => setSc(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" className="w-28" />
         </Field>
       )}
       <Button busy={busy} disabled={!dirty} onClick={() => void save()}>保存</Button>
@@ -123,13 +141,15 @@ function RatesSection({ settings, onSaved }: { settings: AdminSplitSettings; onS
               const cur = find('company', co.id);
               return (
                 <RateRow
-                  key={`c-${co.id}-${cur?.platformBp}-${cur?.companyBp}`}
+                  key={`c-${co.id}-${cur?.platformBp}-${cur?.companyBp}-${cur?.screeningBp}`}
                   label={`${co.name}${co.active ? '' : '（已停用）'}`}
+                  hint={settings.screening ? '筛查渠道：家长最早从这个单位进来、后来改由别的单位服务时，新订单从对方那一份先切这一成给它。' : undefined}
                   scope="company"
                   refId={co.id}
                   current={cur}
                   platform={{ inherited: dPlatform }}
                   company={{ inherited: dCompany }}
+                  screening={settings.screening === true}
                   onSaved={onSaved}
                 />
               );

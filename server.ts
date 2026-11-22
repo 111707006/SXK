@@ -4896,8 +4896,10 @@ app.use(
       legalDocs: LEGAL_DOCS,
       // T2 優惠券（客戶 11/03）：只在專案 A、`T2_COUPON` 開著。
       coupons: T2_COUPON,
-      // 清分（ADR-0016）：只在專案 A、`REVENUE_SPLIT` 開著。
-      revenueSplit: REVENUE_SPLIT ? { feeBp: WECHAT_FEE_BP } : undefined,
+      // 清分（ADR-0016）：只在專案 A、`REVENUE_SPLIT` 開著。改看服務關係（#122）時多篩查渠道比例、兌換碼對帳的兩方金額。
+      revenueSplit: REVENUE_SPLIT
+        ? { feeBp: WECHAT_FEE_BP, ...(SPLIT_BY_SERVICE_RELATIONS ? { serviceRelations: true, planPrices: TRAINING_PLAN_PRICES } : {}) }
+        : undefined,
       // 微信分账（ADR-0017）：只在專案 A、`PROFIT_SHARING` 開著。
       profitSharing: PROFIT_SHARING
         ? {

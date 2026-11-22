@@ -107,6 +107,7 @@ import { generateLegacyFallbackReport } from './src/t1report/legacy';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
 import { resolveDemoLoginCode } from './src/demoLogin';
+import { pickPhoneAccount } from './src/phoneIdentity';
 import { handoffInviteUrl, resolveHandoffSourceConfig, resolveHandoffTargetConfig } from './src/handoff/core';
 import { SINGLE_FORM_PER_DIMENSION, singleFormPlan } from './src/t2/interimPlan';
 import { isTrainingPath, resolveTrainingPriceFen } from './src/t2/trainingGate';
@@ -312,6 +313,12 @@ const LEGAL_DOCS = LEGAL_DOCS_REQUESTED && APP_MODE === 'full';
 // **只在專案 A**（B 本來就有，設了不生效，啟動印一行）。同一套 fail-closed 解析。
 const A_COMPANIES_REQUESTED = resolvePaywallSwitch('A_COMPANIES', process.env.A_COMPANIES);
 const A_COMPANIES = A_COMPANIES_REQUESTED && APP_MODE === 'full';
+// 身分開關（#115，ADR-0020 第 1 點，止血）：開著時家長登入以**手機號**找帳號 —— 這支手機已經有帳號就登入那個，
+// 不管連結帶的是哪個單位；沒有才照連結（`?c=`）建，建立時寫下的歸屬就是篩查渠道。同一支手機已有好幾個帳號
+// （重複尚未合併）時登入有報告／訂單的那一個（`src/phoneIdentity.ts`）。B→A 交接照同一條規則。
+// 關著＝一行不動（ADR-0002：歸屬＋手機號）。**只在專案 A**（B 設了不生效，啟動印一行）。同一套 fail-closed 解析。不用遷移。
+const A_PHONE_IDENTITY_REQUESTED = resolvePaywallSwitch('A_PHONE_IDENTITY', process.env.A_PHONE_IDENTITY);
+const A_PHONE_IDENTITY = A_PHONE_IDENTITY_REQUESTED && APP_MODE === 'full';
 
 // 服務關係（#118／#121，ADR-0020，`src/serviceRelations/switch.ts`）：開著時頁首徽章與客服二維碼（已登入）改看
 // `service_relations` 的單位（`src/serviceRelations/headerUnit.ts`）；後台範圍、連結掛上、改派等其餘部分還沒接。
@@ -4029,10 +4036,21 @@ app.post('/api/auth/sms/request', async (req, res) => {
 });
 
 /**
+ * 這支手機號在這次登入該進哪一個帳號（找不到回 null，由呼叫端建）。
+ * 身分開關開著（只在 A）：只看手機號，不看歸屬；有好幾個時照 `pickPhoneAccount` 固定挑一個。
+ * 關著：（歸屬，手機號）這一組（ADR-0002）。
+ */
+async function findLoginAccount(companyId: number | null, phone: string): Promise<any | null> {
+  if (A_PHONE_IDENTITY) return pickPhoneAccount(await mysqlDb.listUsersByPhone(phone));
+  return mysqlDb.findUserByPhone(companyId, phone);
+}
+
+/**
  * 核對驗證碼。成功即登入 —— **第一次成功時建立帳號**，歸屬在那一刻寫入。
  *
  * 帳號是以（歸屬，手機號）這一組去找的，不是手機號本身：同一支手機號在兩家
  * 合作公司是兩位家長（`docs/adr/0002-parent-identity-is-company-plus-phone.md`）。
+ * 身分開關 `A_PHONE_IDENTITY` 開著（只在 A，ADR-0020）時只看手機號，見 `findLoginAccount`。
  */
 app.post('/api/auth/sms/verify', async (req, res) => {
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
@@ -4098,7 +4116,7 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     // 都是**沒有副作用的讀**，都有兩秒的預算會逾時，而排在作廢之後的那一次
     // 逾時會把家長手上那組正確的驗證碼一起帶走：他按「重新获取」撞上冷卻期，
     // 被擋在門外一分鐘，手裡拿著一組再也驗不過的號碼。讀先做完不少任何保護。
-    const existing = await withTimeout(mysqlDb.findUserByPhone(scope.companyId, phone), 2000);
+    const existing = await withTimeout(findLoginAccount(scope.companyId, phone), 2000);
 
     // 先作廢再建帳號。反過來的話，同一組驗證碼在兩個同時進來的請求裡都會通過。
     if (!await withTimeout(mysqlDb.consumeSmsCode(row.id), 2000)) {
@@ -4234,9 +4252,9 @@ tier2Only.use(createHandoffTargetRouter({
   config: HANDOFF_TARGET_CONFIG,
   dbReady: () => mysqlDb.isConfigured(),
   fetchImpl: fetch,
-  // A 的家長全部未歸屬（ADR-0002 的範圍＝未歸屬）。
+  // 關著：A 的家長以未歸屬找（ADR-0002 的範圍＝未歸屬）。身分開關開著：只看手機號，已有帳號（不管歸屬）就轉進那一個。
   findUserIdByPhone: async phone => {
-    const user = await withTimeout(mysqlDb.findUserByPhone(null, phone), 2000);
+    const user = await withTimeout(findLoginAccount(null, phone), 2000);
     return user ? Number(user.id) : null;
   },
   createUser: phone => withTimeout(mysqlDb.createPhoneUser(phone, null), 2000),
@@ -5061,6 +5079,13 @@ export async function startServer() {
         A_COMPANIES
           ? '[SenXinKang Server] A_COMPANIES=1: project A has partner companies (entry slug sets the account owner, admin company scope).'
           : '[SenXinKang Server] A_COMPANIES is set but ignored: project B always has partner companies (A only).'
+      );
+    }
+    if (A_PHONE_IDENTITY_REQUESTED) {
+      console.log(
+        A_PHONE_IDENTITY
+          ? '[SenXinKang Server] A_PHONE_IDENTITY=1: parent login finds the account by phone only (entry slug only sets the owner of new accounts).'
+          : '[SenXinKang Server] A_PHONE_IDENTITY is set but ignored: project B keeps company + phone identity (A only).'
       );
     }
     if (LEGAL_DOCS_REQUESTED) {

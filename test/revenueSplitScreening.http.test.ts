@@ -42,6 +42,11 @@ vi.mock('../src/admin/adminStore', () => ({
   listSplitOrders: async () => [
     { id: 1, userId: 4, outTradeNo: 'N1', transactionId: 'W1', scope: 't2', months: null, amountFen: 19900, status: 'success', paidAt: '2026-11-24T02:00:00.000Z', snapshot: SNAP4 },
   ],
+  listRedeemLedger: async () => [
+    { referrerId: 7, referrerName: '王老师', referrerKind: 'therapist', companyId: 3, companyName: '某某康复', code: 'ABCD2345XY', months: 3, status: 'used', usedByPhone: '13800000001', usedAt: '2026-11-23T03:00:00.000Z', passEndsOn: '2027-02-15' },
+    { referrerId: 7, referrerName: '王老师', referrerKind: 'therapist', companyId: 3, companyName: '某某康复', code: 'EFGH6789ZZ', months: 1, status: 'unused', usedByPhone: null, usedAt: null, passEndsOn: null },
+    { referrerId: 8, referrerName: '李渠道', referrerKind: 'channel', companyId: null, companyName: null, code: 'JKMN2345AB', months: 1, status: 'used', usedByPhone: '13800000002', usedAt: '2026-11-23T03:00:00.000Z', passEndsOn: '2026-12-21' },
+  ],
   recordExport: async (entry: any) => {
     calls.exports.push(entry);
   },
@@ -52,7 +57,13 @@ const { createAdminRouter } = await import('../src/admin/routes');
 function appWith(serviceRelations: boolean) {
   const app = express();
   app.use(express.json());
-  app.use('/api/admin', createAdminRouter({ multiCompany: false }, { revenueSplit: serviceRelations ? { feeBp: 60, serviceRelations: true, planPrices: null } : { feeBp: 60 } }));
+  app.use(
+    '/api/admin',
+    createAdminRouter(
+      { multiCompany: false },
+      { redeemCodes: true, revenueSplit: serviceRelations ? { feeBp: 60, serviceRelations: true, planPrices: { 1: 2990, 3: 7990, 6: 13990 } } : { feeBp: 60 } }
+    )
+  );
   return app;
 }
 
@@ -154,5 +165,27 @@ describe('篩查渠道比例：只在單位那一層', () => {
     expect(calls.listOpts).toEqual([undefined]);
     expect((await off.request('/api/admin/revenue-split/rates', json(god(), { scope: 'company', refId: 3, platformPercent: '20', screeningPercent: '10' }))).status).toBe(200);
     expect(calls.rates.at(-1)).toEqual({ scope: 'company', refId: 3, platformBp: 2000, companyBp: null });
+  });
+});
+
+describe('兌換碼對帳匯出（ADR-0020 第 7 點）：推薦人與單位兩方金額', () => {
+  const exportCodes = (c: TestClient) =>
+    c.request('/api/admin/redeem-codes/export', { method: 'POST', headers: { Authorization: `Bearer ${god()}`, 'Content-Type': 'application/json' }, body: '{}' });
+
+  it('開著：多「单位」與兩方金額；沒用過、推薦人沒有單位的空白；照舊記 admin_exports', async () => {
+    const resp = await exportCodes(on);
+    expect(resp.status).toBe(200);
+    const [sheet] = await sheetsOf(resp);
+    expect(sheet[0]).toEqual(['推荐人', '类型', '单位', '兑换码', '方案（月）', '状态', '使用家长手机号', '使用时间', '使用权到期日', '单位金额（元）', '推荐人金额（元）']);
+    expect(sheet[1]).toEqual(['王老师', '治疗师', '某某康复', 'ABCD-2345-XY', '3', '已用', '13800000001', '2026-11-23', '2027-02-15', '15.98', '63.92']);
+    expect(sheet[2].slice(-2)).toEqual(['', '']);
+    expect(sheet[3].slice(2, 3)).toEqual(['']);
+    expect(sheet[3].slice(-2)).toEqual(['', '']);
+    expect(calls.exports).toEqual([expect.objectContaining({ adminUserId: 30, condition: { kind: 'all' }, kind: 'redeem_codes', rowCount: 3 })]);
+  });
+
+  it('關著：與 #122 之前一樣', async () => {
+    const [sheet] = await sheetsOf(await exportCodes(off));
+    expect(sheet[0]).toEqual(['推荐人', '类型', '兑换码', '方案（月）', '状态', '使用家长手机号', '使用时间', '使用权到期日']);
   });
 });

@@ -45,6 +45,7 @@ import { splitLedgerFileName, splitLedgerWorkbook } from './splitXlsx';
 import { ledgerByParty, ledgerRows, ledgerTotals, SPLIT_ORDERS_MAX, SPLIT_TOO_MANY } from '../revenueSplit/ledger';
 import { DEFAULT_COMPANY_BP, DEFAULT_PLATFORM_BP, bpFromPercent } from '../revenueSplit/split';
 import type { PlanPrices } from '../t2/trainingPlanPrices';
+import { ratesFromRecords, redeemCommission, type RedeemCommission } from '../revenueSplit/redeemCommission';
 import { registerProfitSharingRoutes, type ProfitSharingAdminDeps } from '../profitSharing/adminRoutes';
 import { isPassMonths } from '../t2/trainingPass';
 import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
@@ -1208,7 +1209,14 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       if (!requireGlobal(req, res)) return;
       try {
         const rows = await store.listRedeemLedger();
-        const file = await redeemLedgerWorkbook(rows);
+        // 清分改看服務關係（#122，ADR-0020 第 7 點）：多列單位與推薦人兩方的佣金（面額與分法見 redeemCommission 的暫採）。
+        const split = hooks.revenueSplit;
+        let commissions: Array<RedeemCommission | null> | undefined;
+        if (split?.serviceRelations) {
+          const rates = ratesFromRecords(await store.listSplitRates());
+          commissions = rows.map(r => redeemCommission(r, split.planPrices ?? null, rates));
+        }
+        const file = await redeemLedgerWorkbook(rows, commissions);
         await store.recordExport({
           adminUserId: req.admin!.adminUserId,
           condition: { kind: 'all' },

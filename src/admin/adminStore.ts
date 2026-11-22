@@ -1688,8 +1688,12 @@ export async function proxyFill(
 // `admin_exports`（範圍 `all`），記不下就不給檔。
 
 export interface RedeemLedgerRow {
+  referrerId: number;
   referrerName: string;
   referrerKind: 'channel' | 'therapist';
+  /** 推薦人隸屬的單位（#122：兌換碼佣金算推薦人與單位兩方）；沒有是 null。 */
+  companyId: number | null;
+  companyName: string | null;
   code: string;
   months: number;
   status: 'unused' | 'used' | 'void';
@@ -1702,19 +1706,24 @@ export interface RedeemLedgerRow {
 export async function listRedeemLedger(): Promise<RedeemLedgerRow[]> {
   const p = requirePool();
   const [rows] = await p.execute(
-    `SELECT r.name AS referrer_name, r.kind AS referrer_kind, c.code, b.months, c.status, u.phone AS used_by_phone, c.used_at,
+    `SELECT r.id AS referrer_id, r.name AS referrer_name, r.kind AS referrer_kind, rc.id AS company_id, rc.name AS company_name,
+            c.code, b.months, c.status, u.phone AS used_by_phone, c.used_at,
             (SELECT DATE_FORMAT(MAX(tp.ends_on), '%Y-%m-%d') FROM training_passes tp
               WHERE tp.unique_key IN (CONCAT('code:', c.id), CONCAT('proxy:', c.id))) AS pass_ends_on
        FROM redeem_codes c
        JOIN redeem_batches b ON b.id = c.batch_id
        JOIN referrers r ON r.id = b.referrer_id
+       LEFT JOIN companies rc ON rc.id = r.company_id
        LEFT JOIN users u ON u.id = c.used_by
       ORDER BY r.id ASC, c.id ASC`,
     []
   );
   return (rows as any[]).map(row => ({
+    referrerId: Number(row.referrer_id),
     referrerName: row.referrer_name,
     referrerKind: row.referrer_kind === 'therapist' ? 'therapist' : 'channel',
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
     code: row.code,
     months: Number(row.months),
     status: row.status === 'used' ? 'used' : row.status === 'void' ? 'void' : 'unused',

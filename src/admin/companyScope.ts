@@ -23,6 +23,9 @@
  */
 
 /** 後台成員的兩種角色。合作公司無法自行增刪帳號，由森心康代為處理。 */
+import { matchesServiceCondition, serviceWhereSql } from '../serviceRelations/scope';
+import type { ServiceRelation } from '../serviceRelations/rules';
+
 export type AdminRole = 'global_admin' | 'company_member' | 'referrer';
 
 /**
@@ -75,10 +78,12 @@ export type AdminIdentity =
  * 刻意只有兩個值，沒有第三個代表「不過濾」的值。
  */
 export type CompanyCondition =
-  | { kind: 'company'; companyId: number }
-  | { kind: 'unassigned' }
+  | { kind: 'company'; companyId: number; byService?: true }
+  | { kind: 'unassigned'; byService?: true }
   /** 推薦人（#93）：綁在他名下的家長。不是「不過濾」——一樣是一個收窄的條件。 */
-  | { kind: 'referrer'; referrerId: number };
+  | { kind: 'referrer'; referrerId: number; byService?: true };
+// `byService`（#119，ADR-0020）：服務關係開關開著時由 `withServiceBasis`（src/serviceRelations/scope.ts）加上，
+// SQL 與記憶體版也在那一檔。
 
 export type ScopeDenialReason = 'NO_COMPANY_SELECTED';
 
@@ -110,6 +115,8 @@ export interface AdminCenterShape {
    * 不再是同一件事。沒給＝照舊由 `multiCompany` 推（單一機構就是 A）。
    */
   projectA?: boolean;
+  /** 服務關係開關（`SERVICE_RELATIONS`，#118／#119）開著：條件加上 `byService`（`withServiceBasis`）。沒給＝關。 */
+  serviceRelations?: boolean;
 }
 
 /** 是不是專案 A（見 `AdminCenterShape.projectA`）。 */
@@ -168,6 +175,8 @@ export function companyWhereSql(
   condition: CompanyCondition,
   column = 'u.company_id'
 ): { sql: string; params: Array<string | number> } {
+  const byService = serviceWhereSql(condition, column);
+  if (byService) return byService;
   switch (condition.kind) {
     case 'company':
       return { sql: `${column} = ?`, params: [condition.companyId] };
@@ -195,8 +204,9 @@ export function companyWhereSql(
  */
 export function matchesCompanyCondition(
   condition: CompanyCondition,
-  row: { companyId: number | null; referrerId?: number | null }
+  row: { companyId: number | null; referrerId?: number | null; service?: ServiceRelation | null }
 ): boolean {
+  if (condition.byService) return matchesServiceCondition(condition, row.service ?? null);
   switch (condition.kind) {
     case 'company':
       return row.companyId === condition.companyId;

@@ -13,6 +13,8 @@ const ALLOWED: ReadonlyArray<{ method: string; pattern: RegExp }> = [
   // 我的家长：列表與詳情（範圍＝綁在我名下，`companyWhereSql` 的 referrer 條件）。
   { method: 'GET', pattern: /^\/parents\/?$/ },
   { method: 'GET', pattern: /^\/parents\/\d+\/?$/ },
+  // 改派紀錄（#119，服務關係開關開著才註冊）：看得到這位家長才讀得到。改派本身（PUT）不在這裡——推薦人不能改。
+  { method: 'GET', pattern: /^\/parents\/\d+\/service-changes\/?$/ },
   // 我的兑换码（#110）與代填（#112）。
   { method: 'GET', pattern: /^\/referrer\/codes\/?$/ },
   { method: 'GET', pattern: /^\/referrer\/codes\.csv$/ },

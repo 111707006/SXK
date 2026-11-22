@@ -29,6 +29,7 @@ import type { Activity } from '../t2/types';
 import { nextPassRange } from '../t2/trainingPass';
 import { homeMediaFromRow, type HomeMediaItem, type HomeMediaKind, type HomeMediaSlot } from '../homeMedia/shape';
 import type { SummarySource } from './parentSummary';
+import type { ChangeActor, ChangeReason, ServiceRelation } from '../serviceRelations/rules';
 
 // ── 對外型別 ──
 
@@ -1237,6 +1238,157 @@ export async function findReferrer(id: number): Promise<ReferrerRecord | null> {
   );
   const row = (rows as any[])[0];
   return row ? rowToReferrer(row) : null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 服務關係與改派（#119，ADR-0020；服務關係開關開著才有路由呼叫）
+// ══════════════════════════════════════════════════════════════
+
+export interface ServiceRelationChangeRecord {
+  id: number;
+  fromCompanyId: number | null;
+  fromReferrerId: number | null;
+  toCompanyId: number | null;
+  toReferrerId: number | null;
+  actor: ChangeActor;
+  reason: ChangeReason;
+  adminUserId: number | null;
+  createdAt: string | null;
+}
+
+const nullableId = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+
+/** 一列（`users u` LEFT JOIN `service_relations cur`）→ 服務關係；沒有那一列＝null（森心康直屬）。 */
+function relationFromRow(row: any): ServiceRelation | null {
+  return row.cur_company_id === null || row.cur_company_id === undefined
+    ? null
+    : { companyId: Number(row.cur_company_id), referrerId: nullableId(row.cur_referrer_id) };
+}
+
+/** 這位家長在視野裡的話，回他現在的服務關係（可能是 null）；不在視野裡回 null。 */
+export async function getServiceRelation(
+  condition: CompanyCondition,
+  userId: number
+): Promise<{ relation: ServiceRelation | null } | null> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  // 外層別名用 `cur`：範圍片段自己會用 `sr` 查 service_relations。
+  const [rows] = await p.execute(
+    `SELECT u.id, cur.company_id AS cur_company_id, cur.referrer_id AS cur_referrer_id
+       FROM users u LEFT JOIN service_relations cur ON cur.user_id = u.id
+      WHERE ${scope.sql} AND u.id = ? LIMIT 1`,
+    [...scope.params, userId]
+  );
+  const row = (rows as any[])[0];
+  return row ? { relation: relationFromRow(row) } : null;
+}
+
+export type ReassignResult =
+  | { ok: true; changed: boolean; relation: ServiceRelation | null }
+  /** not_found：不在視野裡；stale：服務關係在路由判權限之後被別人改了（呼叫端回 409，請重讀）。 */
+  | { ok: false; reason: 'not_found' | 'stale' };
+
+const sameRelation = (a: ServiceRelation | null, b: ServiceRelation | null) =>
+  a === null || b === null ? a === b : a.companyId === b.companyId && a.referrerId === b.referrerId;
+
+/**
+ * 後台改派：一個交易裡先以範圍條件鎖住這位家長（`FOR UPDATE`），確認服務關係還是路由判權限時讀到的 `from`，
+ * 再寫一列紀錄（actor＝admin、reason＝admin）與新的服務關係（`to` 是 null＝拿掉）。跟現在一樣就什麼都不寫。
+ * 權限由路由層用 `canReassign` 判；`to` 的單位與推薦人由路由層先驗過。
+ */
+export async function reassignServiceRelation(
+  condition: CompanyCondition,
+  input: { userId: number; from: ServiceRelation | null; to: ServiceRelation | null; adminUserId: number }
+): Promise<ReassignResult> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.execute(
+      `SELECT u.id, cur.company_id AS cur_company_id, cur.referrer_id AS cur_referrer_id
+         FROM users u LEFT JOIN service_relations cur ON cur.user_id = u.id
+        WHERE ${scope.sql} AND u.id = ? LIMIT 1 FOR UPDATE`,
+      [...scope.params, input.userId]
+    );
+    const row = (rows as any[])[0];
+    if (!row) {
+      await conn.rollback();
+      return { ok: false, reason: 'not_found' };
+    }
+    const current = relationFromRow(row);
+    if (!sameRelation(current, input.from)) {
+      await conn.rollback();
+      return { ok: false, reason: 'stale' };
+    }
+    if (sameRelation(current, input.to)) {
+      await conn.commit();
+      return { ok: true, changed: false, relation: current };
+    }
+    await conn.execute(
+      `INSERT INTO service_relation_changes
+         (user_id, from_company_id, from_referrer_id, to_company_id, to_referrer_id, actor, reason, admin_user_id)
+       VALUES (?, ?, ?, ?, ?, 'admin', 'admin', ?)`,
+      [
+        input.userId,
+        current?.companyId ?? null,
+        current?.referrerId ?? null,
+        input.to?.companyId ?? null,
+        input.to?.referrerId ?? null,
+        input.adminUserId,
+      ]
+    );
+    // 這位家長那一列已經鎖住（上面的 FOR UPDATE），現在有沒有服務關係也已知。
+    if (input.to === null) {
+      await conn.execute('DELETE FROM service_relations WHERE user_id = ?', [input.userId]);
+    } else if (current === null) {
+      await conn.execute('INSERT INTO service_relations (user_id, company_id, referrer_id) VALUES (?, ?, ?)', [
+        input.userId,
+        input.to.companyId,
+        input.to.referrerId,
+      ]);
+    } else {
+      await conn.execute('UPDATE service_relations SET company_id = ?, referrer_id = ? WHERE user_id = ?', [
+        input.to.companyId,
+        input.to.referrerId,
+        input.userId,
+      ]);
+    }
+    await conn.commit();
+    return { ok: true, changed: true, relation: input.to };
+  } catch (err) {
+    await conn.rollback().catch(() => undefined);
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+/** 一位家長的改派紀錄，新的在前；不在視野裡回 null。 */
+export async function listServiceRelationChanges(
+  condition: CompanyCondition,
+  userId: number
+): Promise<ServiceRelationChangeRecord[] | null> {
+  if ((await getServiceRelation(condition, userId)) === null) return null;
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const [rows] = await p.execute(
+    `SELECT ch.* FROM service_relation_changes ch JOIN users u ON u.id = ch.user_id
+      WHERE ${scope.sql} AND u.id = ?
+      ORDER BY ch.created_at DESC, ch.id DESC`,
+    [...scope.params, userId]
+  );
+  return (rows as any[]).map(r => ({
+    id: Number(r.id),
+    fromCompanyId: nullableId(r.from_company_id),
+    fromReferrerId: nullableId(r.from_referrer_id),
+    toCompanyId: nullableId(r.to_company_id),
+    toReferrerId: nullableId(r.to_referrer_id),
+    actor: r.actor,
+    reason: r.reason,
+    adminUserId: nullableId(r.admin_user_id),
+    createdAt: toIso(r.created_at),
+  }));
 }
 
 /** 開一位推薦人：後台帳號（角色 `referrer`）與 `referrers` 那一列在同一個交易裡。信箱撞到丟 `ER_DUP_ENTRY`。 */

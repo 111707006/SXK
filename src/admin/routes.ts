@@ -30,6 +30,7 @@ import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { referrerMayCall } from './referrerAccess';
+import { canReassign, type ReassignActor, type ServiceRelation } from '../serviceRelations/rules';
 import { formatCode, generateCode, MAX_BATCH } from '../redeem/codes';
 import {
   DEFAULT_COUPON_DISCOUNT,
@@ -80,6 +81,25 @@ function identityView(identity: AdminIdentity) {
   // 推薦人（#93）：沒有公司、沒有選擇；畫面只畫他那幾個分頁。
   if (identity.role === 'referrer') return { role: identity.role, email: identity.email, companyId: null, selection: null };
   return { role: identity.role, email: identity.email, companyId: null, selection: identity.selection };
+}
+
+/** 改派的人：取自工作階段。公司成員就是單位管理者（ADR-0020 第 5 點）。 */
+function reassignActorOf(identity: AdminIdentity): ReassignActor {
+  if (identity.role === 'global_admin') return { role: 'global_admin' };
+  if (identity.role === 'company_member') return { role: 'unit_manager', companyId: identity.companyId };
+  return { role: 'referrer', referrerId: identity.referrerId, companyId: null };
+}
+
+/** `{to: {companyId, referrerId | null} | null}`；形狀不對回 undefined。 */
+function readRelationTarget(body: unknown): ServiceRelation | null | undefined {
+  if (!body || typeof body !== 'object' || !('to' in body)) return undefined;
+  const to = (body as { to: unknown }).to;
+  if (to === null) return null;
+  if (!to || typeof to !== 'object') return undefined;
+  const { companyId, referrerId } = to as { companyId?: unknown; referrerId?: unknown };
+  if (!Number.isInteger(companyId) || (companyId as number) <= 0) return undefined;
+  if (referrerId !== null && (!Number.isInteger(referrerId) || (referrerId as number) <= 0)) return undefined;
+  return { companyId: companyId as number, referrerId: referrerId as number | null };
 }
 
 function issueToken(identity: AdminIdentity): string {
@@ -457,6 +477,87 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     } catch (err: any) {
       console.error('[Admin] getParentDetail failed:', err.message);
       res.status(500).json({ error: '读取家长资料失败。' });
+    }
+  });
+
+  // ── 服務關係：標注與改派（#119，ADR-0020；服務關係開關開著才註冊，關著是 404）──
+  const serviceRelationsOnly = shape.serviceRelations ? router : express.Router();
+
+  /**
+   * 標注／改派一位家長的服務關係。body：`{to: {companyId, referrerId | null} | null}`（null＝拿掉，回森心康直屬）。
+   * 看不到這位家長一律 404（與詳情同一句）；權限照 `canReassign`（單位管理者只在本單位內、推薦人不行，403）；
+   * 單位要存在且啟用、推薦人要啟用且隸屬那個單位（400）。紀錄的原因是「後台改派」。
+   */
+  serviceRelationsOnly.put('/parents/:id/service', async (req: AuthedRequest, res) => {
+    const condition = withScope(req, res);
+    if (!condition) return;
+    const id = Number(req.params.id);
+    const to = readRelationTarget(req.body);
+    if (!Number.isInteger(id)) {
+      res.status(404).json({ error: '找不到该家长。' });
+      return;
+    }
+    if (to === undefined) {
+      res.status(400).json({ error: '请指定要改派到的合作单位与推荐人。', code: 'INVALID_TARGET' });
+      return;
+    }
+    try {
+      const found = await store.getServiceRelation(condition, id);
+      if (!found) {
+        res.status(404).json({ error: '找不到该家长。' });
+        return;
+      }
+      if (!canReassign(reassignActorOf(req.admin!), found.relation, to)) {
+        res.status(403).json({ error: '没有权限这样改派。', code: 'REASSIGN_FORBIDDEN' });
+        return;
+      }
+      if (to !== null) {
+        const unit = await store.findCompanyById(to.companyId);
+        if (!unit || !unit.active) {
+          res.status(400).json({ error: '找不到该合作单位，或已停用。', code: 'UNIT_NOT_FOUND' });
+          return;
+        }
+        if (to.referrerId !== null) {
+          const referrer = await store.findReferrer(to.referrerId);
+          if (!referrer || !referrer.active || referrer.companyId !== to.companyId) {
+            res.status(400).json({ error: '该推荐人不属于这个合作单位，或已停用。', code: 'REFERRER_NOT_IN_UNIT' });
+            return;
+          }
+        }
+      }
+      const result = await store.reassignServiceRelation(condition, {
+        userId: id,
+        from: found.relation,
+        to,
+        adminUserId: req.admin!.adminUserId,
+      });
+      if (!result.ok) {
+        if (result.reason === 'not_found') res.status(404).json({ error: '找不到该家长。' });
+        else res.status(409).json({ error: '服务关系刚被改过，请重新整理后再试。', code: 'STALE' });
+        return;
+      }
+      res.json({ changed: result.changed, relation: result.relation });
+    } catch (err: any) {
+      console.error('[Admin] reassign failed:', err.message);
+      res.status(500).json({ error: '改派失败，请稍后再试。' });
+    }
+  });
+
+  /** 一位家長的改派紀錄（新的在前）。看得到這位家長才讀得到，否則 404。 */
+  serviceRelationsOnly.get('/parents/:id/service-changes', async (req: AuthedRequest, res) => {
+    const condition = withScope(req, res);
+    if (!condition) return;
+    const id = Number(req.params.id);
+    try {
+      const changes = Number.isInteger(id) ? await store.listServiceRelationChanges(condition, id) : null;
+      if (!changes) {
+        res.status(404).json({ error: '找不到该家长。' });
+        return;
+      }
+      res.json({ changes });
+    } catch (err: any) {
+      console.error('[Admin] service changes failed:', err.message);
+      res.status(500).json({ error: '读取改派纪录失败。' });
     }
   });
 

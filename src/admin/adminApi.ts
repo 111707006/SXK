@@ -7,6 +7,7 @@
  */
 
 import type { CouponDiscount } from '../t2/coupon';
+import type { ServiceChange, ServiceTargets, ServiceView } from '../serviceRelations/adminView';
 import type { LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
 import type { AdminReceiver, AdminSharingRecord } from '../profitSharing/adminRoutes';
 import type { PartyKind, ProfitSharingConfig, ReceiverType } from '../profitSharing/plan';
@@ -162,6 +163,9 @@ export interface AdminParentListItem {
   handoffUsedAt: string | null;
   /** 從專案 B 轉進來的（ADR-0009，只有 A 會有）：第一次轉入的時間與那時的合作公司；自己進站的是 null。 */
   handoffSource: { at: string; companyName: string | null } | null;
+  /** 服務關係開關開著才有（#119）：現在服務他的單位與推薦人（null＝森心康直属）、篩查渠道（改派不變）。 */
+  service?: ServiceView;
+  screeningChannel?: string;
 }
 
 export interface AdminInviteConfig {
@@ -388,8 +392,24 @@ export const adminApi = {
       })
     ),
 
-  parents: (sort: 'newest' | 'oldest', booked: 'all' | 'booked' | 'not_booked') =>
-    request<{ parents: AdminParentListItem[] }>(`/parents?sort=${sort}&booked=${booked}`),
+  /** `assigned`（#119，服務關係開關開著才有作用）：`unassigned` 只列單位裡還沒標注推薦人的。 */
+  parents: (sort: 'newest' | 'oldest', booked: 'all' | 'booked' | 'not_booked', assigned: 'all' | 'unassigned' = 'all') =>
+    request<{ parents: AdminParentListItem[] }>(
+      `/parents?sort=${sort}&booked=${booked}${assigned === 'unassigned' ? '&assigned=unassigned' : ''}`
+    ),
+
+  /** 改派能選的單位與推薦人（#119）。 */
+  serviceTargets: () => request<ServiceTargets>('/service-targets'),
+
+  /** 標注／改派（#119）：`to` 是 null＝拿掉服務關係（只有全域管理員）。 */
+  reassign: (id: number, to: { companyId: number; referrerId: number | null } | null) =>
+    request<{ changed: boolean; relation: { companyId: number; referrerId: number | null } | null }>(`/parents/${id}/service`, {
+      method: 'PUT',
+      body: JSON.stringify({ to }),
+    }),
+
+  /** 一位家長的改派紀錄，新的在前（#119）。 */
+  serviceChanges: (id: number) => request<{ changes: ServiceChange[] }>(`/parents/${id}/service-changes`),
 
   parent: (id: number) => request<{ parent: AdminParentDetail }>(`/parents/${id}`),
 

@@ -116,6 +116,10 @@ const CROSS_SCOPE_ALLOWLIST: Record<string, string> = {
   proxyFill:
     '推薦人代填（#112）：同上，一個交易裡找或建家長、擋掉別人名下的（一個字都不寫）、寫孩子資料與代填快照、' +
     '第一次代填才扣碼與綁定。路由限推薦人，推薦人編號取自工作階段。',
+  reassignServiceRelation:
+    '後台改派（#119，ADR-0020）：同一個交易裡第一句就以範圍條件把這位家長鎖住（`${scope.sql} … FOR UPDATE`），' +
+    '不在視野裡就 rollback、一個字都不寫；之後寫紀錄與服務關係只以那位家長的 id 為鍵。寫入不能自己再帶範圍：' +
+    '範圍片段會查 service_relations，MySQL 不准更新一張表的同時在子查詢裡讀它（ERROR 1093）。路由層另用 canReassign 判權限。',
   createSpecialist:
     'INSERT 的 company_id 直接取自條件本身（函式開頭已把 kind !== "company" 擋掉），' +
     '寫不進別家公司。',
@@ -242,6 +246,15 @@ describe('後台的每一句家長查詢都帶公司條件', () => {
     // 開頭這一行是它能被豁免的全部理由 —— 拿掉就等於可以寫進任何一家公司。
     expect(fnBody).toContain("condition.kind !== 'company'");
     expect(fnBody).toContain('condition.companyId');
+  });
+});
+
+describe('改派的例外只靠交易開頭那一句範圍條件', () => {
+  it('第一句是帶範圍的 SELECT … FOR UPDATE，之後的寫入只以家長 id 為鍵', () => {
+    const own = calls.filter(c => c.fn === 'reassignServiceRelation');
+    expect(own[0].sql).toContain('${scope.sql}');
+    expect(own[0].sql).toContain('FOR UPDATE');
+    for (const write of own.slice(1)) expect(write.sql).toMatch(/^\s*['`](INSERT INTO|UPDATE|DELETE FROM) service_relation/);
   });
 });
 

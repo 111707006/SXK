@@ -7,7 +7,8 @@
  * 2. 指名的合作公司（`--therapist-unit <編號>`，例：原本當成合作公司開的獨立治療師「杨智翔」）改類型為個人治療師。
  *    哪幾家是獨立治療師看資料猜不出來，所以要人指名。
  * 3. 家長（啟用中的帳號；#116 併掉的帳號已停用、不算）：
- *    - 綁了推薦人：那位推薦人與他的單位（就算帳號歸屬另一家公司）
+ *    - 綁了推薦人：那位推薦人與他的單位（就算帳號歸屬另一家公司）；推薦人停用＝他的單位、推薦人空
+ *    - 要掛的單位停用：不掛（森心康直屬）
  *    - 沒綁、帳號歸屬某家單位：那個單位、推薦人空
  *    - 未歸屬：沒有服務關係（森心康直屬）
  *    已經有服務關係的家長不動（可重跑）。每掛上一位寫一列改派紀錄（actor＝system、reason＝migration）。
@@ -55,12 +56,14 @@ export function planReferrerUnits(referrers, companies) {
 /**
  * 每位還沒有服務關係的家長要掛到哪裡（`to: null`＝沒有服務關係）。
  * 綁的推薦人還沒有單位時 `to.companyId` 是 null、`pendingUnitFor` 是那位推薦人（執行時先建單位、重讀再排一次）。
- * @param {{ users: MigUser[], bindings: MigBinding[], referrers: MigReferrer[], existing: Set<number> }} input
+ * 停用的推薦人不掛（掛到他的單位、推薦人空）；要掛的單位停用就不掛（森心康直屬）。這一輪新建的單位是啟用的。
+ * @param {{ users: MigUser[], bindings: MigBinding[], referrers: MigReferrer[], companies: Array<{ id: number, active: boolean }>, existing: Set<number> }} input
  * @returns {RelationPlan[]}
  */
-export function planServiceRelations({ users, bindings, referrers, existing }) {
+export function planServiceRelations({ users, bindings, referrers, companies, existing }) {
   const bindingOf = new Map(bindings.map(b => [b.userId, b.referrerId]));
   const referrerOf = new Map(referrers.map(r => [r.id, r]));
+  const inactiveUnit = new Set(companies.filter(c => !c.active).map(c => c.id));
   /** @type {RelationPlan[]} */
   const out = [];
   for (const u of [...users].sort((a, b) => a.id - b.id)) {
@@ -70,12 +73,11 @@ export function planServiceRelations({ users, bindings, referrers, existing }) {
     /** @type {RelationPlan} */
     const base = { userId: u.id, phone: u.phone, fromCompanyId: u.companyId, boundReferrerId };
     if (referrer) {
-      out.push(
-        referrer.companyId === null
-          ? { ...base, to: { companyId: null, referrerId: referrer.id }, pendingUnitFor: referrer.id }
-          : { ...base, to: { companyId: referrer.companyId, referrerId: referrer.id } }
-      );
-    } else if (u.companyId !== null) {
+      const referrerId = referrer.active ? referrer.id : null;
+      if (referrer.companyId === null) out.push({ ...base, to: { companyId: null, referrerId }, pendingUnitFor: referrer.id });
+      else if (inactiveUnit.has(referrer.companyId)) out.push({ ...base, to: null });
+      else out.push({ ...base, to: { companyId: referrer.companyId, referrerId } });
+    } else if (u.companyId !== null && !inactiveUnit.has(u.companyId)) {
       out.push({ ...base, to: { companyId: u.companyId, referrerId: null } });
     } else {
       out.push({ ...base, to: null });

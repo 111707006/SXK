@@ -79,6 +79,15 @@ CREATE TABLE IF NOT EXISTS `users` (
   -- 来源栏位，MySQL 不允许这个组合（见 2026-08-10 那份迁移里的完整说明）。
   -- 建 sxk_t1_db 时会撞到同一面墙。
   `company_key` INT UNSIGNED AS (COALESCE(`company_id`, 0)) VIRTUAL,
+  --
+  -- 停用与并入（#116，ADR-0020；迁移 deploy/migrations/2026-11-23-users-merged.sql）：专案 A 合并重复手机号时，
+  -- 被并掉的帐号写 disabled_at 与 merged_into（并入哪一个 users.id），登入时换成它并入的那一个。不删列。
+  --
+  -- ⚠️ 专案 A 另外有手机号唯一（生成栏位 active_phone ＋ uk_a_active_phone，停用的帐号不占号），
+  -- **不写在这里**：这份 schema 两个库共用，B 照旧是下面的（归属，手机号）唯一。
+  -- A 的由 deploy/merge-duplicate-phones.mjs 在合并完之后加；全新的 A 库套完这份之后也跑一次那支脚本。
+  `disabled_at` DATETIME NULL,
+  `merged_into` INT UNSIGNED NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- email 的 UNIQUE 本身已建索引，不另加 INDEX（避免重复索引）
   INDEX `idx_device_id` (`device_id`),

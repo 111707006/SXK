@@ -1,6 +1,6 @@
 import { LEDO_ART } from './ledo/ui';
 import { PRODUCT } from '../productConfig';
-import { peekCompanySlug } from '../utils/attribution';
+import { peekCompanySlug, peekReferrerCode } from '../utils/attribution';
 // 條款內文的唯一來源。頁尾那兩個彈窗（App.tsx）渲染的是同一份 —— 見該檔說明。
 // 這裡刻意用完整的兩份，不是以前那個刪節版：使用者在這一頁勾的是「已審閱並同意」。
 import { CombinedLegalBody } from './LegalTerms';
@@ -122,6 +122,8 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured, wide = false }
           phone: phone.trim(),
           code: smsCode.trim(),
           companySlug: peekCompanySlug(),
+          // 推薦人個人連結的 `&t=`（#118）：服務關係開關開著時伺服器據此掛上推薦人。
+          referrerCode: peekReferrerCode(),
         }),
       });
       const data = await readJson(resp, '登录请求');

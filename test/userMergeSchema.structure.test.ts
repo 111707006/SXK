@@ -74,3 +74,12 @@ describe('被停用的帳號登不進來', () => {
     expect(fn).toContain('u.disabled_at IS NULL');
   });
 });
+
+describe('身分開關的手機號查法也不回停用的帳號（#115 × #116 整合缺口，HANDOFF.md 第 1 點）', () => {
+  const mysqlTs = read('src/db/mysql.ts');
+  const fn = mysqlTs.slice(mysqlTs.indexOf('export async function listUsersByPhone'), mysqlTs.indexOf('export async function createPhoneUser'));
+
+  it('listUsersByPhone 只回 disabled_at IS NULL 的帳號（被併掉的帳號都停用了，保留者是同一支手機）', () => {
+    expect(fn).toContain('u.disabled_at IS NULL');
+  });
+});

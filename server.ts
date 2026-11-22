@@ -4919,8 +4919,8 @@ ${BRAND_FONT_LINK_TAG}
 app.use(
   '/api/admin',
   createAdminRouter(
-    // `serviceRelations`（#118）：開著時後台範圍改看服務關係（`src/serviceRelations/scope.ts`）。
-    { multiCompany: ADMIN_MULTI_COMPANY, projectA: APP_MODE === 'full', serviceRelations: SERVICE_RELATIONS },
+    // `serviceRelations`（#118）：開著時後台範圍改看服務關係（`src/serviceRelations/scope.ts`）。關著不帶這一欄（`/me` 的 shape 一字不動）。
+    { multiCompany: ADMIN_MULTI_COMPANY, projectA: APP_MODE === 'full', ...(SERVICE_RELATIONS ? { serviceRelations: true } : {}) },
     {
       // 硬刪要連記憶體裡這份熱備份一起刪（ADR-0006）。少了這一行，被刪掉的孩子的
       // 姓名、生日、分數與整串報告歷史會留在跑著的進程裡直到下一次重啟，而條款

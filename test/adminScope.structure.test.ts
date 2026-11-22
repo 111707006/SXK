@@ -49,6 +49,9 @@ const SCOPED_TABLES = [
   't2_findings',
   // 2026-10-24（#112 代填）：居家訓練使用權與推薦綁定都是家長資料。目前只有代填那兩支碰（見例外清單）。
   'training_passes', 'referrer_bindings',
+  // 2026-11-23（#118，ADR-0020）：服務關係與改派紀錄是家長資料。還沒有後台查詢碰它們；先列進來，
+  // 之後的後台範圍（看服務關係）與改派端點一寫進 adminStore，就得帶公司條件或進例外清單。
+  'service_relations', 'service_relation_changes',
 ];
 
 /**

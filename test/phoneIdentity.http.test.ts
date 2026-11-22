@@ -31,6 +31,8 @@ let data: Record<number, { child: any; completedScores: any[]; orders: any[]; re
 let paidUserIds: number[] = [];
 let nextUserId = 1;
 let codeHash = '';
+/** 設了的話，下一次建帳號之前「別的請求」先建好這一列，這一次撞唯一鍵。 */
+let racedRow: Row | null = null;
 
 vi.mock('../src/db/mysql', () => ({
   isConfigured: () => true,
@@ -50,6 +52,12 @@ vi.mock('../src/db/mysql', () => ({
         has_orders: paidUserIds.includes(u.id) || (data[u.id]?.orders.length ?? 0) > 0 ? 1 : 0,
       })),
   createPhoneUser: async (phone: string, companyId: number | null) => {
+    // 模擬兩個請求同時建帳號：另一個請求先寫進去了，這一個撞唯一鍵（`uk_a_active_phone`）。
+    if (racedRow) {
+      users.push(racedRow);
+      racedRow = null;
+      throw Object.assign(new Error("Duplicate entry for key 'uk_a_active_phone'"), { code: 'ER_DUP_ENTRY', errno: 1062 });
+    }
     const row = { id: nextUserId++, phone, company_id: companyId };
     users.push(row);
     return row.id;
@@ -121,6 +129,7 @@ beforeEach(() => {
   data = {};
   paidUserIds = [];
   nextUserId = 1;
+  racedRow = null;
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
 
@@ -181,6 +190,14 @@ describe('A_PHONE_IDENTITY 開著：登入只看手機號', () => {
       expect(await login('jia')).toBe(9);
       expect(await login()).toBe(9);
     });
+  });
+});
+
+describe('A_PHONE_IDENTITY 開著：兩個請求同時建同一支手機的帳號', () => {
+  it('撞唯一鍵（1062）：重查一次，登入先建好的那一個，不回 500、不多開', async () => {
+    racedRow = { id: 50, phone: PHONE, company_id: 8 };
+    expect(await login('jia')).toBe(50);
+    expect(users).toEqual([{ id: 50, phone: PHONE, company_id: 8 }]);
   });
 });
 

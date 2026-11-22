@@ -62,7 +62,7 @@ export interface SharingPlan {
 
 export const keyOf = (kind: PartyKind, refId: number): string => `${kind}:${refId}`;
 
-/** 清分快照 → 這一筆有哪幾方該拿錢（金額是 0 的不列）。 */
+/** 清分快照 → 這一筆有哪幾方該拿錢（金額是 0 的不列；最多四方的其中三方：單位、推薦人、篩查渠道）。 */
 export function partiesDue(amountFen: number, s: SplitSnapshot): Array<{ partyKind: PartyKind; refId: number; dueFen: number }> {
   const a = computeSplit(amountFen, s);
   const out: Array<{ partyKind: PartyKind; refId: number; dueFen: number }> = [];
@@ -72,6 +72,11 @@ export function partiesDue(amountFen: number, s: SplitSnapshot): Array<{ partyKi
   }
   if ((p.kind === 'referrer' || p.kind === 'company_referrer') && a.referrerFen > 0) {
     out.push({ partyKind: 'referrer', refId: p.referrerId, dueFen: a.referrerFen });
+  }
+  // 篩查渠道（#122，ADR-0020 第 8 點）：也是一個合作單位，用它自己登記的那個接收方（`company:<編號>`）。
+  // 快照保證它與服務單位不是同一個，所以不會與上面那一列撞鍵。超過上限照樣一起照比例縮、記線下結。
+  if (s.screening && a.screeningFen > 0) {
+    out.push({ partyKind: 'company', refId: s.screening.companyId, dueFen: a.screeningFen });
   }
   return out;
 }

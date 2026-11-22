@@ -129,3 +129,34 @@ describe('其他', () => {
     ]) expect(readReceiverInput(bad)).toHaveProperty('error');
   });
 });
+
+describe('篩查渠道（#122）：多一種接收方', () => {
+  const four: SplitSnapshot = { ...three, screening: { companyId: 9, companyName: '最早那家', bp: 1000 } };
+  const receivers = new Map([rec('company', 7), rec('referrer', 3, { type: 'PERSONAL_OPENID', account: 'o'.repeat(28), name: null }), rec('company', 9, { account: '1900000999', name: '最早那家' })]);
+
+  it('partiesDue 多列篩查渠道那個單位（company:<編號>），金額照清分', () => {
+    const a = computeSplit(39900, four);
+    expect(partiesDue(39900, four)).toEqual([
+      { partyKind: 'company', refId: 7, dueFen: a.companyFen },
+      { partyKind: 'referrer', refId: 3, dueFen: a.referrerFen },
+      { partyKind: 'company', refId: 9, dueFen: a.screeningFen },
+    ]);
+    expect(partiesDue(39900, three).map(d => d.refId)).toEqual([7, 3]);
+  });
+
+  it('超過最高分账比例：三方一起照比例縮、合計不超過上限，其餘記線下結', () => {
+    const p = planSharing(39900, four, receivers, 3000);
+    expect(p.lines).toHaveLength(3);
+    expect(p.sharedFen).toBeLessThanOrEqual(p.capFen);
+    expect(p.capFen - p.sharedFen).toBeLessThan(3);
+    for (const l of p.lines) expect(l.offlineReason).toBe('over_cap');
+    expect(p.sharedFen + p.offlineFen).toBe(p.lines.reduce((n, l) => n + l.dueFen, 0));
+    expect(p.lines[2].receiver).toMatchObject({ account: '1900000999' });
+  });
+
+  it('篩查渠道沒登記接收方：那一份整份線下結、不佔上限', () => {
+    const p = planSharing(39900, four, new Map([...receivers].filter(([k]) => k !== keyOf('company', 9))), 10000);
+    expect(p.lines[2]).toMatchObject({ shareFen: 0, offlineReason: 'no_receiver' });
+    expect(p.offlineFen).toBe(p.lines[2].dueFen);
+  });
+});

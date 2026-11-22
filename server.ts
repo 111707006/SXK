@@ -57,6 +57,7 @@ import { renderParentExportHtml } from './src/admin/exportView';
 import { renderableReportOf } from './src/utils/reportHistory';
 import { readServiceType } from './src/utils/serviceTypes';
 import { isValidCompanySlug } from './src/utils/companySlug';
+import { headerUnitLookup } from './src/serviceRelations/headerUnit';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
 import { calculateAgeMonth } from './src/utils/dateUtils';
 import { planT2 } from './src/t2/routing';
@@ -327,7 +328,7 @@ const A_COMPANIES = A_COMPANIES_REQUESTED && APP_MODE === 'full';
 const A_PHONE_IDENTITY_REQUESTED = resolvePaywallSwitch('A_PHONE_IDENTITY', process.env.A_PHONE_IDENTITY);
 const A_PHONE_IDENTITY = A_PHONE_IDENTITY_REQUESTED && APP_MODE === 'full';
 // 服務關係（#118 起，ADR-0020）：開著時家長「現在由哪個單位、哪位推薦人服務」另外記在 `service_relations`、可以改派；
-// 後台範圍、連結掛上等改看它（`src/serviceRelations/`）。關著＝一行不動。**只在專案 A**、要同時開 `A_PHONE_IDENTITY`
+// 後台範圍、連結掛上、頁首徽章與客服二維碼（#121）等改看它（`src/serviceRelations/`）。關著＝一行不動。**只在專案 A**、要同時開 `A_PHONE_IDENTITY`
 // 與 `A_COMPANIES`（否則起不來）；B 設了不生效（啟動印一行）。⚠️ 要先跑 `2026-11-23-service-relations.sql`。
 const SERVICE_RELATIONS_SWITCH = resolveServiceRelationsSwitch(process.env.SERVICE_RELATIONS, {
   projectA: APP_MODE === 'full',
@@ -362,6 +363,11 @@ const REVENUE_SPLIT = REVENUE_SPLIT_REQUESTED && APP_MODE === 'full';
 const TEST_VIP_CODE = resolveTestCode('TEST_VIP_CODE', process.env.TEST_VIP_CODE);
 const TEST_COUPON_CODE = resolveTestCode('TEST_COUPON_CODE', process.env.TEST_COUPON_CODE);
 assertDistinctTestCodes(TEST_VIP_CODE, TEST_COUPON_CODE);
+// 清分改看服務關係、加上篩查渠道（#122，ADR-0020 第 3、8 點）：開著時新訂單的對方看 `service_relations`、
+// 篩查渠道（`users.company_id`）與服務單位不同且設了篩查渠道比例時從對方那一份先切；後台清分頁可設篩查渠道比例、
+// 兌換碼對帳多列單位與推薦人兩方金額。服務關係開關與清分都開著才生效；⚠️ 要先跑 `2026-11-24-split-screening.sql`。
+// 關著＝與 #122 之前一行不差。
+const SPLIT_BY_SERVICE_RELATIONS = SERVICE_RELATIONS && REVENUE_SPLIT;
 // 微信支付手續費（萬分比，暫採 60＝0.6%）：清分分的是扣掉手續費之後的金額；開單時記在快照上。認不得起不來。
 const WECHAT_FEE_BP = resolveFeeBp(process.env.WECHAT_FEE_BP);
 
@@ -371,7 +377,11 @@ const WECHAT_FEE_BP = resolveFeeBp(process.env.WECHAT_FEE_BP);
  */
 async function resolvePaymentSplit(userId: number): Promise<SplitSnapshot | null> {
   if (!REVENUE_SPLIT) return null;
-  const [rates, who] = await Promise.all([loadSplitRates(), loadSplitAttribution(userId)]);
+  const serviceRelations = SPLIT_BY_SERVICE_RELATIONS;
+  const [rates, who] = await Promise.all([
+    loadSplitRates({ screening: serviceRelations }),
+    loadSplitAttribution(userId, { serviceRelations }),
+  ]);
   return resolveSplit(rates, who, WECHAT_FEE_BP);
 }
 
@@ -4578,25 +4588,28 @@ tier2Only.get('/api/home/config', (_req, res) => {
   res.json({ enabled: HOME_V2_REQUESTED, homeMedia: HOME_MEDIA, companies: A_COMPANIES });
 });
 
+/** 頁首徽章與客服二維碼的進站代號（`?c=`）：去頭尾空白、轉小寫；沒帶或形狀不對是 null。 */
+function companySlugQuery(req: express.Request): string | null {
+  const raw = req.query.c;
+  const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return slug && isValidCompanySlug(slug) ? slug : null;
+}
+
 /**
  * 專案 A 頁首的合作公司徽章（`A_COMPANIES`，#90）：回 `{company: {name, logoUrl} | null}`。**公開**（登入前也畫）。
  * 帶了通行證看帳號上的歸屬（不可逆，以它為準 —— 進站代號可能是後來另一家的連結）；沒帶看 `?c=`。
+ * 服務關係開著（`SERVICE_RELATIONS`，#121）：帶了通行證改看服務關係的單位，沒有服務關係＝`company: null`；改派後下一次讀就換。
  * 沒歸屬、查無、停用、逾時一律 `company: null`（頁首照規格一）。LOGO 網址再擋一次（會進 `<img src>`）。
  */
 (A_COMPANIES ? app : express.Router()).get('/api/company-badge', async (req, res) => {
   const none = () => res.json({ company: null });
   try {
     if (!mysqlDb.isConfigured()) return none();
-    const userId = toDbUserId(currentUserId(req));
+    const lookup = headerUnitLookup({ serviceRelations: SERVICE_RELATIONS, userId: toDbUserId(currentUserId(req)), slug: companySlugQuery(req) });
     let row: mysqlDb.CompanyBadgeRow | null = null;
-    if (userId !== null) {
-      row = await withTimeout(mysqlDb.findCompanyBadgeByUserId(userId), 2000);
-    } else {
-      const raw = req.query.c;
-      const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-      if (!slug || !isValidCompanySlug(slug)) return none();
-      row = await withTimeout(mysqlDb.findCompanyBadgeBySlug(slug), 2000);
-    }
+    if (lookup.kind === 'service_relation') row = await withTimeout(mysqlDb.findServiceCompanyBadgeByUserId(lookup.userId), 2000);
+    else if (lookup.kind === 'account') row = await withTimeout(mysqlDb.findCompanyBadgeByUserId(lookup.userId), 2000);
+    else if (lookup.kind === 'slug') row = await withTimeout(mysqlDb.findCompanyBadgeBySlug(lookup.slug), 2000);
     if (!row) return none();
     const logoUrl = row.logoUrl && isAllowedAssetUrl(row.logoUrl) ? row.logoUrl : null;
     return res.json({ company: { name: row.name, logoUrl } });
@@ -4609,21 +4622,17 @@ tier2Only.get('/api/home/config', (_req, res) => {
 /**
  * 企業微信客服二維碼（使用者 2026-11-10，`src/wecomQr/store.ts`）：回 `{url}`，家長端「1 对 1 专家咨询」那張圖。**公開**（只回一個圖片網址）。
  * 先看家長歸屬那家公司自己的（`A_COMPANIES` 開著才看；登入看帳號、沒登入看 `?c=`），沒有退預設那張，都沒有回 `null`
- * （前端照舊用內建的 `/kefu-qr.jpg`）。A、B 都有（B 2026-11-19 起；B 本來就分合作公司，不看 `A_COMPANIES`，檔案在 `/media/wecom`）。
+ * （前端照舊用內建的 `/kefu-qr.jpg`）。服務關係開著（#121）：登入了改看服務關係的單位，沒有服務關係退預設那張。A、B 都有（B 2026-11-19 起；B 本來就分合作公司，不看 `A_COMPANIES`，檔案在 `/media/wecom`）。
  */
 app.get('/api/wecom-qr', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     if ((A_COMPANIES || APP_MODE === 't1only') && mysqlDb.isConfigured()) {
-      const userId = toDbUserId(currentUserId(req));
+      const lookup = headerUnitLookup({ serviceRelations: SERVICE_RELATIONS, userId: toDbUserId(currentUserId(req)), slug: companySlugQuery(req) });
       let companyId: number | null = null;
-      if (userId !== null) {
-        companyId = await withTimeout(mysqlDb.findActiveCompanyIdByUserId(userId), 2000);
-      } else {
-        const raw = req.query.c;
-        const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-        if (slug && isValidCompanySlug(slug)) companyId = await withTimeout(mysqlDb.findActiveCompanyIdBySlug(slug), 2000);
-      }
+      if (lookup.kind === 'service_relation') companyId = await withTimeout(mysqlDb.findServiceActiveCompanyIdByUserId(lookup.userId), 2000);
+      else if (lookup.kind === 'account') companyId = await withTimeout(mysqlDb.findActiveCompanyIdByUserId(lookup.userId), 2000);
+      else if (lookup.kind === 'slug') companyId = await withTimeout(mysqlDb.findActiveCompanyIdBySlug(lookup.slug), 2000);
       if (companyId !== null) {
         const own = await findWecomQr(MEDIA_DIR, { companyId });
         if (own) return res.json({ url: own });
@@ -5054,8 +5063,10 @@ app.use(
       legalDocs: LEGAL_DOCS,
       // T2 優惠券（客戶 11/03）：只在專案 A、`T2_COUPON` 開著。
       coupons: T2_COUPON,
-      // 清分（ADR-0016）：只在專案 A、`REVENUE_SPLIT` 開著。
-      revenueSplit: REVENUE_SPLIT ? { feeBp: WECHAT_FEE_BP } : undefined,
+      // 清分（ADR-0016）：只在專案 A、`REVENUE_SPLIT` 開著。改看服務關係（#122）時多篩查渠道比例、兌換碼對帳的兩方金額。
+      revenueSplit: REVENUE_SPLIT
+        ? { feeBp: WECHAT_FEE_BP, ...(SPLIT_BY_SERVICE_RELATIONS ? { serviceRelations: true, planPrices: TRAINING_PLAN_PRICES } : {}) }
+        : undefined,
       // 微信分账（ADR-0017）：只在專案 A、`PROFIT_SHARING` 開著。
       profitSharing: PROFIT_SHARING
         ? {

@@ -28,7 +28,9 @@ export interface LedgerRow {
   party: string;
   companyName: string | null;
   referrerName: string | null;
-  /** 「平台 20% · 公司 20%／治疗师 80%」。 */
+  /** 篩查渠道那個單位（#122，開單時記下的名字）；沒有篩查渠道那一份是 null。 */
+  screeningName: string | null;
+  /** 「平台 20% · 公司 20%／治疗师 80%」；有篩查渠道再接「 · 筛查渠道 10%」。 */
   rates: string;
   /** 沒記快照是 null（不猜）。退款的照樣算出原本該分多少，`status` 另外標。 */
   amounts: SplitAmounts | null;
@@ -63,9 +65,10 @@ function partyOf(s: SplitSnapshot): { party: string; companyName: string | null;
 function ratesOf(s: SplitSnapshot): string {
   if (s.party.kind === 'none') return '平台 100%';
   const head = `平台 ${percentLabel(s.platformBp)}`;
-  if (s.party.kind !== 'company_referrer') return head;
+  const tail = s.screening ? ` · 筛查渠道 ${percentLabel(s.screening.bp)}` : '';
+  if (s.party.kind !== 'company_referrer') return head + tail;
   const c = s.companyBp ?? 0;
-  return `${head} · 公司 ${percentLabel(c)}／${KIND[s.party.referrerKind]} ${percentLabel(10000 - c)}`;
+  return `${head} · 公司 ${percentLabel(c)}／${KIND[s.party.referrerKind]} ${percentLabel(10000 - c)}${tail}`;
 }
 
 export function ledgerRows(orders: ReadonlyArray<LedgerOrder>): LedgerRow[] {
@@ -73,8 +76,8 @@ export function ledgerRows(orders: ReadonlyArray<LedgerOrder>): LedgerRow[] {
     const product = o.scope === 'plan' && o.months ? `${PRODUCT.plan} ${o.months} 个月` : PRODUCT[o.scope];
     const base = { id: o.id, userId: o.userId, outTradeNo: o.outTradeNo, transactionId: o.transactionId, product, status: o.status, paidAt: o.paidAt };
     const s = parseSnapshot(o.snapshot);
-    if (!s) return { ...base, party: '未记录', companyName: null, referrerName: null, rates: '', amounts: null };
-    return { ...base, ...partyOf(s), rates: ratesOf(s), amounts: computeSplit(o.amountFen, s) };
+    if (!s) return { ...base, party: '未记录', companyName: null, referrerName: null, screeningName: null, rates: '', amounts: null };
+    return { ...base, ...partyOf(s), screeningName: s.screening?.companyName ?? null, rates: ratesOf(s), amounts: computeSplit(o.amountFen, s) };
   });
 }
 
@@ -88,11 +91,12 @@ export interface LedgerTotals {
   platformFen: number;
   companyFen: number;
   referrerFen: number;
+  screeningFen: number;
 }
 
 /** 合計只算付款成功、有快照的；退款的不算進要分的錢。 */
 export function ledgerTotals(rows: ReadonlyArray<LedgerRow>): LedgerTotals {
-  const t: LedgerTotals = { orders: 0, unrecorded: 0, amountFen: 0, feeFen: 0, netFen: 0, platformFen: 0, companyFen: 0, referrerFen: 0 };
+  const t: LedgerTotals = { orders: 0, unrecorded: 0, amountFen: 0, feeFen: 0, netFen: 0, platformFen: 0, companyFen: 0, referrerFen: 0, screeningFen: 0 };
   for (const r of rows) {
     if (r.status !== 'success') continue;
     if (!r.amounts) {
@@ -106,23 +110,40 @@ export function ledgerTotals(rows: ReadonlyArray<LedgerRow>): LedgerTotals {
     t.platformFen += r.amounts.platformFen;
     t.companyFen += r.amounts.companyFen;
     t.referrerFen += r.amounts.referrerFen;
+    t.screeningFen += r.amounts.screeningFen;
   }
   return t;
 }
 
-/** 依對方合計（給「這個月要付誰多少」看）：只算付款成功、有快照的。鍵是對方那一格的字。 */
-export function ledgerByParty(rows: ReadonlyArray<LedgerRow>): Array<{ party: string; orders: number; companyFen: number; referrerFen: number; platformFen: number }> {
-  const m = new Map<string, { party: string; orders: number; companyFen: number; referrerFen: number; platformFen: number }>();
+export interface LedgerPartyTotal {
+  party: string;
+  /** 篩查渠道（#122）；沒有是 null。同一個對方、不同篩查渠道分開列。 */
+  screeningName: string | null;
+  orders: number;
+  companyFen: number;
+  referrerFen: number;
+  screeningFen: number;
+  platformFen: number;
+}
+
+/** 依對方合計（給「這個月要付誰多少」看）：只算付款成功、有快照的。鍵是對方那一格的字（＋篩查渠道）。 */
+export function ledgerByParty(rows: ReadonlyArray<LedgerRow>): LedgerPartyTotal[] {
+  const m = new Map<string, LedgerPartyTotal>();
   for (const r of rows) {
     if (r.status !== 'success' || !r.amounts) continue;
-    const e = m.get(r.party) ?? { party: r.party, orders: 0, companyFen: 0, referrerFen: 0, platformFen: 0 };
+    const key = JSON.stringify([r.party, r.screeningName]);
+    const e = m.get(key) ?? { party: r.party, screeningName: r.screeningName, orders: 0, companyFen: 0, referrerFen: 0, screeningFen: 0, platformFen: 0 };
     e.orders++;
     e.companyFen += r.amounts.companyFen;
     e.referrerFen += r.amounts.referrerFen;
+    e.screeningFen += r.amounts.screeningFen;
     e.platformFen += r.amounts.platformFen;
-    m.set(r.party, e);
+    m.set(key, e);
   }
-  return [...m.values()].sort((a, b) => b.companyFen + b.referrerFen - (a.companyFen + a.referrerFen) || (a.party < b.party ? -1 : 1));
+  const paid = (x: LedgerPartyTotal) => x.companyFen + x.referrerFen + x.screeningFen;
+  return [...m.values()].sort(
+    (a, b) => paid(b) - paid(a) || (a.party < b.party ? -1 : a.party > b.party ? 1 : (a.screeningName ?? '') < (b.screeningName ?? '') ? -1 : 1)
+  );
 }
 
 /** 分 → 「199.00」。 */

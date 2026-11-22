@@ -1569,7 +1569,10 @@ export async function setReferrerActive(id: number, active: boolean): Promise<nu
 export interface RedeemCodeRecord {
   id: number;
   batchId: number;
-  referrerId: number;
+  /** 推薦人的碼有值；單位層的碼（#124）是 null。 */
+  referrerId: number | null;
+  /** 單位層的碼（#124）才有值。舊程式碼讀不到這一欄時是 null。 */
+  companyId: number | null;
   code: string;
   months: number;
   status: 'unused' | 'used' | 'void';
@@ -1582,7 +1585,8 @@ function rowToRedeemCode(row: any): RedeemCodeRecord {
   return {
     id: Number(row.id),
     batchId: Number(row.batch_id),
-    referrerId: Number(row.referrer_id),
+    referrerId: row.referrer_id === null || row.referrer_id === undefined ? null : Number(row.referrer_id),
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
     code: row.code,
     months: Number(row.months),
     status: row.status === 'used' ? 'used' : row.status === 'void' ? 'void' : 'unused',
@@ -1605,26 +1609,53 @@ export async function listRedeemCodes(referrerId: number): Promise<RedeemCodeRec
   return (rows as any[]).map(rowToRedeemCode);
 }
 
+/** 一個單位層的全部碼（#124，新的在前）。 */
+export async function listUnitRedeemCodes(companyId: number): Promise<RedeemCodeRecord[]> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT c.id, c.batch_id, c.code, c.status, c.used_by, c.used_at, b.referrer_id, b.company_id, b.months, b.created_at
+       FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id
+      WHERE b.company_id = ?
+      ORDER BY c.id DESC`,
+    [companyId]
+  );
+  return (rows as any[]).map(rowToRedeemCode);
+}
+
 /**
- * 替一位推薦人產一批碼。碼由 `generate` 給（伺服器用 crypto）；撞到既有的碼（UNIQUE）換一組再試，最多 5 次。
+ * 替一位推薦人（`referrerId`）或一個單位（`companyId`，#124 單位層的碼）產一批碼，兩個恰好給一個。
+ * 碼由 `generate` 給（伺服器用 crypto）；撞到既有的碼（UNIQUE）換一組再試，最多 5 次。
  * 一批在同一個交易裡：要嘛整批都在，要嘛一組都沒有。
  */
 export async function createRedeemBatch(input: {
-  referrerId: number;
+  referrerId?: number;
+  companyId?: number;
   months: number;
   quantity: number;
   createdBy: number;
   generate: () => string;
 }): Promise<RedeemCodeRecord[]> {
+  if ((input.referrerId === undefined) === (input.companyId === undefined)) throw new Error('一批码要恰好发给一位推荐人或一个单位');
   const p = requirePool();
   const conn = await p.getConnection();
   let batchId: number;
   try {
     await conn.beginTransaction();
-    const [batch] = await conn.execute(
-      'INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, ?, ?)',
-      [input.referrerId, input.months, input.quantity, input.createdBy]
-    );
+    // 推薦人的碼照舊那一句（關著時 SQL 不變）；單位層的碼才寫 company_id。
+    const [batch] =
+      input.companyId === undefined
+        ? await conn.execute('INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, ?, ?)', [
+            input.referrerId ?? null,
+            input.months,
+            input.quantity,
+            input.createdBy,
+          ])
+        : await conn.execute('INSERT INTO redeem_batches (company_id, months, quantity, created_by) VALUES (?, ?, ?, ?)', [
+            input.companyId,
+            input.months,
+            input.quantity,
+            input.createdBy,
+          ]);
     batchId = (batch as ResultSetHeader).insertId;
     for (let i = 0; i < input.quantity; i++) {
       for (let attempt = 1; ; attempt++) {

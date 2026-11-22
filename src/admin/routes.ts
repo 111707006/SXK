@@ -1494,6 +1494,78 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       }
     });
 
+    // ── 單位層的碼（#124，ADR-0020 第 7 點；服務關係開關開著才註冊）──
+    // 全域管理員替單位產碼、看任一單位的；單位管理者只看與匯出本單位的（單位取自工作階段）。推薦人一律 403（白名單）。
+    const serviceRelationsCodes = shape.serviceRelations ? router : express.Router();
+    const unitParam = (req: AuthedRequest): number | null => (/^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : null);
+
+    serviceRelationsCodes.get('/units/:id/codes', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = unitParam(req);
+      if (id === null) return void res.status(404).json({ error: '找不到该合作单位。' });
+      try {
+        res.json({ codes: await store.listUnitRedeemCodes(id) });
+      } catch (err: any) {
+        console.error('[Admin] listUnitRedeemCodes failed:', err.message);
+        res.status(500).json({ error: '读取兑换码失败。' });
+      }
+    });
+
+    serviceRelationsCodes.post('/units/:id/codes', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = unitParam(req);
+      const months = req.body?.months;
+      const quantity = req.body?.quantity;
+      if (!isPassMonths(months)) return void res.status(400).json({ error: '方案只有 1、3、6、12 个月。' });
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_BATCH) {
+        return void res.status(400).json({ error: `一次产 1 到 ${MAX_BATCH} 组。` });
+      }
+      try {
+        const unit = id === null ? null : await store.findCompanyById(id);
+        if (!unit || !unit.active) return void res.status(404).json({ error: '找不到该合作单位，或已停用。' });
+        const codes = await store.createRedeemBatch({
+          companyId: unit.id,
+          months,
+          quantity,
+          createdBy: req.admin!.adminUserId,
+          generate: () => generateCode(max => crypto.randomInt(max)),
+        });
+        res.json({ codes });
+      } catch (err: any) {
+        console.error('[Admin] create unit batch failed:', err.message);
+        res.status(500).json({ error: '产生兑换码失败。' });
+      }
+    });
+
+    const myUnitId = (req: AuthedRequest, res: express.Response): number | null => {
+      const identity = req.admin!;
+      if (identity.role === 'company_member') return identity.companyId;
+      res.status(403).json({ error: '只有单位管理者帐号有「本单位兑换码」。', code: 'FORBIDDEN' });
+      return null;
+    };
+
+    serviceRelationsCodes.get('/unit/codes', async (req: AuthedRequest, res) => {
+      const id = myUnitId(req, res);
+      if (id === null) return;
+      try {
+        res.json({ codes: await store.listUnitRedeemCodes(id) });
+      } catch (err: any) {
+        console.error('[Admin] list unit codes failed:', err.message);
+        res.status(500).json({ error: '读取兑换码失败。' });
+      }
+    });
+
+    serviceRelationsCodes.get('/unit/codes.csv', async (req: AuthedRequest, res) => {
+      const id = myUnitId(req, res);
+      if (id === null) return;
+      try {
+        sendCodesCsv(res, await store.listUnitRedeemCodes(id), '本单位未用兑换码.csv');
+      } catch (err: any) {
+        console.error('[Admin] export unit codes failed:', err.message);
+        res.status(500).json({ error: '导出兑换码失败。' });
+      }
+    });
+
     const myReferrerId = (req: AuthedRequest, res: express.Response): number | null => {
       const identity = req.admin!;
       if (identity.role === 'referrer') return identity.referrerId;

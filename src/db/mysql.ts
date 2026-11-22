@@ -106,12 +106,16 @@ function toCompanyKey(companyId: number | null): number {
  * 查的是生成欄位 `company_key` 而不是 `company_id`：未歸屬在 `company_id` 是
  * NULL，而 `NULL = NULL` 在 SQL 裡不成立，用 `company_id` 查永遠查不到未歸屬的
  * 家長 —— 而專案 A 的家長全部都是未歸屬。
+ *
+ * 被停用的帳號登不進來（#116）：專案 A 合併重複手機號時，被併掉的那一個寫了 `merged_into`，
+ * 找到它就換成它併入的那一個（同一位家長）；停用的帳號本身一律不回。
  */
 export async function findUserByPhone(companyId: number | null, phone: string): Promise<any | null> {
   const p = getPool();
   if (!p) return null;
   const [rows] = await p.execute(
-    'SELECT * FROM users WHERE company_key = ? AND phone = ? LIMIT 1',
+    `SELECT u.* FROM users f JOIN users u ON u.id = COALESCE(f.merged_into, f.id)
+      WHERE f.company_key = ? AND f.phone = ? AND u.disabled_at IS NULL LIMIT 1`,
     [toCompanyKey(companyId), phone]
   );
   return (rows as any[])[0] || null;

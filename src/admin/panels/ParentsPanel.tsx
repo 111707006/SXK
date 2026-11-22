@@ -50,6 +50,7 @@ import ReportBody from '../../components/ReportBody';
 import { T2ReportSnapshot } from '../../components/T2Report';
 import { useReportLayout } from '../../utils/reportLayout';
 import ParentSummaryView from './ParentSummaryView';
+import ServiceRelationBlock from './ServiceRelationBlock';
 import {
   Button,
   EmptyState,
@@ -82,22 +83,29 @@ export default function ParentsPanel({
   canInvite = false,
   showSource = false,
   readOnly = false,
+  serviceRelations = false,
+  canRemoveRelation = false,
 }: {
   onError: (view: AdminErrorView) => void;
   canInvite?: boolean;
   showSource?: boolean;
   /** 推薦人（#93）的「我的家长」：只看，沒有汇总／导出、列印、删除（伺服器那幾支也不給推薦人打）。 */
   readOnly?: boolean;
+  /** 服務關係開關開著（#119，`/me` 的 shape）：多推荐人、筛查渠道兩欄、「还没标注」篩選、詳情的改派區。 */
+  serviceRelations?: boolean;
+  /** 全域管理員：改派可以拿掉服務關係（回森心康直属）。 */
+  canRemoveRelation?: boolean;
 }) {
   const [sort, setSort] = useState<Sort>('newest');
   const [booked, setBooked] = useState<Booked>('all');
+  const [assigned, setAssigned] = useState<'all' | 'unassigned'>('all');
   const [openId, setOpenId] = useState<number | null>(null);
   // 「汇总」檢視（#69）：同一個視野、同一組篩選，一個孩子一行，導出鍵在上面。
   const [view, setView] = useState<'list' | 'summary'>('list');
 
   const serverSort = sort === 'oldest' ? 'oldest' : 'newest';
-  const load = useCallback(() => adminApi.parents(serverSort, booked), [serverSort, booked]);
-  const { data, loading, failure, reload } = useAsyncData(load, [serverSort, booked], onError);
+  const load = useCallback(() => adminApi.parents(serverSort, booked, assigned), [serverSort, booked, assigned]);
+  const { data, loading, failure, reload } = useAsyncData(load, [serverSort, booked, assigned], onError);
   const loaded = data?.parents ?? [];
   const parents = sort === 'score_low' ? [...loaded].sort(byScreeningTotalAsc) : loaded;
 
@@ -173,6 +181,12 @@ export default function ParentsPanel({
               <option value="booked">已预约专家</option>
               <option value="not_booked">尚未预约</option>
             </Select>
+            {serviceRelations && view === 'list' && (
+              <Select value={assigned} onChange={e => setAssigned(e.target.value as 'all' | 'unassigned')} className="w-auto" aria-label="推荐人标注">
+                <option value="all">全部推荐人</option>
+                <option value="unassigned">还没标注推荐人</option>
+              </Select>
+            )}
           </div>
         }
       >
@@ -226,6 +240,8 @@ export default function ParentsPanel({
                   <th className="py-2 pr-3 font-bold">预约</th>
                   {inviting && <th className="py-2 pr-3 font-bold">深度评估邀请</th>}
                   {showSource && <th className="py-2 pr-3 font-bold">来源</th>}
+                  {serviceRelations && <th className="py-2 pr-3 font-bold">推荐人</th>}
+                  {serviceRelations && <th className="py-2 pr-3 font-bold">筛查渠道</th>}
                   <th className="py-2 font-bold" />
                 </tr>
               </thead>
@@ -236,6 +252,7 @@ export default function ParentsPanel({
                     parent={p}
                     onOpen={() => setOpenId(p.id)}
                     showSource={showSource}
+                    serviceRelations={serviceRelations}
                     invite={
                       inviting
                         ? { status: statuses.get(p.id)!, selected: selected.has(p.id), onToggle: () => toggle(p.id) }
@@ -258,6 +275,16 @@ export default function ParentsPanel({
         <ParentDetailModal
           id={openId}
           readOnly={readOnly}
+          service={
+            serviceRelations
+              ? {
+                  value: parents.find(p => p.id === openId)?.service ?? null,
+                  canEdit: !readOnly,
+                  canRemove: canRemoveRelation,
+                  onChanged: reload,
+                }
+              : undefined
+          }
           onClose={() => setOpenId(null)}
           onError={onError}
           onDeleted={() => {
@@ -375,11 +402,13 @@ function ParentRow({
   parent,
   onOpen,
   showSource,
+  serviceRelations,
   invite,
 }: {
   parent: AdminParentListItem;
   onOpen: () => void;
   showSource: boolean;
+  serviceRelations: boolean;
   invite?: { status: InviteStatus; selected: boolean; onToggle: () => void };
 }) {
   return (
@@ -445,6 +474,18 @@ function ParentRow({
           <SourceCell source={parent.handoffSource} />
         </td>
       )}
+      {serviceRelations && (
+        <td className="py-2.5 pr-3 whitespace-nowrap text-brand-charcoal/70">
+          {parent.service?.referrerId == null ? (
+            <span className={parent.service ? 'font-bold text-amber-700' : 'text-brand-charcoal/40'}>
+              {parent.service ? '还没标注' : '—'}
+            </span>
+          ) : (
+            parent.service.referrerName ?? `推荐人 #${parent.service.referrerId}`
+          )}
+        </td>
+      )}
+      {serviceRelations && <td className="py-2.5 pr-3 whitespace-nowrap text-brand-charcoal/70">{parent.screeningChannel ?? '—'}</td>}
       <td className="py-2.5 text-right">
         <Button variant="ghost" onClick={onOpen}>
           查看
@@ -474,12 +515,15 @@ function SourceCell({ source }: { source: AdminParentListItem['handoffSource'] }
 function ParentDetailModal({
   id,
   readOnly = false,
+  service,
   onClose,
   onError,
   onDeleted,
 }: {
   id: number;
   readOnly?: boolean;
+  /** 服務關係開關開著才有（#119）：列表那一列的服務關係與能不能改。 */
+  service?: { value: NonNullable<AdminParentListItem['service']> | null; canEdit: boolean; canRemove: boolean; onChanged: () => void };
   onClose: () => void;
   onError: (view: AdminErrorView) => void;
   onDeleted: () => void;
@@ -559,6 +603,16 @@ function ParentDetailModal({
               </button>
             </div>
           </header>
+          {service && (
+            <ServiceRelationBlock
+              parentId={id}
+              service={service.value}
+              canEdit={service.canEdit}
+              canRemove={service.canRemove}
+              onChanged={service.onChanged}
+              onError={onError}
+            />
+          )}
 
           <div className="space-y-5 px-5 py-5">
             {loading ? (

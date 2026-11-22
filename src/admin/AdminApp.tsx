@@ -80,7 +80,12 @@ function shapeFrom(raw: unknown): AdminCenterShape {
   if (typeof raw !== 'object' || raw === null) return BUILD_SHAPE;
   const r = raw as Record<string, unknown>;
   if (typeof r.multiCompany !== 'boolean') return BUILD_SHAPE;
-  return { multiCompany: r.multiCompany, ...(typeof r.projectA === 'boolean' ? { projectA: r.projectA } : {}) };
+  return {
+    multiCompany: r.multiCompany,
+    ...(typeof r.projectA === 'boolean' ? { projectA: r.projectA } : {}),
+    // 服務關係開關（#119）：伺服器開著才帶。
+    ...(r.serviceRelations === true ? { serviceRelations: true } : {}),
+  };
 }
 
 /**
@@ -351,6 +356,8 @@ function AdminCenter() {
               canInvite={current.role === 'global_admin' && PRODUCT.features.handoff === 'send'}
               showSource={PRODUCT.features.handoff === 'receive' && current.role !== 'referrer'}
               readOnly={current.role === 'referrer'}
+              serviceRelations={shape.serviceRelations === true}
+              canRemoveRelation={current.role === 'global_admin'}
             />
           )}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}

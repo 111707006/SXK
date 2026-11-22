@@ -1964,8 +1964,12 @@ export async function proxyFill(
 // `admin_exports`（範圍 `all`），記不下就不給檔。
 
 export interface RedeemLedgerRow {
+  referrerId: number;
   referrerName: string;
   referrerKind: 'channel' | 'therapist';
+  /** 推薦人隸屬的單位（#122：兌換碼佣金算推薦人與單位兩方）；沒有是 null。 */
+  companyId: number | null;
+  companyName: string | null;
   code: string;
   months: number;
   status: 'unused' | 'used' | 'void';
@@ -1978,19 +1982,24 @@ export interface RedeemLedgerRow {
 export async function listRedeemLedger(): Promise<RedeemLedgerRow[]> {
   const p = requirePool();
   const [rows] = await p.execute(
-    `SELECT r.name AS referrer_name, r.kind AS referrer_kind, c.code, b.months, c.status, u.phone AS used_by_phone, c.used_at,
+    `SELECT r.id AS referrer_id, r.name AS referrer_name, r.kind AS referrer_kind, rc.id AS company_id, rc.name AS company_name,
+            c.code, b.months, c.status, u.phone AS used_by_phone, c.used_at,
             (SELECT DATE_FORMAT(MAX(tp.ends_on), '%Y-%m-%d') FROM training_passes tp
               WHERE tp.unique_key IN (CONCAT('code:', c.id), CONCAT('proxy:', c.id))) AS pass_ends_on
        FROM redeem_codes c
        JOIN redeem_batches b ON b.id = c.batch_id
        JOIN referrers r ON r.id = b.referrer_id
+       LEFT JOIN companies rc ON rc.id = r.company_id
        LEFT JOIN users u ON u.id = c.used_by
       ORDER BY r.id ASC, c.id ASC`,
     []
   );
   return (rows as any[]).map(row => ({
+    referrerId: Number(row.referrer_id),
     referrerName: row.referrer_name,
     referrerKind: row.referrer_kind === 'therapist' ? 'therapist' : 'channel',
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
     code: row.code,
     months: Number(row.months),
     status: row.status === 'used' ? 'used' : row.status === 'void' ? 'void' : 'unused',
@@ -2009,22 +2018,45 @@ export interface SplitRateRecord {
   refId: number;
   platformBp: number | null;
   companyBp: number | null;
+  /**
+   * 篩查渠道比例（#122）：只在服務關係開著時讀寫（`listSplitRates({ screening: true })`、`setSplitRate` 帶了這一欄）；
+   * 關著不碰這一欄（還沒跑 `2026-11-24-split-screening.sql` 也讀得到）。
+   */
+  screeningBp?: number | null;
 }
 
-export async function listSplitRates(): Promise<SplitRateRecord[]> {
+export async function listSplitRates(opts: { screening?: boolean } = {}): Promise<SplitRateRecord[]> {
   const p = requirePool();
-  const [rows] = await p.execute('SELECT scope, ref_id, platform_bp, company_bp FROM revenue_split_rates ORDER BY scope, ref_id', []);
+  const [rows] = await p.execute(
+    opts.screening
+      ? 'SELECT scope, ref_id, platform_bp, company_bp, screening_bp FROM revenue_split_rates ORDER BY scope, ref_id'
+      : 'SELECT scope, ref_id, platform_bp, company_bp FROM revenue_split_rates ORDER BY scope, ref_id',
+    []
+  );
   return (rows as any[]).map(r => ({
     scope: r.scope === 'company' ? 'company' : r.scope === 'referrer' ? 'referrer' : 'default',
     refId: Number(r.ref_id),
     platformBp: r.platform_bp === null ? null : Number(r.platform_bp),
     companyBp: r.company_bp === null ? null : Number(r.company_bp),
+    ...(opts.screening ? { screeningBp: r.screening_bp === null || r.screening_bp === undefined ? null : Number(r.screening_bp) } : {}),
   }));
 }
 
-/** 寫一組比例；兩個都是 `null` 就刪掉那一列（沿用上一層）。不留修改紀錄（規格）。 */
+/** 寫一組比例；都是 `null` 就刪掉那一列（沿用上一層）。不留修改紀錄（規格）。 */
 export async function setSplitRate(input: SplitRateRecord): Promise<void> {
   const p = requirePool();
+  if (input.screeningBp !== undefined) {
+    // 服務關係開著（#122）：三個比例一起換。
+    if (input.platformBp === null && input.companyBp === null && input.screeningBp === null) {
+      await p.execute('DELETE FROM revenue_split_rates WHERE scope = ? AND ref_id = ?', [input.scope, input.refId]);
+      return;
+    }
+    await p.execute(
+      'REPLACE INTO revenue_split_rates (scope, ref_id, platform_bp, company_bp, screening_bp) VALUES (?, ?, ?, ?, ?)',
+      [input.scope, input.refId, input.platformBp, input.companyBp, input.screeningBp]
+    );
+    return;
+  }
   if (input.platformBp === null && input.companyBp === null) {
     await p.execute('DELETE FROM revenue_split_rates WHERE scope = ? AND ref_id = ?', [input.scope, input.refId]);
     return;

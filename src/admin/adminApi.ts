@@ -8,7 +8,7 @@
 
 import type { CouponDiscount } from '../t2/coupon';
 import type { ServiceChange, ServiceTargets, ServiceView } from '../serviceRelations/adminView';
-import type { LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
+import type { LedgerPartyTotal, LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
 import type { AdminReceiver, AdminSharingRecord } from '../profitSharing/adminRoutes';
 import type { PartyKind, ProfitSharingConfig, ReceiverType } from '../profitSharing/plan';
 import type { RunResult } from '../profitSharing/run';
@@ -46,10 +46,14 @@ export interface AdminSplitRate {
   refId: number;
   platformBp: number | null;
   companyBp: number | null;
+  /** 篩查渠道比例（#122）：只有伺服器的清分改看服務關係時才有；只在單位那一層。 */
+  screeningBp?: number | null;
 }
 
 export interface AdminSplitSettings {
   feeBp: number;
+  /** 清分改看服務關係（#122）：單位那一層多一個篩查渠道比例可設。沒有這一欄＝關。 */
+  screening?: boolean;
   fallback: { platformBp: number; companyBp: number };
   rates: AdminSplitRate[];
   companies: Array<{ id: number; name: string; active: boolean }>;
@@ -61,7 +65,7 @@ export interface AdminSplitOrders {
   to: string;
   rows: LedgerRow[];
   totals: LedgerTotals;
-  byParty: Array<{ party: string; orders: number; companyFen: number; referrerFen: number; platformFen: number }>;
+  byParty: LedgerPartyTotal[];
 }
 
 /** 微信分账（ADR-0017）：`GET /api/admin/profit-sharing`。 */
@@ -575,7 +579,14 @@ export const adminApi = {
 
   // ── 清分（ADR-0016；只有全域管理員、`REVENUE_SPLIT` 開著）──
   splitSettings: () => request<AdminSplitSettings>('/revenue-split'),
-  setSplitRate: (input: { scope: AdminSplitRate['scope']; refId: number; platformPercent: string | null; companyPercent: string | null }) =>
+  setSplitRate: (input: {
+    scope: AdminSplitRate['scope'];
+    refId: number;
+    platformPercent: string | null;
+    companyPercent: string | null;
+    /** 只在 `AdminSplitSettings.screening` 開著、單位那一層送（#122）。 */
+    screeningPercent?: string | null;
+  }) =>
     request<{ ok: true }>('/revenue-split/rates', { method: 'PUT', body: JSON.stringify(input) }),
   splitOrders: (from: string, to: string) =>
     request<AdminSplitOrders>(`/revenue-split/orders?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),

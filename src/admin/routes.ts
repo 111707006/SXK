@@ -47,6 +47,8 @@ import { redeemLedgerFileName, redeemLedgerWorkbook } from './redeemXlsx';
 import { splitLedgerFileName, splitLedgerWorkbook } from './splitXlsx';
 import { ledgerByParty, ledgerRows, ledgerTotals, SPLIT_ORDERS_MAX, SPLIT_TOO_MANY } from '../revenueSplit/ledger';
 import { DEFAULT_COMPANY_BP, DEFAULT_PLATFORM_BP, bpFromPercent } from '../revenueSplit/split';
+import type { PlanPrices } from '../t2/trainingPlanPrices';
+import { ratesFromRecords, redeemCommission, type RedeemCommission } from '../revenueSplit/redeemCommission';
 import { registerProfitSharingRoutes, type ProfitSharingAdminDeps } from '../profitSharing/adminRoutes';
 import { isPassMonths } from '../t2/trainingPass';
 import { proxyFindings, readProxyInput } from '../t2/proxySnapshot';
@@ -189,8 +191,12 @@ export interface AdminRouterHooks {
   legalDocs?: boolean;
   /** T2 優惠券（客戶 11/03，`T2_COUPON`）：只在專案 A、開關開著才註冊那幾支。 */
   coupons?: boolean;
-  /** 清分（客戶 11/03，`REVENUE_SPLIT`，ADR-0016）：只在專案 A、開關開著才傳；`feeBp` 是伺服器的微信手續費設定。 */
-  revenueSplit?: { feeBp: number };
+  /**
+   * 清分（客戶 11/03，`REVENUE_SPLIT`，ADR-0016）：只在專案 A、開關開著才傳；`feeBp` 是伺服器的微信手續費設定。
+   * `serviceRelations`（#122）：清分改看服務關係——單位層多一個篩查渠道比例可設、兌換碼對帳多列兩方金額
+   * （`planPrices` 是訓練計劃的價錢，當兌換碼的面額）。沒傳＝關，與 #122 之前一樣。
+   */
+  revenueSplit?: { feeBp: number; serviceRelations?: boolean; planPrices?: PlanPrices | null };
   /** 微信分账（`PROFIT_SHARING`，ADR-0017）：只在專案 A、開關開著才傳；資料層與微信 API 由伺服器注入。 */
   profitSharing?: Omit<ProfitSharingAdminDeps, 'partyExists'>;
   /**
@@ -1127,6 +1133,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
   // 全域管理員看與改比例（預設＋每家公司、每位推薦人的覆寫）、看一段日期每筆訂單各方金額、匯出對帳。不留修改紀錄（規格）。
   if (hooks.revenueSplit) {
     const feeBp = hooks.revenueSplit.feeBp;
+    const screening = hooks.revenueSplit.serviceRelations === true;
     const DATE = /^\d{4}-\d{2}-\d{2}$/;
     const readRange = (q: any): { from: string; to: string } | null => {
       const from = typeof q?.from === 'string' ? q.from : '';
@@ -1147,9 +1154,14 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     router.get('/revenue-split', async (req: AuthedRequest, res) => {
       if (!requireGlobal(req, res)) return;
       try {
-        const [rates, companies, referrers] = await Promise.all([store.listSplitRates(), store.listCompanies(), store.listReferrers()]);
+        const [rates, companies, referrers] = await Promise.all([
+          screening ? store.listSplitRates({ screening: true }) : store.listSplitRates(),
+          store.listCompanies(),
+          store.listReferrers(),
+        ]);
         res.json({
           feeBp,
+          ...(screening ? { screening: true } : {}),
           fallback: { platformBp: DEFAULT_PLATFORM_BP, companyBp: DEFAULT_COMPANY_BP },
           rates,
           companies: companies.map(c => ({ id: c.id, name: c.name, active: c.active })),
@@ -1173,13 +1185,24 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       if (platformBp === undefined || companyBp === undefined) {
         return void res.status(400).json({ error: '比例要是 0 到 100 之间的数字（最多两位小数），留空＝沿用上一层。' });
       }
+      // 篩查渠道比例（#122）：只在服務關係開著、只能在單位那一層設（預設與推薦人沒有這一欄）。
+      let screeningBp: number | null | undefined;
+      if (screening) {
+        screeningBp = bpFromPercent(body.screeningPercent ?? null);
+        if (screeningBp === undefined) {
+          return void res.status(400).json({ error: '比例要是 0 到 100 之间的数字（最多两位小数），留空＝沿用上一层。' });
+        }
+        if (scope !== 'company' && screeningBp !== null) {
+          return void res.status(400).json({ error: '筛查渠道比例只能在合作单位那一层设定。' });
+        }
+      }
       try {
         if (scope === 'company') {
           if (!(await store.findCompanyById(refId))) return void res.status(404).json({ error: '找不到这家合作公司。' });
         } else if (scope === 'referrer') {
           if (!(await store.findReferrer(refId))) return void res.status(404).json({ error: '找不到这位推荐人。' });
         }
-        await store.setSplitRate({ scope, refId, platformBp, companyBp });
+        await store.setSplitRate(screening ? { scope, refId, platformBp, companyBp, screeningBp } : { scope, refId, platformBp, companyBp });
         res.json({ ok: true });
       } catch (err: any) {
         console.error('[Admin] setSplitRate failed:', err.message);
@@ -1208,7 +1231,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       if (!range) return void res.status(400).json({ error: '日期不正确（YYYY-MM-DD，起日不晚于迄日，一次最多一年）。' });
       try {
         const rows = ledgerRows(await store.listSplitOrders(range.from, range.to));
-        const file = await splitLedgerWorkbook(rows);
+        const file = await splitLedgerWorkbook(rows, { screening });
         await store.recordExport({
           adminUserId: req.admin!.adminUserId,
           condition: { kind: 'all' },
@@ -1431,7 +1454,14 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       if (!requireGlobal(req, res)) return;
       try {
         const rows = await store.listRedeemLedger();
-        const file = await redeemLedgerWorkbook(rows);
+        // 清分改看服務關係（#122，ADR-0020 第 7 點）：多列單位與推薦人兩方的佣金（面額與分法見 redeemCommission 的暫採）。
+        const split = hooks.revenueSplit;
+        let commissions: Array<RedeemCommission | null> | undefined;
+        if (split?.serviceRelations) {
+          const rates = ratesFromRecords(await store.listSplitRates());
+          commissions = rows.map(r => redeemCommission(r, split.planPrices ?? null, rates));
+        }
+        const file = await redeemLedgerWorkbook(rows, commissions);
         await store.recordExport({
           adminUserId: req.admin!.adminUserId,
           condition: { kind: 'all' },

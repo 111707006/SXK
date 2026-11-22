@@ -15,6 +15,14 @@
  * 【怎麼算】分的是扣掉微信手續費之後的金額（`feeBp`，萬分比，開單時的設定記在快照上）：
  * 手續費＝金額 × feeBp ÷ 10000 四捨五入；對方的份＝淨額 ×（1 − 平台比例）往下取整；
  * 三方時公司的份＝對方的份 × 公司比例 往下取整、治療師拿剩下的；平台拿淨額扣掉其餘（所有取整的零頭歸平台）。
+ *
+ * 【篩查渠道】（ADR-0020 第 8 點，#122；只在服務關係開著時，`SplitAttribution.screening` 有這一欄才看）
+ * 家長最早從哪一個合作單位進來（`users.company_id`）。它與現在的服務單位不同、而且全域管理員在「清分」給那個單位
+ * 設了篩查渠道比例（`RateRow.screeningBp`，只在單位層，沒設＝0）時，**從對方那一份先切**：
+ * 篩查渠道的份＝對方的份 × 篩查渠道比例 往下取整，剩下的再照上面分給單位與推薦人。最多四方。
+ * - 同一個單位不重複算：篩查渠道就是現在的服務單位 → 沒有這一份。
+ * - 沒有對方（全歸平台）就沒有「對方那一份」可切 → 也沒有這一份（暫採：ADR 寫「從對方那一份先切」）。
+ * - 快照記下篩查渠道的單位、名字與比例；舊快照沒有這一欄＝沒有篩查渠道，算法與金額一分不差。
  */
 
 /** 萬分比：2000 ＝ 20%。 */
@@ -37,6 +45,8 @@ export interface RateRow {
   platformBp: Bp | null;
   /** 三方時合作公司拿「對方那一份」的幾成（其餘給治療師）。 */
   companyBp: Bp | null;
+  /** 篩查渠道比例（#122）：這個單位當篩查渠道時，從對方那一份切幾成給它。只在單位層有；沒設＝0。 */
+  screeningBp?: Bp | null;
 }
 
 export interface SplitRates {
@@ -50,6 +60,18 @@ export interface SplitRates {
 export interface SplitAttribution {
   company: { id: number; name: string } | null;
   referrer: { id: number; name: string; kind: 'channel' | 'therapist'; company: { id: number; name: string } | null } | null;
+  /**
+   * 篩查渠道（#122，ADR-0020 第 8 點）：家長最早進來的合作單位（啟用中的 A 單位；B 轉入、直屬是 `null`）。
+   * **沒有這一欄＝服務關係關著**，快照也不會有 `screening` 這一欄（與 #122 之前一字不差）。
+   */
+  screening?: { id: number; name: string } | null;
+}
+
+/** 快照上的篩查渠道那一份：哪個單位、當時叫什麼、從對方那一份切幾成（> 0）。 */
+export interface SplitScreening {
+  companyId: number;
+  companyName: string;
+  bp: Bp;
 }
 
 export type SplitParty =
@@ -73,6 +95,8 @@ export interface SplitSnapshot {
   platformBp: Bp;
   /** 只有 `company_referrer` 有。 */
   companyBp: Bp | null;
+  /** 篩查渠道（#122）。舊快照沒有這一欄、服務關係開著但不分這一份是 `null`：兩種都是沒有第四方。 */
+  screening?: SplitScreening | null;
 }
 
 const pick = (...xs: Array<Bp | null | undefined>): Bp | null => {
@@ -80,8 +104,23 @@ const pick = (...xs: Array<Bp | null | undefined>): Bp | null => {
   return null;
 };
 
-/** 比例設定＋歸屬 → 這一筆的快照（檔頭「誰是對方」）。 */
+/** 比例設定＋歸屬 → 這一筆的快照（檔頭「誰是對方」「篩查渠道」）。 */
 export function resolveSplit(rates: SplitRates, who: SplitAttribution, feeBp: Bp = DEFAULT_FEE_BP): SplitSnapshot {
+  const base = resolveCounterparty(rates, who, feeBp);
+  if (who.screening === undefined) return base;
+  return { ...base, screening: screeningOf(rates, who.screening, base.party) };
+}
+
+/** 篩查渠道那一份要不要出現（檔頭「篩查渠道」）。 */
+function screeningOf(rates: SplitRates, screening: { id: number; name: string } | null, party: SplitParty): SplitScreening | null {
+  if (!screening || party.kind === 'none') return null;
+  if ((party.kind === 'company' || party.kind === 'company_referrer') && party.companyId === screening.id) return null;
+  const bp = rates.company.get(screening.id)?.screeningBp ?? 0;
+  if (!isBp(bp) || bp === 0) return null;
+  return { companyId: screening.id, companyName: screening.name, bp };
+}
+
+function resolveCounterparty(rates: SplitRates, who: SplitAttribution, feeBp: Bp): SplitSnapshot {
   if (!isBp(feeBp)) throw new Error(`revenueSplit：手續費要是 0–10000 的整數萬分比，拿到 ${feeBp}`);
   const dflt = rates.default;
   const r = who.referrer;
@@ -133,6 +172,8 @@ export interface SplitAmounts {
   platformFen: number;
   companyFen: number;
   referrerFen: number;
+  /** 篩查渠道那一份（#122）；沒有篩查渠道是 0。 */
+  screeningFen: number;
 }
 
 /** 金額（分）＋快照 → 各方的分。加總恆等於淨額。 */
@@ -141,21 +182,24 @@ export function computeSplit(amountFen: number, s: SplitSnapshot): SplitAmounts 
   const feeFen = Math.min(amountFen, Math.floor((amountFen * s.feeBp) / BP_MAX + 0.5));
   const netFen = amountFen - feeFen;
   const counterFen = s.party.kind === 'none' ? 0 : Math.floor((netFen * (BP_MAX - s.platformBp)) / BP_MAX);
+  // 篩查渠道從對方那一份先切（#122）；剩下的照舊分給單位與推薦人。
+  const screeningFen = s.screening ? Math.floor((counterFen * s.screening.bp) / BP_MAX) : 0;
+  const restFen = counterFen - screeningFen;
   let companyFen = 0;
   let referrerFen = 0;
   switch (s.party.kind) {
     case 'company':
-      companyFen = counterFen;
+      companyFen = restFen;
       break;
     case 'referrer':
-      referrerFen = counterFen;
+      referrerFen = restFen;
       break;
     case 'company_referrer':
-      companyFen = Math.floor((counterFen * (s.companyBp ?? DEFAULT_COMPANY_BP)) / BP_MAX);
-      referrerFen = counterFen - companyFen;
+      companyFen = Math.floor((restFen * (s.companyBp ?? DEFAULT_COMPANY_BP)) / BP_MAX);
+      referrerFen = restFen - companyFen;
       break;
   }
-  return { amountFen, feeFen, netFen, platformFen: netFen - companyFen - referrerFen, companyFen, referrerFen };
+  return { amountFen, feeFen, netFen, platformFen: netFen - companyFen - referrerFen - screeningFen, companyFen, referrerFen, screeningFen };
 }
 
 /** 讀回存著的快照；形狀不對回 `null`（對帳表上寫「未记录」，不猜）。 */
@@ -192,6 +236,12 @@ export function parseSnapshot(raw: unknown): SplitSnapshot | null {
       break;
     default:
       return null;
+  }
+  // 篩查渠道（#122）：沒有這一欄（舊快照）或 null ＝ 沒有；有就要形狀對、比例 > 0、有對方、不是同一個單位。
+  if (o.screening !== undefined && o.screening !== null) {
+    const sc = o.screening as Record<string, unknown>;
+    if (typeof sc !== 'object' || !id(sc.companyId) || !str(sc.companyName) || !isBp(sc.bp) || sc.bp === 0) return null;
+    if (p.kind === 'none' || ((p.kind === 'company' || p.kind === 'company_referrer') && p.companyId === sc.companyId)) return null;
   }
   return o as unknown as SplitSnapshot;
 }

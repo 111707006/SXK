@@ -29,7 +29,17 @@ const LATER_COLUMNS = [
   // 2026-11-24-split-screening.sql（#122）
   "  -- screening_bp：筛查渠道比例（#122，2026-11-24-split-screening.sql）：这个单位当筛查渠道时从对方那一份切几成；只在 company 那几列，NULL＝0。\n  `screening_bp` SMALLINT UNSIGNED NULL,\n",
 ];
-const laterColumnsRemoved = (b: string) => LATER_COLUMNS.reduce((x, col) => x.replace(col, ''), b);
+/** 之後的遷移改過的行（#124，2026-11-24-unit-redeem-codes.sql：referrer_id 放寬成 NULL、加 company_id）：[現在, 建表那一份]。 */
+const LATER_CHANGES: Array<[string, string]> = [
+  [
+    "  -- 一批码发给谁（#124，2026-11-24-unit-redeem-codes.sql）：推荐人的码 referrer_id 有值；单位层的码 company_id 有值、referrer_id NULL。\n  `referrer_id` INT UNSIGNED NULL,\n  `company_id` INT UNSIGNED NULL,\n",
+    '  `referrer_id` INT UNSIGNED NOT NULL,\n',
+  ],
+  ['  INDEX `idx_redeem_batches_company` (`company_id`),\n', ''],
+  ['  CONSTRAINT `fk_redeem_batches_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,\n', ''],
+];
+const laterColumnsRemoved = (b: string) =>
+  LATER_CHANGES.reduce((x, [now, was]) => x.replace(now, was), LATER_COLUMNS.reduce((x, col) => x.replace(col, ''), b));
 
 describe.each([
   ['deploy/migrations/2026-10-23-referrers.sql', ['referrers', 'referrer_bindings']],

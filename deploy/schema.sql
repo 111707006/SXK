@@ -807,14 +807,18 @@ CREATE TABLE IF NOT EXISTS `referrer_bindings` (
 -- 兑换码（客户 10/22，#110；迁移 deploy/migrations/2026-10-24-redeem-codes.sql）。
 CREATE TABLE IF NOT EXISTS `redeem_batches` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `referrer_id` INT UNSIGNED NOT NULL,
+  -- 一批码发给谁（#124，2026-11-24-unit-redeem-codes.sql）：推荐人的码 referrer_id 有值；单位层的码 company_id 有值、referrer_id NULL。
+  `referrer_id` INT UNSIGNED NULL,
+  `company_id` INT UNSIGNED NULL,
   `months` TINYINT UNSIGNED NOT NULL,
   `quantity` INT UNSIGNED NOT NULL,
   -- 谁产的（后台帐号）；帐号删掉留 NULL，纪录还在。
   `created_by` INT UNSIGNED NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_redeem_batches_referrer` (`referrer_id`),
+  INDEX `idx_redeem_batches_company` (`company_id`),
   CONSTRAINT `fk_redeem_batches_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `referrers` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_redeem_batches_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_redeem_batches_admin` FOREIGN KEY (`created_by`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -1453,7 +1453,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     router.post('/redeem-codes/export', async (req: AuthedRequest, res) => {
       if (!requireGlobal(req, res)) return;
       try {
-        const rows = await store.listRedeemLedger();
+        const rows = await store.listRedeemLedger({ unitCodes: shape.serviceRelations === true });
         // 清分改看服務關係（#122，ADR-0020 第 7 點）：多列單位與推薦人兩方的佣金（面額與分法見 redeemCommission 的暫採）。
         const split = hooks.revenueSplit;
         let commissions: Array<RedeemCommission | null> | undefined;

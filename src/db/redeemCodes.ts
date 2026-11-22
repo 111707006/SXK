@@ -23,7 +23,11 @@ export type RedeemOutcome =
     }
   | { ok: false };
 
-export async function redeemCodeForUser(userId: number, code: string, today: string): Promise<RedeemOutcome> {
+/**
+ * @param opts.unitCodes 服務關係開關開著（#124）才讀 `redeem_batches.company_id`：關著 SQL 與以前一樣，
+ *   2026-11-24 的遷移還沒跑也兌得了。
+ */
+export async function redeemCodeForUser(userId: number, code: string, today: string, opts: { unitCodes?: boolean } = {}): Promise<RedeemOutcome> {
   const p = getPool();
   if (!p) throw new Error('MySQL pool is not available');
   const conn = await p.getConnection();
@@ -38,7 +42,9 @@ export async function redeemCodeForUser(userId: number, code: string, today: str
       return { ok: false };
     }
     const [rows] = await conn.execute(
-      'SELECT c.id, b.months, b.referrer_id, b.company_id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code = ? LIMIT 1',
+      opts.unitCodes
+        ? 'SELECT c.id, b.months, b.referrer_id, b.company_id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code = ? LIMIT 1'
+        : 'SELECT c.id, b.months, b.referrer_id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code = ? LIMIT 1',
       [code],
     );
     const row = (rows as any[])[0];

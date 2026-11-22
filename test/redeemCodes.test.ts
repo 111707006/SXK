@@ -72,6 +72,13 @@ describe('兌換的交易', () => {
     expect(src).toMatch(/if \(referrerId !== null\) \{\s*const \[bind\] = await conn\.execute\(\s*"INSERT IGNORE INTO referrer_bindings/);
     expect(src).toContain('b.company_id');
   });
+
+  it('開關關著不讀 b.company_id（遷移還沒跑也兌得了）', () => {
+    expect(src).toContain("'SELECT c.id, b.months, b.referrer_id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE c.code = ? LIMIT 1'");
+    expect(src).toMatch(/opts\.unitCodes\s*\?\s*'SELECT c\.id, b\.months, b\.referrer_id, b\.company_id/);
+    const server = readFileSync('server.ts', 'utf8');
+    expect(server).toContain('{ unitCodes: SERVICE_RELATIONS }');
+  });
 });
 
 describe('方案頁讀伺服器回的方案', () => {

@@ -55,3 +55,24 @@ describe('ratesFromRecords', () => {
     expect(r.referrer.get(7)).toEqual({ platformBp: null, companyBp: 500 });
   });
 });
+
+describe('單位層的碼（#124，沒有推薦人）', () => {
+  const RATES: SplitRates = ratesFromRecords([]);
+  it('整個面額歸單位、推薦人 0', () => {
+    expect(redeemCommission({ months: 1, status: 'used', referrerId: null, companyId: 7 }, { 1: 2990 }, RATES)).toEqual({
+      faceFen: 2990,
+      companyFen: 2990,
+      referrerFen: 0,
+    });
+  });
+});
+
+describe('對帳表的單位層那一列（#124）', () => {
+  it('推薦人那兩格：名字空白、類型寫「单位层」', async () => {
+    const { redeemLedgerRows } = await import('../src/admin/redeemXlsx');
+    const [cells] = redeemLedgerRows([
+      { referrerId: null, referrerName: null, referrerKind: null, companyId: 7, companyName: '甲机构', code: 'AAAAAAAAA2', months: 1, status: 'unused', usedByPhone: null, usedAt: null, passEndsOn: null },
+    ]);
+    expect(cells.slice(0, 2)).toEqual(['', '单位层']);
+  });
+});

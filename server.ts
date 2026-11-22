@@ -4699,7 +4699,7 @@ const redeemLimiter = createRedeemLimiter();
       res.json({ months: TEST_VIP_MONTHS, endsOn: state.endsOn ?? range.endsOn });
       return;
     }
-    const outcome = code ? await withTimeout(redeemCodeForUser(dbUserId, code, calendarDateOf(new Date())), 5000) : { ok: false as const };
+    const outcome = code ? await withTimeout(redeemCodeForUser(dbUserId, code, calendarDateOf(new Date()), { unitCodes: SERVICE_RELATIONS }), 5000) : { ok: false as const };
     if (!outcome.ok) {
       res.status(400).json({ error: '兑换码不正确或已使用', code: 'REDEEM_INVALID' });
       return;

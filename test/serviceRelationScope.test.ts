@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { withServiceBasis } from '../src/serviceRelations/scope';
 import {
   companyWhereSql,
   matchesCompanyCondition,
-  resolveCompanyCondition,
+  resolveCompanyCondition as resolveLegacy,
   type AdminCenterShape,
   type AdminIdentity,
   type CompanyCondition,
@@ -14,6 +15,10 @@ import {
  * 條件仍是那三種 kind、多一個 `byService` 記號：`kind === 'company'` 的地方（專家、本單位設定、導出紀錄）照舊。
  */
 
+/** 路由層 `withScope` 的組法：原本的條件 → 開著加上 byService。 */
+const resolveCompanyCondition = (identity: AdminIdentity, shape: AdminCenterShape) =>
+  withServiceBasis(resolveLegacy(identity, shape), shape);
+
 const SR_A: AdminCenterShape = { multiCompany: true, projectA: true, serviceRelations: true };
 const OFF_A: AdminCenterShape = { multiCompany: true, projectA: true };
 
@@ -23,7 +28,7 @@ const globalOn = (selection: { kind: 'company'; companyId: number } | { kind: 'u
   role: 'global_admin', adminUserId: 3, email: 'g@x', selection,
 });
 
-describe('resolveCompanyCondition：開著加上 byService', () => {
+describe('withServiceBasis(resolveCompanyCondition)：開著加上 byService', () => {
   it('單位管理者：本單位、看服務關係', () => {
     expect(resolveCompanyCondition(manager, SR_A)).toEqual({ ok: true, condition: { kind: 'company', companyId: 7, byService: true } });
   });
@@ -51,6 +56,8 @@ describe('resolveCompanyCondition：開著加上 byService', () => {
       const r = resolveCompanyCondition(identity, OFF_A);
       expect(r.ok && 'byService' in r.condition).toBe(false);
       expect(resolveCompanyCondition(identity, { ...OFF_A, serviceRelations: false })).toEqual(r);
+      // 原本的函式不看開關：開著也一字不差（byService 只由 withServiceBasis 加）。
+      expect(resolveLegacy(identity, SR_A)).toEqual(r);
     },
   );
 });

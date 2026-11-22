@@ -31,6 +31,7 @@ import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { referrerMayCall } from './referrerAccess';
 import { canReassign, type ReassignActor, type ServiceRelation } from '../serviceRelations/rules';
+import { withServiceBasis } from '../serviceRelations/scope';
 import { formatCode, generateCode, MAX_BATCH } from '../redeem/codes';
 import {
   DEFAULT_COUPON_DISCOUNT,
@@ -363,7 +364,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
    * `null` 時**必須立刻 return**，不可自行決定要不要繼續。
    */
   function withScope(req: AuthedRequest, res: express.Response): CompanyCondition | null {
-    const result = resolveCompanyCondition(req.admin!, shape);
+    // 服務關係開關開著（#119）：條件加上 byService，誰看得到哪位家長改看服務關係。
+    const result = withServiceBasis(resolveCompanyCondition(req.admin!, shape), shape);
     if (!result.ok) {
       res.status(409).json({
         error: '请先选定一家合作公司，才能查看资料。',

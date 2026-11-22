@@ -23,6 +23,9 @@
  */
 
 /** 後台成員的兩種角色。合作公司無法自行增刪帳號，由森心康代為處理。 */
+import { matchesServiceCondition, serviceWhereSql } from '../serviceRelations/scope';
+import type { ServiceRelation } from '../serviceRelations/rules';
+
 export type AdminRole = 'global_admin' | 'company_member' | 'referrer';
 
 /**
@@ -74,10 +77,8 @@ export type CompanyCondition =
   | { kind: 'unassigned'; byService?: true }
   /** 推薦人（#93）：綁在他名下的家長。不是「不過濾」——一樣是一個收窄的條件。 */
   | { kind: 'referrer'; referrerId: number; byService?: true };
-// `byService`（#118／#119，ADR-0020，服務關係開關開著才有）：家長看的是服務關係（`service_relations`），
-// 不是帳號歸屬（＝篩查渠道）、也不是推薦綁定。company＝服務關係在這個單位；referrer＝標注給這位推薦人；
-// unassigned＝沒有服務關係（森心康直屬）。kind 不變，所以「只有單位才有」的那幾件事（專家、本單位設定、
-// 導出紀錄的 scope_kind）照舊；只有 companyWhereSql／matchesCompanyCondition 看這個記號。
+// `byService`（#119，ADR-0020）：服務關係開關開著時由 `withServiceBasis`（src/serviceRelations/scope.ts）加上，
+// SQL 與記憶體版也在那一檔。
 
 export type ScopeDenialReason = 'NO_COMPANY_SELECTED';
 
@@ -109,10 +110,7 @@ export interface AdminCenterShape {
    * 不再是同一件事。沒給＝照舊由 `multiCompany` 推（單一機構就是 A）。
    */
   projectA?: boolean;
-  /**
-   * 服務關係開關（`SERVICE_RELATIONS`，#118，ADR-0020）開著：條件加上 `byService`，誰看得到哪位家長改看服務關係。
-   * 只在專案 A 會是 true（開關本身只在 A 生效）。沒給＝關。
-   */
+  /** 服務關係開關（`SERVICE_RELATIONS`，#118／#119）開著：條件加上 `byService`（`withServiceBasis`）。沒給＝關。 */
   serviceRelations?: boolean;
 }
 
@@ -136,16 +134,6 @@ export function isProjectA(shape: AdminCenterShape): boolean {
  * 的那一支路由會安靜地回到多公司的行為 —— 在專案 A 上就是一個空列表。
  */
 export function resolveCompanyCondition(
-  identity: AdminIdentity,
-  shape: AdminCenterShape
-): ScopeResult {
-  const result = resolveLegacyCondition(identity, shape);
-  if (!result.ok || !shape.serviceRelations) return result;
-  return { ok: true, condition: { ...result.condition, byService: true } };
-}
-
-/** 開關關著時的條件（也是開著時的 kind 與對象，開著再加上 `byService`）。 */
-function resolveLegacyCondition(
   identity: AdminIdentity,
   shape: AdminCenterShape
 ): ScopeResult {
@@ -182,23 +170,8 @@ export function companyWhereSql(
   condition: CompanyCondition,
   column = 'u.company_id'
 ): { sql: string; params: Array<string | number> } {
-  // 服務關係（#119）：只有以 `users u` 為主的查詢接得上；專家、本單位設定照舊看那一欄。
-  if (condition.byService && column === 'u.company_id') {
-    switch (condition.kind) {
-      case 'company':
-        return {
-          sql: 'EXISTS (SELECT 1 FROM service_relations sr WHERE sr.user_id = u.id AND sr.company_id = ?)',
-          params: [condition.companyId],
-        };
-      case 'referrer':
-        return {
-          sql: 'EXISTS (SELECT 1 FROM service_relations sr WHERE sr.user_id = u.id AND sr.referrer_id = ?)',
-          params: [condition.referrerId],
-        };
-      case 'unassigned':
-        return { sql: 'NOT EXISTS (SELECT 1 FROM service_relations sr WHERE sr.user_id = u.id)', params: [] };
-    }
-  }
+  const byService = serviceWhereSql(condition, column);
+  if (byService) return byService;
   switch (condition.kind) {
     case 'company':
       return { sql: `${column} = ?`, params: [condition.companyId] };
@@ -226,24 +199,9 @@ export function companyWhereSql(
  */
 export function matchesCompanyCondition(
   condition: CompanyCondition,
-  row: {
-    companyId: number | null;
-    referrerId?: number | null;
-    /** 服務關係（#119）；null 或沒帶＝沒有服務關係。只有 `byService` 的條件看它。 */
-    service?: { companyId: number; referrerId: number | null } | null;
-  }
+  row: { companyId: number | null; referrerId?: number | null; service?: ServiceRelation | null }
 ): boolean {
-  if (condition.byService) {
-    const service = row.service ?? null;
-    switch (condition.kind) {
-      case 'company':
-        return service !== null && service.companyId === condition.companyId;
-      case 'referrer':
-        return service !== null && service.referrerId === condition.referrerId;
-      case 'unassigned':
-        return service === null;
-    }
-  }
+  if (condition.byService) return matchesServiceCondition(condition, row.service ?? null);
   switch (condition.kind) {
     case 'company':
       return row.companyId === condition.companyId;

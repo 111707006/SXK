@@ -278,6 +278,39 @@ cd /var/www/sxk && node deploy/merge-duplicate-phones.mjs --execute
 > ⚠️ 被并掉的帐号**已发出的通行证**在到期前照样有效（通行证只验签章）；它的使用权与绑定已经搬走。
 > 新建的 A 库：套完 `schema.sql` 之后也跑一次 ④（没有重复，只加唯一键）。
 
+### 服务关系（#118 起，ADR-0020；只有专案 A）
+
+家长「现在由哪个合作单位、哪位推荐人服务」记在 `service_relations`，每次变动记一列 `service_relation_changes`；
+开关 `SERVICE_RELATIONS` 打开后，后台范围、头部 Logo、清分、连结与兑换码挂上、改派、换人提示全部看它。
+旧资料用 `deploy/migrate-service-relations.mjs`（规则在 `deploy/serviceRelationsMigration.mjs`，#123）转过来：
+
+- 绑了推荐人的家长 → 那位推荐人与他的单位（就算帐号归属另一家公司）
+- 没绑推荐人、帐号归属某家单位 → 那个单位、推荐人空（单位管理者再标注）
+- 未归属 → 没有服务关系（森心康直属）
+- 没有单位的推荐人（停用的也算）→ 每人建一个个人治疗师单位（代号 `therapist-r<编号>`）并挂上
+- 原本当成合作公司开的独立治疗师（例：「杨智翔」）→ 用 `--therapist-unit <单位编号>` 指名改类型（看资料猜不出来，要人指名）
+
+已经有服务关系的家长不动（可以重跑）；每挂上一位写一列纪录（system／migration）。
+
+**顺序**（每一步看完输出再走下一步；接在上一节「合并重复手机号」之后）：
+
+```bash
+# ① 两个库都跑迁移：service_relations、service_relation_changes（2026-11-23-service-relations.sql，只加表）
+#    以及清分的筛查渠道比例（2026-11-24-split-screening.sql，#122，只加栏位）
+cd /var/www/sxk   && node deploy/migrate.mjs            # 看清单 → 备份 → 加 --confirm
+cd /var/www/sxk-b && node deploy/migrate.mjs
+# ② 只在 A：确认上一节的合并已经做完（唯一键 uk_a_active_phone 在）、身分开关 A_PHONE_IDENTITY=1 已经开着
+# ③ 只在 A：预演。只读，逐位家长印出：原归属、原推荐人 → 新单位 · 新推荐人；看清楚每一位
+cd /var/www/sxk && node deploy/migrate-service-relations.mjs --therapist-unit <杨智翔那家的编号>
+# ④ 只在 A：备份 → 执行（参数与预演一样）
+cd /var/www/sxk && node deploy/migrate-service-relations.mjs --execute --therapist-unit <同上>
+# ⑤ 最后一行要是「还没有单位的推荐人：0 位」，才在 A 的 .env 加 SERVICE_RELATIONS=1（同时要 A_COMPANIES=1、A_PHONE_IDENTITY=1）并重启
+```
+
+> ③ 到 ⑤ 之间家长自己点连结或兑换码挂上的，④ 不覆盖（`INSERT IGNORE`，不写纪录）。
+> 转成个人治疗师单位的旧推荐人帐号**角色维持推荐人**（只看标注给自己的家长）；要不要改成单位管理者待决定（#114）。
+> 回退＝把 `SERVICE_RELATIONS` 拿掉重启：两张表留着不删，后台范围与登入回到看归属与推荐绑定。
+
 主机上各跑一次（脚本会检查 `.env` 与 `dist/` 在不在，缺了就地停下）：
 
 ```bash

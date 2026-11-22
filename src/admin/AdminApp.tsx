@@ -386,6 +386,8 @@ function AdminCenter() {
                 </ul>
               </div>
               <ReferrersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
+              {/* 單位層的碼（#124，服務關係開關開著）：不指定推薦人，給單位管理者代填、發給本單位用。 */}
+              {shape.serviceRelations && <UnitCodesSection companies={companies.filter(c => c.active)} onError={handleError} />}
               <div className="border-t border-stone-200 pt-8">
                 <CouponsPanel onError={handleError} />
               </div>
@@ -394,6 +396,7 @@ function AdminCenter() {
           {activeTab === 'coupons' && <CouponsPanel onError={handleError} />}
           {activeTab === 'revenueSplit' && <RevenueSplitPanel onError={handleError} />}
           {activeTab === 'myCodes' && <RedeemCodesBlock referrerId={null} onError={handleError} />}
+          {activeTab === 'unitCodes' && <RedeemCodesBlock referrerId={null} unitId="mine" onError={handleError} />}
           {activeTab === 'proxy' && <ProxyPanel onError={handleError} />}
         </div>
       )}
@@ -508,6 +511,33 @@ function LoginForm({
           后台没有预设帐号，也没有自助注册。需要开通请联系系统管理员。
         </p>
       </div>
+    </div>
+  );
+}
+
+/** 全域管理員替一個合作單位產碼（#124）：選單位，底下是那個單位的碼。 */
+function UnitCodesSection({ companies, onError }: { companies: AdminCompany[]; onError: (view: AdminErrorView) => void }) {
+  const [unitId, setUnitId] = useState<number | null>(null);
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-bold text-brand-forest">单位层兑换码</span>
+        <select
+          aria-label="合作单位"
+          className="rounded-xl border border-brand-stone px-3 py-2"
+          value={unitId ?? ''}
+          onChange={e => setUnitId(e.target.value === '' ? null : Number(e.target.value))}
+        >
+          <option value="">选一个合作单位</option>
+          {companies.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-brand-charcoal/60">不指定推荐人；单位管理者代填、发给本单位的家长用，佣金全部算单位。</span>
+      </div>
+      {unitId !== null && <RedeemCodesBlock key={unitId} referrerId={null} unitId={unitId} onError={onError} />}
     </div>
   );
 }

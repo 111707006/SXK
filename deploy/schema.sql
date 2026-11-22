@@ -952,3 +952,41 @@ CREATE TABLE IF NOT EXISTS `wechat_openids` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`, `appid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 服务关系与改派纪录（#118，ADR-0020，只有专案 A；迁移 deploy/migrations/2026-11-23-service-relations.sql）
+CREATE TABLE IF NOT EXISTS `service_relations` (
+  -- 一位家长最多一列；没有列＝森心康直属。
+  `user_id` INT UNSIGNED NOT NULL PRIMARY KEY,
+  -- 现在服务这位家长的合作单位（companies.id）。
+  `company_id` INT UNSIGNED NOT NULL,
+  -- 现在服务的推荐人（referrers.id）；NULL＝单位里还没标注（只有单位管理者看得到）。
+  `referrer_id` INT UNSIGNED NULL,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_service_relations_company` (`company_id`, `referrer_id`),
+  INDEX `idx_service_relations_referrer` (`referrer_id`),
+  CONSTRAINT `fk_service_relations_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  -- 删掉一个单位：这位家长回到森心康直属（与 users.company_id 同理：家长资料不跟着单位删）。
+  CONSTRAINT `fk_service_relations_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  -- 删掉一位推荐人：回到单位里还没标注。
+  CONSTRAINT `fk_service_relations_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `referrers` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `service_relation_changes` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  -- 改之前、改之后。单位是 NULL＝没有服务关系（森心康直属）；推荐人是 NULL＝还没标注。
+  -- 刻意不设外键：单位或推荐人之后删掉，纪录照样留着。
+  `from_company_id` INT UNSIGNED NULL,
+  `from_referrer_id` INT UNSIGNED NULL,
+  `to_company_id` INT UNSIGNED NULL,
+  `to_referrer_id` INT UNSIGNED NULL,
+  -- 谁改的：admin＝后台帐号（admin_user_id）；parent＝家长自己（连结、兑换码、换人提示选「换」）；system＝迁移。
+  `actor` ENUM('admin','parent','system') NOT NULL,
+  -- 原因：连结／兑换码／后台改派／迁移（src/serviceRelations/rules.ts 的 CHANGE_REASONS）。
+  `reason` ENUM('link','code','admin','migration') NOT NULL,
+  -- actor=admin 时是改的那个后台帐号；其他是 NULL。不设外键，理由同上。
+  `admin_user_id` INT UNSIGNED NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_service_relation_changes_user` (`user_id`, `created_at`),
+  CONSTRAINT `fk_service_relation_changes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -337,6 +337,12 @@ const REVENUE_SPLIT = REVENUE_SPLIT_REQUESTED && APP_MODE === 'full';
 const TEST_VIP_CODE = resolveTestCode('TEST_VIP_CODE', process.env.TEST_VIP_CODE);
 const TEST_COUPON_CODE = resolveTestCode('TEST_COUPON_CODE', process.env.TEST_COUPON_CODE);
 assertDistinctTestCodes(TEST_VIP_CODE, TEST_COUPON_CODE);
+// 清分改看服務關係、加上篩查渠道（#122，ADR-0020 第 3、8 點）：開著時新訂單的對方看 `service_relations`、
+// 篩查渠道（`users.company_id`）與服務單位不同且設了篩查渠道比例時從對方那一份先切；後台清分頁可設篩查渠道比例、
+// 兌換碼對帳多列單位與推薦人兩方金額。⚠️ 佔位、**永遠是關**：要跟著服務關係開關（`src/serviceRelations/switch.ts`
+// 的 `resolveServiceRelationsSwitch`）一起讀，而那個開關要身分開關（#115）合進來才接得上。接上時改成
+// `SERVICE_RELATIONS && REVENUE_SPLIT`，並先跑 `2026-11-24-split-screening.sql`。關著＝與 #122 之前一行不差。
+const SPLIT_BY_SERVICE_RELATIONS: boolean = false;
 // 微信支付手續費（萬分比，暫採 60＝0.6%）：清分分的是扣掉手續費之後的金額；開單時記在快照上。認不得起不來。
 const WECHAT_FEE_BP = resolveFeeBp(process.env.WECHAT_FEE_BP);
 
@@ -346,7 +352,11 @@ const WECHAT_FEE_BP = resolveFeeBp(process.env.WECHAT_FEE_BP);
  */
 async function resolvePaymentSplit(userId: number): Promise<SplitSnapshot | null> {
   if (!REVENUE_SPLIT) return null;
-  const [rates, who] = await Promise.all([loadSplitRates(), loadSplitAttribution(userId)]);
+  const serviceRelations = SPLIT_BY_SERVICE_RELATIONS;
+  const [rates, who] = await Promise.all([
+    loadSplitRates({ screening: serviceRelations }),
+    loadSplitAttribution(userId, { serviceRelations }),
+  ]);
   return resolveSplit(rates, who, WECHAT_FEE_BP);
 }
 

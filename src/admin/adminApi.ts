@@ -18,6 +18,7 @@ export interface WecomQrList {
 }
 import type { HomeMediaItem, HomeMediaKind, HomeMediaSlot } from '../homeMedia/shape';
 import type { LegalDoc, LegalDocKey, LegalDocs } from '../legal/shape';
+import type { UnitKind } from './units';
 import type { AdminCenterShape } from './companyScope';
 import type { AssessmentRecord } from '../types';
 import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
@@ -34,6 +35,8 @@ export interface AdminIdentityView {
   email: string;
   companyId: number | null;
   selection: { kind: 'company'; companyId: number } | { kind: 'unassigned' } | null;
+  /** 單位管理者同時是推薦人（個人治療師單位的那個帳號，#117）；只有這種帳號才帶，值恆為 true。 */
+  referrer?: true;
 }
 
 /** 清分（ADR-0016）的一組比例（萬分比；`null`＝沿用上一層）。 */
@@ -114,6 +117,10 @@ export interface AdminReferrer {
   kind: 'channel' | 'therapist';
   companyId: number | null;
   companyName: string | null;
+  /** 所屬單位的進站代號與類型、推薦人代號（#117）：畫個人連結用（`src/admin/units.ts` 的 `referrerEntryUrl`）。 */
+  companySlug?: string | null;
+  companyKind?: UnitKind | null;
+  code?: string | null;
   active: boolean;
   createdAt: string | null;
 }
@@ -125,6 +132,8 @@ export interface AdminCompany {
   wecomWebhookUrl: string | null;
   /** 家長端頁首與登入卡上的 LOGO 網址。`null` 代表用建置內建的字標。 */
   logoUrl: string | null;
+  /** 合作單位的類型（#117，只在 A 畫）。舊的伺服器不帶。 */
+  kind?: UnitKind;
   active: boolean;
 }
 
@@ -430,10 +439,18 @@ export const adminApi = {
 
   companies: () => request<{ companies: AdminCompany[] }>('/companies'),
 
-  createCompany: (name: string, slug: string) =>
-    request<{ company: AdminCompany }>('/companies', {
+  /**
+   * 建公司（B）／合作單位（A，#117）。`unit` 只有 A 傳：類型必選；個人治療師一次帶上那個帳號的信箱、密碼、手機號，
+   * 伺服器同時建好單位管理者兼推薦人的帳號。
+   */
+  createCompany: (
+    name: string,
+    slug: string,
+    unit?: { kind: UnitKind; email?: string; password?: string; phone?: string }
+  ) =>
+    request<{ company: AdminCompany; referrer?: AdminReferrer }>('/companies', {
       method: 'POST',
-      body: JSON.stringify({ name, slug }),
+      body: JSON.stringify({ name, slug, ...unit }),
     }),
 
   adminUsers: () => request<{ adminUsers: AdminUser[] }>('/admin-users'),
@@ -514,7 +531,7 @@ export const adminApi = {
 
   // ── 推薦人（客戶 10/22，#93；只有全域管理員）──
   referrers: () => request<{ referrers: AdminReferrer[] }>('/referrers'),
-  createReferrer: (input: { email: string; password: string; name: string; phone: string; kind: 'channel' | 'therapist'; companyId: number | null }) =>
+  createReferrer: (input: { email: string; password: string; name: string; phone: string; kind?: 'channel' | 'therapist'; companyId: number | null; code?: string }) =>
     request<{ referrer: AdminReferrer }>('/referrers', { method: 'POST', body: JSON.stringify(input) }),
   setReferrerActive: (id: number, active: boolean) =>
     request<{ ok: true }>(`/referrers/${id}/active`, { method: 'POST', body: JSON.stringify({ active }) }),

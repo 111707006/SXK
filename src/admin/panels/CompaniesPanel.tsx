@@ -1,6 +1,9 @@
 /**
  * 合作公司清單與建立（issue #4）—— 只有全域管理員看得到。
  *
+ * 專案 A 開了合作公司時（`units`，#117，ADR-0020）叫「合作单位」：分機構與個人治療師、可以照類型篩選；
+ * 建個人治療師單位時一併開好那個帳號（單位管理者兼推薦人）。B 照舊叫合作公司，一個字都不變。
+ *
  * 進站識別碼（slug）是這裡最要緊的欄位：它就是家長連結上的 `?c=`，
  * 決定一位家長會歸屬到哪一家公司。它在資料庫上是 UNIQUE，重複會被 409 擋下 ——
  * 兩家公司共用一個識別碼等於把家長送給錯的公司，而那件事沒有補救的方法。
@@ -10,12 +13,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Save, Trash2, Upload } from 'lucide-react';
 import { AdminApiError, adminApi, type WecomQrList } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
+import { UNIT_KIND_LABEL, UNIT_KINDS, type UnitKind } from '../units';
 import {
   Button,
   EmptyState,
   ErrorNote,
   Field,
   Panel,
+  Select,
   Spinner,
   TextInput,
   toErrorView,
@@ -25,10 +30,13 @@ import {
 export default function CompaniesPanel({
   onError,
   onChanged,
+  units = false,
 }: {
   onError: (view: AdminErrorView) => void;
   /** 新建一家公司後要讓上層的切換選單也看得到它。 */
   onChanged: () => void;
+  /** 專案 A 的合作單位（#117）：改名、類型、篩選、個人治療師帳號。 */
+  units?: boolean;
 }) {
   const load = useCallback(() => adminApi.companies(), []);
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
@@ -36,10 +44,16 @@ export default function CompaniesPanel({
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  // 合作單位（#117）：類型不給預設——新建時一定要選；個人治療師多帳號的三格。
+  const [kind, setKind] = useState<UnitKind | ''>('');
+  const [account, setAccount] = useState({ email: '', password: '', phone: '' });
+  const [kindFilter, setKindFilter] = useState<UnitKind | ''>('');
   const [busy, setBusy] = useState(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
 
-  const companies = data?.companies ?? [];
+  const allCompanies = data?.companies ?? [];
+  const companies = units && kindFilter ? allCompanies.filter(c => (c.kind ?? 'institution') === kindFilter) : allCompanies;
+  const noun = units ? '单位' : '公司';
   const origin = window.location.origin;
 
   // 企業微信客服二維碼（使用者 2026-11-10；B 2026-11-19 起也有）：伺服器沒有這幾支（404）→ 整塊不畫。
@@ -63,9 +77,23 @@ export default function CompaniesPanel({
     setBusy(true);
     setSaveFailure(null);
     try {
-      await adminApi.createCompany(name.trim(), slug.trim().toLowerCase());
+      if (units && !kind) {
+        setSaveFailure('请选择单位类型（机构或个人治疗师）。');
+        return;
+      }
+      await adminApi.createCompany(
+        name.trim(),
+        slug.trim().toLowerCase(),
+        !units || !kind
+          ? undefined
+          : kind === 'therapist'
+            ? { kind, email: account.email.trim(), password: account.password, phone: account.phone.trim() }
+            : { kind }
+      );
       setName('');
       setSlug('');
+      setKind('');
+      setAccount({ email: '', password: '', phone: '' });
       setCreating(false);
       reload();
       onChanged();
@@ -80,21 +108,37 @@ export default function CompaniesPanel({
 
   return (
     <Panel
-      title="合作公司"
-      description="每一家公司有一个进站识别码。家长必须从带着这个识别码的连结注册，才会归属到该公司。"
+      title={units ? '合作单位' : '合作公司'}
+      description={
+        units
+          ? '每一个单位有一个进站识别码。机构底下可以有好几位推荐人（在「兑换码与优惠券」开）；个人治疗师单位只有他自己一位，他的帐号同时是单位管理者与推荐人。'
+          : '每一家公司有一个进站识别码。家长必须从带着这个识别码的连结注册，才会归属到该公司。'
+      }
       action={
         !creating && (
           <Button onClick={() => setCreating(true)}>
             <Plus size={12} />
-            新增公司
+            新增{noun}
           </Button>
         )
       }
     >
       {creating && (
         <div className="mb-5 max-w-xl space-y-3 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4">
-          <Field label="公司名称">
-            <TextInput value={name} maxLength={128} onChange={e => setName(e.target.value)} />
+          {units && (
+            <Field label="单位类型">
+              <Select value={kind} onChange={e => setKind(e.target.value as UnitKind | '')}>
+                <option value="">请选择</option>
+                {UNIT_KINDS.map(k => (
+                  <option key={k} value={k}>
+                    {UNIT_KIND_LABEL[k]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <Field label={units && kind === 'therapist' ? '治疗师名称' : `${noun}名称`}>
+            <TextInput value={name} maxLength={units && kind === 'therapist' ? 50 : 128} onChange={e => setName(e.target.value)} />
           </Field>
           <Field
             label="进站识别码"
@@ -108,6 +152,25 @@ export default function CompaniesPanel({
               className="font-mono"
             />
           </Field>
+
+          {units && kind === 'therapist' && (
+            <>
+              <Field label="手机号">
+                <TextInput value={account.phone} inputMode="numeric" maxLength={11} onChange={e => setAccount({ ...account, phone: e.target.value })} />
+              </Field>
+              <Field label="登入信箱" hint="这个帐号同时是单位管理者与推荐人：看得到本单位全部家长，也有自己的兑换码与代填。">
+                <TextInput value={account.email} type="email" autoComplete="off" onChange={e => setAccount({ ...account, email: e.target.value })} />
+              </Field>
+              <Field label="初始密码" hint="至少 8 个字元，交给治疗师后请他自己保管。">
+                <TextInput
+                  value={account.password}
+                  type="password"
+                  autoComplete="new-password"
+                  onChange={e => setAccount({ ...account, password: e.target.value })}
+                />
+              </Field>
+            </>
+          )}
 
           {saveFailure && <ErrorNote message={saveFailure} />}
 
@@ -147,18 +210,38 @@ export default function CompaniesPanel({
       )}
       {qrFailure && <ErrorNote message={qrFailure} />}
 
+      {units && allCompanies.length > 0 && (
+        <div className="mb-3 flex items-center gap-2 text-xs text-brand-charcoal/70">
+          <span>类型</span>
+          <Select value={kindFilter} onChange={e => setKindFilter(e.target.value as UnitKind | '')} aria-label="照类型筛选">
+            <option value="">全部</option>
+            {UNIT_KINDS.map(k => (
+              <option key={k} value={k}>
+                {UNIT_KIND_LABEL[k]}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
       {loading ? (
         <Spinner />
       ) : failure ? (
         <ErrorNote message={failure} onRetry={reload} />
+      ) : allCompanies.length === 0 ? (
+        <EmptyState
+          title={units ? '还没有合作单位' : '还没有合作公司'}
+          hint="建立第一家之后，就可以开设它的后台帐号并把进站连结交给对方。"
+        />
       ) : companies.length === 0 ? (
-        <EmptyState title="还没有合作公司" hint="建立第一家之后，就可以开设它的后台帐号并把进站连结交给对方。" />
+        <EmptyState title="这个类型还没有单位" />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-xs">
             <thead>
               <tr className="border-b border-brand-stone text-[10px] uppercase tracking-wide text-brand-charcoal/45">
-                <th className="py-2 pr-3 font-bold">公司</th>
+                <th className="py-2 pr-3 font-bold">{units ? '单位' : '公司'}</th>
+                {units && <th className="py-2 pr-3 font-bold">类型</th>}
                 <th className="py-2 pr-3 font-bold">识别码</th>
                 <th className="py-2 pr-3 font-bold">进站连结</th>
                 <th className="py-2 pr-3 font-bold">通知位置</th>
@@ -169,6 +252,7 @@ export default function CompaniesPanel({
               {companies.map(c => (
                 <tr key={c.id} className="border-b border-brand-stone/60 last:border-0">
                   <td className="py-2.5 pr-3 font-bold text-brand-forest">{c.name}</td>
+                  {units && <td className="py-2.5 pr-3 text-brand-charcoal/70">{UNIT_KIND_LABEL[c.kind ?? 'institution']}</td>}
                   <td className="py-2.5 pr-3 font-mono text-brand-charcoal/70">{c.slug}</td>
                   <td className="py-2.5 pr-3">
                     {/* 11/03 第 2 頁：連結旁加二維碼，可下載 PNG */}

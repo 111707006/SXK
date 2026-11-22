@@ -518,6 +518,34 @@ export async function findActiveCompanyIdByUserId(userId: number): Promise<numbe
   return row ? Number(row.id) : null;
 }
 
+/**
+ * 服務關係開著時（`SERVICE_RELATIONS`，#121，ADR-0020）頁首徽章與客服二維碼看的單位：`service_relations` 那一列的
+ * 合作單位，不看帳號上的歸屬（`users.company_id`）。沒有列（森心康直屬）或單位停用都回 null。每次都讀，不留快取 ——
+ * 改派之後下一次讀就是新單位。
+ */
+export async function findServiceCompanyBadgeByUserId(userId: number): Promise<CompanyBadgeRow | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    'SELECT c.name, c.logo_url FROM companies c JOIN service_relations sr ON sr.company_id = c.id WHERE sr.user_id = ? AND c.active = 1 LIMIT 1',
+    [userId]
+  );
+  const row = (rows as any[])[0];
+  return row ? { name: row.name, logoUrl: row.logo_url ?? null } : null;
+}
+
+/** 同上，給客服二維碼（`/api/wecom-qr`）：只取單位 id。 */
+export async function findServiceActiveCompanyIdByUserId(userId: number): Promise<number | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    'SELECT c.id FROM companies c JOIN service_relations sr ON sr.company_id = c.id WHERE sr.user_id = ? AND c.active = 1 LIMIT 1',
+    [userId]
+  );
+  const row = (rows as any[])[0];
+  return row ? Number(row.id) : null;
+}
+
 export async function findActiveCompanyIdBySlug(slug: string): Promise<number | null> {
   const p = getPool();
   if (!p) return null;

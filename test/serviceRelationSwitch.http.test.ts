@@ -24,6 +24,7 @@ const REFERRERS = [
   { id: 70, name: '张老师', companyId: 7, code: 'zhang', active: true },
   { id: 71, name: '李老师', companyId: 7, code: 'li', active: true },
   { id: 80, name: '王老师', companyId: 8, code: 'wang', active: true },
+  { id: 90, name: '赵老师', companyId: 9, code: null, active: true },
 ];
 
 const db = vi.hoisted(() => ({
@@ -31,7 +32,7 @@ const db = vi.hoisted(() => ({
   relations: {} as Record<number, { companyId: number; referrerId: number | null }>,
   changes: [] as any[],
   // 兌換碼：codeId → 推薦人與用掉的人
-  codes: new Map<string, { id: number; referrerId: number; usedBy: number | null }>(),
+  codes: new Map<string, { id: number; referrerId: number; usedBy: number | null; unitId?: number }>(),
   codeHash: '',
 }));
 
@@ -52,16 +53,18 @@ vi.mock('../src/db/mysql', () => ({
   findCompanyBySlug: async (slug: string) => (COMPANIES[slug] ? { ...COMPANIES[slug], slug, wecomWebhookUrl: null, active: true } : null),
   findCompanyByUserId: async () => null,
   findLinkReferrer: async (companyId: number, code: string | null) => {
-    const r = code === null ? undefined : REFERRERS.find(x => x.companyId === companyId && x.code === code);
+    // 沒代號：個人治療師單位（9）裡那一位
+    const r = code === null ? REFERRERS.find(x => x.companyId === companyId && companyId === 9) : REFERRERS.find(x => x.companyId === companyId && x.code === code);
     return r ? { id: r.id, companyId: r.companyId, active: r.active } : null;
   },
   findReferrerById: async (id: number) => {
     const r = ref(id);
     return r ? { id: r.id, companyId: r.companyId, active: r.active } : null;
   },
-  findUsedCodeReferrer: async (userId: number, codeId: number) => {
+  findUsedCodeOwner: async (userId: number, codeId: number) => {
     const c = [...db.codes.values()].find(x => x.id === codeId && x.usedBy === userId);
-    return c ? c.referrerId : null;
+    if (!c) return null;
+    return c.unitId !== undefined ? { referrerId: null, companyId: c.unitId, companyActive: c.unitId !== 99 } : { referrerId: c.referrerId, companyId: null, companyActive: false };
   },
   getServiceRelationByUserId: async (userId: number) => db.relations[userId] ?? null,
   serviceRelationNames: async (rel: { companyId: number; referrerId: number | null }) => ({
@@ -93,7 +96,7 @@ vi.mock('../src/db/redeemCodes', () => ({
     const row = db.codes.get(code);
     if (!row || row.usedBy !== null) return { ok: false };
     row.usedBy = userId;
-    return { ok: true, months: 1, startsOn: '2026-11-23', endsOn: '2026-12-20', boundReferrerId: null, codeId: row.id, referrerId: row.referrerId };
+    return { ok: true, months: 1, startsOn: '2026-11-23', endsOn: '2026-12-20', boundReferrerId: null, codeId: row.id, referrerId: row.unitId !== undefined ? null : row.referrerId, companyId: row.unitId ?? null };
   },
 }));
 
@@ -119,6 +122,10 @@ beforeEach(() => {
   db.codes = new Map([
     ['ZHANGAAAA2', { id: 501, referrerId: 70, usedBy: null }],
     ['WANGAAAAA2', { id: 502, referrerId: 80, usedBy: null }],
+    // 單位層的碼（#124）：甲机构（7）、個人治療師單位（9）、停用的單位（99）
+    ['JAAAAAAAA2', { id: 601, referrerId: 0, usedBy: null, unitId: 7 }],
+    ['SAAAAAAAA2', { id: 602, referrerId: 0, usedBy: null, unitId: 9 }],
+    ['DEADAAAAA2', { id: 603, referrerId: 0, usedBy: null, unitId: 99 }],
   ]);
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
@@ -230,6 +237,30 @@ describe('兌換碼', () => {
     expect(body.months).toBe(1);
     expect(body.serviceSwitch).toEqual({ currentName: '王老师', toName: '张老师', source: { kind: 'code', codeId: 501 } });
     expect(db.relations[40]).toEqual({ companyId: 8, referrerId: 80 });
+  });
+
+  it('單位層的碼（#124）、還沒有服務關係：掛到那個單位、推薦人空', async () => {
+    db.relations = {};
+    await post('/api/training/redeem', { code: 'JAAAAAAAA2' });
+    expect(db.relations[40]).toEqual({ companyId: 7, referrerId: null });
+  });
+
+  it('個人治療師單位的碼：掛到那位推薦人', async () => {
+    db.relations = {};
+    await post('/api/training/redeem', { code: 'SAAAAAAAA2' });
+    expect(db.relations[40]).toEqual({ companyId: 9, referrerId: 90 });
+  });
+
+  it('單位層的碼、已經由別單位服務：回提示（換成單位名）', async () => {
+    const body = await (await post('/api/training/redeem', { code: 'JAAAAAAAA2' })).json();
+    expect(body.serviceSwitch).toEqual({ currentName: '王老师', toName: '甲机构', source: { kind: 'code', codeId: 601 } });
+  });
+
+  it('單位停用了：不掛也不問', async () => {
+    db.relations = {};
+    const body = await (await post('/api/training/redeem', { code: 'DEADAAAAA2' })).json();
+    expect(body).not.toHaveProperty('serviceSwitch');
+    expect(db.relations[40]).toBeUndefined();
   });
 
   it('用的是現在那位推薦人的碼：不問', async () => {

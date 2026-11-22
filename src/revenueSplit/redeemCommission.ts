@@ -31,8 +31,9 @@ export function ratesFromRecords(
 export interface RedeemCommissionInput {
   months: number;
   status: 'unused' | 'used' | 'void';
-  referrerId: number;
-  /** 推薦人隸屬的單位；沒有是 null。 */
+  /** 單位層的碼（#124）是 null：整個面額歸單位。 */
+  referrerId: number | null;
+  /** 推薦人隸屬的單位（單位層的碼就是那個單位）；沒有是 null。 */
   companyId: number | null;
 }
 
@@ -50,6 +51,7 @@ export function redeemCommission(
   if (code.status !== 'used' || code.companyId === null) return null;
   const faceFen = prices?.[code.months];
   if (faceFen === undefined || !Number.isInteger(faceFen) || faceFen <= 0) return null;
+  if (code.referrerId === null) return { faceFen, companyFen: faceFen, referrerFen: 0 };
   const pick = [rates.referrer.get(code.referrerId)?.companyBp, rates.company.get(code.companyId)?.companyBp, rates.default.companyBp];
   const bp = pick.find(x => x !== null && x !== undefined) ?? DEFAULT_COMPANY_BP;
   const companyFen = Math.floor((faceFen * bp) / BP_MAX);

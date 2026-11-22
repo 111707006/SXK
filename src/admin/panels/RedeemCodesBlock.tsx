@@ -13,15 +13,28 @@ const STATUS_LABEL = { unused: '未用', used: '已用', void: '已作废' } as 
 
 export default function RedeemCodesBlock({
   referrerId,
+  unitId,
   onError,
 }: {
-  /** 全域管理員看某一位推薦人；`null`＝推薦人看自己的。 */
+  /** 全域管理員看某一位推薦人；`null`＝推薦人看自己的。給了 `unitId` 就不看這一個。 */
   referrerId: number | null;
+  /** 單位層的碼（#124）：全域管理員看、產某個單位的（編號）；`'mine'`＝單位管理者看本單位的。 */
+  unitId?: number | 'mine';
   onError: (view: AdminErrorView) => void;
 }) {
-  const asAdmin = referrerId !== null;
-  const load = useCallback(() => (asAdmin ? adminApi.referrerCodes(referrerId!) : adminApi.myCodes()), [asAdmin, referrerId]);
-  const { data, loading, failure, reload } = useAsyncData(load, [referrerId], onError);
+  const asAdmin = unitId !== undefined ? unitId !== 'mine' : referrerId !== null;
+  const load = useCallback(
+    () =>
+      unitId === 'mine'
+        ? adminApi.myUnitCodes()
+        : unitId !== undefined
+          ? adminApi.unitCodes(unitId)
+          : asAdmin
+            ? adminApi.referrerCodes(referrerId!)
+            : adminApi.myCodes(),
+    [asAdmin, referrerId, unitId],
+  );
+  const { data, loading, failure, reload } = useAsyncData(load, [referrerId, unitId], onError);
   const [months, setMonths] = useState<1 | 3 | 6 | 12>(1);
   const [quantity, setQuantity] = useState('10');
   const [busy, setBusy] = useState(false);
@@ -33,7 +46,8 @@ export default function RedeemCodesBlock({
     setBusy(true);
     setNote(null);
     try {
-      await adminApi.createCodes(referrerId!, months, Number(quantity));
+      if (typeof unitId === 'number') await adminApi.createUnitCodes(unitId, months, Number(quantity));
+      else await adminApi.createCodes(referrerId!, months, Number(quantity));
       reload();
     } catch (err) {
       setNote(err instanceof Error ? err.message : '产生兑换码失败。');
@@ -62,7 +76,8 @@ export default function RedeemCodesBlock({
 
   async function exportCsv() {
     try {
-      const { blob, fileName } = await adminApi.codesCsv(referrerId);
+      // 單位層：本單位的用 /unit/codes.csv；全域管理員看某個單位時沒有匯出（複製未用的即可）。
+      const { blob, fileName } = unitId === 'mine' ? await adminApi.unitCodesCsv() : await adminApi.codesCsv(referrerId);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -95,7 +110,9 @@ export default function RedeemCodesBlock({
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] text-brand-charcoal/60">共 {codes.length} 组，未用 {unused.length} 组</span>
         <Button variant="ghost" onClick={() => void copyUnused()} disabled={unused.length === 0}><Copy size={12} />复制未用的码</Button>
-        <Button variant="ghost" onClick={() => void exportCsv()} disabled={unused.length === 0}><Download size={12} />导出未用的码</Button>
+        {typeof unitId !== 'number' && (
+          <Button variant="ghost" onClick={() => void exportCsv()} disabled={unused.length === 0}><Download size={12} />导出未用的码</Button>
+        )}
         {note && <span className="text-[11px] font-bold text-brand-forest">{note}</span>}
       </div>
       {codes.length === 0 ? <EmptyState title="还没有兑换码" /> : (

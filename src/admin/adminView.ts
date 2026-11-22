@@ -108,7 +108,8 @@ export type AdminTabId =
   | 'coupons'
   | 'revenueSplit'
   | 'myCodes'
-  | 'proxy';
+  | 'proxy'
+  | 'unitCodes';
 
 export interface AdminTab {
   id: AdminTabId;
@@ -177,9 +178,12 @@ export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape
     // ADR-0020（#117）：A 的「合作公司」改叫「合作单位」；B 一個字都不變。
     .map(t => (t.id === 'companies' && isProjectA(shape) ? { ...t, label: '合作单位' } : t));
   // 個人治療師單位的那個帳號（#117）：單位管理者，同時是推薦人 —— 多推薦人自己的兩頁（家長列表已經是全單位）。
-  return identity.role === 'company_member' && identity.referrer === true
-    ? [...tabs, ...REFERRER_TABS.filter(t => t.id !== 'parents')]
-    : tabs;
+  if (identity.role === 'company_member' && identity.referrer === true) return [...tabs, ...REFERRER_TABS.filter(t => t.id !== 'parents')];
+  // 服務關係開關開著（#124）：單位管理者也能代填、用本單位的碼。
+  if (identity.role === 'company_member' && shape.serviceRelations) {
+    return [...tabs, { id: 'unitCodes', label: '本单位兑换码' }, ...REFERRER_TABS.filter(t => t.id === 'proxy')];
+  }
+  return tabs;
 }
 
 /**

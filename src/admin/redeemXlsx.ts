@@ -27,8 +27,9 @@ export function redeemLedgerRows(rows: ReadonlyArray<RedeemLedgerRow>, commissio
     });
   }
   return rows.map(r => [
-    r.referrerName,
-    KIND[r.referrerKind],
+    r.referrerName ?? '',
+    // 單位層的碼（#124）沒有推薦人
+    r.referrerKind === null ? '单位层' : KIND[r.referrerKind],
     formatCode(r.code),
     String(r.months),
     STATUS[r.status],

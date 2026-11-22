@@ -566,6 +566,12 @@ export const adminApi = {
     request<{ codes: AdminRedeemCode[] }>(`/referrers/${referrerId}/codes`, { method: 'POST', body: JSON.stringify({ months, quantity }) }),
   voidCode: (codeId: number) => request<{ ok: true }>(`/redeem-codes/${codeId}/void`, { method: 'POST', body: '{}' }),
   myCodes: () => request<{ codes: AdminRedeemCode[] }>('/referrer/codes'),
+  /** 單位層的碼（#124）：全域管理員看、產某個單位的；單位管理者看本單位的。 */
+  unitCodes: (unitId: number) => request<{ codes: AdminRedeemCode[] }>(`/units/${unitId}/codes`),
+  createUnitCodes: (unitId: number, months: 1 | 3 | 6 | 12, quantity: number) =>
+    request<{ codes: AdminRedeemCode[] }>(`/units/${unitId}/codes`, { method: 'POST', body: JSON.stringify({ months, quantity }) }),
+  myUnitCodes: () => request<{ codes: AdminRedeemCode[] }>('/unit/codes'),
+  unitCodesCsv: () => download('/unit/codes.csv', { method: 'GET' }, '本单位未用兑换码.csv'),
   /** 兌換碼對帳匯出（#113，只有全域管理員）。 */
   couponBatches: () => request<{ batches: AdminCouponBatch[] }>('/coupons'),
   createCoupons: (input: { note: string | null; discountKind: CouponDiscount['kind']; discountValue: number; quantity: number; expiresOn: string | null }) =>

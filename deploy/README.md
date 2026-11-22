@@ -284,7 +284,7 @@ cd /var/www/sxk && node deploy/merge-duplicate-phones.mjs --execute
 开关 `SERVICE_RELATIONS` 打开后，后台范围、头部 Logo、清分、连结与兑换码挂上、改派、换人提示全部看它。
 旧资料用 `deploy/migrate-service-relations.mjs`（规则在 `deploy/serviceRelationsMigration.mjs`，#123）转过来：
 
-- 绑了推荐人的家长 → 那位推荐人与他的单位（就算帐号归属另一家公司）
+- 绑了推荐人的家长 → 那位推荐人与他的单位（就算帐号归属另一家公司）；推荐人停用＝他的单位、推荐人空；单位停用＝不挂
 - 没绑推荐人、帐号归属某家单位 → 那个单位、推荐人空（单位管理者再标注）
 - 未归属 → 没有服务关系（森心康直属）
 - 没有单位的推荐人（停用的也算）→ 每人建一个个人治疗师单位（代号 `therapist-r<编号>`）并挂上

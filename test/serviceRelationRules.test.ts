@@ -179,9 +179,20 @@ describe('proxyAccess：代填能不能碰這位家長（#124）', () => {
     不同單位: { referrer: 'other', unit: 'other' },
     不同單位還沒標注: { referrer: 'other', unit: 'other' },
   };
-  it.each(Object.keys(CURRENTS))('%s', c => {
-    expect(proxyAccess(asReferrer, CURRENTS[c])).toBe(WANT[c].referrer);
-    expect(proxyAccess(asUnit, CURRENTS[c])).toBe(WANT[c].unit);
+  it.each(Object.keys(CURRENTS))('%s（篩查渠道是本單位）', c => {
+    expect(proxyAccess(asReferrer, CURRENTS[c], UNIT_A)).toBe(WANT[c].referrer);
+    expect(proxyAccess(asUnit, CURRENTS[c], UNIT_A)).toBe(WANT[c].unit);
+  });
+
+  it('沒有服務關係、篩查渠道不是本單位（直屬或別單位進來的）：不能碰——不能靠打手機號認領，要全域管理員先指派（review）', () => {
+    for (const channel of [null, UNIT_B]) {
+      expect(proxyAccess(asReferrer, null, channel)).toBe('other');
+      expect(proxyAccess(asUnit, null, channel)).toBe('other');
+    }
+  });
+
+  it('有服務關係時不看篩查渠道', () => {
+    expect(proxyAccess(asUnit, { companyId: UNIT_A, referrerId: null }, UNIT_B)).toBe('mine');
   });
 
   it('代填之後要掛的服務關係：推薦人＝他與他的單位；單位＝那個單位、推薦人空', () => {

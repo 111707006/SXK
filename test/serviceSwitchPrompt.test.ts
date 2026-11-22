@@ -8,7 +8,7 @@ import {
   shouldCheckVisitLink,
 } from '../src/serviceRelations/promptStore';
 import { captureVisitLink, peekVisitLink } from '../src/utils/attribution';
-import { SERVICE_SWITCH_COPY } from '../src/serviceRelations/parentCopy';
+import { SERVICE_SWITCH_COPY, switchResultMessage } from '../src/serviceRelations/parentCopy';
 
 /** 換人提示的前端狀態（#120）：選「不換」之後本次登入內不再追問同一來源；這次進站的連結。 */
 
@@ -83,5 +83,13 @@ describe('提示的字', () => {
     expect(SERVICE_SWITCH_COPY.question('王老师', '张老师')).toBe('你目前由 王老师 服务，要换成 张老师 吗？');
     expect(SERVICE_SWITCH_COPY.switchTo('张老师')).toBe('换成 张老师');
     expect(SERVICE_SWITCH_COPY.keep).toBe('不换');
+  });
+});
+
+describe('選「换」之後的那一句（review）', () => {
+  it('伺服器真的換了才說「已经换成」；changed:false 說沒有更換；失敗說稍後再試', () => {
+    expect(switchResultMessage(true, true, '张老师')).toBe('已经换成 张老师。');
+    expect(switchResultMessage(true, false, '张老师')).toBe(SERVICE_SWITCH_COPY.unchanged);
+    expect(switchResultMessage(false, false, '张老师')).toBe(SERVICE_SWITCH_COPY.failed);
   });
 });

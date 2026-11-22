@@ -2008,10 +2008,10 @@ async function useCodeAndIssueProxyPass(conn: ProxyConn, userId: number, codeId:
 //
 // 與上面兩支同理列在 `CROSS_SCOPE_ALLOWLIST`（對象可能還沒有服務關係，範圍條件表達不了），邊界改由這裡守：
 //   - 以手機號找啟用中的帳號（A 的身分只看手機號）；同一支有好幾個時，服務關係在本單位、標注給我的優先
-//   - 能不能碰照 `proxyAccess`：別單位的、（推薦人）不是標注給自己的一律 `other`，一個字都不寫
+//   - 能不能碰照 `proxyAccess`：別單位的、（推薦人）不是標注給自己的、沒有服務關係而篩查渠道不是本單位的一律 `other`，一個字都不寫
 //   - 只回孩子的姓名、生日、性別
 
-const SERVED_LOOKUP_SQL = `SELECT u.id, sr.company_id AS cur_company_id, sr.referrer_id AS cur_referrer_id, ud.child
+const SERVED_LOOKUP_SQL = `SELECT u.id, u.company_id AS screening_company_id, sr.company_id AS cur_company_id, sr.referrer_id AS cur_referrer_id, ud.child
        FROM users u
        LEFT JOIN service_relations sr ON sr.user_id = u.id
        LEFT JOIN user_data ud ON ud.user_id = u.id
@@ -2033,7 +2033,7 @@ export async function proxyLookupServed(party: ProxyParty, phone: string): Promi
   const [rows] = await p.execute(SERVED_LOOKUP_SQL, servedLookupParams(party, phone));
   const row = (rows as any[])[0];
   if (!row) return { status: 'new' };
-  const access = proxyAccess(party, servedRelationOf(row));
+  const access = proxyAccess(party, servedRelationOf(row), nullableId(row.screening_company_id));
   if (access === 'other') return { status: 'other' };
   const child = parseJson<any>(row.child, null);
   return {
@@ -2072,7 +2072,7 @@ export async function proxyFillServed(
     if (row) {
       userId = Number(row.id);
       current = servedRelationOf(row);
-      if (proxyAccess(party, current) === 'other') {
+      if (proxyAccess(party, current, nullableId(row.screening_company_id)) === 'other') {
         await conn.rollback();
         return { ok: false, reason: 'other' };
       }

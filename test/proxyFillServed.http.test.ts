@@ -135,7 +135,7 @@ describe('資料層（開著那一支）', () => {
   const fill = src.slice(src.indexOf('export async function proxyFillServed'), src.indexOf('// ── 兌換碼對帳'));
 
   it('不能碰的：退回、一個字都不寫（在任何寫入之前）', () => {
-    const guard = fill.indexOf("if (proxyAccess(party, current) === 'other') {");
+    const guard = fill.indexOf("if (proxyAccess(party, current, nullableId(row.screening_company_id)) === 'other') {");
     expect(guard).toBeGreaterThan(-1);
     expect(fill.slice(guard, guard + 200)).toMatch(/await conn\.rollback\(\);\s*return \{ ok: false, reason: 'other' \};/);
     expect(guard).toBeLessThan(fill.indexOf('INSERT INTO users'));

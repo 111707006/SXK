@@ -123,10 +123,9 @@ export default function AuthScreen({ onAuthSuccess, dbConfigured, wide = false }
           phone: phone.trim(),
           code: smsCode.trim(),
           companySlug: peekCompanySlug(),
-          // 推薦人個人連結的 `&t=`（#118）：服務關係開關開著時伺服器據此掛上推薦人。
-          referrerCode: peekReferrerCode(),
-          // 這次進站的連結（#120）：已經有人服務、這次點了別人的連結時，伺服器回換人提示。
-          visitLink: peekVisitLink(),
+          // 只有專案 A 多送兩欄（B 的請求一個字都不變，review）：推薦人個人連結的 `&t=`（#118），
+          // 與這次進站的連結（#120：已經有人服務、這次點了別人的連結時，伺服器回換人提示）。
+          ...(PRODUCT.mode === 'full' ? { referrerCode: peekReferrerCode(), visitLink: peekVisitLink() } : {}),
         }),
       });
       const data = await readJson(resp, '登录请求');

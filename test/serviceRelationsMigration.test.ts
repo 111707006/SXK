@@ -22,6 +22,7 @@ const COMPANIES = [
   { id: 5, name: '甲机构', slug: 'jia', kind: 'institution', active: 1 },
   { id: 6, name: '杨智翔', slug: 'yzx', kind: 'institution', active: 1 },
   { id: 8, name: '旧', slug: 'therapist-r12', kind: 'institution', active: 1 },
+  { id: 9, name: '停用的', slug: 'off', kind: 'institution', active: 0 },
 ];
 const REFERRERS = [
   { id: 10, name: '张老师', company_id: 5, active: 1 },
@@ -34,15 +35,19 @@ const USERS = [
   { id: 103, phone: '13800000103', company_id: null }, // 未歸屬、綁李（李沒單位）→ 李的新單位／李
   { id: 104, phone: '13800000104', company_id: null }, // 未歸屬、沒綁 → 沒有服務關係
   { id: 105, phone: '13800000105', company_id: 5 }, // 已經有服務關係 → 不動
+  { id: 106, phone: '13800000106', company_id: null }, // 綁停用的王（沒單位）→ 王的新單位、推薦人空
+  { id: 107, phone: '13800000107', company_id: 9 }, // 歸屬停用的單位 → 沒有服務關係
 ];
 const BINDINGS = [
   { user_id: 102, referrer_id: 10 },
   { user_id: 103, referrer_id: 11 },
+  { user_id: 106, referrer_id: 12 },
 ];
 
 const camelReferrers = REFERRERS.map(r => ({ id: r.id, name: r.name, companyId: r.company_id, active: r.active === 1 }));
 const camelUsers = USERS.map(u => ({ id: u.id, phone: u.phone, companyId: u.company_id }));
 const camelBindings = BINDINGS.map(b => ({ userId: b.user_id, referrerId: b.referrer_id }));
+const camelCompanies = COMPANIES.map(c => ({ ...c, active: c.active === 1 }));
 
 describe('planReferrerUnits', () => {
   it('沒有單位的推薦人（停用的也算）每人一個個人治療師單位；代號避開已有的', () => {
@@ -58,7 +63,7 @@ describe('planReferrerUnits', () => {
 });
 
 describe('planServiceRelations', () => {
-  const plan = planServiceRelations({ users: camelUsers, bindings: camelBindings, referrers: camelReferrers, existing: new Set([105]) });
+  const plan = planServiceRelations({ users: camelUsers, bindings: camelBindings, referrers: camelReferrers, companies: camelCompanies, existing: new Set([105]) });
   const of = (id: number) => plan.find(p => p.userId === id);
 
   it('歸屬某單位、沒綁推薦人：那個單位、推薦人空', () => {
@@ -75,6 +80,14 @@ describe('planServiceRelations', () => {
 
   it('未歸屬、沒綁：沒有服務關係', () => {
     expect(of(104)).toMatchObject({ to: null });
+  });
+
+  it('綁的推薦人停用：掛到他的單位、推薦人空（review）', () => {
+    expect(of(106)).toMatchObject({ boundReferrerId: 12, to: { companyId: null, referrerId: null }, pendingUnitFor: 12 });
+  });
+
+  it('要掛的單位停用：沒有服務關係（review）', () => {
+    expect(of(107)).toMatchObject({ fromCompanyId: 9, to: null });
   });
 
   it('已經有服務關係：不在計畫裡（不覆蓋）', () => {
@@ -123,7 +136,7 @@ describe('runServiceRelationsMigration', () => {
     expect(text).toMatch(/#104 .*→ 没有服务关系（森心康直属）/);
     expect(text).not.toMatch(/#105 /);
     expect(text).toMatch(/杨智翔.*改为个人治疗师/);
-    expect(result).toEqual({ unitsCreated: 0, therapistUnits: 0, attached: 0, direct: 1, skippedExisting: 1, planned: 3 });
+    expect(result).toEqual({ unitsCreated: 0, therapistUnits: 0, attached: 0, direct: 2, skippedExisting: 1, planned: 4 });
   });
 
   it('執行：先改類型、建單位並掛上推薦人，再重讀推薦人、逐位寫服務關係與紀錄', async () => {
@@ -151,7 +164,8 @@ describe('runServiceRelationsMigration', () => {
     );
     expect(w.some(s => s.includes('[104'))).toBe(false);
     expect(w.some(s => s.includes('[105'))).toBe(false);
-    expect(result).toMatchObject({ unitsCreated: 2, therapistUnits: 1, attached: 3, direct: 1, skippedExisting: 1 });
+    expect(w).toContain('INSERT IGNORE INTO service_relations (user_id, company_id, referrer_id) VALUES (?, ?, ?) [106,901,null]');
+    expect(result).toMatchObject({ unitsCreated: 2, therapistUnits: 1, attached: 4, direct: 2, skippedExisting: 1 });
   });
 
   it('執行時那位家長已經被別人掛上（INSERT IGNORE 沒寫進去）：不寫紀錄', async () => {

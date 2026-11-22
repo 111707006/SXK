@@ -4049,6 +4049,27 @@ app.post('/api/auth/sms/request', async (req, res) => {
 });
 
 /**
+ * 建一個手機號帳號；只在專案 A、撞唯一鍵時重查並回既有的那一個（`created: false`）：
+ * - 兩個請求同時建，後到的撞上（`uk_company_phone` 或 `uk_a_active_phone`）——先寫進去的那一個就是帳號
+ * - #116 的手機號唯一鍵（`uk_a_active_phone`）加上之後、身分開關卻關著：照（歸屬，手機號）找不到、建又撞號。
+ *   那個鍵在 A 的意思就是一支手機一個啟用中的帳號，所以以手機號找那一個（review；以前回 500）
+ * B 照舊丟出（ADR-0002 的身分在 B 一個字都不變）。
+ */
+async function createPhoneUserOrExisting(phone: string, companyId: number | null): Promise<any> {
+  try {
+    const id = await withTimeout(mysqlDb.createPhoneUser(phone, companyId), 2000);
+    return { id, phone, company_id: companyId, created: true };
+  } catch (err: any) {
+    if (APP_MODE !== 'full' || err?.code !== 'ER_DUP_ENTRY') throw err;
+    const existing =
+      (await withTimeout(findLoginAccount(companyId, phone), 2000)) ??
+      pickPhoneAccount(await withTimeout(mysqlDb.listUsersByPhone(phone), 2000));
+    if (!existing) throw err;
+    return { ...existing, created: false };
+  }
+}
+
+/**
  * 這支手機號在這次登入該進哪一個帳號（找不到回 null，由呼叫端建）。
  * 身分開關開著（只在 A）：只看手機號，不看歸屬；有好幾個時照 `pickPhoneAccount` 固定挑一個。
  * 關著：（歸屬，手機號）這一組（ADR-0002）。
@@ -4094,7 +4115,8 @@ async function relationSourceOf(userId: number, source: SwitchSource): Promise<R
  */
 async function applyServiceSource(
   userId: number,
-  source: SwitchSource
+  source: SwitchSource,
+  { ask = true }: { ask?: boolean } = {}
 ): Promise<{ attached: boolean; prompt: ServiceSwitchPrompt | null }> {
   const relationSource = await relationSourceOf(userId, source);
   const current = await withTimeout(mysqlDb.getServiceRelationByUserId(userId), 2000);
@@ -4102,7 +4124,7 @@ async function applyServiceSource(
   if (decision.kind === 'attach') {
     return { attached: await withTimeout(mysqlDb.attachServiceRelation(userId, decision.to, source.kind), 2000), prompt: null };
   }
-  if (decision.kind === 'ask') {
+  if (decision.kind === 'ask' && ask) {
     const [from, to] = await Promise.all([
       withTimeout(mysqlDb.serviceRelationNames(decision.current), 2000),
       withTimeout(mysqlDb.serviceRelationNames(decision.to), 2000),
@@ -4194,27 +4216,22 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     let user = existing;
     if (!user) {
       // 歸屬只在這一行寫得進去，此後不再改變 —— 已有帳號的家長走的是上面那條路。
-      try {
-        const newUserId = await withTimeout(mysqlDb.createPhoneUser(phone, scope.companyId), 2000);
-        user = { id: newUserId, phone, company_id: scope.companyId };
-        console.log(`[MySQL] Registered phone account (company: ${scope.companyId ?? '未归属'})`);
-      } catch (err: any) {
-        // 身分開關開著（#115 × #116）：同一支手機兩個請求同時建，後到的撞 `uk_a_active_phone`——
-        // 先寫進去的那一個就是帳號，重查一次登入它。關著照舊（丟出去、500）。
-        if (!A_PHONE_IDENTITY || err?.code !== 'ER_DUP_ENTRY') throw err;
-        user = await withTimeout(findLoginAccount(scope.companyId, phone), 2000);
-        if (!user) throw err;
-      }
+      user = await createPhoneUserOrExisting(phone, scope.companyId);
+      if (user.created) console.log(`[MySQL] Registered phone account (company: ${scope.companyId ?? '未归属'})`);
     }
 
     // 服務關係（#118／#120）：這次進站的連結（`visitLink`），沒有就用記下的那一組（`companySlug`＋`referrerCode`）。
     // 還沒有服務關係就掛上；已經有了而來源不同，回應多帶 `serviceSwitch`（換人提示）。出錯不擋登入（帳號已經確定），記一行。
     let serviceSwitch: ServiceSwitchPrompt | null = null;
-    const entryLink = SERVICE_RELATIONS
-      ? readLinkSource(req.body?.visitLink) ?? readLinkSource({ companySlug: req.body?.companySlug, referrerCode: req.body?.referrerCode })
+    // 記下的那一組是**第一次**進站的連結：只用來掛上還沒有服務關係的家長，不拿來問——否則改派過的家長每次登入
+    // 都會被問要不要換回第一位（review）。要問只看這次進站的連結。
+    const visitLink = SERVICE_RELATIONS ? readLinkSource(req.body?.visitLink) : null;
+    const storedLink = SERVICE_RELATIONS && !visitLink
+      ? readLinkSource({ companySlug: req.body?.companySlug, referrerCode: req.body?.referrerCode })
       : null;
+    const entryLink = visitLink ?? storedLink;
     if (entryLink) {
-      serviceSwitch = await applyServiceSource(Number(user.id), entryLink)
+      serviceSwitch = await applyServiceSource(Number(user.id), entryLink, { ask: visitLink !== null })
         .then(r => r.prompt)
         .catch((err: any) => {
           console.warn('[ServiceRelation] entry link failed:', err.message);
@@ -4349,7 +4366,7 @@ tier2Only.use(createHandoffTargetRouter({
     const user = await withTimeout(findLoginAccount(null, phone), 2000);
     return user ? Number(user.id) : null;
   },
-  createUser: phone => withTimeout(mysqlDb.createPhoneUser(phone, null), 2000),
+  createUser: async phone => Number((await createPhoneUserOrExisting(phone, null)).id),
   loadData: readHandoffParentData,
   saveData: (userId, data) =>
     withTimeout(mysqlDb.saveUserData(userId, null, data.child, data.completedScores, data.orders, data.reportHistory), 2000),

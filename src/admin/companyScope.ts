@@ -22,10 +22,10 @@
  * 3. `companyWhereSql` **永遠**回傳非空的 SQL 片段。沒有任何輸入能讓它產出空字串。
  */
 
-/** 後台成員的兩種角色。合作公司無法自行增刪帳號，由森心康代為處理。 */
 import { matchesServiceCondition, serviceWhereSql } from '../serviceRelations/scope';
 import type { ServiceRelation } from '../serviceRelations/rules';
 
+/** 後台成員的兩種角色。合作公司無法自行增刪帳號，由森心康代為處理。 */
 export type AdminRole = 'global_admin' | 'company_member' | 'referrer';
 
 /**

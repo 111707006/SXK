@@ -34,6 +34,7 @@ import dotenv from 'dotenv';
 import * as mysqlDb from './src/db/mysql';
 import { isAllowedAssetUrl } from './src/utils/assetUrl';
 import { createAdminRouter } from './src/admin/routes';
+import { resolveServiceRelationsSwitch } from './src/serviceRelations/switch';
 import { developmentIndexFor, resolveDevIndexBasis } from './src/developmentIndex/basis';
 import { notifyExpertBooking } from './src/notify';
 import { inviteChannelStatus, sendHandoffInvite, sendVerificationCode } from './src/sms';
@@ -317,6 +318,15 @@ const A_COMPANIES = A_COMPANIES_REQUESTED && APP_MODE === 'full';
 // 關著＝一行不動（ADR-0002：歸屬＋手機號）。**只在專案 A**（B 設了不生效，啟動印一行）。同一套 fail-closed 解析。不用遷移。
 const A_PHONE_IDENTITY_REQUESTED = resolvePaywallSwitch('A_PHONE_IDENTITY', process.env.A_PHONE_IDENTITY);
 const A_PHONE_IDENTITY = A_PHONE_IDENTITY_REQUESTED && APP_MODE === 'full';
+// 服務關係（#118 起，ADR-0020）：開著時家長「現在由哪個單位、哪位推薦人服務」另外記在 `service_relations`、可以改派；
+// 後台範圍、連結掛上等改看它（`src/serviceRelations/`）。關著＝一行不動。**只在專案 A**、要同時開 `A_PHONE_IDENTITY`
+// 與 `A_COMPANIES`（否則起不來）；B 設了不生效（啟動印一行）。⚠️ 要先跑 `2026-11-23-service-relations.sql`。
+const SERVICE_RELATIONS_SWITCH = resolveServiceRelationsSwitch(process.env.SERVICE_RELATIONS, {
+  projectA: APP_MODE === 'full',
+  aCompanies: A_COMPANIES,
+  identityByPhone: A_PHONE_IDENTITY,
+});
+const SERVICE_RELATIONS = SERVICE_RELATIONS_SWITCH.enabled;
 
 // 訓練計劃與居家訓練使用權（客戶 10/22，issue #91 起，規格 docs/specs/client-changes-2026-10-22-3-plan.md，ADR-0013）：
 // 開著時線上干預那幾支（每週活動、整期計劃、片庫、單支活動、打卡、提醒）只看「有沒有一段還沒到期的使用權」
@@ -5074,6 +5084,11 @@ export async function startServer() {
           ? '[SenXinKang Server] A_COMPANIES=1: project A has partner companies (entry slug sets the account owner, admin company scope).'
           : '[SenXinKang Server] A_COMPANIES is set but ignored: project B always has partner companies (A only).'
       );
+    }
+    if (SERVICE_RELATIONS) {
+      console.log('[SenXinKang Server] SERVICE_RELATIONS=1: admin scope and entry links follow service relations (ADR-0020).');
+    } else if (SERVICE_RELATIONS_SWITCH.notice) {
+      console.log(SERVICE_RELATIONS_SWITCH.notice);
     }
     if (A_PHONE_IDENTITY_REQUESTED) {
       console.log(

@@ -16,9 +16,13 @@
 import { SLUG_PATTERN } from './companySlug';
 
 const COMPANY_SLUG_KEY = 'senxinkang_company_slug';
+/** 推薦人個人連結（`?c=<單位>&t=<推薦人>`，#118）的推薦人代號。跟單位代號同一次記下。 */
+const REFERRER_CODE_KEY = 'senxinkang_referrer_code';
 
 /** 進站連結上帶識別碼的參數名。短到可以印在傳單上。 */
 const QUERY_PARAM = 'c';
+/** 推薦人代號的參數名（#118）。格式規則與單位代號相同（`isValidReferrerCode`＝`SLUG_PATTERN`）。 */
+const REFERRER_PARAM = 't';
 
 // 格式規則收在 `companySlug.ts`，前後端共用同一份 —— 以前是兩份靠一句
 // 「與後端相同」的註解維持同步，分岔的後果特別安靜（見該檔說明）。
@@ -35,7 +39,8 @@ export function captureCompanySlug(search: string = window.location.search): str
   const existing = peekCompanySlug();
   if (existing) return existing;
 
-  const raw = new URLSearchParams(search).get(QUERY_PARAM);
+  const params = new URLSearchParams(search);
+  const raw = params.get(QUERY_PARAM);
   if (!raw) return null;
 
   const slug = raw.trim().toLowerCase();
@@ -43,8 +48,11 @@ export function captureCompanySlug(search: string = window.location.search): str
   // 中間這段時間卻讓人以為歸屬已經抓到了。
   if (!SLUG_PATTERN.test(slug)) return null;
 
+  // 推薦人代號只跟著這一次的單位代號記（已經記過一組就整組不覆寫）；格式不對就不記，單位照記。
+  const code = (params.get(REFERRER_PARAM) ?? '').trim().toLowerCase();
   try {
     localStorage.setItem(COMPANY_SLUG_KEY, slug);
+    if (SLUG_PATTERN.test(code)) localStorage.setItem(REFERRER_CODE_KEY, code);
   } catch {
     // 隱私模式下 localStorage 可能不可寫。歸屬抓不到不該讓整個應用程式起不來 ——
     // 未歸屬是一個正常的狀態，流程完全走得通。
@@ -56,6 +64,15 @@ export function captureCompanySlug(search: string = window.location.search): str
 export function peekCompanySlug(): string | null {
   try {
     return localStorage.getItem(COMPANY_SLUG_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** 推薦人代號（#118），只讀取。登入時附在請求上（`referrerCode`）；伺服器在服務關係開關關著時不看它。 */
+export function peekReferrerCode(): string | null {
+  try {
+    return localStorage.getItem(REFERRER_CODE_KEY);
   } catch {
     return null;
   }

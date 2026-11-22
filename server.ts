@@ -35,6 +35,8 @@ import * as mysqlDb from './src/db/mysql';
 import { isAllowedAssetUrl } from './src/utils/assetUrl';
 import { createAdminRouter } from './src/admin/routes';
 import { resolveServiceRelationsSwitch } from './src/serviceRelations/switch';
+import { decideAttach, resolveLinkSource } from './src/serviceRelations/rules';
+import { isValidReferrerCode } from './src/admin/units';
 import { developmentIndexFor, resolveDevIndexBasis } from './src/developmentIndex/basis';
 import { notifyExpertBooking } from './src/notify';
 import { inviteChannelStatus, sendHandoffInvite, sendVerificationCode } from './src/sms';
@@ -4041,6 +4043,24 @@ async function findLoginAccount(companyId: number | null, phone: string): Promis
 }
 
 /**
+ * 家長從單位連結（`?c=`）或推薦人個人連結（`?c=&t=`）登入時的服務關係（#118，ADR-0020；`SERVICE_RELATIONS` 開著才呼叫）。
+ * 推薦人代號格式不對、查無此人、不屬於該單位、停用：當作只帶單位（個人治療師單位的單位連結就指向那位推薦人）。
+ * 規則照 `decideAttach`：還沒有服務關係才掛上（紀錄原因＝連結）；已經有了而來源不同要問家長——那是 #120，這裡先不動。
+ */
+async function attachFromEntryLink(userId: number, companyId: number, rawCode: unknown): Promise<void> {
+  const trimmed = typeof rawCode === 'string' ? rawCode.trim().toLowerCase() : '';
+  const code = isValidReferrerCode(trimmed) ? trimmed : null;
+  const referrer =
+    (code !== null ? await withTimeout(mysqlDb.findLinkReferrer(companyId, code), 2000) : null) ??
+    (await withTimeout(mysqlDb.findLinkReferrer(companyId, null), 2000));
+  // 單位由 `resolveCompanyScope`（`findCompanyBySlug` 只回啟用的）查到，所以是啟用中的。
+  const source = resolveLinkSource({ id: companyId, active: true }, referrer);
+  const current = await withTimeout(mysqlDb.getServiceRelationByUserId(userId), 2000);
+  const decision = decideAttach(current, source);
+  if (decision.kind === 'attach') await withTimeout(mysqlDb.attachServiceRelation(userId, decision.to, 'link'), 2000);
+}
+
+/**
  * 核對驗證碼。成功即登入 —— **第一次成功時建立帳號**，歸屬在那一刻寫入。
  *
  * 帳號是以（歸屬，手機號）這一組去找的，不是手機號本身：同一支手機號在兩家
@@ -4133,6 +4153,13 @@ app.post('/api/auth/sms/verify', async (req, res) => {
         user = await withTimeout(findLoginAccount(scope.companyId, phone), 2000);
         if (!user) throw err;
       }
+    }
+
+    // 服務關係（#118）：從單位／推薦人連結登入、還沒有服務關係就掛上。掛不上不擋登入（帳號已經確定），記一行。
+    if (SERVICE_RELATIONS && scope.companyId !== null) {
+      await attachFromEntryLink(Number(user.id), scope.companyId, req.body?.referrerCode).catch((err: any) =>
+        console.warn('[ServiceRelation] attach from entry link failed:', err.message)
+      );
     }
 
     const sessionUserId: UserId = String(user.id);

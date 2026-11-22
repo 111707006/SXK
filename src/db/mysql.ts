@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import type { ChangeReason, ServiceRelation } from '../serviceRelations/rules';
 import type { ServiceType } from '../utils/serviceTypes';
 import type { UnlockScope } from '../types';
 
@@ -343,6 +344,75 @@ export async function findCompanyBySlug(slug: string): Promise<CompanyRow | null
   const [rows] = await p.execute('SELECT * FROM companies WHERE slug = ? AND active = 1 LIMIT 1', [slug]);
   const row = (rows as any[])[0];
   return row ? toCompanyRow(row) : null;
+}
+
+// ---- 服務關係（#118，ADR-0020；SERVICE_RELATIONS 開著才有人呼叫）----
+
+/**
+ * 連結上的推薦人：有代號（`&t=`）＝這個單位裡這個代號的那一位（停用的也回，由 `resolveLinkSource` 當作只帶單位）；
+ * 沒代號＝個人治療師單位（`companies.kind = 'therapist'`）裡啟用的那一位（單位連結同時指向他）；其他回 null。
+ */
+export async function findLinkReferrer(
+  companyId: number,
+  code: string | null
+): Promise<{ id: number; companyId: number | null; active: boolean } | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] =
+    code !== null
+      ? await p.execute('SELECT r.id, r.company_id, r.active FROM referrers r WHERE r.company_id = ? AND r.code = ? LIMIT 1', [companyId, code])
+      : await p.execute(
+          `SELECT r.id, r.company_id, r.active FROM referrers r JOIN companies c ON c.id = r.company_id
+            WHERE c.id = ? AND c.kind = 'therapist' AND r.active = 1 ORDER BY r.id ASC LIMIT 1`,
+          [companyId]
+        );
+  const row = (rows as any[])[0];
+  return row ? { id: Number(row.id), companyId: row.company_id === null ? null : Number(row.company_id), active: Number(row.active) === 1 } : null;
+}
+
+/** 這位家長現在的服務關係；沒有（森心康直屬）回 null。 */
+export async function getServiceRelationByUserId(userId: number): Promise<ServiceRelation | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute('SELECT company_id, referrer_id FROM service_relations WHERE user_id = ? LIMIT 1', [userId]);
+  const row = (rows as any[])[0];
+  return row ? { companyId: Number(row.company_id), referrerId: row.referrer_id === null ? null : Number(row.referrer_id) } : null;
+}
+
+/**
+ * 家長自己掛上（連結、兌換碼）：一個交易裡鎖住這位家長，**還沒有**服務關係才寫那一列與一列紀錄
+ * （actor＝parent、改之前全空）。已經有了（同時進來的另一個請求先寫了）回 false、什麼都不寫——
+ * 「已經有了要先問家長」由呼叫端的規則決定，這裡不覆寫。
+ */
+export async function attachServiceRelation(
+  userId: number,
+  to: ServiceRelation,
+  reason: Extract<ChangeReason, 'link' | 'code'>
+): Promise<boolean> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL not configured');
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.execute('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
+    const [rows] = await conn.execute('SELECT 1 FROM service_relations WHERE user_id = ? LIMIT 1', [userId]);
+    if ((rows as any[]).length > 0) {
+      await conn.rollback();
+      return false;
+    }
+    await conn.execute('INSERT INTO service_relations (user_id, company_id, referrer_id) VALUES (?, ?, ?)', [userId, to.companyId, to.referrerId]);
+    await conn.execute(
+      `INSERT INTO service_relation_changes (user_id, to_company_id, to_referrer_id, actor, reason) VALUES (?, ?, ?, 'parent', ?)`,
+      [userId, to.companyId, to.referrerId, reason]
+    );
+    await conn.commit();
+    return true;
+  } catch (err) {
+    await conn.rollback().catch(() => undefined);
+    throw err;
+  } finally {
+    conn.release();
+  }
 }
 
 /** 家長所屬公司（含通知位置）。未歸屬回 `null`。 */

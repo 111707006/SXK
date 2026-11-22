@@ -51,7 +51,6 @@ import { renderParentExportHtml } from './src/admin/exportView';
 import { renderableReportOf } from './src/utils/reportHistory';
 import { readServiceType } from './src/utils/serviceTypes';
 import { isValidCompanySlug } from './src/utils/companySlug';
-import { resolveServiceRelationsSwitch } from './src/serviceRelations/switch';
 import { headerUnitLookup } from './src/serviceRelations/headerUnit';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
 import { calculateAgeMonth } from './src/utils/dateUtils';
@@ -323,24 +322,13 @@ const A_COMPANIES = A_COMPANIES_REQUESTED && APP_MODE === 'full';
 const A_PHONE_IDENTITY_REQUESTED = resolvePaywallSwitch('A_PHONE_IDENTITY', process.env.A_PHONE_IDENTITY);
 const A_PHONE_IDENTITY = A_PHONE_IDENTITY_REQUESTED && APP_MODE === 'full';
 // 服務關係（#118 起，ADR-0020）：開著時家長「現在由哪個單位、哪位推薦人服務」另外記在 `service_relations`、可以改派；
-// 後台範圍、連結掛上等改看它（`src/serviceRelations/`）。關著＝一行不動。**只在專案 A**、要同時開 `A_PHONE_IDENTITY`
+// 後台範圍、連結掛上、頁首徽章與客服二維碼（#121）等改看它（`src/serviceRelations/`）。關著＝一行不動。**只在專案 A**、要同時開 `A_PHONE_IDENTITY`
 // 與 `A_COMPANIES`（否則起不來）；B 設了不生效（啟動印一行）。⚠️ 要先跑 `2026-11-23-service-relations.sql`。
 const SERVICE_RELATIONS_SWITCH = resolveServiceRelationsSwitch(process.env.SERVICE_RELATIONS, {
   projectA: APP_MODE === 'full',
   aCompanies: A_COMPANIES,
   identityByPhone: A_PHONE_IDENTITY,
 });
-const SERVICE_RELATIONS = SERVICE_RELATIONS_SWITCH.enabled;
-
-// 服務關係（#118／#121，ADR-0020，`src/serviceRelations/switch.ts`）：開著時頁首徽章與客服二維碼（已登入）改看
-// `service_relations` 的單位（`src/serviceRelations/headerUnit.ts`）；後台範圍、連結掛上、改派等其餘部分還沒接。
-// 關著＝一行不動。**只在專案 A**（B 設了不生效，啟動印一行）；要同時開身分開關（#115）與 `A_COMPANIES`，否則起不來。
-const SERVICE_RELATIONS_SWITCH = resolveServiceRelationsSwitch(process.env.SERVICE_RELATIONS, {
-  projectA: APP_MODE === 'full',
-  aCompanies: A_COMPANIES,
-  identityByPhone: A_PHONE_IDENTITY,
-});
-if (SERVICE_RELATIONS_SWITCH.notice) console.log(SERVICE_RELATIONS_SWITCH.notice);
 const SERVICE_RELATIONS = SERVICE_RELATIONS_SWITCH.enabled;
 
 // 訓練計劃與居家訓練使用權（客戶 10/22，issue #91 起，規格 docs/specs/client-changes-2026-10-22-3-plan.md，ADR-0013）：

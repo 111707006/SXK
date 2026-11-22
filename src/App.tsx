@@ -46,6 +46,7 @@ import LedoDashboard from './components/ledo/LedoDashboard';
 import OutOfRangeCard from './components/OutOfRangeCard';
 import { useViewHistory } from './utils/viewHistory';
 import SplashScreen from './home/SplashScreen';
+import ServiceSwitchPrompt from './components/ServiceSwitchPrompt';
 import CompanyBadge from './components/CompanyBadge';
 import TrainingPlanPage from './components/training/TrainingPlanPage';
 import RedeemCodeForm from './components/training/RedeemCodeForm';
@@ -1401,6 +1402,8 @@ export default function App() {
     <div className="min-h-screen bg-brand-cream text-brand-charcoal font-sans flex flex-col justify-between">
       {/* 開屏（#88，`HOME_MEDIA`）：有啟用中的開屏素材才出現，同一分頁一次；掃碼頁與後台不經過 App。 */}
       {PRODUCT.features.home && <SplashScreen />}
+      {/* 換人提示（#120）：只有專案 A 有服務關係；伺服器開關關著時不會有提示。 */}
+      {PRODUCT.mode === 'full' && <ServiceSwitchPrompt loggedIn={authToken !== null} />}
 
       {/* 電腦版分屏導覽（版型 C）：導覽、孩子按鈕與個人中心都是頁首那一份，換成電腦版的頂欄；這時不畫手機頁首。 */}
       {desktopLayout && child && (

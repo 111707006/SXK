@@ -83,6 +83,9 @@ const PARENT_FACING_FILES = [
   'src/utils/specialists.ts',
   'src/utils/ageBandDrift.ts',
   // 2026-09-12（票 #56）：T2 入口與它的題量句子。T2 重做的家長端從這裡開始納入護欄。
+  // 2026-11-23（#120）：換人提示的字與畫面。
+  'src/serviceRelations/parentCopy.ts',
+  'src/components/ServiceSwitchPrompt.tsx',
   'src/components/T2Entrance.tsx',
   'src/t2/entrance.ts',
   // 2026-09-12（票 #58）：逐支作答的畫面與它的純函式層（填表人、加測提示那一句、ASR 的白話註解）。

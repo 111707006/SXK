@@ -15,6 +15,13 @@ function block(sql: string, table: string): string {
   return sql.slice(start, sql.indexOf('ENGINE=InnoDB', start));
 }
 
+/** 之後的遷移才加的欄位（ALTER TABLE ADD COLUMN）：建表那一份沒有，schema 有；比對前先拿掉。 */
+const LATER_COLUMNS = [
+  // 2026-11-24-split-screening.sql（#122）
+  "  -- screening_bp：筛查渠道比例（#122，2026-11-24-split-screening.sql）：这个单位当筛查渠道时从对方那一份切几成；只在 company 那几列，NULL＝0。\n  `screening_bp` SMALLINT UNSIGNED NULL,\n",
+];
+const laterColumnsRemoved = (b: string) => LATER_COLUMNS.reduce((x, col) => x.replace(col, ''), b);
+
 describe.each([
   ['deploy/migrations/2026-10-23-referrers.sql', ['referrers', 'referrer_bindings']],
   ['deploy/migrations/2026-10-24-redeem-codes.sql', ['redeem_batches', 'redeem_codes']],
@@ -25,7 +32,7 @@ describe.each([
   const migration = read(file);
 
   it.each(tables)('%s 與 schema 一字不差', table => {
-    expect(block(migration, table)).toBe(block(schema, table));
+    expect(block(migration, table)).toBe(laterColumnsRemoved(block(schema, table)));
   });
 
   it('只加不刪', () => {
@@ -79,6 +86,15 @@ describe('清分（客戶 11/03，ADR-0016）', () => {
     expect(b).toContain('PRIMARY KEY (`scope`, `ref_id`)');
     expect(b).toContain('`platform_bp` SMALLINT UNSIGNED NULL,');
     expect(b).toContain('`company_bp` SMALLINT UNSIGNED NULL,');
+  });
+
+  it('篩查渠道比例（#122）：schema 有、遷移只加這一欄（可為 NULL、接在 company_bp 後面、可重跑）', () => {
+    expect(block(schema, 'revenue_split_rates')).toContain('`screening_bp` SMALLINT UNSIGNED NULL,');
+    const m = read('deploy/migrations/2026-11-24-split-screening.sql');
+    const run = m.replace(/^\s*--.*$/gm, '');
+    expect(run).not.toMatch(/\b(DROP|UPDATE|DELETE|TRUNCATE|RENAME|MODIFY|CREATE)\b/i);
+    expect(run.match(/ALTER TABLE[^']*/g)).toEqual(['ALTER TABLE `revenue_split_rates` ADD COLUMN `screening_bp` SMALLINT UNSIGNED NULL AFTER `company_bp`']);
+    expect(run).toContain("COLUMN_NAME = 'screening_bp'");
   });
 
   it('payments.split_snapshot 在 schema 與遷移裡都有、可為 NULL', () => {

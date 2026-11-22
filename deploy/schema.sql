@@ -893,6 +893,8 @@ CREATE TABLE IF NOT EXISTS `revenue_split_rates` (
   -- platform_bp：平台拿扣掉微信手续费之后的几成；company_bp：三方时合作公司拿「对方那一份」的几成（其余给治疗师）。
   `platform_bp` SMALLINT UNSIGNED NULL,
   `company_bp` SMALLINT UNSIGNED NULL,
+  -- screening_bp：筛查渠道比例（#122，2026-11-24-split-screening.sql）：这个单位当筛查渠道时从对方那一份切几成；只在 company 那几列，NULL＝0。
+  `screening_bp` SMALLINT UNSIGNED NULL,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`scope`, `ref_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

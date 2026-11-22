@@ -10,7 +10,7 @@ import {
   type SplitRates,
 } from '../src/revenueSplit/split';
 import { ledgerByParty, ledgerRows, ledgerTotals } from '../src/revenueSplit/ledger';
-import { ratesFromRows } from '../src/db/revenueSplit';
+import { attributionFromServiceRow, ratesFromRows } from '../src/db/revenueSplit';
 
 /** 清分（客戶 11/03〈清分〉，ADR-0016）：誰是對方、比例往上一層找、金額怎麼取整。 */
 
@@ -259,5 +259,37 @@ describe('篩查渠道（#122，ADR-0020 第 8 點）：從對方那一份先切
     expect(parseSnapshot({ ...s, screening: { companyId: 3, companyName: '同一家', bp: 1000 } })).toBeNull();
     expect(parseSnapshot({ ...s, screening: 'x' })).toBeNull();
     expect(parseSnapshot({ ...s, party: { kind: 'none' }, companyBp: null })).toBeNull();
+  });
+});
+
+describe('資料層（#122）：比例與服務關係的列 → 設定與歸屬', () => {
+  it('ratesFromRows：帶了 screening_bp 才有 screeningBp，只讀單位那幾列', () => {
+    const r = ratesFromRows([
+      { scope: 'default', ref_id: 0, platform_bp: null, company_bp: null, screening_bp: 9000 },
+      { scope: 'company', ref_id: 5, platform_bp: null, company_bp: null, screening_bp: '1500' },
+      { scope: 'company', ref_id: 6, platform_bp: 1000, company_bp: null, screening_bp: null },
+      { scope: 'referrer', ref_id: 7, platform_bp: null, company_bp: 1000, screening_bp: 9000 },
+    ]);
+    expect(r.company.get(5)).toEqual({ platformBp: null, companyBp: null, screeningBp: 1500 });
+    expect(r.company.get(6)).toEqual({ platformBp: 1000, companyBp: null, screeningBp: null });
+    expect(r.default).toEqual({ platformBp: null, companyBp: null });
+    expect(r.referrer.get(7)).toEqual({ platformBp: null, companyBp: 1000 });
+    expect(ratesFromRows([{ scope: 'company', ref_id: 5, platform_bp: null, company_bp: null }]).company.get(5)).toEqual({ platformBp: null, companyBp: null });
+  });
+
+  it('attributionFromServiceRow：推薦人算在服務單位底下；篩查渠道另一欄；沒有這位家長帶 screening: null', () => {
+    const row = { screening_id: 5, screening_name: '最早那家', company_id: 3, company_name: '某某康复', referrer_id: 7, referrer_name: '王老师', referrer_kind: 'therapist' };
+    const w = attributionFromServiceRow(row);
+    expect(w).toEqual({ company: ACME, referrer: { id: 7, name: '王老师', kind: 'therapist', company: ACME }, screening: { id: 5, name: '最早那家' } });
+    const s = resolveSplit({ ...EMPTY, company: new Map([[5, { platformBp: null, companyBp: null, screeningBp: 1000 }]]) }, w);
+    expect(s.party.kind).toBe('company_referrer');
+    expect(s.screening).toEqual({ companyId: 5, companyName: '最早那家', bp: 1000 });
+
+    expect(attributionFromServiceRow({ ...row, referrer_id: null })).toMatchObject({ company: ACME, referrer: null });
+    expect(attributionFromServiceRow({ ...row, company_id: null, referrer_id: null, screening_id: null })).toEqual({ company: null, referrer: null, screening: null });
+    expect(attributionFromServiceRow(undefined)).toEqual({ company: null, referrer: null, screening: null });
+    // 沒有服務關係（直屬）：篩查渠道還在，但沒有對方 → 不出第四方
+    const direct = attributionFromServiceRow({ ...row, company_id: null, referrer_id: null });
+    expect(resolveSplit({ ...EMPTY, company: new Map([[5, { platformBp: null, companyBp: null, screeningBp: 1000 }]]) }, direct)).toMatchObject({ party: { kind: 'none' }, screening: null });
   });
 });

@@ -48,6 +48,8 @@ import { renderParentExportHtml } from './src/admin/exportView';
 import { renderableReportOf } from './src/utils/reportHistory';
 import { readServiceType } from './src/utils/serviceTypes';
 import { isValidCompanySlug } from './src/utils/companySlug';
+import { resolveServiceRelationsSwitch } from './src/serviceRelations/switch';
+import { headerUnitLookup } from './src/serviceRelations/headerUnit';
 import { ageBandOf, latestAssessedAgeMonth } from './src/utils/ageBandDrift';
 import { calculateAgeMonth } from './src/utils/dateUtils';
 import { planT2 } from './src/t2/routing';
@@ -310,6 +312,19 @@ const LEGAL_DOCS = LEGAL_DOCS_REQUESTED && APP_MODE === 'full';
 // **只在專案 A**（B 本來就有，設了不生效，啟動印一行）。同一套 fail-closed 解析。
 const A_COMPANIES_REQUESTED = resolvePaywallSwitch('A_COMPANIES', process.env.A_COMPANIES);
 const A_COMPANIES = A_COMPANIES_REQUESTED && APP_MODE === 'full';
+
+// 服務關係（#118／#121，ADR-0020，`src/serviceRelations/switch.ts`）：開著時頁首徽章與客服二維碼（已登入）改看
+// `service_relations` 的單位（`src/serviceRelations/headerUnit.ts`）；後台範圍、連結掛上、改派等其餘部分還沒接。
+// 關著＝一行不動。**只在專案 A**（B 設了不生效，啟動印一行）；要同時開身分開關（#115）與 `A_COMPANIES`，否則起不來。
+// ⚠️ 暫接：身分開關（#115）還沒合進來，先當作關著 —— 所以 A 現在設 `SERVICE_RELATIONS=1` 起不來（fail-closed：
+// 沒有身分開關不准開服務關係）。TODO(#115)：合進來後把 `identityByPhone` 換成身分開關的值。
+const SERVICE_RELATIONS_SWITCH = resolveServiceRelationsSwitch(process.env.SERVICE_RELATIONS, {
+  projectA: APP_MODE === 'full',
+  aCompanies: A_COMPANIES,
+  identityByPhone: false,
+});
+if (SERVICE_RELATIONS_SWITCH.notice) console.log(SERVICE_RELATIONS_SWITCH.notice);
+const SERVICE_RELATIONS = SERVICE_RELATIONS_SWITCH.enabled;
 
 // 訓練計劃與居家訓練使用權（客戶 10/22，issue #91 起，規格 docs/specs/client-changes-2026-10-22-3-plan.md，ADR-0013）：
 // 開著時線上干預那幾支（每週活動、整期計劃、片庫、單支活動、打卡、提醒）只看「有沒有一段還沒到期的使用權」
@@ -4471,25 +4486,28 @@ tier2Only.get('/api/home/config', (_req, res) => {
   res.json({ enabled: HOME_V2_REQUESTED, homeMedia: HOME_MEDIA, companies: A_COMPANIES });
 });
 
+/** 頁首徽章與客服二維碼的進站代號（`?c=`）：去頭尾空白、轉小寫；沒帶或形狀不對是 null。 */
+function companySlugQuery(req: express.Request): string | null {
+  const raw = req.query.c;
+  const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return slug && isValidCompanySlug(slug) ? slug : null;
+}
+
 /**
  * 專案 A 頁首的合作公司徽章（`A_COMPANIES`，#90）：回 `{company: {name, logoUrl} | null}`。**公開**（登入前也畫）。
  * 帶了通行證看帳號上的歸屬（不可逆，以它為準 —— 進站代號可能是後來另一家的連結）；沒帶看 `?c=`。
+ * 服務關係開著（`SERVICE_RELATIONS`，#121）：帶了通行證改看服務關係的單位，沒有服務關係＝`company: null`；改派後下一次讀就換。
  * 沒歸屬、查無、停用、逾時一律 `company: null`（頁首照規格一）。LOGO 網址再擋一次（會進 `<img src>`）。
  */
 (A_COMPANIES ? app : express.Router()).get('/api/company-badge', async (req, res) => {
   const none = () => res.json({ company: null });
   try {
     if (!mysqlDb.isConfigured()) return none();
-    const userId = toDbUserId(currentUserId(req));
+    const lookup = headerUnitLookup({ serviceRelations: SERVICE_RELATIONS, userId: toDbUserId(currentUserId(req)), slug: companySlugQuery(req) });
     let row: mysqlDb.CompanyBadgeRow | null = null;
-    if (userId !== null) {
-      row = await withTimeout(mysqlDb.findCompanyBadgeByUserId(userId), 2000);
-    } else {
-      const raw = req.query.c;
-      const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-      if (!slug || !isValidCompanySlug(slug)) return none();
-      row = await withTimeout(mysqlDb.findCompanyBadgeBySlug(slug), 2000);
-    }
+    if (lookup.kind === 'service_relation') row = await withTimeout(mysqlDb.findServiceCompanyBadgeByUserId(lookup.userId), 2000);
+    else if (lookup.kind === 'account') row = await withTimeout(mysqlDb.findCompanyBadgeByUserId(lookup.userId), 2000);
+    else if (lookup.kind === 'slug') row = await withTimeout(mysqlDb.findCompanyBadgeBySlug(lookup.slug), 2000);
     if (!row) return none();
     const logoUrl = row.logoUrl && isAllowedAssetUrl(row.logoUrl) ? row.logoUrl : null;
     return res.json({ company: { name: row.name, logoUrl } });
@@ -4502,21 +4520,17 @@ tier2Only.get('/api/home/config', (_req, res) => {
 /**
  * 企業微信客服二維碼（使用者 2026-11-10，`src/wecomQr/store.ts`）：回 `{url}`，家長端「1 对 1 专家咨询」那張圖。**公開**（只回一個圖片網址）。
  * 先看家長歸屬那家公司自己的（`A_COMPANIES` 開著才看；登入看帳號、沒登入看 `?c=`），沒有退預設那張，都沒有回 `null`
- * （前端照舊用內建的 `/kefu-qr.jpg`）。A、B 都有（B 2026-11-19 起；B 本來就分合作公司，不看 `A_COMPANIES`，檔案在 `/media/wecom`）。
+ * （前端照舊用內建的 `/kefu-qr.jpg`）。服務關係開著（#121）：登入了改看服務關係的單位，沒有服務關係退預設那張。A、B 都有（B 2026-11-19 起；B 本來就分合作公司，不看 `A_COMPANIES`，檔案在 `/media/wecom`）。
  */
 app.get('/api/wecom-qr', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     if ((A_COMPANIES || APP_MODE === 't1only') && mysqlDb.isConfigured()) {
-      const userId = toDbUserId(currentUserId(req));
+      const lookup = headerUnitLookup({ serviceRelations: SERVICE_RELATIONS, userId: toDbUserId(currentUserId(req)), slug: companySlugQuery(req) });
       let companyId: number | null = null;
-      if (userId !== null) {
-        companyId = await withTimeout(mysqlDb.findActiveCompanyIdByUserId(userId), 2000);
-      } else {
-        const raw = req.query.c;
-        const slug = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-        if (slug && isValidCompanySlug(slug)) companyId = await withTimeout(mysqlDb.findActiveCompanyIdBySlug(slug), 2000);
-      }
+      if (lookup.kind === 'service_relation') companyId = await withTimeout(mysqlDb.findServiceActiveCompanyIdByUserId(lookup.userId), 2000);
+      else if (lookup.kind === 'account') companyId = await withTimeout(mysqlDb.findActiveCompanyIdByUserId(lookup.userId), 2000);
+      else if (lookup.kind === 'slug') companyId = await withTimeout(mysqlDb.findActiveCompanyIdBySlug(lookup.slug), 2000);
       if (companyId !== null) {
         const own = await findWecomQr(MEDIA_DIR, { companyId });
         if (own) return res.json({ url: own });

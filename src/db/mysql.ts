@@ -128,6 +128,9 @@ export async function findUserByPhone(companyId: number | null, phone: string): 
  * `src/phoneIdentity.ts` 的 `pickPhoneAccount` 決定，所以這裡附上兩個旗標、不排序也不 LIMIT：
  * `has_reports`＝`user_data.report_history` 非空；`has_orders`＝有付款成功／已退款的 `payments`，
  * 或 `user_data.orders` 非空（商城訂單只存在那一欄）。
+ *
+ * 停用的帳號（`disabled_at`，#116 合併重複帳號時被併掉的那一個）不回：保留下來的帳號是同一支手機，
+ * 所以不必像 `findUserByPhone` 那樣跟著 `merged_into` 走。
  */
 export async function listUsersByPhone(phone: string): Promise<any[]> {
   const p = getPool();
@@ -139,7 +142,7 @@ export async function listUsersByPhone(phone: string): Promise<any[]> {
               OR EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.id AND p.status IN ('success', 'refunded'))) AS has_orders
        FROM users u
        LEFT JOIN user_data d ON d.user_id = u.id
-      WHERE u.phone = ?`,
+      WHERE u.phone = ? AND u.disabled_at IS NULL`,
     [phone]
   );
   return rows as any[];

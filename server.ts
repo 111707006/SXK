@@ -4112,9 +4112,17 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     let user = existing;
     if (!user) {
       // 歸屬只在這一行寫得進去，此後不再改變 —— 已有帳號的家長走的是上面那條路。
-      const newUserId = await withTimeout(mysqlDb.createPhoneUser(phone, scope.companyId), 2000);
-      user = { id: newUserId, phone, company_id: scope.companyId };
-      console.log(`[MySQL] Registered phone account (company: ${scope.companyId ?? '未归属'})`);
+      try {
+        const newUserId = await withTimeout(mysqlDb.createPhoneUser(phone, scope.companyId), 2000);
+        user = { id: newUserId, phone, company_id: scope.companyId };
+        console.log(`[MySQL] Registered phone account (company: ${scope.companyId ?? '未归属'})`);
+      } catch (err: any) {
+        // 身分開關開著（#115 × #116）：同一支手機兩個請求同時建，後到的撞 `uk_a_active_phone`——
+        // 先寫進去的那一個就是帳號，重查一次登入它。關著照舊（丟出去、500）。
+        if (!A_PHONE_IDENTITY || err?.code !== 'ER_DUP_ENTRY') throw err;
+        user = await withTimeout(findLoginAccount(scope.companyId, phone), 2000);
+        if (!user) throw err;
+      }
     }
 
     const sessionUserId: UserId = String(user.id);

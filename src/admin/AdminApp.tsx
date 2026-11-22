@@ -48,6 +48,7 @@ import VideoTaggingPanel from './panels/VideoTaggingPanel';
 import HomeMediaPanel from './panels/HomeMediaPanel';
 import LegalPanel from './panels/LegalPanel';
 import ReferrersPanel from './panels/ReferrersPanel';
+import { unitsEnabled } from './units';
 import RedeemCodesBlock from './panels/RedeemCodesBlock';
 import CouponsPanel from './panels/CouponsPanel';
 import RevenueSplitPanel from './panels/RevenueSplitPanel';
@@ -354,7 +355,7 @@ function AdminCenter() {
           )}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
           {activeTab === 'company' && <CompanySettingsPanel onError={handleError} unassignedName={unassignedLabel(shape)} />}
-          {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} />}
+          {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} units={unitsEnabled(shape)} />}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} />}
           {activeTab === 'summary' && <SummaryPanel onError={handleError} />}
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}
@@ -377,7 +378,7 @@ function AdminCenter() {
                   </li>
                 </ul>
               </div>
-              <ReferrersPanel onError={handleError} companies={companies} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
+              <ReferrersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
               <div className="border-t border-stone-200 pt-8">
                 <CouponsPanel onError={handleError} />
               </div>

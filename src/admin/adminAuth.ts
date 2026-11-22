@@ -127,6 +127,8 @@ export function buildIdentity(
       adminUserId: account.id,
       email: account.email,
       companyId: account.companyId,
+      // 個人治療師單位的帳號（#117）：同一個帳號也是推薦人。推薦人那一列停用了就只剩單位管理者。
+      ...(typeof account.referrerId === 'number' && account.referrerActive === true ? { referrerId: account.referrerId } : {}),
     };
   }
 

@@ -171,9 +171,15 @@ export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape
   if (identity.role === 'referrer') return REFERRER_TABS;
   const all = identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
   // 2026-10-23（#89）：A 也可以有合作公司 —— 「A 才有的分頁」看是不是 A，「多公司才有的分頁」看有沒有合作公司。
-  return all
+  const tabs = all
     .filter(t => isProjectA(shape) || !SINGLE_COMPANY_ONLY_TABS.includes(t.id))
-    .filter(t => shape.multiCompany || !MULTI_COMPANY_ONLY_TABS.includes(t.id));
+    .filter(t => shape.multiCompany || !MULTI_COMPANY_ONLY_TABS.includes(t.id))
+    // ADR-0020（#117）：A 的「合作公司」改叫「合作单位」；B 一個字都不變。
+    .map(t => (t.id === 'companies' && isProjectA(shape) ? { ...t, label: '合作单位' } : t));
+  // 個人治療師單位的那個帳號（#117）：單位管理者，同時是推薦人 —— 多推薦人自己的兩頁（家長列表已經是全單位）。
+  return identity.role === 'company_member' && identity.referrer === true
+    ? [...tabs, ...REFERRER_TABS.filter(t => t.id !== 'parents')]
+    : tabs;
 }
 
 /**

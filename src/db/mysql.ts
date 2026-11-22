@@ -106,15 +106,43 @@ function toCompanyKey(companyId: number | null): number {
  * 查的是生成欄位 `company_key` 而不是 `company_id`：未歸屬在 `company_id` 是
  * NULL，而 `NULL = NULL` 在 SQL 裡不成立，用 `company_id` 查永遠查不到未歸屬的
  * 家長 —— 而專案 A 的家長全部都是未歸屬。
+ *
+ * 被停用的帳號登不進來（#116）：專案 A 合併重複手機號時，被併掉的那一個寫了 `merged_into`，
+ * 找到它就換成它併入的那一個（同一位家長）；停用的帳號本身一律不回。
  */
 export async function findUserByPhone(companyId: number | null, phone: string): Promise<any | null> {
   const p = getPool();
   if (!p) return null;
   const [rows] = await p.execute(
-    'SELECT * FROM users WHERE company_key = ? AND phone = ? LIMIT 1',
+    `SELECT u.* FROM users f JOIN users u ON u.id = COALESCE(f.merged_into, f.id)
+      WHERE f.company_key = ? AND f.phone = ? AND u.disabled_at IS NULL LIMIT 1`,
     [toCompanyKey(companyId), phone]
   );
   return (rows as any[])[0] || null;
+}
+
+/**
+ * 這支手機號底下的每一個帳號，不分歸屬（身分開關 `A_PHONE_IDENTITY`，#115，ADR-0020：只在專案 A）。
+ *
+ * 一般只有一個；重複尚未合併時（同一支手機在不同歸屬各開過一個）不止一個，登入哪一個由
+ * `src/phoneIdentity.ts` 的 `pickPhoneAccount` 決定，所以這裡附上兩個旗標、不排序也不 LIMIT：
+ * `has_reports`＝`user_data.report_history` 非空；`has_orders`＝有付款成功／已退款的 `payments`，
+ * 或 `user_data.orders` 非空（商城訂單只存在那一欄）。
+ */
+export async function listUsersByPhone(phone: string): Promise<any[]> {
+  const p = getPool();
+  if (!p) return [];
+  const [rows] = await p.execute(
+    `SELECT u.id, u.phone, u.company_id,
+            (COALESCE(JSON_LENGTH(d.report_history), 0) > 0) AS has_reports,
+            (COALESCE(JSON_LENGTH(d.orders), 0) > 0
+              OR EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.id AND p.status IN ('success', 'refunded'))) AS has_orders
+       FROM users u
+       LEFT JOIN user_data d ON d.user_id = u.id
+      WHERE u.phone = ?`,
+    [phone]
+  );
+  return rows as any[];
 }
 
 /**

@@ -73,6 +73,7 @@
 │   │   └── EditProfileModal.tsx     # 编辑档案弹窗
 │   ├── admin/             # 管理中心（后台）；activityMedia.ts 上传示范片与封面（伺服器）、videoTagging.ts／videoFrame.ts 与 panels/VideoTaggingPanel.tsx「示范片与标签」分页
 │   │                      # parentSummary.ts＋summaryXlsx.ts＋panels/ParentSummaryView.tsx：家长汇总与导出（#69、#73；所有后台帐号、走 withScope、看与导出都记进 admin_exports）
+│   │                      # units.ts：A 的合作单位（#117，ADR-0020，`A_COMPANIES` 开着才有）——类型（机构／个人治疗师）、推荐人代号、个人连结 `?c=<单位>&t=<代号>`；个人治疗师单位的帐号是 company_member＋一列 referrers（同时有兑换码与代填）
 │   ├── developmentIndex/  # 发育指数（#68）：passRates.ts 180 题通过率表（丹佛 II-Jimma／CDC／AI）＋ developmentIndex.ts（同龄估算）＋ attainment.ts（达成率）＋ basis.ts（开关 `DEV_INDEX_BASIS`）；**只给伺服器**，家长端 import 不到（结构测试）
 │   ├── home/              # 专案 A 新版首页（`HOME_V2`，#72）：HomePage、OfflineServicePage、homeNav（去向与字的纯函式）
 │   ├── home/              # 新版首页（`HOME_V2`，#72，只在专案 A）：homeNav.ts 三张卡的去向、登入后停哪（纯函式）；HomePage.tsx banner＋三张卡；OfflineServicePage.tsx 线下服务点（医院名称、占位照、「即将开放」）

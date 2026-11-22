@@ -296,7 +296,7 @@ cd /var/www/sxk && node deploy/merge-duplicate-phones.mjs --execute
 
 ```bash
 # ① 两个库都跑迁移：service_relations、service_relation_changes（2026-11-23-service-relations.sql，只加表）
-#    以及清分的筛查渠道比例（2026-11-24-split-screening.sql，#122，只加栏位）
+#    以及清分的筛查渠道比例（2026-11-24-split-screening.sql，#122）、单位层兑换码（2026-11-24-unit-redeem-codes.sql，#124），都只加
 cd /var/www/sxk   && node deploy/migrate.mjs            # 看清单 → 备份 → 加 --confirm
 cd /var/www/sxk-b && node deploy/migrate.mjs
 # ② 只在 A：确认上一节的合并已经做完（唯一键 uk_a_active_phone 在）、身分开关 A_PHONE_IDENTITY=1 已经开着

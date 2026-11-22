@@ -20,16 +20,17 @@ vi.mock('../src/admin/adminStore', async () => {
       { id: 4, email: 'li@a.com', role: 'referrer', companyId: null, active: true, createdAt: null, referrerId: 71, referrerActive: true },
     ] as any[],
     companies: [
-      { id: 7, name: '甲机构', active: true },
-      { id: 9, name: '乙机构', active: true },
-      { id: 8, name: '停用的', active: false },
+      { id: 7, name: '甲机构', kind: 'institution', active: true },
+      { id: 9, name: '乙机构', kind: 'institution', active: true },
+      { id: 8, name: '停用的', kind: 'institution', active: false },
     ],
     referrers: [
-      { id: 70, companyId: 7, active: true },
-      { id: 71, companyId: 7, active: true },
-      { id: 72, companyId: 7, active: false },
-      { id: 90, companyId: 9, active: true },
+      { id: 70, name: '张', companyId: 7, active: true },
+      { id: 71, name: '李', companyId: 7, active: true },
+      { id: 72, name: '旧', companyId: 7, active: false },
+      { id: 90, name: '王', companyId: 9, active: true },
     ],
+    listParentsCalls: [] as any[],
     // companyId 是帳號歸屬（＝篩查渠道），不決定誰看得到。
     parents: [] as Array<{ id: number; companyId: number | null; childName: string; service: Rel | null }>,
     changes: [] as any[],
@@ -63,8 +64,35 @@ vi.mock('../src/admin/adminStore', async () => {
     async findReferrer(id: number) {
       return db.referrers.find(r => r.id === id) ?? null;
     },
-    async listParents(condition: any) {
-      return db.parents.filter(p => matchesCompanyCondition(condition, p)).map(p => ({ id: p.id, childName: p.childName }));
+    async listReferrers() {
+      return db.referrers;
+    },
+    // 照真的資料層：byService 才帶服務關係與篩查渠道的名字、才看 unassignedOnly。
+    async listParents(condition: any, options: any) {
+      db.listParentsCalls.push({ condition, options });
+      const name = (id: number | null | undefined) => db.companies.find(c => c.id === id)?.name ?? null;
+      return db.parents
+        .filter(p => matchesCompanyCondition(condition, p))
+        .filter(p => !(condition.byService && options.unassignedOnly) || (p.service !== null && p.service.referrerId === null))
+        .map(p => ({
+          id: p.id,
+          childName: p.childName,
+          companyId: p.companyId,
+          handoffSource: null,
+          ...(condition.byService
+            ? {
+                service: p.service
+                  ? {
+                      companyId: p.service.companyId,
+                      companyName: name(p.service.companyId),
+                      referrerId: p.service.referrerId,
+                      referrerName: db.referrers.find(r => r.id === p.service!.referrerId)?.name ?? null,
+                    }
+                  : null,
+                screeningCompanyName: name(p.companyId),
+              }
+            : {}),
+        }));
     },
     async getParentDetail(condition: any, id: number) {
       const p = visible(condition, id);
@@ -144,7 +172,10 @@ afterAll(async () => {
   await on.close();
   await off.close();
 });
-beforeEach(() => store.__reset());
+beforeEach(() => {
+  store.__reset();
+  store.__db.listParentsCalls.length = 0;
+});
 
 describe('範圍：開著看服務關係', () => {
   it('單位管理者看本單位全部（含還沒標注），不看帳號歸屬', async () => {
@@ -238,6 +269,62 @@ describe('PUT /parents/:id/service', () => {
       expect((await put(on, 201, body, god({ kind: 'company', companyId: 7 }))).status).toBe(400);
     },
   );
+});
+
+describe('列表：推薦人、篩查渠道兩欄與「還沒標注」', () => {
+  const rows = async (client: TestClient, token: string, q = '') =>
+    (await (await client.get(`/api/admin/parents${q}`, h(token))).json()).parents as any[];
+
+  it('每列帶服務的單位與推薦人、篩查渠道（帳號歸屬那家；沒有＝森心康直属）', async () => {
+    const list = await rows(on, manager());
+    expect(list.find(p => p.id === 201)).toEqual(expect.objectContaining({
+      service: { companyId: 7, companyName: '甲机构', referrerId: 70, referrerName: '张' },
+      screeningChannel: '森心康直属',
+    }));
+    expect(list.find(p => p.id === 202)).toEqual(expect.objectContaining({
+      service: { companyId: 7, companyName: '甲机构', referrerId: null, referrerName: null },
+      screeningChannel: '甲机构',
+    }));
+  });
+
+  it('?assigned=unassigned：只列本單位還沒標注推薦人的', async () => {
+    expect((await rows(on, manager(), '?assigned=unassigned')).map(p => p.id)).toEqual([202]);
+    expect(store.__db.listParentsCalls.at(-1).options.unassignedOnly).toBe(true);
+  });
+
+  it('改派之後篩查渠道不變', async () => {
+    await put(on, 203, { to: { companyId: 7, referrerId: 70 } }, god({ kind: 'company', companyId: 9 }));
+    expect((await rows(on, manager())).find(p => p.id === 203)?.screeningChannel).toBe('乙机构');
+  });
+
+  it('關著：不帶這兩欄、不看 assigned', async () => {
+    const list = await rows(off, manager(), '?assigned=unassigned');
+    expect(list.map(p => p.id)).toEqual([202]);
+    expect(list[0]).not.toHaveProperty('screeningChannel');
+    expect(list[0]).not.toHaveProperty('service');
+    expect(store.__db.listParentsCalls.at(-1).options.unassignedOnly).toBeUndefined();
+  });
+});
+
+describe('GET /service-targets：改派時能選的單位與推薦人', () => {
+  it('單位管理者：只有本單位與本單位啟用中的推薦人', async () => {
+    const resp = await on.get('/api/admin/service-targets', h(manager()));
+    expect(await resp.json()).toEqual({
+      units: [{ id: 7, name: '甲机构', kind: 'institution' }],
+      referrers: [{ id: 70, name: '张', companyId: 7 }, { id: 71, name: '李', companyId: 7 }],
+    });
+  });
+
+  it('全域管理員：所有啟用中的單位與推薦人', async () => {
+    const body = await (await on.get('/api/admin/service-targets', h(god({ kind: 'company', companyId: 7 })))).json();
+    expect(body.units.map((u: any) => u.id)).toEqual([7, 9]);
+    expect(body.referrers.map((r: any) => r.id)).toEqual([70, 71, 90]);
+  });
+
+  it('推薦人 403；關著 404', async () => {
+    expect((await on.get('/api/admin/service-targets', h(zhang()))).status).toBe(403);
+    expect((await off.get('/api/admin/service-targets', h(manager()))).status).toBe(404);
+  });
 });
 
 describe('GET /parents/:id/service-changes', () => {

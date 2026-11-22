@@ -60,7 +60,7 @@ import { HOME_CARD_SLOTS, isHomeMediaSlot, isSafeMediaLink, MAX_HOME_IMAGE_BYTES
 import path from 'path';
 import crypto from 'crypto';
 import { listWecomQrs, removeWecomQr, saveWecomQr, type WecomQrKey } from '../wecomQr/store';
-import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf } from './parentSummary';
+import { buildSummaryTable, channelOf, readSummaryOptions, readSummaryPage, summaryPageOf, type SummarySource } from './parentSummary';
 import { developmentIndex } from '../developmentIndex/developmentIndex';
 import type { DevelopmentIndexOf } from './parentSummary';
 import { summaryFileName, summaryWorkbook } from './summaryXlsx';
@@ -406,8 +406,23 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       const sort = req.query.sort === 'oldest' ? 'oldest' : 'newest';
       const booked =
         req.query.booked === 'booked' ? 'booked' : req.query.booked === 'not_booked' ? 'not_booked' : 'all';
-      const parents = await store.listParents(condition, { sort, booked });
-      res.json({ parents });
+      // 服務關係（#119）：開著才看「還沒標注」的篩選、才多一欄篩查渠道（與匯總表同一個 channelOf，改派不變）。
+      const unassignedOnly = shape.serviceRelations && req.query.assigned === 'unassigned';
+      const parents = await store.listParents(condition, { sort, booked, ...(unassignedOnly ? { unassignedOnly: true } : {}) });
+      res.json({
+        parents: shape.serviceRelations
+          ? parents.map(p => ({
+              ...p,
+              screeningChannel: channelOf(
+                {
+                  companyName: p.screeningCompanyName ?? null,
+                  handoffImports: p.handoffSource ? [{ id: 0, at: p.handoffSource.at, companyName: p.handoffSource.companyName }] : [],
+                } as SummarySource,
+                shape
+              ),
+            }))
+          : parents,
+      });
     } catch (err: any) {
       console.error('[Admin] listParents failed:', err.message);
       res.status(500).json({ error: '读取家长列表失败。' });
@@ -564,6 +579,34 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     } catch (err: any) {
       console.error('[Admin] reassign failed:', err.message);
       res.status(500).json({ error: '改派失败，请稍后再试。' });
+    }
+  });
+
+  /**
+   * 改派時能選的單位與推薦人（只列啟用中的）：全域管理員全部；單位管理者只有本單位（推薦人不能改派，白名單擋 403）。
+   * 改派紀錄裡的編號也用這一份對名字。
+   */
+  serviceRelationsOnly.get('/service-targets', async (req: AuthedRequest, res) => {
+    const identity = req.admin!;
+    const ownUnit = identity.role === 'company_member' ? identity.companyId : null;
+    if (identity.role !== 'global_admin' && ownUnit === null) {
+      res.status(403).json({ error: '没有权限改派。', code: 'FORBIDDEN' });
+      return;
+    }
+    try {
+      const [companies, referrers] = await Promise.all([store.listCompanies(), store.listReferrers()]);
+      const inScope = (companyId: number | null) => companyId !== null && (ownUnit === null || companyId === ownUnit);
+      const units = companies.filter(c => c.active && inScope(c.id));
+      const unitIds = new Set(units.map(u => u.id));
+      res.json({
+        units: units.map(c => ({ id: c.id, name: c.name, kind: c.kind })),
+        referrers: referrers
+          .filter(r => r.active && r.companyId !== null && unitIds.has(r.companyId))
+          .map(r => ({ id: r.id, name: r.name, companyId: r.companyId })),
+      });
+    } catch (err: any) {
+      console.error('[Admin] service targets failed:', err.message);
+      res.status(500).json({ error: '读取单位与推荐人失败。' });
     }
   });
 

@@ -69,6 +69,12 @@ export interface ParentListItem {
    * 取第一次：同一支手機在 B 的兩家合作公司是兩位家長，都轉過來會落在 A 的同一個帳號，最早的那一次才是他怎麼來的。
    */
   handoffSource: { at: string; companyName: string | null } | null;
+  /**
+   * 服務關係（#119，只有 `byService` 的條件才帶這兩欄；關著列表形狀一字不動）：現在服務他的單位與推薦人
+   * （null＝森心康直屬；`referrerId` null＝還沒標注），與帳號歸屬那家的名字（篩查渠道的來源，改派不變）。
+   */
+  service?: { companyId: number; companyName: string | null; referrerId: number | null; referrerName: string | null } | null;
+  screeningCompanyName?: string | null;
 }
 
 export interface ParentBooking {
@@ -177,6 +183,8 @@ export interface CompanySummaryRow {
 export interface ParentListOptions {
   sort: 'newest' | 'oldest';
   booked: 'all' | 'booked' | 'not_booked';
+  /** 只列服務關係在單位裡、還沒標注推薦人的（#119）。只有 `byService` 的條件看它。 */
+  unassignedOnly?: boolean;
 }
 
 // ── 共用工具 ──
@@ -277,6 +285,20 @@ function rowToListItem(row: any): ParentListItem {
     lastInvitedAt: toIso(row.last_invited_at),
     handoffUsedAt: toIso(row.handoff_used_at),
     handoffSource: handoffSourceOf(row),
+    ...(row.service_basis
+      ? {
+          service:
+            row.cur_company_id === null || row.cur_company_id === undefined
+              ? null
+              : {
+                  companyId: Number(row.cur_company_id),
+                  companyName: row.service_company_name ?? null,
+                  referrerId: row.cur_referrer_id === null ? null : Number(row.cur_referrer_id),
+                  referrerName: row.service_referrer_name ?? null,
+                },
+          screeningCompanyName: row.screening_company_name ?? null,
+        }
+      : {}),
   };
 }
 
@@ -361,9 +383,23 @@ export async function listParents(
       : options.booked === 'not_booked'
         ? 'HAVING booking_count = 0'
         : '';
+  // 服務關係（#119）：byService 的條件才多帶這幾欄與「還沒標注」的篩選；關著查的東西不變。外層別名用 `cur`
+  // （範圍片段自己用 `sr`）。都是常數字串，不接使用者輸入。
+  const byService = condition.byService === true;
+  const serviceColumns = byService
+    ? `1 AS service_basis, cur.company_id AS cur_company_id, cur.referrer_id AS cur_referrer_id,
+            sc.name AS service_company_name, sref.name AS service_referrer_name, chn.name AS screening_company_name,`
+    : '';
+  const serviceJoins = byService
+    ? `LEFT JOIN service_relations cur ON cur.user_id = u.id
+       LEFT JOIN companies sc ON sc.id = cur.company_id
+       LEFT JOIN referrers sref ON sref.id = cur.referrer_id
+       LEFT JOIN companies chn ON chn.id = u.company_id`
+    : '';
+  const unassignedFilter = byService && options.unassignedOnly ? 'AND cur.company_id IS NOT NULL AND cur.referrer_id IS NULL' : '';
 
   const [rows] = await p.execute(
-    `SELECT u.id, u.email, u.phone, u.company_id, u.created_at,
+    `SELECT ${serviceColumns} u.id, u.email, u.phone, u.company_id, u.created_at,
             ud.child, ud.completed_scores, ud.updated_at AS screened_at,
             (SELECT COUNT(*) FROM expert_bookings b WHERE b.user_id = u.id) AS booking_count,
             (SELECT MAX(i.sent_at) FROM handoff_invites i WHERE i.user_id = u.id AND i.status = 'sent') AS last_invited_at,
@@ -373,7 +409,8 @@ export async function listParents(
               ORDER BY h.created_at, h.id LIMIT 1) AS handoff_first_company
        FROM users u
        LEFT JOIN user_data ud ON ud.user_id = u.id
-      WHERE ${scope.sql}
+       ${serviceJoins}
+      WHERE ${scope.sql} ${unassignedFilter}
       ${bookedFilter}
       ORDER BY COALESCE(ud.updated_at, u.created_at) ${order}
       LIMIT 500`,

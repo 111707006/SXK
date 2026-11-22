@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS `companies` (
   -- `name` 仍然只给后台看。留空则用建置内建的字标（src/productConfig.ts 的 logoMark）。
   -- 只收 https:// 或站内的 /… 路径，理由见 src/utils/assetUrl.ts。
   `logo_url` VARCHAR(512) DEFAULT NULL,
+  -- 合作单位的类型（#117，ADR-0020，专案 A）：institution＝机构（底下可以有好几位推荐人）、therapist＝个人治疗师
+  -- （恰好一位推荐人，他同时是单位管理者）。旧列与 B 的每一家都是机构。迁移 deploy/migrations/2026-11-23-units-and-referrer-codes.sql。
+  `kind` ENUM('institution','therapist') NOT NULL DEFAULT 'institution',
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -769,9 +772,12 @@ CREATE TABLE IF NOT EXISTS `referrers` (
   `kind` ENUM('channel','therapist') NOT NULL,
   -- 可选：隶属哪一家合作公司（代填建帐号时，家长的归属＝这一家；没有就是未归属）。
   `company_id` INT UNSIGNED NULL,
+  -- 推荐人代号（#117）：个人连结 `?c=<单位代号>&t=<推荐人代号>`，格式同进站代号，在同一个单位里唯一；旧的推荐人是 NULL。
+  `code` VARCHAR(64) NULL,
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY `uk_referrers_admin_user` (`admin_user_id`),
+  UNIQUE KEY `uk_referrers_company_code` (`company_id`, `code`),
   CONSTRAINT `fk_referrers_admin_user` FOREIGN KEY (`admin_user_id`) REFERENCES `admin_users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_referrers_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

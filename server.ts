@@ -4094,7 +4094,8 @@ async function relationSourceOf(userId: number, source: SwitchSource): Promise<R
  */
 async function applyServiceSource(
   userId: number,
-  source: SwitchSource
+  source: SwitchSource,
+  { ask = true }: { ask?: boolean } = {}
 ): Promise<{ attached: boolean; prompt: ServiceSwitchPrompt | null }> {
   const relationSource = await relationSourceOf(userId, source);
   const current = await withTimeout(mysqlDb.getServiceRelationByUserId(userId), 2000);
@@ -4102,7 +4103,7 @@ async function applyServiceSource(
   if (decision.kind === 'attach') {
     return { attached: await withTimeout(mysqlDb.attachServiceRelation(userId, decision.to, source.kind), 2000), prompt: null };
   }
-  if (decision.kind === 'ask') {
+  if (decision.kind === 'ask' && ask) {
     const [from, to] = await Promise.all([
       withTimeout(mysqlDb.serviceRelationNames(decision.current), 2000),
       withTimeout(mysqlDb.serviceRelationNames(decision.to), 2000),
@@ -4210,11 +4211,15 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     // 服務關係（#118／#120）：這次進站的連結（`visitLink`），沒有就用記下的那一組（`companySlug`＋`referrerCode`）。
     // 還沒有服務關係就掛上；已經有了而來源不同，回應多帶 `serviceSwitch`（換人提示）。出錯不擋登入（帳號已經確定），記一行。
     let serviceSwitch: ServiceSwitchPrompt | null = null;
-    const entryLink = SERVICE_RELATIONS
-      ? readLinkSource(req.body?.visitLink) ?? readLinkSource({ companySlug: req.body?.companySlug, referrerCode: req.body?.referrerCode })
+    // 記下的那一組是**第一次**進站的連結：只用來掛上還沒有服務關係的家長，不拿來問——否則改派過的家長每次登入
+    // 都會被問要不要換回第一位（review）。要問只看這次進站的連結。
+    const visitLink = SERVICE_RELATIONS ? readLinkSource(req.body?.visitLink) : null;
+    const storedLink = SERVICE_RELATIONS && !visitLink
+      ? readLinkSource({ companySlug: req.body?.companySlug, referrerCode: req.body?.referrerCode })
       : null;
+    const entryLink = visitLink ?? storedLink;
     if (entryLink) {
-      serviceSwitch = await applyServiceSource(Number(user.id), entryLink)
+      serviceSwitch = await applyServiceSource(Number(user.id), entryLink, { ask: visitLink !== null })
         .then(r => r.prompt)
         .catch((err: any) => {
           console.warn('[ServiceRelation] entry link failed:', err.message);

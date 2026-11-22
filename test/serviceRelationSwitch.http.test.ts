@@ -145,9 +145,16 @@ describe('登入驗證的回應', () => {
     expect(db.changes).toEqual([]);
   });
 
-  it('沒帶這次的連結：用記下的單位與推薦人代號（#118 那一組）', async () => {
+  it('沒帶這次的連結、只有記下的那一組（第一次進站的連結）：不問——改派過的家長不會每次登入都被問要不要換回去（review）', async () => {
     const body = await (await verify({ companySlug: 'jia', referrerCode: 'li' })).json();
-    expect(body.serviceSwitch.toName).toBe('李老师');
+    expect(body).not.toHaveProperty('serviceSwitch');
+    expect(db.changes).toEqual([]);
+  });
+
+  it('記下的那一組只用來掛上還沒有服務關係的家長', async () => {
+    db.relations = {};
+    await verify({ companySlug: 'jia', referrerCode: 'li' });
+    expect(db.relations[40]).toEqual({ companyId: 7, referrerId: 71 });
   });
 
   it('換成只有單位：寫單位名', async () => {

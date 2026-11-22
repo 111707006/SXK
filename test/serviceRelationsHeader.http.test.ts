@@ -9,16 +9,11 @@ import { bearer } from './helpers/session';
  * 頁首徽章與客服二維碼跟著服務關係（#121，ADR-0020）：服務關係開著時，已登入的家長看 `service_relations`
  * 那一列的單位，不看帳號上的歸屬；沒有服務關係＝森心康直屬（徽章 null、二維碼預設那張）；改派之後下一次讀就換。
  * 沒登入照舊看 `?c=`。開關關著見 `serviceRelationsHeaderOff.http.test.ts`，專案 B 見 `serviceRelationsHeaderProjectB.http.test.ts`。
- *
- * 身分開關（#115）還沒合進來，`server.ts` 讀不開服務關係開關（開了起不來）——這裡把開關替成開著。
  */
 process.env.A_COMPANIES = '1';
+process.env.A_PHONE_IDENTITY = '1';
+process.env.SERVICE_RELATIONS = '1';
 process.env.SESSION_SECRET ||= 'test-session-secret-for-service-relations-header';
-
-vi.mock('../src/serviceRelations/switch', async importOriginal => {
-  const real = (await importOriginal()) as Record<string, unknown>;
-  return { ...real, resolveServiceRelationsSwitch: () => ({ enabled: true, notice: null }) };
-});
 
 const store = vi.hoisted(() => ({
   companies: new Map<number, { name: string; slug: string; logoUrl: string | null; active: boolean }>(),

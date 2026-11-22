@@ -323,12 +323,10 @@ const A_PHONE_IDENTITY = A_PHONE_IDENTITY_REQUESTED && APP_MODE === 'full';
 // 服務關係（#118／#121，ADR-0020，`src/serviceRelations/switch.ts`）：開著時頁首徽章與客服二維碼（已登入）改看
 // `service_relations` 的單位（`src/serviceRelations/headerUnit.ts`）；後台範圍、連結掛上、改派等其餘部分還沒接。
 // 關著＝一行不動。**只在專案 A**（B 設了不生效，啟動印一行）；要同時開身分開關（#115）與 `A_COMPANIES`，否則起不來。
-// ⚠️ 暫接：身分開關（#115）還沒合進來，先當作關著 —— 所以 A 現在設 `SERVICE_RELATIONS=1` 起不來（fail-closed：
-// 沒有身分開關不准開服務關係）。TODO(#115)：合進來後把 `identityByPhone` 換成身分開關的值。
 const SERVICE_RELATIONS_SWITCH = resolveServiceRelationsSwitch(process.env.SERVICE_RELATIONS, {
   projectA: APP_MODE === 'full',
   aCompanies: A_COMPANIES,
-  identityByPhone: false,
+  identityByPhone: A_PHONE_IDENTITY,
 });
 if (SERVICE_RELATIONS_SWITCH.notice) console.log(SERVICE_RELATIONS_SWITCH.notice);
 const SERVICE_RELATIONS = SERVICE_RELATIONS_SWITCH.enabled;

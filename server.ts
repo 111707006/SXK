@@ -34,6 +34,9 @@ import dotenv from 'dotenv';
 import * as mysqlDb from './src/db/mysql';
 import { isAllowedAssetUrl } from './src/utils/assetUrl';
 import { createAdminRouter } from './src/admin/routes';
+import { resolveServiceRelationsSwitch } from './src/serviceRelations/switch';
+import { decideAttach, resolveLinkSource } from './src/serviceRelations/rules';
+import { isValidReferrerCode } from './src/admin/units';
 import { developmentIndexFor, resolveDevIndexBasis } from './src/developmentIndex/basis';
 import { notifyExpertBooking } from './src/notify';
 import { inviteChannelStatus, sendHandoffInvite, sendVerificationCode } from './src/sms';
@@ -105,6 +108,7 @@ import { generateLegacyFallbackReport } from './src/t1report/legacy';
 import { BRAND_FONT_DIR, BRAND_FONT_LINK_TAG, BRAND_FONT_STACK } from './src/brandFont';
 import { createMediaProxy, resolveMediaUpstream } from './src/mediaProxy';
 import { resolveDemoLoginCode } from './src/demoLogin';
+import { pickPhoneAccount } from './src/phoneIdentity';
 import { handoffInviteUrl, resolveHandoffSourceConfig, resolveHandoffTargetConfig } from './src/handoff/core';
 import { SINGLE_FORM_PER_DIMENSION, singleFormPlan } from './src/t2/interimPlan';
 import { isTrainingPath, resolveTrainingPriceFen } from './src/t2/trainingGate';
@@ -310,6 +314,21 @@ const LEGAL_DOCS = LEGAL_DOCS_REQUESTED && APP_MODE === 'full';
 // **只在專案 A**（B 本來就有，設了不生效，啟動印一行）。同一套 fail-closed 解析。
 const A_COMPANIES_REQUESTED = resolvePaywallSwitch('A_COMPANIES', process.env.A_COMPANIES);
 const A_COMPANIES = A_COMPANIES_REQUESTED && APP_MODE === 'full';
+// 身分開關（#115，ADR-0020 第 1 點，止血）：開著時家長登入以**手機號**找帳號 —— 這支手機已經有帳號就登入那個，
+// 不管連結帶的是哪個單位；沒有才照連結（`?c=`）建，建立時寫下的歸屬就是篩查渠道。同一支手機已有好幾個帳號
+// （重複尚未合併）時登入有報告／訂單的那一個（`src/phoneIdentity.ts`）。B→A 交接照同一條規則。
+// 關著＝一行不動（ADR-0002：歸屬＋手機號）。**只在專案 A**（B 設了不生效，啟動印一行）。同一套 fail-closed 解析。不用遷移。
+const A_PHONE_IDENTITY_REQUESTED = resolvePaywallSwitch('A_PHONE_IDENTITY', process.env.A_PHONE_IDENTITY);
+const A_PHONE_IDENTITY = A_PHONE_IDENTITY_REQUESTED && APP_MODE === 'full';
+// 服務關係（#118 起，ADR-0020）：開著時家長「現在由哪個單位、哪位推薦人服務」另外記在 `service_relations`、可以改派；
+// 後台範圍、連結掛上等改看它（`src/serviceRelations/`）。關著＝一行不動。**只在專案 A**、要同時開 `A_PHONE_IDENTITY`
+// 與 `A_COMPANIES`（否則起不來）；B 設了不生效（啟動印一行）。⚠️ 要先跑 `2026-11-23-service-relations.sql`。
+const SERVICE_RELATIONS_SWITCH = resolveServiceRelationsSwitch(process.env.SERVICE_RELATIONS, {
+  projectA: APP_MODE === 'full',
+  aCompanies: A_COMPANIES,
+  identityByPhone: A_PHONE_IDENTITY,
+});
+const SERVICE_RELATIONS = SERVICE_RELATIONS_SWITCH.enabled;
 
 // 訓練計劃與居家訓練使用權（客戶 10/22，issue #91 起，規格 docs/specs/client-changes-2026-10-22-3-plan.md，ADR-0013）：
 // 開著時線上干預那幾支（每週活動、整期計劃、片庫、單支活動、打卡、提醒）只看「有沒有一段還沒到期的使用權」
@@ -4014,10 +4033,39 @@ app.post('/api/auth/sms/request', async (req, res) => {
 });
 
 /**
+ * 這支手機號在這次登入該進哪一個帳號（找不到回 null，由呼叫端建）。
+ * 身分開關開著（只在 A）：只看手機號，不看歸屬；有好幾個時照 `pickPhoneAccount` 固定挑一個。
+ * 關著：（歸屬，手機號）這一組（ADR-0002）。
+ */
+async function findLoginAccount(companyId: number | null, phone: string): Promise<any | null> {
+  if (A_PHONE_IDENTITY) return pickPhoneAccount(await mysqlDb.listUsersByPhone(phone));
+  return mysqlDb.findUserByPhone(companyId, phone);
+}
+
+/**
+ * 家長從單位連結（`?c=`）或推薦人個人連結（`?c=&t=`）登入時的服務關係（#118，ADR-0020；`SERVICE_RELATIONS` 開著才呼叫）。
+ * 推薦人代號格式不對、查無此人、不屬於該單位、停用：當作只帶單位（個人治療師單位的單位連結就指向那位推薦人）。
+ * 規則照 `decideAttach`：還沒有服務關係才掛上（紀錄原因＝連結）；已經有了而來源不同要問家長——那是 #120，這裡先不動。
+ */
+async function attachFromEntryLink(userId: number, companyId: number, rawCode: unknown): Promise<void> {
+  const trimmed = typeof rawCode === 'string' ? rawCode.trim().toLowerCase() : '';
+  const code = isValidReferrerCode(trimmed) ? trimmed : null;
+  const referrer =
+    (code !== null ? await withTimeout(mysqlDb.findLinkReferrer(companyId, code), 2000) : null) ??
+    (await withTimeout(mysqlDb.findLinkReferrer(companyId, null), 2000));
+  // 單位由 `resolveCompanyScope`（`findCompanyBySlug` 只回啟用的）查到，所以是啟用中的。
+  const source = resolveLinkSource({ id: companyId, active: true }, referrer);
+  const current = await withTimeout(mysqlDb.getServiceRelationByUserId(userId), 2000);
+  const decision = decideAttach(current, source);
+  if (decision.kind === 'attach') await withTimeout(mysqlDb.attachServiceRelation(userId, decision.to, 'link'), 2000);
+}
+
+/**
  * 核對驗證碼。成功即登入 —— **第一次成功時建立帳號**，歸屬在那一刻寫入。
  *
  * 帳號是以（歸屬，手機號）這一組去找的，不是手機號本身：同一支手機號在兩家
  * 合作公司是兩位家長（`docs/adr/0002-parent-identity-is-company-plus-phone.md`）。
+ * 身分開關 `A_PHONE_IDENTITY` 開著（只在 A，ADR-0020）時只看手機號，見 `findLoginAccount`。
  */
 app.post('/api/auth/sms/verify', async (req, res) => {
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
@@ -4083,7 +4131,7 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     // 都是**沒有副作用的讀**，都有兩秒的預算會逾時，而排在作廢之後的那一次
     // 逾時會把家長手上那組正確的驗證碼一起帶走：他按「重新获取」撞上冷卻期，
     // 被擋在門外一分鐘，手裡拿著一組再也驗不過的號碼。讀先做完不少任何保護。
-    const existing = await withTimeout(mysqlDb.findUserByPhone(scope.companyId, phone), 2000);
+    const existing = await withTimeout(findLoginAccount(scope.companyId, phone), 2000);
 
     // 先作廢再建帳號。反過來的話，同一組驗證碼在兩個同時進來的請求裡都會通過。
     if (!await withTimeout(mysqlDb.consumeSmsCode(row.id), 2000)) {
@@ -4094,9 +4142,24 @@ app.post('/api/auth/sms/verify', async (req, res) => {
     let user = existing;
     if (!user) {
       // 歸屬只在這一行寫得進去，此後不再改變 —— 已有帳號的家長走的是上面那條路。
-      const newUserId = await withTimeout(mysqlDb.createPhoneUser(phone, scope.companyId), 2000);
-      user = { id: newUserId, phone, company_id: scope.companyId };
-      console.log(`[MySQL] Registered phone account (company: ${scope.companyId ?? '未归属'})`);
+      try {
+        const newUserId = await withTimeout(mysqlDb.createPhoneUser(phone, scope.companyId), 2000);
+        user = { id: newUserId, phone, company_id: scope.companyId };
+        console.log(`[MySQL] Registered phone account (company: ${scope.companyId ?? '未归属'})`);
+      } catch (err: any) {
+        // 身分開關開著（#115 × #116）：同一支手機兩個請求同時建，後到的撞 `uk_a_active_phone`——
+        // 先寫進去的那一個就是帳號，重查一次登入它。關著照舊（丟出去、500）。
+        if (!A_PHONE_IDENTITY || err?.code !== 'ER_DUP_ENTRY') throw err;
+        user = await withTimeout(findLoginAccount(scope.companyId, phone), 2000);
+        if (!user) throw err;
+      }
+    }
+
+    // 服務關係（#118）：從單位／推薦人連結登入、還沒有服務關係就掛上。掛不上不擋登入（帳號已經確定），記一行。
+    if (SERVICE_RELATIONS && scope.companyId !== null) {
+      await attachFromEntryLink(Number(user.id), scope.companyId, req.body?.referrerCode).catch((err: any) =>
+        console.warn('[ServiceRelation] attach from entry link failed:', err.message)
+      );
     }
 
     const sessionUserId: UserId = String(user.id);
@@ -4219,9 +4282,9 @@ tier2Only.use(createHandoffTargetRouter({
   config: HANDOFF_TARGET_CONFIG,
   dbReady: () => mysqlDb.isConfigured(),
   fetchImpl: fetch,
-  // A 的家長全部未歸屬（ADR-0002 的範圍＝未歸屬）。
+  // 關著：A 的家長以未歸屬找（ADR-0002 的範圍＝未歸屬）。身分開關開著：只看手機號，已有帳號（不管歸屬）就轉進那一個。
   findUserIdByPhone: async phone => {
-    const user = await withTimeout(mysqlDb.findUserByPhone(null, phone), 2000);
+    const user = await withTimeout(findLoginAccount(null, phone), 2000);
     return user ? Number(user.id) : null;
   },
   createUser: phone => withTimeout(mysqlDb.createPhoneUser(phone, null), 2000),
@@ -4856,7 +4919,8 @@ ${BRAND_FONT_LINK_TAG}
 app.use(
   '/api/admin',
   createAdminRouter(
-    { multiCompany: ADMIN_MULTI_COMPANY, projectA: APP_MODE === 'full' },
+    // `serviceRelations`（#118）：開著時後台範圍改看服務關係（`src/serviceRelations/scope.ts`）。關著不帶這一欄（`/me` 的 shape 一字不動）。
+    { multiCompany: ADMIN_MULTI_COMPANY, projectA: APP_MODE === 'full', ...(SERVICE_RELATIONS ? { serviceRelations: true } : {}) },
     {
       // 硬刪要連記憶體裡這份熱備份一起刪（ADR-0006）。少了這一行，被刪掉的孩子的
       // 姓名、生日、分數與整串報告歷史會留在跑著的進程裡直到下一次重啟，而條款
@@ -5047,6 +5111,18 @@ export async function startServer() {
         A_COMPANIES
           ? '[SenXinKang Server] A_COMPANIES=1: project A has partner companies (entry slug sets the account owner, admin company scope).'
           : '[SenXinKang Server] A_COMPANIES is set but ignored: project B always has partner companies (A only).'
+      );
+    }
+    if (SERVICE_RELATIONS) {
+      console.log('[SenXinKang Server] SERVICE_RELATIONS=1: admin scope and entry links follow service relations (ADR-0020).');
+    } else if (SERVICE_RELATIONS_SWITCH.notice) {
+      console.log(SERVICE_RELATIONS_SWITCH.notice);
+    }
+    if (A_PHONE_IDENTITY_REQUESTED) {
+      console.log(
+        A_PHONE_IDENTITY
+          ? '[SenXinKang Server] A_PHONE_IDENTITY=1: parent login finds the account by phone only (entry slug only sets the owner of new accounts).'
+          : '[SenXinKang Server] A_PHONE_IDENTITY is set but ignored: project B keeps company + phone identity (A only).'
       );
     }
     if (LEGAL_DOCS_REQUESTED) {

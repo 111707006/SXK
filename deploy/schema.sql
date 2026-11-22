@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS `companies` (
   -- `name` 仍然只给后台看。留空则用建置内建的字标（src/productConfig.ts 的 logoMark）。
   -- 只收 https:// 或站内的 /… 路径，理由见 src/utils/assetUrl.ts。
   `logo_url` VARCHAR(512) DEFAULT NULL,
+  -- 合作单位的类型（#117，ADR-0020，专案 A）：institution＝机构（底下可以有好几位推荐人）、therapist＝个人治疗师
+  -- （恰好一位推荐人，他同时是单位管理者）。旧列与 B 的每一家都是机构。迁移 deploy/migrations/2026-11-23-units-and-referrer-codes.sql。
+  `kind` ENUM('institution','therapist') NOT NULL DEFAULT 'institution',
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -79,6 +82,15 @@ CREATE TABLE IF NOT EXISTS `users` (
   -- 来源栏位，MySQL 不允许这个组合（见 2026-08-10 那份迁移里的完整说明）。
   -- 建 sxk_t1_db 时会撞到同一面墙。
   `company_key` INT UNSIGNED AS (COALESCE(`company_id`, 0)) VIRTUAL,
+  --
+  -- 停用与并入（#116，ADR-0020；迁移 deploy/migrations/2026-11-23-users-merged.sql）：专案 A 合并重复手机号时，
+  -- 被并掉的帐号写 disabled_at 与 merged_into（并入哪一个 users.id），登入时换成它并入的那一个。不删列。
+  --
+  -- ⚠️ 专案 A 另外有手机号唯一（生成栏位 active_phone ＋ uk_a_active_phone，停用的帐号不占号），
+  -- **不写在这里**：这份 schema 两个库共用，B 照旧是下面的（归属，手机号）唯一。
+  -- A 的由 deploy/merge-duplicate-phones.mjs 在合并完之后加；全新的 A 库套完这份之后也跑一次那支脚本。
+  `disabled_at` DATETIME NULL,
+  `merged_into` INT UNSIGNED NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- email 的 UNIQUE 本身已建索引，不另加 INDEX（避免重复索引）
   INDEX `idx_device_id` (`device_id`),
@@ -769,9 +781,12 @@ CREATE TABLE IF NOT EXISTS `referrers` (
   `kind` ENUM('channel','therapist') NOT NULL,
   -- 可选：隶属哪一家合作公司（代填建帐号时，家长的归属＝这一家；没有就是未归属）。
   `company_id` INT UNSIGNED NULL,
+  -- 推荐人代号（#117）：个人连结 `?c=<单位代号>&t=<推荐人代号>`，格式同进站代号，在同一个单位里唯一；旧的推荐人是 NULL。
+  `code` VARCHAR(64) NULL,
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY `uk_referrers_admin_user` (`admin_user_id`),
+  UNIQUE KEY `uk_referrers_company_code` (`company_id`, `code`),
   CONSTRAINT `fk_referrers_admin_user` FOREIGN KEY (`admin_user_id`) REFERENCES `admin_users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_referrers_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -48,6 +48,11 @@ export type AdminIdentity =
       adminUserId: number;
       email: string;
       companyId: number;
+      /**
+       * 個人治療師單位的那個帳號（#117，ADR-0020）：單位管理者，同時是這個單位唯一的推薦人（`referrers.admin_user_id`
+       * 指著這個帳號、而且啟用中）。看家長照樣是全單位（公司條件不變）；多的只是推薦人自己的兌換碼與代填。
+       */
+      referrerId?: number;
     }
   | {
       role: 'global_admin';

@@ -8,7 +8,7 @@
  * 值的解析與 `server.ts` 的 `resolvePaywallSwitch` 同一套 fail-closed：只收 `1`/`true`/`0`/`false`，
  * 不設或空字串＝關，認不得的值起不來（B 也一樣，打錯字不因為是 B 就放過）。
  *
- * ⚠️ 還沒接進 `server.ts`：身分開關由 #115 定，等它合進來再把兩個值一起讀。
+ * `server.ts` 在 `A_PHONE_IDENTITY`（身分開關）之後讀它。
  */
 
 export const SERVICE_RELATIONS_ENV = 'SERVICE_RELATIONS';
@@ -18,7 +18,7 @@ export interface ServiceRelationsContext {
   projectA: boolean;
   /** `A_COMPANIES` 開著（已經套過「只在 A」）。 */
   aCompanies: boolean;
-  /** 身分開關（#115）開著（已經套過「只在 A」）。 */
+  /** 身分開關 `A_PHONE_IDENTITY`（#115）開著（已經套過「只在 A」）。 */
   identityByPhone: boolean;
 }
 
@@ -40,7 +40,7 @@ export function resolveServiceRelationsSwitch(raw: string | undefined, ctx: Serv
     return { enabled: false, notice: `[service-relations] ${SERVICE_RELATIONS_ENV}=1：專案 B 不生效（服務關係只在專案 A），可以拿掉。` };
   }
   const missing = [
-    ...(ctx.identityByPhone ? [] : ['身分開關（#115）']),
+    ...(ctx.identityByPhone ? [] : ['身分開關（A_PHONE_IDENTITY=1，#115）']),
     ...(ctx.aCompanies ? [] : ['A_COMPANIES=1']),
   ];
   if (missing.length > 0) {

@@ -30,6 +30,7 @@ import { nextPassRange } from '../t2/trainingPass';
 import { homeMediaFromRow, type HomeMediaItem, type HomeMediaKind, type HomeMediaSlot } from '../homeMedia/shape';
 import type { SummarySource } from './parentSummary';
 import type { ChangeActor, ChangeReason, ServiceRelation } from '../serviceRelations/rules';
+import { isUnitKind, type UnitKind } from './units';
 
 // ── 對外型別 ──
 
@@ -146,6 +147,8 @@ export interface CompanyRecord {
    * —— 見 `deploy/schema.sql` 的欄位註解。
    */
   logoUrl: string | null;
+  /** 合作單位的類型（#117，ADR-0020）：機構／個人治療師。舊列（與 B 的每一家）都是機構。 */
+  kind: UnitKind;
   active: boolean;
   createdAt: string | null;
 }
@@ -303,9 +306,28 @@ function rowToCompany(row: any): CompanyRecord {
     slug: row.slug,
     wecomWebhookUrl: row.wecom_webhook_url ?? null,
     logoUrl: row.logo_url ?? null,
+    kind: isUnitKind(row.kind) ? row.kind : 'institution',
     active: Number(row.active) === 1,
     createdAt: toIso(row.created_at),
   };
+}
+
+/**
+ * 撞到哪一個 UNIQUE（#117）：建個人治療師單位一次寫三張表，識別碼、信箱、推薦人代號撞到都是 `ER_DUP_ENTRY`，
+ * 路由要講得出是哪一個。MySQL 的訊息是 `Duplicate entry '…' for key '<表>.<索引>'`（5.7 沒有表名）。
+ */
+function tagDuplicate(err: any): never {
+  if (err?.code === 'ER_DUP_ENTRY') {
+    const message = String(err.message ?? '');
+    err.dupKey = message.includes('uk_referrers_company_code')
+      ? 'code'
+      : /slug'/.test(message)
+        ? 'slug'
+        : /email'/.test(message)
+          ? 'email'
+          : 'unknown';
+  }
+  throw err;
 }
 
 function rowToAdminUser(row: any): AdminUserRecord {
@@ -934,9 +956,16 @@ export async function listCompanies(): Promise<CompanyRecord[]> {
   return (rows as any[]).map(rowToCompany);
 }
 
-export async function createCompany(name: string, slug: string): Promise<CompanyRecord> {
+/**
+ * 建一家合作公司／合作單位。`kind` 只有 A 會傳（#117）；機構照舊只寫名稱與識別碼（類型用欄位預設），
+ * 所以 B 的這句話一個字都沒變。
+ */
+export async function createCompany(name: string, slug: string, kind: UnitKind = 'institution'): Promise<CompanyRecord> {
   const p = requirePool();
-  const [result] = await p.execute('INSERT INTO companies (name, slug) VALUES (?, ?)', [name, slug]);
+  const [result] =
+    kind === 'institution'
+      ? await p.execute('INSERT INTO companies (name, slug) VALUES (?, ?)', [name, slug])
+      : await p.execute('INSERT INTO companies (name, slug, kind) VALUES (?, ?, ?)', [name, slug, kind]);
   const id = (result as ResultSetHeader).insertId;
   const [rows] = await p.execute('SELECT * FROM companies WHERE id = ? LIMIT 1', [id]);
   return rowToCompany((rows as any[])[0]);
@@ -1194,6 +1223,11 @@ export interface ReferrerRecord {
   kind: ReferrerKind;
   companyId: number | null;
   companyName: string | null;
+  /** 所屬單位的進站代號與類型（#117）：後台畫推薦人的個人連結用。沒隸屬是 null。 */
+  companySlug: string | null;
+  companyKind: UnitKind | null;
+  /** 推薦人代號（#117）：個人連結 `?c=<單位>&t=<代號>`，在同一個單位裡唯一。舊的推薦人是 null。 */
+  code: string | null;
   active: boolean;
   createdAt: string | null;
 }
@@ -1208,6 +1242,9 @@ function rowToReferrer(row: any): ReferrerRecord {
     kind: row.kind === 'therapist' ? 'therapist' : 'channel',
     companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
     companyName: row.company_name ?? null,
+    companySlug: row.company_slug ?? null,
+    companyKind: isUnitKind(row.company_kind) ? row.company_kind : null,
+    code: row.code ?? null,
     active: Number(row.active) === 1,
     createdAt: toIso(row.created_at),
   };
@@ -1216,7 +1253,7 @@ function rowToReferrer(row: any): ReferrerRecord {
 export async function listReferrers(): Promise<ReferrerRecord[]> {
   const p = requirePool();
   const [rows] = await p.execute(
-    `SELECT r.*, a.email, c.name AS company_name
+    `SELECT r.*, a.email, c.name AS company_name, c.slug AS company_slug, c.kind AS company_kind
        FROM referrers r
        JOIN admin_users a ON a.id = r.admin_user_id
        LEFT JOIN companies c ON c.id = r.company_id
@@ -1229,7 +1266,7 @@ export async function listReferrers(): Promise<ReferrerRecord[]> {
 export async function findReferrer(id: number): Promise<ReferrerRecord | null> {
   const p = requirePool();
   const [rows] = await p.execute(
-    `SELECT r.*, a.email, c.name AS company_name
+    `SELECT r.*, a.email, c.name AS company_name, c.slug AS company_slug, c.kind AS company_kind
        FROM referrers r
        JOIN admin_users a ON a.id = r.admin_user_id
        LEFT JOIN companies c ON c.id = r.company_id
@@ -1399,6 +1436,8 @@ export async function createReferrer(input: {
   phone: string;
   kind: ReferrerKind;
   companyId: number | null;
+  /** 推薦人代號（#117）；沒有單位的舊流程是 null。 */
+  code?: string | null;
 }): Promise<ReferrerRecord> {
   const p = requirePool();
   const conn = await p.getConnection();
@@ -1409,21 +1448,69 @@ export async function createReferrer(input: {
       "INSERT INTO admin_users (email, password, role, company_id) VALUES (?, ?, 'referrer', NULL)",
       [input.email, input.passwordHash]
     );
-    const [ref] = await conn.execute(
-      'INSERT INTO referrers (admin_user_id, name, phone, kind, company_id) VALUES (?, ?, ?, ?, ?)',
-      [(account as ResultSetHeader).insertId, input.name, input.phone, input.kind, input.companyId]
-    );
+    // 沒有代號就照舊那一句（不碰 `code` 欄）；有代號才寫。
+    const [ref] = input.code
+      ? await conn.execute(
+          'INSERT INTO referrers (admin_user_id, name, phone, kind, company_id, code) VALUES (?, ?, ?, ?, ?, ?)',
+          [(account as ResultSetHeader).insertId, input.name, input.phone, input.kind, input.companyId, input.code]
+        )
+      : await conn.execute(
+          'INSERT INTO referrers (admin_user_id, name, phone, kind, company_id) VALUES (?, ?, ?, ?, ?)',
+          [(account as ResultSetHeader).insertId, input.name, input.phone, input.kind, input.companyId]
+        );
     referrerId = (ref as ResultSetHeader).insertId;
     await conn.commit();
   } catch (err) {
     await conn.rollback();
-    throw err;
+    tagDuplicate(err);
   } finally {
     conn.release();
   }
   const created = await findReferrer(referrerId);
   if (!created) throw new Error('建立推荐人后读不回来');
   return created;
+}
+
+/**
+ * 建一個個人治療師單位（#117，ADR-0020）：單位（類型 therapist）、一個後台帳號（角色 company_member，屬於這個單位）、
+ * 一列推薦人（指著同一個帳號、屬於這個單位、沒有代號——他的連結就是單位連結），同一個交易。
+ * 這個帳號因此同時是單位管理者與推薦人（`buildIdentity` 看 `referrers.admin_user_id`）。
+ * 識別碼或信箱撞到丟 `ER_DUP_ENTRY`，`dupKey` 說是哪一個。
+ */
+export async function createTherapistUnit(input: {
+  name: string;
+  slug: string;
+  email: string;
+  passwordHash: string;
+  phone: string;
+}): Promise<{ company: CompanyRecord; referrer: ReferrerRecord }> {
+  const p = requirePool();
+  const conn = await p.getConnection();
+  let companyId: number;
+  let referrerId: number;
+  try {
+    await conn.beginTransaction();
+    const [unit] = await conn.execute("INSERT INTO companies (name, slug, kind) VALUES (?, ?, 'therapist')", [input.name, input.slug]);
+    companyId = (unit as ResultSetHeader).insertId;
+    const [account] = await conn.execute(
+      "INSERT INTO admin_users (email, password, role, company_id) VALUES (?, ?, 'company_member', ?)",
+      [input.email, input.passwordHash, companyId]
+    );
+    const [ref] = await conn.execute(
+      "INSERT INTO referrers (admin_user_id, name, phone, kind, company_id) VALUES (?, ?, ?, 'therapist', ?)",
+      [(account as ResultSetHeader).insertId, input.name, input.phone, companyId]
+    );
+    referrerId = (ref as ResultSetHeader).insertId;
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    tagDuplicate(err);
+  } finally {
+    conn.release();
+  }
+  const [company, referrer] = await Promise.all([findCompanyById(companyId), findReferrer(referrerId)]);
+  if (!company || !referrer) throw new Error('建立个人治疗师单位后读不回来');
+  return { company, referrer };
 }
 
 /** 停用／重新啟用一位推薦人（他的後台帳號一起）。回影響的列數。 */

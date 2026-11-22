@@ -32,6 +32,7 @@ import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/in
 import { referrerMayCall } from './referrerAccess';
 import { canReassign, type ReassignActor, type ServiceRelation } from '../serviceRelations/rules';
 import { withServiceBasis } from '../serviceRelations/scope';
+import { isUnitKind, isValidReferrerCode, unitsEnabled } from './units';
 import { formatCode, generateCode, MAX_BATCH } from '../redeem/codes';
 import {
   DEFAULT_COUPON_DISCOUNT,
@@ -77,7 +78,9 @@ function bearer(req: express.Request): string | null {
 
 function identityView(identity: AdminIdentity) {
   if (identity.role === 'company_member') {
-    return { role: identity.role, email: identity.email, companyId: identity.companyId, selection: null };
+    const base = { role: identity.role, email: identity.email, companyId: identity.companyId, selection: null };
+    // 個人治療師單位的帳號（#117）同時是推薦人：畫面據此多畫「我的兑换码」「代填」。一般單位管理者不帶這一欄。
+    return identity.referrerId === undefined ? base : { ...base, referrer: true as const };
   }
   // 推薦人（#93）：沒有公司、沒有選擇；畫面只畫他那幾個分頁。
   if (identity.role === 'referrer') return { role: identity.role, email: identity.email, companyId: null, selection: null };
@@ -101,6 +104,20 @@ function readRelationTarget(body: unknown): ServiceRelation | null | undefined {
   if (!Number.isInteger(companyId) || (companyId as number) <= 0) return undefined;
   if (referrerId !== null && (!Number.isInteger(referrerId) || (referrerId as number) <= 0)) return undefined;
   return { companyId: companyId as number, referrerId: referrerId as number | null };
+}
+
+/** 開後台帳號（推薦人、個人治療師）共用的三個欄位檢查：信箱、密碼（≥8）、11 位手機號。 */
+function readAccountFields(
+  body: Record<string, unknown>,
+  emailHint = ''
+): { email: string; password: string; phone: string } | { error: string } {
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+  if (!email || !/^[^@\s]+@[^@\s]+$/.test(email)) return { error: `请填写有效的信箱${emailHint}。` };
+  if (password.length < 8) return { error: '密码至少 8 个字元。' };
+  if (!/^1\d{10}$/.test(phone)) return { error: '请填写 11 位手机号。' };
+  return { email, password, phone };
 }
 
 function issueToken(identity: AdminIdentity): string {
@@ -214,6 +231,11 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
    * 「專案 A 上根本建不出合作公司」這句話來說，前者是可以被證明的，後者不是。
    */
   const multiCompanyOnly = shape.multiCompany ? router : express.Router();
+  /**
+   * 合作單位（#117，ADR-0020）：A 開了合作公司（`A_COMPANIES`）時，公司改叫合作單位、分機構與個人治療師，
+   * 新建的推薦人一定要屬於某個單位、有代號。B 一個字都不變；A 沒開合作公司時也照舊（沒有單位可選）。
+   */
+  const unitsOn = unitsEnabled(shape);
 
   // ── 資料庫閘門 ──
   // 後台刻意沒有記憶體模式。家長端的記憶體降級是為了讓展示站跑得起來；
@@ -819,6 +841,10 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       res.status(400).json({ error: '进站识别码只能用小写英数与连字号，长度 2–64。' });
       return;
     }
+    if (unitsOn) {
+      await createUnit(req, res, name, slug);
+      return;
+    }
     try {
       const company = await store.createCompany(name, slug);
       res.json({ company });
@@ -832,6 +858,56 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       res.status(500).json({ error: '建立合作公司失败。' });
     }
   });
+
+  /**
+   * A 的合作單位（#117）：類型必選。個人治療師一次建好單位、帳號（單位管理者）與推薦人那一列；帳號的信箱、密碼、
+   * 手機號與開推薦人同一套檢查，推薦人的名稱就是單位名稱。
+   */
+  async function createUnit(req: AuthedRequest, res: express.Response, name: string, slug: string) {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (!isUnitKind(body.kind)) {
+      res.status(400).json({ error: '请选择单位类型（机构或个人治疗师）。' });
+      return;
+    }
+    const duplicate = (err: any): boolean => {
+      if (err?.code !== 'ER_DUP_ENTRY') return false;
+      res.status(409).json({ error: err.dupKey === 'email' ? '这个信箱已经有后台帐号。' : '这个进站识别码已经被使用。' });
+      return true;
+    };
+    if (body.kind === 'institution') {
+      try {
+        res.json({ company: await store.createCompany(name, slug, 'institution') });
+      } catch (err: any) {
+        if (duplicate(err)) return;
+        console.error('[Admin] createCompany failed:', err.message);
+        res.status(500).json({ error: '建立合作单位失败。' });
+      }
+      return;
+    }
+    const account = readAccountFields(body);
+    if ('error' in account) {
+      res.status(400).json({ error: account.error });
+      return;
+    }
+    if (name.length > 50) {
+      res.status(400).json({ error: '个人治疗师的名称请在 50 字以内（也是推荐人的名称）。' });
+      return;
+    }
+    try {
+      const created = await store.createTherapistUnit({
+        name,
+        slug,
+        email: account.email,
+        passwordHash: await bcrypt.hash(account.password, BCRYPT_ROUNDS),
+        phone: account.phone,
+      });
+      res.json(created);
+    } catch (err: any) {
+      if (duplicate(err)) return;
+      console.error('[Admin] createTherapistUnit failed:', err.message);
+      res.status(500).json({ error: '建立个人治疗师单位失败。' });
+    }
+  }
 
   router.get('/admin-users', async (req: AuthedRequest, res) => {
     if (!requireGlobal(req, res)) return;
@@ -901,30 +977,43 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
   router.post('/referrers', async (req: AuthedRequest, res) => {
     if (!requireGlobal(req, res)) return;
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const email = typeof body.email === 'string' ? body.email.trim() : '';
-    const password = typeof body.password === 'string' ? body.password : '';
     const name = typeof body.name === 'string' ? body.name.trim() : '';
-    const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
-    const kind = body.kind === 'therapist' ? 'therapist' : body.kind === 'channel' ? 'channel' : null;
-    if (!email || !/^[^@\s]+@[^@\s]+$/.test(email)) {
-      res.status(400).json({ error: '请填写有效的信箱（推荐人用它登入后台）。' });
+    // A 有合作單位時（#117）不再分渠道商／治療師：沒給就是治療師（欄位留著，ADR-0020）。
+    const kind =
+      body.kind === 'therapist'
+        ? 'therapist'
+        : body.kind === 'channel'
+          ? 'channel'
+          : unitsOn && body.kind === undefined
+            ? 'therapist'
+            : null;
+    const account = readAccountFields(body, '（推荐人用它登入后台）');
+    if ('error' in account) {
+      res.status(400).json({ error: account.error });
       return;
     }
-    if (password.length < 8) {
-      res.status(400).json({ error: '密码至少 8 个字元。' });
-      return;
-    }
+    const { email, password, phone } = account;
     if (!name || name.length > 50) {
       res.status(400).json({ error: '请填写推荐人名称（50 字以内）。' });
-      return;
-    }
-    if (!/^1\d{10}$/.test(phone)) {
-      res.status(400).json({ error: '请填写 11 位手机号。' });
       return;
     }
     if (!kind) {
       res.status(400).json({ error: '请选择渠道商或治疗师。' });
       return;
+    }
+    // 合作單位（#117）：新建的推薦人一定要屬於某個機構，並有一個單位內唯一的代號（個人連結 `?c=<單位>&t=<代號>`）。
+    // 舊的沒單位的推薦人照舊能登入，等遷移票處理。
+    let code: string | null = null;
+    if (unitsOn) {
+      if (body.companyId === undefined || body.companyId === null) {
+        res.status(400).json({ error: '请选择推荐人属于哪个合作单位。' });
+        return;
+      }
+      if (!isValidReferrerCode(body.code)) {
+        res.status(400).json({ error: '推荐人代号只能用小写英数与连字号，长度 2–64。' });
+        return;
+      }
+      code = body.code;
     }
     let companyId: number | null = null;
     if (body.companyId !== undefined && body.companyId !== null) {
@@ -937,6 +1026,11 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         res.status(404).json({ error: '找不到该合作公司。' });
         return;
       }
+      // 個人治療師單位恰好一位推薦人（建單位時就建好了），不能再加。
+      if (unitsOn && company.kind === 'therapist') {
+        res.status(400).json({ error: '个人治疗师单位只有一位推荐人，请选择机构。' });
+        return;
+      }
       companyId = company.id;
     }
     try {
@@ -947,9 +1041,14 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         phone,
         kind,
         companyId,
+        ...(code ? { code } : {}),
       });
       res.json({ referrer });
     } catch (err: any) {
+      if (err?.code === 'ER_DUP_ENTRY' && err.dupKey === 'code') {
+        res.status(409).json({ error: '这个推荐人代号在这个单位里已经有人用了。' });
+        return;
+      }
       if (err?.code === 'ER_DUP_ENTRY') {
         res.status(409).json({ error: '这个信箱已经有后台帐号。' });
         return;
@@ -1324,11 +1423,11 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
 
     const myReferrerId = (req: AuthedRequest, res: express.Response): number | null => {
       const identity = req.admin!;
-      if (identity.role !== 'referrer') {
-        res.status(403).json({ error: '只有推荐人帐号有「我的兑换码」。', code: 'FORBIDDEN' });
-        return null;
-      }
-      return identity.referrerId;
+      if (identity.role === 'referrer') return identity.referrerId;
+      // 個人治療師單位的帳號（#117）：單位管理者，同時是推薦人。
+      if (identity.role === 'company_member' && identity.referrerId !== undefined) return identity.referrerId;
+      res.status(403).json({ error: '只有推荐人帐号有「我的兑换码」。', code: 'FORBIDDEN' });
+      return null;
     };
 
     router.get('/referrer/codes', async (req: AuthedRequest, res) => {

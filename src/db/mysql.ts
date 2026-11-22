@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import type { ChangeReason, ServiceRelation } from '../serviceRelations/rules';
 import type { ServiceType } from '../utils/serviceTypes';
 import type { UnlockScope } from '../types';
 
@@ -106,15 +107,46 @@ function toCompanyKey(companyId: number | null): number {
  * 查的是生成欄位 `company_key` 而不是 `company_id`：未歸屬在 `company_id` 是
  * NULL，而 `NULL = NULL` 在 SQL 裡不成立，用 `company_id` 查永遠查不到未歸屬的
  * 家長 —— 而專案 A 的家長全部都是未歸屬。
+ *
+ * 被停用的帳號登不進來（#116）：專案 A 合併重複手機號時，被併掉的那一個寫了 `merged_into`，
+ * 找到它就換成它併入的那一個（同一位家長）；停用的帳號本身一律不回。
  */
 export async function findUserByPhone(companyId: number | null, phone: string): Promise<any | null> {
   const p = getPool();
   if (!p) return null;
   const [rows] = await p.execute(
-    'SELECT * FROM users WHERE company_key = ? AND phone = ? LIMIT 1',
+    `SELECT u.* FROM users f JOIN users u ON u.id = COALESCE(f.merged_into, f.id)
+      WHERE f.company_key = ? AND f.phone = ? AND u.disabled_at IS NULL LIMIT 1`,
     [toCompanyKey(companyId), phone]
   );
   return (rows as any[])[0] || null;
+}
+
+/**
+ * 這支手機號底下的每一個帳號，不分歸屬（身分開關 `A_PHONE_IDENTITY`，#115，ADR-0020：只在專案 A）。
+ *
+ * 一般只有一個；重複尚未合併時（同一支手機在不同歸屬各開過一個）不止一個，登入哪一個由
+ * `src/phoneIdentity.ts` 的 `pickPhoneAccount` 決定，所以這裡附上兩個旗標、不排序也不 LIMIT：
+ * `has_reports`＝`user_data.report_history` 非空；`has_orders`＝有付款成功／已退款的 `payments`，
+ * 或 `user_data.orders` 非空（商城訂單只存在那一欄）。
+ *
+ * 停用的帳號（`disabled_at`，#116 合併重複帳號時被併掉的那一個）不回：保留下來的帳號是同一支手機，
+ * 所以不必像 `findUserByPhone` 那樣跟著 `merged_into` 走。
+ */
+export async function listUsersByPhone(phone: string): Promise<any[]> {
+  const p = getPool();
+  if (!p) return [];
+  const [rows] = await p.execute(
+    `SELECT u.id, u.phone, u.company_id,
+            (COALESCE(JSON_LENGTH(d.report_history), 0) > 0) AS has_reports,
+            (COALESCE(JSON_LENGTH(d.orders), 0) > 0
+              OR EXISTS (SELECT 1 FROM payments p WHERE p.user_id = u.id AND p.status IN ('success', 'refunded'))) AS has_orders
+       FROM users u
+       LEFT JOIN user_data d ON d.user_id = u.id
+      WHERE u.phone = ? AND u.disabled_at IS NULL`,
+    [phone]
+  );
+  return rows as any[];
 }
 
 /**
@@ -312,6 +344,75 @@ export async function findCompanyBySlug(slug: string): Promise<CompanyRow | null
   const [rows] = await p.execute('SELECT * FROM companies WHERE slug = ? AND active = 1 LIMIT 1', [slug]);
   const row = (rows as any[])[0];
   return row ? toCompanyRow(row) : null;
+}
+
+// ---- 服務關係（#118，ADR-0020；SERVICE_RELATIONS 開著才有人呼叫）----
+
+/**
+ * 連結上的推薦人：有代號（`&t=`）＝這個單位裡這個代號的那一位（停用的也回，由 `resolveLinkSource` 當作只帶單位）；
+ * 沒代號＝個人治療師單位（`companies.kind = 'therapist'`）裡啟用的那一位（單位連結同時指向他）；其他回 null。
+ */
+export async function findLinkReferrer(
+  companyId: number,
+  code: string | null
+): Promise<{ id: number; companyId: number | null; active: boolean } | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] =
+    code !== null
+      ? await p.execute('SELECT r.id, r.company_id, r.active FROM referrers r WHERE r.company_id = ? AND r.code = ? LIMIT 1', [companyId, code])
+      : await p.execute(
+          `SELECT r.id, r.company_id, r.active FROM referrers r JOIN companies c ON c.id = r.company_id
+            WHERE c.id = ? AND c.kind = 'therapist' AND r.active = 1 ORDER BY r.id ASC LIMIT 1`,
+          [companyId]
+        );
+  const row = (rows as any[])[0];
+  return row ? { id: Number(row.id), companyId: row.company_id === null ? null : Number(row.company_id), active: Number(row.active) === 1 } : null;
+}
+
+/** 這位家長現在的服務關係；沒有（森心康直屬）回 null。 */
+export async function getServiceRelationByUserId(userId: number): Promise<ServiceRelation | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute('SELECT company_id, referrer_id FROM service_relations WHERE user_id = ? LIMIT 1', [userId]);
+  const row = (rows as any[])[0];
+  return row ? { companyId: Number(row.company_id), referrerId: row.referrer_id === null ? null : Number(row.referrer_id) } : null;
+}
+
+/**
+ * 家長自己掛上（連結、兌換碼）：一個交易裡鎖住這位家長，**還沒有**服務關係才寫那一列與一列紀錄
+ * （actor＝parent、改之前全空）。已經有了（同時進來的另一個請求先寫了）回 false、什麼都不寫——
+ * 「已經有了要先問家長」由呼叫端的規則決定，這裡不覆寫。
+ */
+export async function attachServiceRelation(
+  userId: number,
+  to: ServiceRelation,
+  reason: Extract<ChangeReason, 'link' | 'code'>
+): Promise<boolean> {
+  const p = getPool();
+  if (!p) throw new Error('MySQL not configured');
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.execute('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
+    const [rows] = await conn.execute('SELECT 1 FROM service_relations WHERE user_id = ? LIMIT 1', [userId]);
+    if ((rows as any[]).length > 0) {
+      await conn.rollback();
+      return false;
+    }
+    await conn.execute('INSERT INTO service_relations (user_id, company_id, referrer_id) VALUES (?, ?, ?)', [userId, to.companyId, to.referrerId]);
+    await conn.execute(
+      `INSERT INTO service_relation_changes (user_id, to_company_id, to_referrer_id, actor, reason) VALUES (?, ?, ?, 'parent', ?)`,
+      [userId, to.companyId, to.referrerId, reason]
+    );
+    await conn.commit();
+    return true;
+  } catch (err) {
+    await conn.rollback().catch(() => undefined);
+    throw err;
+  } finally {
+    conn.release();
+  }
 }
 
 /** 家長所屬公司（含通知位置）。未歸屬回 `null`。 */

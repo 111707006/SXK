@@ -31,6 +31,7 @@ vi.mock('../src/admin/adminStore', async () => {
       { id: 90, name: '王', companyId: 9, active: true },
     ],
     listParentsCalls: [] as any[],
+    summaryCalls: [] as any[],
     // companyId 是帳號歸屬（＝篩查渠道），不決定誰看得到。
     parents: [] as Array<{ id: number; companyId: number | null; childName: string; service: Rel | null }>,
     changes: [] as any[],
@@ -67,6 +68,12 @@ vi.mock('../src/admin/adminStore', async () => {
     async listReferrers() {
       return db.referrers;
     },
+    // 匯總與導出：記下拿到的條件（範圍由 companyWhereSql 照 byService 產生，這裡只驗路由交出去的是哪一個）。
+    async listSummarySources(condition: any) {
+      db.summaryCalls.push(condition);
+      return [];
+    },
+    async recordExport() {},
     // 照真的資料層：byService 才帶服務關係與篩查渠道的名字、才看 unassignedOnly。
     async listParents(condition: any, options: any) {
       db.listParentsCalls.push({ condition, options });
@@ -175,6 +182,7 @@ afterAll(async () => {
 beforeEach(() => {
   store.__reset();
   store.__db.listParentsCalls.length = 0;
+  store.__db.summaryCalls.length = 0;
 });
 
 describe('範圍：開著看服務關係', () => {
@@ -303,6 +311,19 @@ describe('列表：推薦人、篩查渠道兩欄與「還沒標注」', () => {
     expect(list[0]).not.toHaveProperty('screeningChannel');
     expect(list[0]).not.toHaveProperty('service');
     expect(store.__db.listParentsCalls.at(-1).options.unassignedOnly).toBeUndefined();
+  });
+});
+
+describe('家長匯總與導出照新範圍', () => {
+  it('開著：單位管理者的匯總與導出都拿 byService 的條件；關著沒有', async () => {
+    await on.get('/api/admin/parent-summary', h(manager()));
+    await on.request('/api/admin/parent-summary/export', { method: 'POST', headers: { 'Content-Type': 'application/json', ...h(manager()) }, body: '{}' });
+    await off.get('/api/admin/parent-summary', h(manager()));
+    expect(store.__db.summaryCalls).toEqual([
+      { kind: 'company', companyId: 7, byService: true },
+      { kind: 'company', companyId: 7, byService: true },
+      { kind: 'company', companyId: 7 },
+    ]);
   });
 });
 

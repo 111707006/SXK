@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   canReassign,
   decideAttach,
+  proxyAccess,
+  proxyTarget,
   relationAfterConsent,
   resolveLinkSource,
   type ReassignActor,
@@ -163,5 +165,27 @@ describe('canReassign：改派權限', () => {
 
   it.each(pairs)('推薦人 %s → %s：一律不可以（不能手動認領）', (f, t) => {
     expect(canReassign(referrerZhang, RELS[f], RELS[t])).toBe(false);
+  });
+});
+
+describe('proxyAccess：代填能不能碰這位家長（#124）', () => {
+  const asReferrer = { kind: 'referrer' as const, referrerId: ZHANG, companyId: UNIT_A };
+  const asUnit = { kind: 'unit' as const, companyId: UNIT_A };
+  const WANT: Record<string, { referrer: string; unit: string }> = {
+    沒有關係: { referrer: 'unbound', unit: 'unbound' },
+    同單位同推薦人: { referrer: 'mine', unit: 'mine' },
+    同單位不同推薦人: { referrer: 'other', unit: 'mine' },
+    同單位還沒標注: { referrer: 'other', unit: 'mine' },
+    不同單位: { referrer: 'other', unit: 'other' },
+    不同單位還沒標注: { referrer: 'other', unit: 'other' },
+  };
+  it.each(Object.keys(CURRENTS))('%s', c => {
+    expect(proxyAccess(asReferrer, CURRENTS[c])).toBe(WANT[c].referrer);
+    expect(proxyAccess(asUnit, CURRENTS[c])).toBe(WANT[c].unit);
+  });
+
+  it('代填之後要掛的服務關係：推薦人＝他與他的單位；單位＝那個單位、推薦人空', () => {
+    expect(proxyTarget(asReferrer)).toEqual({ companyId: UNIT_A, referrerId: ZHANG });
+    expect(proxyTarget(asUnit)).toEqual({ companyId: UNIT_A, referrerId: null });
   });
 });

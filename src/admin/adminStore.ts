@@ -29,7 +29,7 @@ import type { Activity } from '../t2/types';
 import { nextPassRange } from '../t2/trainingPass';
 import { homeMediaFromRow, type HomeMediaItem, type HomeMediaKind, type HomeMediaSlot } from '../homeMedia/shape';
 import type { SummarySource } from './parentSummary';
-import type { ChangeActor, ChangeReason, ServiceRelation } from '../serviceRelations/rules';
+import { proxyAccess, proxyTarget, type ChangeActor, type ChangeReason, type ProxyParty, type ServiceRelation } from '../serviceRelations/rules';
 import { isUnitKind, type UnitKind } from './units';
 
 // ── 對外型別 ──
@@ -1923,25 +1923,8 @@ export async function proxyFill(
       await conn.rollback();
       return { ok: false, reason: 'other' };
     }
-    // 3. 孩子資料：只改姓名、生日、性別、月齡，其他欄位（補充資料、成績）照留
-    const [dataRows] = await conn.execute('SELECT child FROM user_data WHERE user_id = ? FOR UPDATE', [userId]);
-    const existing = (dataRows as any[])[0];
-    const prevChild = existing ? parseJson<any>(existing.child, null) : null;
-    const child = { ...(prevChild ?? {}), name: input.child.name, birthDate: input.child.birthDate, gender: input.child.gender, ageMonth: input.child.ageMonth };
-    if (existing) {
-      await conn.execute('UPDATE user_data SET child = ? WHERE user_id = ?', [JSON.stringify(child), userId]);
-    } else {
-      await conn.execute(
-        "INSERT INTO user_data (user_id, child, completed_scores, orders, report_history) VALUES (?, ?, '[]', '[]', '[]')",
-        [userId, JSON.stringify(child)]
-      );
-    }
-    // 4. 代填快照（新的一份；舊的留著）
-    await conn.execute(
-      `INSERT INTO t2_findings (user_id, rules_version, toolkit_version, findings, prose, is_ai_generated, ai_engine)
-       VALUES (?, ?, ?, ?, NULL, 0, 'proxy')`,
-      [userId, input.findings.rulesVersion, input.findings.toolkitVersion, JSON.stringify(input.findings)]
-    );
+    // 3. 孩子資料、4. 代填快照
+    await writeProxyChildAndSnapshot(conn, userId, input);
     // 5. 第一次代填：扣一組碼、發使用權、綁定
     const [proxyPass] = await conn.execute("SELECT 1 FROM training_passes WHERE user_id = ? AND source = 'proxy' LIMIT 1", [userId]);
     let consumedCodeId: number | null = null;
@@ -1962,21 +1945,182 @@ export async function proxyFill(
         const [code] = await conn.execute('INSERT INTO redeem_codes (batch_id, code) VALUES (?, ?)', [(batch as ResultSetHeader).insertId, input.generateCode()]);
         consumedCodeId = (code as ResultSetHeader).insertId;
       }
-      await conn.execute("UPDATE redeem_codes SET status = 'used', used_by = ?, used_at = NOW() WHERE id = ?", [userId, consumedCodeId]);
-      const [passRows] = await conn.execute(
-        `SELECT DATE_FORMAT(starts_on, '%Y-%m-%d') AS starts_on, DATE_FORMAT(ends_on, '%Y-%m-%d') AS ends_on
-           FROM training_passes WHERE user_id = ? FOR UPDATE`,
-        [userId]
-      );
-      const passes = (passRows as any[]).map(r => ({ startsOn: String(r.starts_on), endsOn: String(r.ends_on), months: 1 as const, source: 'proxy' as const }));
-      const range = nextPassRange(passes, input.today, input.months as 1 | 3 | 6 | 12);
-      await conn.execute(
-        "INSERT INTO training_passes (user_id, starts_on, ends_on, months, source, ref_id, unique_key) VALUES (?, ?, ?, ?, 'proxy', ?, ?)",
-        [userId, range.startsOn, range.endsOn, input.months, consumedCodeId, `proxy:${consumedCodeId}`]
-      );
+      await useCodeAndIssueProxyPass(conn, userId, consumedCodeId, input);
       await conn.execute(
         "INSERT IGNORE INTO referrer_bindings (user_id, referrer_id, source, ref_id) VALUES (?, ?, 'proxy', ?)",
         [userId, referrer.id, consumedCodeId]
+      );
+    }
+    await conn.commit();
+    return { ok: true, userId, consumedCodeId, endsOn: null };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+type ProxyConn = Awaited<ReturnType<Pool['getConnection']>>;
+
+/** 代填的孩子資料（只改姓名、生日、性別、月齡，其他欄位照留）與一份新的代填快照（舊的留著）。 */
+async function writeProxyChildAndSnapshot(
+  conn: ProxyConn,
+  userId: number,
+  input: { child: { name: string; birthDate: string; gender: 'boy' | 'girl'; ageMonth: number }; findings: { rulesVersion: string; toolkitVersion: string } & Record<string, unknown> }
+): Promise<void> {
+  const [dataRows] = await conn.execute('SELECT child FROM user_data WHERE user_id = ? FOR UPDATE', [userId]);
+  const existing = (dataRows as any[])[0];
+  const prevChild = existing ? parseJson<any>(existing.child, null) : null;
+  const child = { ...(prevChild ?? {}), name: input.child.name, birthDate: input.child.birthDate, gender: input.child.gender, ageMonth: input.child.ageMonth };
+  if (existing) {
+    await conn.execute('UPDATE user_data SET child = ? WHERE user_id = ?', [JSON.stringify(child), userId]);
+  } else {
+    await conn.execute(
+      "INSERT INTO user_data (user_id, child, completed_scores, orders, report_history) VALUES (?, ?, '[]', '[]', '[]')",
+      [userId, JSON.stringify(child)]
+    );
+  }
+  await conn.execute(
+    `INSERT INTO t2_findings (user_id, rules_version, toolkit_version, findings, prose, is_ai_generated, ai_engine)
+     VALUES (?, ?, ?, ?, NULL, 0, 'proxy')`,
+    [userId, input.findings.rulesVersion, input.findings.toolkitVersion, JSON.stringify(input.findings)]
+  );
+}
+
+/** 用掉那一組碼、發一段 `proxy` 使用權（接在既有的後面）。 */
+async function useCodeAndIssueProxyPass(conn: ProxyConn, userId: number, codeId: number, input: { months: number; today: string }): Promise<void> {
+  await conn.execute("UPDATE redeem_codes SET status = 'used', used_by = ?, used_at = NOW() WHERE id = ?", [userId, codeId]);
+  const [passRows] = await conn.execute(
+    `SELECT DATE_FORMAT(starts_on, '%Y-%m-%d') AS starts_on, DATE_FORMAT(ends_on, '%Y-%m-%d') AS ends_on
+       FROM training_passes WHERE user_id = ? FOR UPDATE`,
+    [userId]
+  );
+  const passes = (passRows as any[]).map(r => ({ startsOn: String(r.starts_on), endsOn: String(r.ends_on), months: 1 as const, source: 'proxy' as const }));
+  const range = nextPassRange(passes, input.today, input.months as 1 | 3 | 6 | 12);
+  await conn.execute(
+    "INSERT INTO training_passes (user_id, starts_on, ends_on, months, source, ref_id, unique_key) VALUES (?, ?, ?, ?, 'proxy', ?, ?)",
+    [userId, range.startsOn, range.endsOn, input.months, codeId, `proxy:${codeId}`]
+  );
+}
+
+// ── 代填（服務關係開關開著，#124）──
+//
+// 與上面兩支同理列在 `CROSS_SCOPE_ALLOWLIST`（對象可能還沒有服務關係，範圍條件表達不了），邊界改由這裡守：
+//   - 以手機號找啟用中的帳號（A 的身分只看手機號）；同一支有好幾個時，服務關係在本單位、標注給我的優先
+//   - 能不能碰照 `proxyAccess`：別單位的、（推薦人）不是標注給自己的一律 `other`，一個字都不寫
+//   - 只回孩子的姓名、生日、性別
+
+const SERVED_LOOKUP_SQL = `SELECT u.id, sr.company_id AS cur_company_id, sr.referrer_id AS cur_referrer_id, ud.child
+       FROM users u
+       LEFT JOIN service_relations sr ON sr.user_id = u.id
+       LEFT JOIN user_data ud ON ud.user_id = u.id
+      WHERE u.phone = ? AND u.disabled_at IS NULL
+      ORDER BY (sr.company_id <=> ?) DESC, (sr.referrer_id <=> ?) DESC, u.id ASC
+      LIMIT 1`;
+
+const servedLookupParams = (party: ProxyParty, phone: string) => [phone, party.companyId, party.kind === 'referrer' ? party.referrerId : null];
+
+function servedRelationOf(row: any): ServiceRelation | null {
+  return row.cur_company_id === null || row.cur_company_id === undefined
+    ? null
+    : { companyId: Number(row.cur_company_id), referrerId: row.cur_referrer_id === null ? null : Number(row.cur_referrer_id) };
+}
+
+/** 代填之前用手機號找家長（服務關係開關開著）。 */
+export async function proxyLookupServed(party: ProxyParty, phone: string): Promise<ProxyLookup> {
+  const p = requirePool();
+  const [rows] = await p.execute(SERVED_LOOKUP_SQL, servedLookupParams(party, phone));
+  const row = (rows as any[])[0];
+  if (!row) return { status: 'new' };
+  const access = proxyAccess(party, servedRelationOf(row));
+  if (access === 'other') return { status: 'other' };
+  const child = parseJson<any>(row.child, null);
+  return {
+    status: access,
+    child: child && typeof child.name === 'string'
+      ? { name: child.name, birthDate: typeof child.birthDate === 'string' ? child.birthDate : '', gender: child.gender === 'girl' ? 'girl' : 'boy' }
+      : null,
+  };
+}
+
+/**
+ * 代填（服務關係開關開著），一個交易：找或建家長（新帳號的篩查渠道＝代填的單位）→ 擋不能碰的 → 孩子資料與快照 →
+ * 第一次代填扣一組碼（推薦人的、或單位層的；沒有就先產一組）、發使用權、推薦人代填照舊寫推薦綁定 →
+ * 還沒有服務關係就掛上（推薦人＝他與他的單位；單位＝那個單位、推薦人空），寫一列紀錄（後台、原因＝兌換碼）。
+ */
+export async function proxyFillServed(
+  party: ProxyParty,
+  adminUserId: number,
+  input: {
+    phone: string;
+    child: { name: string; birthDate: string; gender: 'boy' | 'girl'; ageMonth: number };
+    findings: { rulesVersion: string; toolkitVersion: string } & Record<string, unknown>;
+    months: number;
+    today: string;
+    generateCode: () => string;
+  }
+): Promise<ProxyFillResult> {
+  const p = requirePool();
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [found] = await conn.execute(`${SERVED_LOOKUP_SQL} FOR UPDATE`, servedLookupParams(party, input.phone));
+    const row = (found as any[])[0];
+    let userId: number;
+    let current: ServiceRelation | null = null;
+    if (row) {
+      userId = Number(row.id);
+      current = servedRelationOf(row);
+      if (proxyAccess(party, current) === 'other') {
+        await conn.rollback();
+        return { ok: false, reason: 'other' };
+      }
+    } else {
+      const [ins] = await conn.execute('INSERT INTO users (phone, company_id) VALUES (?, ?)', [input.phone, party.companyId]);
+      userId = (ins as ResultSetHeader).insertId;
+    }
+    await writeProxyChildAndSnapshot(conn, userId, input);
+
+    const [proxyPass] = await conn.execute("SELECT 1 FROM training_passes WHERE user_id = ? AND source = 'proxy' LIMIT 1", [userId]);
+    let consumedCodeId: number | null = null;
+    if ((proxyPass as any[]).length === 0) {
+      const ownerColumn = party.kind === 'referrer' ? 'b.referrer_id' : 'b.company_id';
+      const ownerId = party.kind === 'referrer' ? party.referrerId : party.companyId;
+      const [free] = await conn.execute(
+        `SELECT c.id FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id
+          WHERE ${ownerColumn} = ? AND b.months = ? AND c.status = 'unused'
+          ORDER BY c.id ASC LIMIT 1 FOR UPDATE`,
+        [ownerId, input.months]
+      );
+      if ((free as any[])[0]) {
+        consumedCodeId = Number((free as any[])[0].id);
+      } else {
+        const [batch] = await conn.execute(
+          party.kind === 'referrer'
+            ? 'INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, 1, ?)'
+            : 'INSERT INTO redeem_batches (company_id, months, quantity, created_by) VALUES (?, ?, 1, ?)',
+          [ownerId, input.months, adminUserId]
+        );
+        const [code] = await conn.execute('INSERT INTO redeem_codes (batch_id, code) VALUES (?, ?)', [(batch as ResultSetHeader).insertId, input.generateCode()]);
+        consumedCodeId = (code as ResultSetHeader).insertId;
+      }
+      await useCodeAndIssueProxyPass(conn, userId, consumedCodeId, input);
+      if (party.kind === 'referrer') {
+        await conn.execute(
+          "INSERT IGNORE INTO referrer_bindings (user_id, referrer_id, source, ref_id) VALUES (?, ?, 'proxy', ?)",
+          [userId, party.referrerId, consumedCodeId]
+        );
+      }
+    }
+
+    if (current === null) {
+      const to = proxyTarget(party);
+      await conn.execute('INSERT INTO service_relations (user_id, company_id, referrer_id) VALUES (?, ?, ?)', [userId, to.companyId, to.referrerId]);
+      await conn.execute(
+        `INSERT INTO service_relation_changes (user_id, to_company_id, to_referrer_id, actor, reason, admin_user_id)
+         VALUES (?, ?, ?, 'admin', 'code', ?)`,
+        [userId, to.companyId, to.referrerId, adminUserId]
       );
     }
     await conn.commit();

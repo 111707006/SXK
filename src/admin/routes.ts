@@ -30,7 +30,7 @@ import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { referrerMayCall } from './referrerAccess';
-import { canReassign, type ReassignActor, type ServiceRelation } from '../serviceRelations/rules';
+import { canReassign, type ProxyParty, type ReassignActor, type ServiceRelation } from '../serviceRelations/rules';
 import { withServiceBasis } from '../serviceRelations/scope';
 import { isUnitKind, isValidReferrerCode, unitsEnabled } from './units';
 import { formatCode, generateCode, MAX_BATCH } from '../redeem/codes';
@@ -1598,8 +1598,41 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       return referrer;
     };
 
+    /**
+     * 服務關係開關開著（#124）：代填的人是推薦人（含個人治療師帳號）或單位管理者，單位取自資料庫；
+     * 推薦人還沒有單位（遷移前）不能代填。關著不走這裡（照舊只有推薦人，`myReferrer`）。
+     */
+    const myProxyParty = async (req: AuthedRequest, res: express.Response): Promise<ProxyParty | null> => {
+      const identity = req.admin!;
+      if (identity.role === 'company_member' && identity.referrerId === undefined) {
+        const unit = await store.findCompanyById(identity.companyId);
+        if (!unit || !unit.active) {
+          res.status(403).json({ error: '合作单位已停用。', code: 'FORBIDDEN' });
+          return null;
+        }
+        return { kind: 'unit', companyId: unit.id };
+      }
+      const referrer = await myReferrer(req, res);
+      if (!referrer) return null;
+      if (referrer.companyId === null) {
+        res.status(403).json({ error: '推荐人还没有所属单位，暂时不能代填。', code: 'FORBIDDEN' });
+        return null;
+      }
+      return { kind: 'referrer', referrerId: referrer.id, companyId: referrer.companyId };
+    };
+    const OTHER_SERVED = { error: '这位家长由其他老师或单位服务', code: 'OTHER_REFERRER' };
+
     router.post('/referrer/proxy/lookup', async (req: AuthedRequest, res) => {
       try {
+        if (shape.serviceRelations) {
+          const party = await myProxyParty(req, res);
+          if (!party) return;
+          const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+          if (!/^1\d{10}$/.test(phone)) return void res.status(400).json({ error: '请填写 11 位手机号。' });
+          const found = await store.proxyLookupServed(party, phone);
+          if (found.status === 'other') return void res.status(409).json(OTHER_SERVED);
+          return void res.json(found);
+        }
         const referrer = await myReferrer(req, res);
         if (!referrer) return;
         const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
@@ -1615,13 +1648,28 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
 
     router.post('/referrer/proxy', async (req: AuthedRequest, res) => {
       try {
-        const referrer = await myReferrer(req, res);
-        if (!referrer) return;
+        const party = shape.serviceRelations ? await myProxyParty(req, res) : null;
+        if (shape.serviceRelations && !party) return;
+        const referrer = party ? null : await myReferrer(req, res);
+        if (!party && !referrer) return;
         const now = new Date();
         const input = readProxyInput(req.body, now);
         if ('error' in input) return void res.status(400).json({ error: input.error });
         const ageMonth = calculateAgeMonth(input.child.birthDate, now)!;
         const findings = proxyFindings({ colors: input.colors, tags: input.tags, ageMonth, sex: input.child.gender, now });
+        if (party) {
+          const served = await store.proxyFillServed(party, req.admin!.adminUserId, {
+            phone: input.phone,
+            child: { ...input.child, ageMonth },
+            findings: findings as unknown as { rulesVersion: string; toolkitVersion: string } & Record<string, unknown>,
+            months: input.months,
+            today: calendarDateOf(now),
+            generateCode: () => generateCode(max => crypto.randomInt(max)),
+          });
+          if (!served.ok) return void res.status(409).json(OTHER_SERVED);
+          return void res.json({ ok: true, consumedCode: served.consumedCodeId !== null });
+        }
+        if (!referrer) return;
         const result = await store.proxyFill(
           { id: referrer.id, companyId: referrer.companyId, adminUserId: referrer.adminUserId },
           {

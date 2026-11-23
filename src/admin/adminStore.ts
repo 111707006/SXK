@@ -1328,6 +1328,11 @@ export interface ServiceRelationChangeRecord {
   reason: ChangeReason;
   adminUserId: number | null;
   createdAt: string | null;
+  /** 兩端的名字（伺服器 JOIN 出來）：推薦人與單位管理者沒有全部單位的名單，畫面不能只靠 `/service-targets` 對名字。 */
+  fromCompanyName: string | null;
+  fromReferrerName: string | null;
+  toCompanyName: string | null;
+  toReferrerName: string | null;
 }
 
 const nullableId = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -1447,7 +1452,13 @@ export async function listServiceRelationChanges(
   const p = requirePool();
   const scope = companyWhereSql(condition);
   const [rows] = await p.execute(
-    `SELECT ch.* FROM service_relation_changes ch JOIN users u ON u.id = ch.user_id
+    `SELECT ch.*, fc.name AS from_company_name, fr.name AS from_referrer_name,
+            tc.name AS to_company_name, tr.name AS to_referrer_name
+       FROM service_relation_changes ch JOIN users u ON u.id = ch.user_id
+       LEFT JOIN companies fc ON fc.id = ch.from_company_id
+       LEFT JOIN referrers fr ON fr.id = ch.from_referrer_id
+       LEFT JOIN companies tc ON tc.id = ch.to_company_id
+       LEFT JOIN referrers tr ON tr.id = ch.to_referrer_id
       WHERE ${scope.sql} AND u.id = ?
       ORDER BY ch.created_at DESC, ch.id DESC`,
     [...scope.params, userId]
@@ -1462,6 +1473,10 @@ export async function listServiceRelationChanges(
     reason: r.reason,
     adminUserId: nullableId(r.admin_user_id),
     createdAt: toIso(r.created_at),
+    fromCompanyName: r.from_company_name ?? null,
+    fromReferrerName: r.from_referrer_name ?? null,
+    toCompanyName: r.to_company_name ?? null,
+    toReferrerName: r.to_referrer_name ?? null,
   }));
 }
 

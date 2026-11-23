@@ -69,6 +69,14 @@ describe('changeLine：一列改派紀錄', () => {
     expect(changeLine(TARGETS, { ...base, actor: 'parent', reason: 'code', fromCompanyId: null, fromReferrerId: null, toCompanyId: 7, toReferrerId: null }).who).toBe('家长自己（兑换码）');
     expect(changeLine(TARGETS, { ...base, actor: 'system', reason: 'migration', fromCompanyId: null, fromReferrerId: null, toCompanyId: 7, toReferrerId: null }).who).toBe('系统（资料转换）');
   });
+  it('伺服器帶了名字就用（推薦人、單位管理者沒有 /service-targets 或只有本單位）', () => {
+    const empty: ServiceTargets = { units: [], referrers: [] };
+    expect(changeLine(empty, {
+      ...base, fromCompanyId: null, fromReferrerId: null, toCompanyId: 4, toReferrerId: 40,
+      fromCompanyName: null, fromReferrerName: null, toCompanyName: '测试机构', toReferrerName: '测试推荐人',
+    })).toEqual({ from: '森心康直属', to: '测试机构 · 测试推荐人', who: '后台改派' });
+    expect(changeLine(empty, { ...base, fromCompanyId: 8, fromReferrerId: null, toCompanyId: 4, toReferrerId: null }).from).toBe('单位 #8 · 还没标注');
+  });
   it('名單裡找不到的（停用、刪掉）：寫編號', () => {
     expect(changeLine(TARGETS, { ...base, fromCompanyId: 8, fromReferrerId: 72, toCompanyId: null, toReferrerId: null }))
       .toEqual({ from: '单位 #8 · 推荐人 #72', to: '森心康直属', who: '后台改派' });

@@ -28,6 +28,11 @@ export interface ServiceChange {
   reason: ChangeReason;
   adminUserId: number | null;
   createdAt: string | null;
+  /** 伺服器帶的名字；沒有（舊伺服器）就從 `targets` 找，再找不到寫編號。 */
+  fromCompanyName?: string | null;
+  fromReferrerName?: string | null;
+  toCompanyName?: string | null;
+  toReferrerName?: string | null;
 }
 
 export const DIRECT_LABEL = '森心康直属';
@@ -58,13 +63,18 @@ const WHO: Record<ChangeActor, Partial<Record<ChangeReason, string>> & { default
   system: { migration: '系统（资料转换）', default: '系统' },
 };
 
-function labelOf(targets: ServiceTargets, companyId: number | null, referrerId: number | null): string {
+function labelOf(
+  targets: ServiceTargets,
+  companyId: number | null,
+  referrerId: number | null,
+  names: { company?: string | null; referrer?: string | null } = {}
+): string {
   if (companyId === null) return DIRECT_LABEL;
   return relationLabel({
     companyId,
-    companyName: targets.units.find(u => u.id === companyId)?.name ?? null,
+    companyName: names.company ?? targets.units.find(u => u.id === companyId)?.name ?? null,
     referrerId,
-    referrerName: referrerId === null ? null : targets.referrers.find(r => r.id === referrerId)?.name ?? null,
+    referrerName: referrerId === null ? null : names.referrer ?? targets.referrers.find(r => r.id === referrerId)?.name ?? null,
   });
 }
 
@@ -72,8 +82,8 @@ function labelOf(targets: ServiceTargets, companyId: number | null, referrerId: 
 export function changeLine(targets: ServiceTargets, change: ServiceChange): { from: string; to: string; who: string } {
   const who = WHO[change.actor] ?? { default: '—' };
   return {
-    from: labelOf(targets, change.fromCompanyId, change.fromReferrerId),
-    to: labelOf(targets, change.toCompanyId, change.toReferrerId),
+    from: labelOf(targets, change.fromCompanyId, change.fromReferrerId, { company: change.fromCompanyName, referrer: change.fromReferrerName }),
+    to: labelOf(targets, change.toCompanyId, change.toReferrerId, { company: change.toCompanyName, referrer: change.toReferrerName }),
     who: who[change.reason] ?? who.default,
   };
 }

@@ -132,8 +132,9 @@ export type ProxyParty =
 
 /**
  * 代填能不能碰這位家長（服務關係開關開著時）：
- * - 沒有服務關係：只有篩查渠道（帳號歸屬，`screeningCompanyId`）就是本單位的可以（`unbound`，代填時掛上）；
- *   直屬或從別單位進來的不行——不能靠打一支手機號就看到孩子資料、把家長認領走，要全域管理員先指派（review）
+ * - 沒有服務關係（森心康直屬）：都可以（`unbound`，代填時掛到代填的人名下）。2026-11-23 使用者：直屬的家長，
+ *   不管當初從哪裡進來、有沒有帶單位代號，推薦人與單位管理者都能代填（推翻 #124 review「要全域管理員先指派」）。
+ *   `screeningCompanyId` 不再影響結果，參數留著給呼叫端不必改。
  * - 推薦人：只有標注給自己的（`mine`）；同單位別人的、還沒標注的、別單位的都不行——推薦人不能手動認領
  * - 單位管理者：本單位的都可以（`mine`）；別單位的不行（跨單位的家長不能代填）
  */
@@ -142,7 +143,8 @@ export function proxyAccess(
   current: ServiceRelation | null,
   screeningCompanyId: number | null
 ): 'mine' | 'unbound' | 'other' {
-  if (current === null) return screeningCompanyId === party.companyId ? 'unbound' : 'other';
+  void screeningCompanyId;
+  if (current === null) return 'unbound';
   if (current.companyId !== party.companyId) return 'other';
   if (party.kind === 'unit') return 'mine';
   return current.referrerId === party.referrerId ? 'mine' : 'other';

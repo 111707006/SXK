@@ -184,10 +184,10 @@ describe('proxyAccess：代填能不能碰這位家長（#124）', () => {
     expect(proxyAccess(asUnit, CURRENTS[c], UNIT_A)).toBe(WANT[c].unit);
   });
 
-  it('沒有服務關係、篩查渠道不是本單位（直屬或別單位進來的）：不能碰——不能靠打手機號認領，要全域管理員先指派（review）', () => {
-    for (const channel of [null, UNIT_B]) {
-      expect(proxyAccess(asReferrer, null, channel)).toBe('other');
-      expect(proxyAccess(asUnit, null, channel)).toBe('other');
+  it('沒有服務關係（直屬）：不管篩查渠道是哪裡、有沒有，都能代填（使用者 2026-11-23）', () => {
+    for (const channel of [null, UNIT_A, UNIT_B]) {
+      expect(proxyAccess(asReferrer, null, channel)).toBe('unbound');
+      expect(proxyAccess(asUnit, null, channel)).toBe('unbound');
     }
   });
 

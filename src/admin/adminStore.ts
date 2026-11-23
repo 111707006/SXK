@@ -2023,7 +2023,7 @@ async function useCodeAndIssueProxyPass(conn: ProxyConn, userId: number, codeId:
 //
 // 與上面兩支同理列在 `CROSS_SCOPE_ALLOWLIST`（對象可能還沒有服務關係，範圍條件表達不了），邊界改由這裡守：
 //   - 以手機號找啟用中的帳號（A 的身分只看手機號）；同一支有好幾個時，服務關係在本單位、標注給我的優先
-//   - 能不能碰照 `proxyAccess`：別單位的、（推薦人）不是標注給自己的、沒有服務關係而篩查渠道不是本單位的一律 `other`，一個字都不寫
+//   - 能不能碰照 `proxyAccess`：別單位的、（推薦人）不是標注給自己的一律 `other`；沒有服務關係（直屬）的都可以，一個字都不寫
 //   - 只回孩子的姓名、生日、性別
 
 const SERVED_LOOKUP_SQL = `SELECT u.id, u.company_id AS screening_company_id, sr.company_id AS cur_company_id, sr.referrer_id AS cur_referrer_id, ud.child

@@ -37,6 +37,16 @@ const LATER_CHANGES: Array<[string, string]> = [
   ],
   ['  INDEX `idx_redeem_batches_company` (`company_id`),\n', ''],
   ['  CONSTRAINT `fk_redeem_batches_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,\n', ''],
+  // 2026-11-25-coupon-referrer.sql（ADR-0020 第 10 點）：coupon_batches 加 referrer_id、索引與外鍵。
+  [
+    '  -- 这一批发给哪位推荐人（2026-11-25-coupon-referrer.sql）：新产的每一批都有；之前的几批（含测试优惠码那一批）是 NULL。\n  -- 推荐人删掉留 NULL：家长用掉的券还要照折后价付款。\n  `referrer_id` INT UNSIGNED NULL,\n',
+    '',
+  ],
+  ['  INDEX `idx_coupon_batches_referrer` (`referrer_id`),\n', ''],
+  [
+    'ON DELETE SET NULL,\n  CONSTRAINT `fk_coupon_batches_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `referrers` (`id`) ON DELETE SET NULL\n',
+    'ON DELETE SET NULL\n',
+  ],
 ];
 const laterColumnsRemoved = (b: string) =>
   LATER_CHANGES.reduce((x, [now, was]) => x.replace(now, was), LATER_COLUMNS.reduce((x, col) => x.replace(col, ''), b));

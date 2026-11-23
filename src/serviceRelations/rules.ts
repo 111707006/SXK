@@ -39,8 +39,11 @@ export type AttachDecision =
 export const CHANGE_ACTORS = ['admin', 'parent', 'system'] as const;
 export type ChangeActor = (typeof CHANGE_ACTORS)[number];
 
-/** 改派紀錄的原因：連結、兌換碼、後台改派、遷移。順序就是 `service_relation_changes.reason` 的 ENUM。 */
-export const CHANGE_REASONS = ['link', 'code', 'admin', 'migration'] as const;
+/**
+ * 改派紀錄的原因：連結、兌換碼、後台改派、遷移、優惠券（2026-11-25 起優惠券綁推薦人）。順序就是
+ * `service_relation_changes.reason` 的 ENUM（只能在最後加）。
+ */
+export const CHANGE_REASONS = ['link', 'code', 'admin', 'migration', 'coupon'] as const;
 export type ChangeReason = (typeof CHANGE_REASONS)[number];
 
 /** 連結上的單位代號查到的單位；查不到傳 null。 */

@@ -38,8 +38,13 @@ describe('遷移只加不刪', () => {
 });
 
 describe.each(['service_relations', 'service_relation_changes'])('%s', table => {
-  it('schema 與遷移的 CREATE TABLE 一字不差', () => {
-    expect(tableBlock(migration, table)).toBe(tableBlock(schema, table));
+  it('schema 與遷移的 CREATE TABLE 一字不差（加上 2026-11-25 在 reason 最後加的 coupon）', () => {
+    const later = read('deploy/migrations/2026-11-25-coupon-referrer.sql');
+    expect(later).toContain("MODIFY COLUMN `reason` ENUM('link','code','admin','migration','coupon') NOT NULL;");
+    const afterLater = tableBlock(migration, table)
+      .replace('-- 原因：连结／兑换码／后台改派／迁移（src/serviceRelations/rules.ts 的 CHANGE_REASONS）。', '-- 原因：连结／兑换码／后台改派／迁移／优惠券（src/serviceRelations/rules.ts 的 CHANGE_REASONS；coupon 由 2026-11-25-coupon-referrer.sql 加）。')
+      .replace("`reason` ENUM('link','code','admin','migration') NOT NULL,", "`reason` ENUM('link','code','admin','migration','coupon') NOT NULL,");
+    expect(afterLater).toBe(tableBlock(schema, table));
   });
 
   // ADR-0006：刪家長是硬刪，靠外鍵連帶刪掉家長資料。

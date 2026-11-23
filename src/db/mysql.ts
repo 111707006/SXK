@@ -387,7 +387,7 @@ export async function getServiceRelationByUserId(userId: number): Promise<Servic
 export async function attachServiceRelation(
   userId: number,
   to: ServiceRelation,
-  reason: Extract<ChangeReason, 'link' | 'code'>
+  reason: Extract<ChangeReason, 'link' | 'code' | 'coupon'>
 ): Promise<boolean> {
   const p = getPool();
   if (!p) throw new Error('MySQL not configured');
@@ -449,6 +449,24 @@ export async function findUsedCodeOwner(
   };
 }
 
+/**
+ * 這張優惠券是不是**這位家長自己**用掉的；是就回那一批發給哪位推薦人（2026-11-25 起每一批都綁推薦人；之前的批次
+ * 是 null），否則 null（換人提示的來源，同兌換碼）。
+ */
+export async function findUsedCouponOwner(userId: number, couponId: number): Promise<{ referrerId: number | null } | null> {
+  const p = getPool();
+  if (!p) return null;
+  const [rows] = await p.execute(
+    `SELECT b.referrer_id
+       FROM coupon_codes c JOIN coupon_batches b ON b.id = c.batch_id
+      WHERE c.id = ? AND c.used_by = ? AND c.status = 'used' LIMIT 1`,
+    [couponId, userId]
+  );
+  const row = (rows as any[])[0];
+  if (!row) return null;
+  return { referrerId: row.referrer_id === null || row.referrer_id === undefined ? null : Number(row.referrer_id) };
+}
+
 /** 提示上要寫的名字（#120）：單位名與推薦人名；查不到是 null。 */
 export async function serviceRelationNames(rel: ServiceRelation): Promise<{ companyName: string | null; referrerName: string | null }> {
   const p = getPool();
@@ -471,7 +489,7 @@ export async function parentSwitchServiceRelation(
   userId: number,
   from: ServiceRelation | null,
   to: ServiceRelation,
-  reason: Extract<ChangeReason, 'link' | 'code'>
+  reason: Extract<ChangeReason, 'link' | 'code' | 'coupon'>
 ): Promise<'ok' | 'stale'> {
   const p = getPool();
   if (!p) throw new Error('MySQL not configured');

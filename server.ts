@@ -4084,8 +4084,16 @@ async function findLoginAccount(companyId: number | null, phone: string): Promis
  * - 連結：單位要啟用（`findCompanyBySlug` 只回啟用的）；推薦人照代號在那個單位裡找，找不到、不屬於、停用＝只帶單位
  *   （個人治療師單位的單位連結指向那位推薦人）
  * - 兌換碼：只認**這位家長自己用掉的**那一組；推薦人停用或沒有單位＝沒有來源；單位層的碼（#124）＝那個單位
+ * - 優惠券（2026-11-25 起綁推薦人）：同兌換碼的推薦人那一半；之前沒綁推薦人的批次（含測試優惠碼）＝沒有來源
  */
 async function relationSourceOf(userId: number, source: SwitchSource): Promise<RelationSource | null> {
+  if (source.kind === 'coupon') {
+    const owner = await withTimeout(mysqlDb.findUsedCouponOwner(userId, source.couponId), 2000);
+    if (!owner || owner.referrerId === null) return null;
+    const referrer = await withTimeout(mysqlDb.findReferrerById(owner.referrerId), 2000);
+    if (!referrer || !referrer.active || referrer.companyId === null) return null;
+    return { kind: 'code', companyId: referrer.companyId, referrerId: referrer.id };
+  }
   if (source.kind === 'code') {
     const owner = await withTimeout(mysqlDb.findUsedCodeOwner(userId, source.codeId), 2000);
     if (!owner) return null;
@@ -4843,7 +4851,17 @@ const parentCouponOf = (c: StoredCoupon): ParentCoupon => ({
       if (outcome.reason === 'already_claimed') return void res.status(409).json({ error: COUPON_ALREADY_CLAIMED, code: 'COUPON_ALREADY_CLAIMED' });
       return void res.status(400).json({ error: COUPON_INVALID, code: 'COUPON_INVALID' });
     }
-    res.json({ coupon: parentCouponOf(outcome.coupon) });
+    // 服務關係（2026-11-25 起優惠券綁推薦人，規則同兌換碼）：還沒有就掛到這張券的推薦人與他的單位；已經由別人服務
+    // 就回換人提示。券照樣用掉。之後的 T2 訂單照開單那一刻的服務關係清分（ADR-0016）。
+    const serviceSwitch = SERVICE_RELATIONS
+      ? await applyServiceSource(dbUserId, { kind: 'coupon', couponId: outcome.coupon.id })
+          .then(r => r.prompt)
+          .catch((err: any) => {
+            console.warn('[ServiceRelation] coupon attach failed:', err.message);
+            return null;
+          })
+      : null;
+    res.json({ coupon: parentCouponOf(outcome.coupon), ...(serviceSwitch ? { serviceSwitch } : {}) });
   } catch (err: any) {
     console.error('[Coupon] claim failed:', err.message);
     res.status(500).json({ error: '暂时无法兑换，请稍后再试。' });

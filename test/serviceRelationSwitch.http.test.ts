@@ -13,6 +13,7 @@ process.env.A_PHONE_IDENTITY = '1';
 process.env.SERVICE_RELATIONS = '1';
 process.env.TRAINING_PLAN = '1';
 process.env.TRAINING_PUSH_V3 = '1';
+process.env.T2_COUPON = '1';
 process.env.SESSION_SECRET ||= 'test-session-secret-for-service-switch';
 
 const PHONE = '13800138000';
@@ -33,6 +34,8 @@ const db = vi.hoisted(() => ({
   changes: [] as any[],
   // 兌換碼：codeId → 推薦人與用掉的人
   codes: new Map<string, { id: number; referrerId: number; usedBy: number | null; unitId?: number }>(),
+  // 優惠券（2026-11-25 起綁推薦人）：code → 編號、推薦人（null＝之前沒綁人的批次）、用掉的人
+  coupons: new Map<string, { id: number; referrerId: number | null; usedBy: number | null }>(),
   codeHash: '',
 }));
 
@@ -65,6 +68,10 @@ vi.mock('../src/db/mysql', () => ({
     const c = [...db.codes.values()].find(x => x.id === codeId && x.usedBy === userId);
     if (!c) return null;
     return c.unitId !== undefined ? { referrerId: null, companyId: c.unitId, companyActive: c.unitId !== 99 } : { referrerId: c.referrerId, companyId: null, companyActive: false };
+  },
+  findUsedCouponOwner: async (userId: number, couponId: number) => {
+    const c = [...db.coupons.values()].find(x => x.id === couponId && x.usedBy === userId);
+    return c ? { referrerId: c.referrerId } : null;
   },
   getServiceRelationByUserId: async (userId: number) => db.relations[userId] ?? null,
   serviceRelationNames: async (rel: { companyId: number; referrerId: number | null }) => ({
@@ -100,6 +107,23 @@ vi.mock('../src/db/redeemCodes', () => ({
   },
 }));
 
+vi.mock('../src/db/coupons', () => ({
+  async couponOfUser(userId: number) {
+    const hit = [...db.coupons.entries()].find(([, c]) => c.usedBy === userId);
+    return hit ? { id: hit[1].id, code: hit[0], discount: { kind: 'percent', value: 50 }, batchNote: null } : null;
+  },
+  async claimCouponForUser(userId: number, code: string) {
+    if ([...db.coupons.values()].some(c => c.usedBy === userId)) return { ok: false, reason: 'already_claimed' };
+    const row = db.coupons.get(code);
+    if (!row || row.usedBy !== null) return { ok: false, reason: 'invalid' };
+    row.usedBy = userId;
+    return { ok: true, coupon: { id: row.id, code, discount: { kind: 'percent', value: 50 }, batchNote: null } };
+  },
+  async claimTestCouponForUser() {
+    return { ok: false, reason: 'invalid' };
+  },
+}));
+
 vi.mock('../src/db/trainingPasses', () => ({
   listTrainingPasses: async () => [],
   insertTrainingPass: async () => true,
@@ -113,7 +137,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await client.close();
-  for (const k of ['A_COMPANIES', 'A_PHONE_IDENTITY', 'SERVICE_RELATIONS', 'TRAINING_PLAN', 'TRAINING_PUSH_V3']) delete process.env[k];
+  for (const k of ['A_COMPANIES', 'A_PHONE_IDENTITY', 'SERVICE_RELATIONS', 'TRAINING_PLAN', 'TRAINING_PUSH_V3', 'T2_COUPON']) delete process.env[k];
 });
 beforeEach(() => {
   db.users = [{ id: 40, phone: PHONE, company_id: 8 }];
@@ -126,6 +150,11 @@ beforeEach(() => {
     ['JAAAAAAAA2', { id: 601, referrerId: 0, usedBy: null, unitId: 7 }],
     ['SAAAAAAAA2', { id: 602, referrerId: 0, usedBy: null, unitId: 9 }],
     ['DEADAAAAA2', { id: 603, referrerId: 0, usedBy: null, unitId: 99 }],
+  ]);
+  db.coupons = new Map([
+    ['ZHANGCPNA2', { id: 801, referrerId: 70, usedBy: null }],
+    ['WANGCPNAA2', { id: 802, referrerId: 80, usedBy: null }],
+    ['XXDCPNAAA2', { id: 803, referrerId: null, usedBy: null }],
   ]);
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
@@ -273,5 +302,50 @@ describe('兌換碼', () => {
   it('用的是現在那位推薦人的碼：不問', async () => {
     const body = await (await post('/api/training/redeem', { code: 'WANGAAAAA2' })).json();
     expect(body).not.toHaveProperty('serviceSwitch');
+  });
+});
+
+describe('優惠券（2026-11-25 起綁推薦人，規則同兌換碼）', () => {
+  it('還沒有服務關係：券照樣用好，另外掛到那位推薦人與他的單位（原因＝優惠券）', async () => {
+    db.relations = {};
+    const res = await post('/api/coupon', { code: 'ZHANGCPNA2' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.coupon).toBeTruthy();
+    expect(body).not.toHaveProperty('serviceSwitch');
+    expect(db.relations[40]).toEqual({ companyId: 7, referrerId: 70 });
+    expect(db.changes).toEqual([expect.objectContaining({ reason: 'coupon', actor: 'parent' })]);
+  });
+
+  it('已經由別人服務：券照樣用掉，回提示（來源是這張券）；選「換」寫原因＝優惠券', async () => {
+    const body = await (await post('/api/coupon', { code: 'ZHANGCPNA2' })).json();
+    expect(body.coupon).toBeTruthy();
+    expect(body.serviceSwitch).toEqual({ currentName: '王老师', toName: '张老师', source: { kind: 'coupon', couponId: 801 } });
+    expect(db.relations[40]).toEqual({ companyId: 8, referrerId: 80 });
+    expect(await (await post('/api/service-relation/switch', { source: { kind: 'coupon', couponId: 801 } })).json()).toEqual({ changed: true });
+    expect(db.changes.at(-1)).toEqual(expect.objectContaining({ reason: 'coupon', to: { companyId: 7, referrerId: 70 } }));
+  });
+
+  it('換人：券要是這位家長自己用掉的，否則不寫', async () => {
+    db.coupons.get('ZHANGCPNA2')!.usedBy = 41;
+    expect(await (await post('/api/service-relation/switch', { source: { kind: 'coupon', couponId: 801 } })).json()).toEqual({ changed: false });
+    expect(db.changes).toEqual([]);
+  });
+
+  it('之前沒綁推薦人的批次：不掛也不問', async () => {
+    db.relations = {};
+    const body = await (await post('/api/coupon', { code: 'XXDCPNAAA2' })).json();
+    expect(body.coupon).toBeTruthy();
+    expect(body).not.toHaveProperty('serviceSwitch');
+    expect(db.relations[40]).toBeUndefined();
+  });
+
+  it('用的是現在那位推薦人的券：不問', async () => {
+    const body = await (await post('/api/coupon', { code: 'WANGCPNAA2' })).json();
+    expect(body).not.toHaveProperty('serviceSwitch');
+  });
+
+  it.each([[{ source: { kind: 'coupon', couponId: 'a' } }], [{ source: { kind: 'coupon' } }]])('形狀不對 %j：400', async body => {
+    expect((await post('/api/service-relation/switch', body)).status).toBe(400);
   });
 });

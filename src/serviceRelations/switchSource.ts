@@ -5,12 +5,14 @@
  * **重查**一次單位與推薦人、用同一份規則（`relationAfterConsent`）重算，不採信前端說要換成誰。
  * - link：單位代號＋推薦人代號（等於家長自己再點一次那條連結，沒有比點連結多的權限）
  * - code：兌換碼的編號；伺服器只認**這位家長自己用掉的**那一組
+ * - coupon：優惠券的編號（2026-11-25 起優惠券綁推薦人）；同樣只認這位家長自己用掉的那一張
  */
 import { SLUG_PATTERN } from '../utils/companySlug';
 
 export type SwitchSource =
   | { kind: 'link'; companySlug: string; referrerCode: string | null }
-  | { kind: 'code'; codeId: number };
+  | { kind: 'code'; codeId: number }
+  | { kind: 'coupon'; couponId: number };
 
 /** 提示資料：現在誰服務、要換成誰（推薦人的名字，沒有推薦人寫單位名）、來源。 */
 export interface ServiceSwitchPrompt {
@@ -37,8 +39,9 @@ export function readLinkSource(raw: unknown): Extract<SwitchSource, { kind: 'lin
 /** `POST /api/service-relation/switch` 的 `source`；形狀不對回 null（400）。 */
 export function readSwitchSource(raw: unknown): SwitchSource | null {
   if (!raw || typeof raw !== 'object') return null;
-  const r = raw as { kind?: unknown; codeId?: unknown; companySlug?: unknown; referrerCode?: unknown };
+  const r = raw as { kind?: unknown; codeId?: unknown; couponId?: unknown; companySlug?: unknown; referrerCode?: unknown };
   if (r.kind === 'code') return Number.isInteger(r.codeId) && (r.codeId as number) > 0 ? { kind: 'code', codeId: r.codeId as number } : null;
+  if (r.kind === 'coupon') return Number.isInteger(r.couponId) && (r.couponId as number) > 0 ? { kind: 'coupon', couponId: r.couponId as number } : null;
   if (r.kind !== 'link') return null;
   // 推薦人代號帶了卻不對：整個來源不認（不同於連結進站的「當作只帶單位」——這是提示原樣送回來的，不該被改過）。
   if (r.referrerCode != null && slugOf(r.referrerCode) === null) return null;
@@ -52,5 +55,7 @@ export function displayNameOf(names: { companyName: string | null; referrerName:
 
 /** 「本次登入內不再追問同一來源」用的鍵。 */
 export function switchSourceKey(source: SwitchSource): string {
-  return source.kind === 'code' ? `code:${source.codeId}` : `link:${source.companySlug}:${source.referrerCode ?? ''}`;
+  if (source.kind === 'code') return `code:${source.codeId}`;
+  if (source.kind === 'coupon') return `coupon:${source.couponId}`;
+  return `link:${source.companySlug}:${source.referrerCode ?? ''}`;
 }

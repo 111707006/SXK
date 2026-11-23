@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { Ticket } from 'lucide-react';
 import { PRODUCT } from '../productConfig';
 import { authFetch } from '../utils/api';
+import { offerServiceSwitch } from '../serviceRelations/promptStore';
 import { formatFen } from '../utils/price';
 import {
   applyCouponDiscount,
@@ -75,6 +76,8 @@ export default function T2CouponField({ priceFen, onApplied }: { priceFen: numbe
       if (resp.ok && body?.coupon) {
         setState({ kind: 'applied', coupon: body.coupon });
         onApplied?.(body.coupon);
+        // 用的是別的老師的券、而現在已經有人服務（同兌換碼）：券照樣用好了，另外問要不要換。
+        if (body.serviceSwitch) offerServiceSwitch(body.serviceSwitch);
       }
       else setError(typeof body?.error === 'string' ? body.error : COUPON_INVALID);
     } catch {

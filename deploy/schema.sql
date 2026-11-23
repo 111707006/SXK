@@ -840,6 +840,9 @@ CREATE TABLE IF NOT EXISTS `redeem_codes` (
 -- T2 优惠券（客户 11/03，开关 T2_COUPON，迁移 2026-11-07-t2-coupons.sql）：与兑换码（VIP 兑换）分开的两张表。
 CREATE TABLE IF NOT EXISTS `coupon_batches` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  -- 这一批发给哪位推荐人（2026-11-25-coupon-referrer.sql）：新产的每一批都有；之前的几批（含测试优惠码那一批）是 NULL。
+  -- 推荐人删掉留 NULL：家长用掉的券还要照折后价付款。
+  `referrer_id` INT UNSIGNED NULL,
   -- 后台自己认批次用的备注（例「11 月门诊」），不给家长看。
   `note` VARCHAR(40) NULL,
   -- percent：打几折，discount_value 是实付的百分比（50＝五折＝半价）；amount：减固定金额，discount_value 是分。
@@ -850,7 +853,9 @@ CREATE TABLE IF NOT EXISTS `coupon_batches` (
   `expires_on` DATE NULL,
   `created_by` INT UNSIGNED NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT `fk_coupon_batches_admin` FOREIGN KEY (`created_by`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL
+  INDEX `idx_coupon_batches_referrer` (`referrer_id`),
+  CONSTRAINT `fk_coupon_batches_admin` FOREIGN KEY (`created_by`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_coupon_batches_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `referrers` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `coupon_codes` (
@@ -1003,8 +1008,8 @@ CREATE TABLE IF NOT EXISTS `service_relation_changes` (
   `to_referrer_id` INT UNSIGNED NULL,
   -- 谁改的：admin＝后台帐号（admin_user_id）；parent＝家长自己（连结、兑换码、换人提示选「换」）；system＝迁移。
   `actor` ENUM('admin','parent','system') NOT NULL,
-  -- 原因：连结／兑换码／后台改派／迁移（src/serviceRelations/rules.ts 的 CHANGE_REASONS）。
-  `reason` ENUM('link','code','admin','migration') NOT NULL,
+  -- 原因：连结／兑换码／后台改派／迁移／优惠券（src/serviceRelations/rules.ts 的 CHANGE_REASONS；coupon 由 2026-11-25-coupon-referrer.sql 加）。
+  `reason` ENUM('link','code','admin','migration','coupon') NOT NULL,
   -- actor=admin 时是改的那个后台帐号；其他是 NULL。不设外键，理由同上。
   `admin_user_id` INT UNSIGNED NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

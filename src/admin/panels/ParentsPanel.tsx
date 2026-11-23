@@ -109,6 +109,19 @@ export default function ParentsPanel({
   const loaded = data?.parents ?? [];
   const parents = sort === 'score_low' ? [...loaded].sort(byScreeningTotalAsc) : loaded;
 
+  // 改派之後（ADR-0020）：家長改到別的單位或推薦人，就不在這個視野裡了。抽屜還開著的話，下一個請求（改派紀錄）
+  // 會撞上「找不到该家长」—— 列表重讀回來、裡面沒有他，就把抽屜關掉，說一句他去哪了。
+  const [movedCheckId, setMovedCheckId] = useState<number | null>(null);
+  const [movedNotice, setMovedNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (movedCheckId === null || loading) return;
+    if (!loaded.some(p => p.id === movedCheckId)) {
+      setOpenId(null);
+      setMovedNotice('已改派。这位家长现在不在这个视野里，所以列表上看不到他了。');
+    }
+    setMovedCheckId(null);
+  }, [movedCheckId, loading, loaded]);
+
   const [inviteConfig, setInviteConfig] = useState<AdminInviteConfig | null>(null);
   useEffect(() => {
     if (!canInvite) return;
@@ -157,7 +170,9 @@ export default function ParentsPanel({
       <Panel
         title={readOnly ? '我的家长' : view === 'summary' ? '家长汇总' : '家长列表'}
         description={readOnly
-          ? '用了你的兑换码、或由你代填的家长（第一次就固定，之后不换）。'
+          ? serviceRelations
+            ? '现在由你服务的家长：用了你的连结或兑换码、由你代填，或由单位改派给你。家长换了老师、或被改派走之后，就不在这里。'
+            : '用了你的兑换码、或由你代填的家长（第一次就固定，之后不换）。'
           : '只包含当前视野内的家长。月龄、筛查总分与被标记的维度（附该维度得分）直接列出，让电话打得出去之前就知道该先联系谁。'}
         action={
           <div className="flex flex-wrap gap-2">
@@ -181,7 +196,8 @@ export default function ParentsPanel({
               <option value="booked">已预约专家</option>
               <option value="not_booked">尚未预约</option>
             </Select>
-            {serviceRelations && view === 'list' && (
+            {/* 推薦人只看得到標給自己的家長，「还没标注」對他永遠是空的 —— 不擺。 */}
+            {serviceRelations && !readOnly && view === 'list' && (
               <Select value={assigned} onChange={e => setAssigned(e.target.value as 'all' | 'unassigned')} className="w-auto" aria-label="推荐人标注">
                 <option value="all">全部推荐人</option>
                 <option value="unassigned">还没标注推荐人</option>
@@ -194,6 +210,11 @@ export default function ParentsPanel({
           <ParentSummaryView options={{ sort, booked }} onError={onError} />
         ) : (
         <>
+        {movedNotice && (
+          <p className="mb-3 rounded-xl border border-brand-moss/30 bg-brand-cream/60 px-4 py-2.5 text-xs text-brand-forest" role="status">
+            {movedNotice}
+          </p>
+        )}
         {/* 不跟著列表的載入狀態開關：送完會重讀列表，這一條要是跟著卸掉，送出的結果就跟著不見了。 */}
         {inviting && (
           <InviteBar
@@ -213,7 +234,9 @@ export default function ParentsPanel({
         ) : parents.length === 0 ? (
           <EmptyState
             title="这个视野里还没有家长"
-            hint="家长要从这家公司的进站连结（带 ?c= 识别码）注册，才会归属到这里。既有家长不会被批次指派。"
+            hint={serviceRelations
+              ? '家长从这个单位的连结进站、用这个单位的兑换码，或由管理者改派过来，就会出现在这里。'
+              : '家长要从这家公司的进站连结（带 ?c= 识别码）注册，才会归属到这里。既有家长不会被批次指派。'}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -239,7 +262,8 @@ export default function ParentsPanel({
                   <th className="py-2 pr-3 font-bold">最近筛查</th>
                   <th className="py-2 pr-3 font-bold">预约</th>
                   {inviting && <th className="py-2 pr-3 font-bold">深度评估邀请</th>}
-                  {showSource && <th className="py-2 pr-3 font-bold">来源</th>}
+                  {/* 服務關係開著時旁邊有「筛查渠道」：「来源」只剩一件事 —— 是不是從篩查系統轉進來的。 */}
+                  {showSource && <th className="py-2 pr-3 font-bold">{serviceRelations ? '筛查系统转入' : '来源'}</th>}
                   {serviceRelations && <th className="py-2 pr-3 font-bold">推荐人</th>}
                   {serviceRelations && <th className="py-2 pr-3 font-bold">筛查渠道</th>}
                   <th className="py-2 font-bold" />
@@ -281,7 +305,11 @@ export default function ParentsPanel({
                   value: parents.find(p => p.id === openId)?.service ?? null,
                   canEdit: !readOnly,
                   canRemove: canRemoveRelation,
-                  onChanged: reload,
+                  onChanged: () => {
+                    setMovedNotice(null);
+                    setMovedCheckId(openId);
+                    reload();
+                  },
                 }
               : undefined
           }
@@ -471,7 +499,7 @@ function ParentRow({
       )}
       {showSource && (
         <td className="py-2.5 pr-3 whitespace-nowrap">
-          <SourceCell source={parent.handoffSource} />
+          <SourceCell source={parent.handoffSource} plain={serviceRelations} />
         </td>
       )}
       {serviceRelations && (
@@ -499,8 +527,9 @@ function ParentRow({
  * 「来源」一格（ADR-0009）：從篩查系統轉進來的，寫那時的合作公司與第一次轉入的時間；
  * 那邊的家長沒有合作公司就只寫「从筛查系统转入」。自己在這裡登入註冊的寫「直接注册」。
  */
-function SourceCell({ source }: { source: AdminParentListItem['handoffSource'] }) {
-  if (!source) return <span className="text-brand-charcoal/40">直接注册</span>;
+function SourceCell({ source, plain = false }: { source: AdminParentListItem['handoffSource']; plain?: boolean }) {
+  // `plain`（服務關係開著）：沒轉入寫「—」。「直接注册」跟旁邊的「筛查渠道：某单位」放在一起，讀起來像矛盾。
+  if (!source) return <span className="text-brand-charcoal/40">{plain ? '—' : '直接注册'}</span>;
   return (
     <span className="flex flex-col">
       <span className="font-bold text-brand-moss">从筛查系统转入</span>

@@ -210,7 +210,7 @@ export default function ProfitSharingSection({ settings, onError }: { settings: 
     const d = data.data;
     const find = (kind: PartyKind, refId: number) => d.receivers.find(r => r.partyKind === kind && r.refId === refId);
     const partyLabel = (kind: PartyKind, refId: number) =>
-      (kind === 'company' ? settings.companies.find(c => c.id === refId)?.name : settings.referrers.find(r => r.id === refId)?.name) ?? `${kind === 'company' ? '公司' : '推荐人'} #${refId}`;
+      (kind === 'company' ? settings.companies.find(c => c.id === refId)?.name : settings.referrers.find(r => r.id === refId)?.name) ?? `${kind === 'company' ? '单位' : '推荐人'} #${refId}`;
     body = (
       <div className="space-y-4">
         <p className="text-[11px] text-brand-stone">
@@ -220,11 +220,11 @@ export default function ProfitSharingSection({ settings, onError }: { settings: 
         </p>
         <section>
           <h4 className="mb-2 text-xs font-bold text-brand-forest">分账接收方</h4>
-          {settings.companies.length + settings.referrers.length === 0 ? <EmptyState title="还没有合作公司或推荐人" /> : (
+          {settings.companies.length + settings.referrers.length === 0 ? <EmptyState title="还没有合作单位或推荐人" /> : (
             <ul className="space-y-2">
               {settings.companies.map(c => {
                 const cur = find('company', c.id);
-                return <ReceiverRow key={`c-${c.id}-${cur?.account}-${cur?.active}-${cur?.registered}`} kind="company" refId={c.id} label={`合作公司 · ${c.name}`} current={cur} onSaved={reload} />;
+                return <ReceiverRow key={`c-${c.id}-${cur?.account}-${cur?.active}-${cur?.registered}`} kind="company" refId={c.id} label={`合作单位 · ${c.name}`} current={cur} onSaved={reload} />;
               })}
               {settings.referrers.map(r => {
                 const cur = find('referrer', r.id);

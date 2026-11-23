@@ -89,7 +89,7 @@ function RateRow({
         </Field>
       )}
       {company && (
-        <Field label="公司拿几 %（其余给治疗师）">
+        <Field label="单位拿几 %（其余给治疗师）">
           <TextInput value={c} placeholder={`沿用 ${percentLabel(company.inherited)}`} onChange={e => setC(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" className="w-28" />
         </Field>
       )}
@@ -115,7 +115,7 @@ function RatesSection({ settings, onSaved }: { settings: AdminSplitSettings; onS
   return (
     <div className="space-y-4">
       <p className="text-[11px] text-brand-stone">
-        分的是扣掉微信手续费（目前按 {percentLabel(settings.feeBp)} 估）之后的金额。留空＝沿用上一层：推荐人 → 合作公司 → 预设。改了只对之后的新订单生效。
+        分的是扣掉微信手续费（目前按 {percentLabel(settings.feeBp)} 估）之后的金额。留空＝沿用上一层：推荐人 → 合作单位 → 预设。改了只对之后的新订单生效。
       </p>
       <section>
         <h3 className="mb-2 text-xs font-bold text-brand-forest">预设</h3>
@@ -123,7 +123,7 @@ function RatesSection({ settings, onSaved }: { settings: AdminSplitSettings; onS
           <RateRow
             key={`d-${dflt?.platformBp}-${dflt?.companyBp}`}
             label="所有合作方"
-            hint="平台与对方（合作公司或推荐人）怎么分；三方时公司与旗下治疗师怎么再分。"
+            hint="平台与对方（合作单位或推荐人）怎么分；三方时单位与旗下治疗师怎么再分。"
             scope="default"
             refId={0}
             current={dflt}
@@ -134,8 +134,8 @@ function RatesSection({ settings, onSaved }: { settings: AdminSplitSettings; onS
         </ul>
       </section>
       <section>
-        <h3 className="mb-2 text-xs font-bold text-brand-forest">合作公司</h3>
-        {settings.companies.length === 0 ? <EmptyState title="还没有合作公司" /> : (
+        <h3 className="mb-2 text-xs font-bold text-brand-forest">合作单位</h3>
+        {settings.companies.length === 0 ? <EmptyState title="还没有合作单位" /> : (
           <ul className="space-y-2">
             {settings.companies.map(co => {
               const cur = find('company', co.id);
@@ -168,7 +168,7 @@ function RatesSection({ settings, onSaved }: { settings: AdminSplitSettings; onS
                 <RateRow
                   key={`r-${r.id}-${cur?.platformBp}-${cur?.companyBp}`}
                   label={label}
-                  hint={`隶属合作公司：平台拿几 % 看「${r.companyName}」的设定；这里只调公司与这位之间怎么分。`}
+                  hint={`隶属合作单位：平台拿几 % 看「${r.companyName}」的设定；这里只调单位与这位之间怎么分。`}
                   scope="referrer"
                   refId={r.id}
                   current={cur}
@@ -180,7 +180,7 @@ function RatesSection({ settings, onSaved }: { settings: AdminSplitSettings; onS
                 <RateRow
                   key={`r-${r.id}-${cur?.platformBp}-${cur?.companyBp}`}
                   label={label}
-                  hint="没有隶属合作公司：平台以外的都给这位。"
+                  hint="没有隶属合作单位：平台以外的都给这位。"
                   scope="referrer"
                   refId={r.id}
                   current={cur}
@@ -193,7 +193,7 @@ function RatesSection({ settings, onSaved }: { settings: AdminSplitSettings; onS
           </ul>
         )}
         {settings.companies.length > 0 && (
-          <p className="mt-1 text-[11px] text-brand-stone">隶属公司的推荐人，平台比例沿用那家公司（{settings.companies.map(c => `${c.name} ${percentLabel(companyPlatform(c.id))}`).join('、')}）。</p>
+          <p className="mt-1 text-[11px] text-brand-stone">隶属单位的推荐人，平台比例沿用那个单位（{settings.companies.map(c => `${c.name} ${percentLabel(companyPlatform(c.id))}`).join('、')}）。</p>
         )}
       </section>
     </div>
@@ -232,12 +232,12 @@ function LedgerSection({ onError, screening }: { onError: (v: AdminErrorView) =>
     body = (
       <div className="space-y-3">
         <p className="text-xs text-brand-forest">
-          已付款 {t.orders} 笔：实付 ¥{yuan(t.amountFen)}，手续费 ¥{yuan(t.feeFen)}，可分 ¥{yuan(t.netFen)} —— 平台 ¥{yuan(t.platformFen)}、合作公司 ¥{yuan(t.companyFen)}、推荐人／治疗师 ¥{yuan(t.referrerFen)}{screening && `、筛查渠道 ¥${yuan(t.screeningFen)}`}。
+          已付款 {t.orders} 笔：实付 ¥{yuan(t.amountFen)}，手续费 ¥{yuan(t.feeFen)}，可分 ¥{yuan(t.netFen)} —— 平台 ¥{yuan(t.platformFen)}、合作单位 ¥{yuan(t.companyFen)}、推荐人／治疗师 ¥{yuan(t.referrerFen)}{screening && `、筛查渠道 ¥${yuan(t.screeningFen)}`}。
           {t.unrecorded > 0 && ` 另有 ${t.unrecorded} 笔是开关打开之前的订单，没有记录比例，不在合计里。`}
         </p>
         {data.byParty.length > 0 && (
           <table className="w-full text-left text-[11px]">
-            <thead><tr className="text-brand-stone"><th>对方</th>{screening && <th>筛查渠道</th>}<th>笔数</th><th>合作公司</th><th>推荐人／治疗师</th>{screening && <th>筛查渠道金额</th>}<th>平台</th></tr></thead>
+            <thead><tr className="text-brand-stone"><th>对方</th>{screening && <th>筛查渠道</th>}<th>笔数</th><th>合作单位</th><th>推荐人／治疗师</th>{screening && <th>筛查渠道金额</th>}<th>平台</th></tr></thead>
             <tbody>
               {data.byParty.map(p => (
                 <tr key={`${p.party}|${p.screeningName ?? ''}`} className="border-t border-brand-stone/10">
@@ -253,7 +253,7 @@ function LedgerSection({ onError, screening }: { onError: (v: AdminErrorView) =>
         )}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[44rem] text-left text-[11px]">
-            <thead><tr className="text-brand-stone"><th>付款时间</th><th>项目</th><th>状态</th><th>对方</th>{screening && <th>筛查渠道</th>}<th>比例</th><th>实付</th><th>可分</th><th>平台</th><th>公司</th><th>推荐人</th>{screening && <th>筛查渠道金额</th>}</tr></thead>
+            <thead><tr className="text-brand-stone"><th>付款时间</th><th>项目</th><th>状态</th><th>对方</th>{screening && <th>筛查渠道</th>}<th>比例</th><th>实付</th><th>可分</th><th>平台</th><th>单位</th><th>推荐人</th>{screening && <th>筛查渠道金额</th>}</tr></thead>
             <tbody>
               {data.rows.map(r => (
                 <tr key={r.id} className="border-t border-brand-stone/10">
@@ -309,7 +309,7 @@ export default function RevenueSplitPanel({ onError }: { onError: (view: AdminEr
   );
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
   const description =
-    '每笔订单成立时记下对方（合作公司、推荐人）与比例，这里算出各方该分多少、导出对帐。实际把钱分出去在最下面的「微信分账」（要另外开启）；没开启时这一页只算，不出钱。';
+    '每笔订单成立时记下对方（合作单位、推荐人）与比例，这里算出各方该分多少、导出对帐。实际把钱分出去在最下面的「微信分账」（要另外开启）；没开启时这一页只算，不出钱。';
 
   let body: ReactNode;
   if (loading) body = <Spinner />;

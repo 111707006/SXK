@@ -20,12 +20,15 @@ export default function ReferrersPanel({
   onError,
   companies,
   units = false,
+  serviceRelations = false,
   renderCodes,
 }: {
   onError: (view: AdminErrorView) => void;
   companies: AdminCompany[];
   /** 專案 A 的合作單位（#117）：單位必選、代號、個人連結。 */
   units?: boolean;
+  /** 服務關係開關開著（ADR-0020）：推薦人看的是標注給他的家長，不是綁定。 */
+  serviceRelations?: boolean;
   /** 每位推薦人底下的兌換碼區塊（#110）；沒給就不畫。 */
   renderCodes?: (referrer: AdminReferrer) => React.ReactNode;
 }) {
@@ -92,7 +95,12 @@ export default function ReferrersPanel({
 
   return (
     <div className="space-y-4">
-      <Panel title="开设推荐人" description="推荐人用信箱与密码登入同一个管理中心，只看得到用了自己兑换码、或由自己代填的家长。">
+      <Panel
+        title="开设推荐人"
+        description={serviceRelations
+          ? '推荐人用信箱与密码登入同一个管理中心，只看得到现在由他服务的家长：用了他的连结或兑换码、由他代填，或由单位管理者改派给他。家长换了老师就不在他的名单上。'
+          : '推荐人用信箱与密码登入同一个管理中心，只看得到用了自己兑换码、或由自己代填的家长。'}
+      >
         <form onSubmit={create} className="grid gap-3 sm:grid-cols-2">
           <Field label="名称"><TextInput value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} maxLength={50} /></Field>
           <Field label="手机号"><TextInput value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} inputMode="numeric" maxLength={11} /></Field>

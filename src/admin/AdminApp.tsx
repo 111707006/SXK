@@ -251,6 +251,11 @@ function AdminCenter() {
   const current = identity!;
   const tabs = visibleTabs(current, shape);
   const activeTab = tabs.some(t => t.id === tab) ? tab : 'parents';
+  // ADR-0020：A 開了合作單位就叫「单位」；B 一個字都不變。
+  const unitWord = unitsEnabled(shape) ? '单位' : '公司';
+  const unassignedHint = shape.serviceRelations
+    ? '那些是现在没有由任何合作单位服务的家长'
+    : `那些是没有从合作${unitWord}连结进站的家长`;
 
   return (
     <Shell>
@@ -276,7 +281,7 @@ function AdminCenter() {
                   className="appearance-none rounded-xl border border-brand-stone bg-brand-cream/40 py-2 pl-3 pr-8 text-xs font-medium text-brand-charcoal outline-none focus:border-brand-moss disabled:opacity-50"
                 >
                   <option value="" disabled>
-                    选择要查看的合作公司
+                    选择要查看的合作{unitWord}
                   </option>
                   {switcherOptions(companies, shape).map(o => (
                     <option key={o.value} value={o.value}>
@@ -337,10 +342,10 @@ function AdminCenter() {
       {screen.kind === 'needs_company' && tabNeedsCompany(activeTab) ? (
         <div className="rounded-3xl border border-brand-stone bg-white p-8 text-center">
           <Building2 size={26} className="mx-auto text-brand-moss" />
-          <p className="mt-3 text-xs font-bold text-brand-forest">请先选定要查看的合作公司</p>
+          <p className="mt-3 text-xs font-bold text-brand-forest">请先选定要查看的合作{unitWord}</p>
           <p className="mx-auto mt-2 max-w-md text-[11px] leading-relaxed text-brand-charcoal/60">
-            全域管理员没有「同时看全部公司」这个状态。请从右上角选定一家合作公司，
-            或选择「{unassignedLabel(shape)}」——那些是没有从合作公司连结进站的家长。
+            全域管理员没有「同时看全部{unitWord}」这个状态。请从右上角选定一家合作{unitWord}，
+            或选择「{unassignedLabel(shape)}」——{unassignedHint}。
             <br />
             每一次切换都会被记录下来。
           </p>
@@ -364,7 +369,7 @@ function AdminCenter() {
           {activeTab === 'company' && <CompanySettingsPanel onError={handleError} unassignedName={unassignedLabel(shape)} />}
           {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} units={unitsEnabled(shape)} />}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} />}
-          {activeTab === 'summary' && <SummaryPanel onError={handleError} />}
+          {activeTab === 'summary' && <SummaryPanel onError={handleError} unitWord={unitWord} />}
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}
           {activeTab === 'videos' && <VideoTaggingPanel onError={handleError} />}
           {activeTab === 'homeMedia' && <HomeMediaPanel onError={handleError} />}
@@ -376,7 +381,9 @@ function AdminCenter() {
                 <p className="mb-2 font-bold text-stone-900">这一页有两样东西，用途不同：</p>
                 <ul className="list-disc space-y-1.5 pl-5">
                   <li>
-                    <span className="font-bold text-stone-900">推荐人与兑换码（VIP 兑换）</span>：开渠道商、治疗师的推荐人帐号；在每位推荐人底下产生兑换码。
+                    <span className="font-bold text-stone-900">推荐人与兑换码（VIP 兑换）</span>：{unitsEnabled(shape)
+                      ? '开推荐人（治疗师）帐号，每位推荐人隶属一个合作单位；'
+                      : '开渠道商、治疗师的推荐人帐号；'}在每位推荐人底下产生兑换码。
                     家长在「线上家庭个性化训练」方案页点「VIP 兑换」输入，<span className="font-bold">直接开通线上家庭训练</span>（1／3／6／12 个月），不用付钱。
                   </li>
                   <li>
@@ -385,7 +392,7 @@ function AdminCenter() {
                   </li>
                 </ul>
               </div>
-              <ReferrersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
+              <ReferrersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} serviceRelations={shape.serviceRelations === true} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
               {/* 單位層的碼（#124，服務關係開關開著）：不指定推薦人，給單位管理者代填、發給本單位用。 */}
               {shape.serviceRelations && <UnitCodesSection companies={companies.filter(c => c.active)} onError={handleError} />}
               <div className="border-t border-stone-200 pt-8">

@@ -176,7 +176,8 @@ export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape
     .filter(t => isProjectA(shape) || !SINGLE_COMPANY_ONLY_TABS.includes(t.id))
     .filter(t => shape.multiCompany || !MULTI_COMPANY_ONLY_TABS.includes(t.id))
     // ADR-0020（#117）：A 的「合作公司」改叫「合作单位」；B 一個字都不變。
-    .map(t => (t.id === 'companies' && isProjectA(shape) ? { ...t, label: '合作单位' } : t));
+    .map(t => (t.id === 'companies' && isProjectA(shape) ? { ...t, label: '合作单位' } : t))
+    .map(t => (t.id === 'summary' && isProjectA(shape) ? { ...t, label: '跨单位汇总' } : t));
   // 個人治療師單位的那個帳號（#117）：單位管理者，同時是推薦人 —— 多推薦人自己的兩頁（家長列表已經是全單位）。
   if (identity.role === 'company_member' && identity.referrer === true) return [...tabs, ...REFERRER_TABS.filter(t => t.id !== 'parents')];
   // 服務關係開關開著（#124）：單位管理者也能代填、用本單位的碼。

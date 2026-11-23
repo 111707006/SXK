@@ -13,7 +13,14 @@ import { adminApi } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { EmptyState, ErrorNote, Panel, Spinner, useAsyncData } from '../ui';
 
-export default function SummaryPanel({ onError }: { onError: (view: AdminErrorView) => void }) {
+export default function SummaryPanel({
+  onError,
+  unitWord = '公司',
+}: {
+  onError: (view: AdminErrorView) => void;
+  /** A 開了合作單位叫「单位」（ADR-0020）；B 照舊「公司」。 */
+  unitWord?: '公司' | '单位';
+}) {
   const load = useCallback(() => adminApi.summary(), []);
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
   const rows = data?.summary ?? [];
@@ -31,7 +38,7 @@ export default function SummaryPanel({ onError }: { onError: (view: AdminErrorVi
 
   return (
     <Panel
-      title="跨公司汇总"
+      title={`跨${unitWord}汇总`}
       description="用于对帐与评估合作成效。这一页只有数字，没有任何一位家长的可识别资料，也点不进去。"
     >
       {loading ? (
@@ -45,7 +52,7 @@ export default function SummaryPanel({ onError }: { onError: (view: AdminErrorVi
           <table className="w-full min-w-[520px] text-left text-xs">
             <thead>
               <tr className="border-b border-brand-stone text-[10px] uppercase tracking-wide text-brand-charcoal/45">
-                <th className="py-2 pr-3 font-bold">合作公司</th>
+                <th className="py-2 pr-3 font-bold">合作{unitWord}</th>
                 <th className="py-2 pr-3 text-right font-bold">家长数</th>
                 <th className="py-2 pr-3 text-right font-bold">已筛查</th>
                 <th className="py-2 pr-3 text-right font-bold">完成率</th>
@@ -89,8 +96,8 @@ export default function SummaryPanel({ onError }: { onError: (view: AdminErrorVi
             </tbody>
           </table>
           <p className="mt-3 text-[10px] leading-relaxed text-brand-charcoal/40">
-            「未归属」是没有从任何合作公司连结进站的家长。他们只有全域管理员看得到——
-            少了这一列，各公司加总就对不上全部家长数。
+            「未归属」是没有从任何合作{unitWord}连结进站的家长。他们只有全域管理员看得到——
+            少了这一列，各{unitWord}加总就对不上全部家长数。
           </p>
         </div>
       )}

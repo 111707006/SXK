@@ -77,9 +77,20 @@ vi.mock('../src/admin/adminStore', async () => {
   ];
   const created: any[] = [];
   const patched: any[] = [];
+  const listed: any[] = [];
   return {
     __created: created,
     __patched: patched,
+    __listed: listed,
+    async findReferrer(id: number) {
+      if (id === 7) return { id: 7, name: '王老师', companyId: 3, active: true };
+      if (id === 8) return { id: 8, name: '停用的', companyId: 3, active: false };
+      return null;
+    },
+    async listCouponCodesFor(filter: any) {
+      listed.push({ codes: filter });
+      return [{ id: 1, batchId: 1, code: 'ABCD2345XY', status: 'unused', usedBy: null, usedAt: null }];
+    },
     isAvailable: () => true,
     async findAdminUserByEmail(email: string) {
       return admins.find(a => a.email === email) ?? null;
@@ -90,8 +101,9 @@ vi.mock('../src/admin/adminStore', async () => {
     async listCompanies() {
       return [];
     },
-    async listCouponBatches() {
-      return [{ id: 1, note: null, discount: { kind: 'percent', value: 50 }, quantity: 2, expiresOn: null, createdAt: null, unused: 1, used: 1, void: 0 }];
+    async listCouponBatches(filter: any = {}) {
+      listed.push({ batches: filter });
+      return [{ id: 1, referrerId: 7, referrerName: '王老师', note: null, discount: { kind: 'percent', value: 50 }, quantity: 2, expiresOn: null, createdAt: null, unused: 1, used: 1, void: 0 }];
     },
     async createCouponBatch(input: any) {
       created.push({ ...input, sample: input.generate() });
@@ -252,26 +264,55 @@ describe('後台「优惠券」', () => {
 
   it('產一批：不帶折扣＝預設半價；碼是 10 碼', async () => {
     const t = await token('god@sxk.com', 'pw-god-123');
-    const resp = await client.postJson('/api/admin/coupons', { quantity: 3 }, h(t));
+    const resp = await client.postJson('/api/admin/coupons', { quantity: 3, referrerId: 7 }, h(t));
     expect(resp.status).toBe(200);
     const last = store.__created.at(-1);
-    expect(last).toMatchObject({ quantity: 3, discount: { kind: 'percent', value: 50 }, expiresOn: null, createdBy: 30 });
+    expect(last).toMatchObject({ referrerId: 7, quantity: 3, discount: { kind: 'percent', value: 50 }, expiresOn: null, createdBy: 30 });
     expect(last.sample).toMatch(/^[23456789A-HJ-NP-Z]{10}$/);
   });
 
   it('產一批：減固定金額、到期日', async () => {
     const t = await token('god@sxk.com', 'pw-god-123');
-    const resp = await client.postJson('/api/admin/coupons', { quantity: 2, discountKind: 'amount', discountValue: 500, expiresOn: '2026-12-31', note: '门诊' }, h(t));
+    const resp = await client.postJson('/api/admin/coupons', { referrerId: 7, quantity: 2, discountKind: 'amount', discountValue: 500, expiresOn: '2026-12-31', note: '门诊' }, h(t));
     expect(resp.status).toBe(200);
     expect(store.__created.at(-1)).toMatchObject({ discount: { kind: 'amount', value: 500 }, expiresOn: '2026-12-31', note: '门诊' });
   });
 
+  it('產一批：一定要發給一位推薦人（2026-11-25）；沒帶 400、不存在或停用 404，都不產', async () => {
+    const t = await token('god@sxk.com', 'pw-god-123');
+    const before = store.__created.length;
+    expect((await client.postJson('/api/admin/coupons', { quantity: 2 }, h(t))).status).toBe(400);
+    expect((await client.postJson('/api/admin/coupons', { quantity: 2, referrerId: '7' }, h(t))).status).toBe(400);
+    expect((await client.postJson('/api/admin/coupons', { quantity: 2, referrerId: 99 }, h(t))).status).toBe(404);
+    expect((await client.postJson('/api/admin/coupons', { quantity: 2, referrerId: 8 }, h(t))).status).toBe(404);
+    expect(store.__created.length).toBe(before);
+  });
+
+  it('推薦人看自己的優惠券：範圍取自工作階段（不收參數）；匯出只有未用的', async () => {
+    const t = await token('ref@a.com', 'pw-ref-123');
+    const resp = await client.get('/api/admin/my/coupons?referrerId=99', h(t));
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.batches[0]).toMatchObject({ referrerId: 7, referrerName: '王老师' });
+    expect(store.__listed.slice(-2)).toEqual(expect.arrayContaining([{ batches: { referrerId: 7 } }, { codes: { referrerId: 7 } }]));
+    const csv = await (await client.get('/api/admin/my/coupons.csv', h(t))).text();
+    expect(csv).toContain('ABCD-2345-XY');
+  });
+
+  it('推薦人不能產券、不能看全部；全域管理員沒有「我的优惠券」', async () => {
+    const ref = await token('ref@a.com', 'pw-ref-123');
+    expect((await client.postJson('/api/admin/coupons', { quantity: 2, referrerId: 7 }, h(ref))).status).toBe(403);
+    expect((await client.get('/api/admin/coupons', h(ref))).status).toBe(403);
+    const god = await token('god@sxk.com', 'pw-god-123');
+    expect((await client.get('/api/admin/my/coupons', h(god))).status).toBe(403);
+  });
+
   it.each([
-    [{ quantity: 0 }],
-    [{ quantity: 501 }],
-    [{ quantity: 2, discountKind: 'percent', discountValue: 100 }],
-    [{ quantity: 2, discountKind: 'amount', discountValue: 0 }],
-    [{ quantity: 2, expiresOn: '2026-13-01' }],
+    [{ quantity: 0, referrerId: 7 }],
+    [{ quantity: 501, referrerId: 7 }],
+    [{ quantity: 2, referrerId: 7, discountKind: 'percent', discountValue: 100 }],
+    [{ quantity: 2, referrerId: 7, discountKind: 'amount', discountValue: 0 }],
+    [{ quantity: 2, referrerId: 7, expiresOn: '2026-13-01' }],
   ])('產一批：不對的輸入 400（%j）', async body => {
     const t = await token('god@sxk.com', 'pw-god-123');
     expect((await client.postJson('/api/admin/coupons', body, h(t))).status).toBe(400);

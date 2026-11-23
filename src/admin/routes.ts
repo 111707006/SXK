@@ -1297,8 +1297,14 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       if (expiresOn === undefined) return void res.status(400).json({ error: '到期日不正确（YYYY-MM-DD）。' });
       const note = readNote(body.note);
       if (note === undefined && body.note !== undefined) return void res.status(400).json({ error: `备注最多 ${MAX_COUPON_NOTE} 个字。` });
+      // 2026-11-25 起每一批都要綁一位推薦人（使用者 2026-11-23：優惠券的歸屬綁推薦人，規則同兌換碼）。
+      const referrerId = body.referrerId;
+      if (!Number.isInteger(referrerId) || referrerId < 1) return void res.status(400).json({ error: '请选择这批优惠券发给哪位推荐人。' });
       try {
+        const referrer = await store.findReferrer(referrerId);
+        if (!referrer || !referrer.active) return void res.status(404).json({ error: '找不到该推荐人，或已停用。' });
         const batchId = await store.createCouponBatch({
+          referrerId: referrer.id,
           note: note ?? null,
           discount,
           quantity,
@@ -1384,6 +1390,46 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       } catch (err: any) {
         console.error('[Admin] voidCouponCode failed:', err.message);
         res.status(500).json({ error: '作废优惠券失败。' });
+      }
+    });
+
+    // 推薦人與單位管理者看自己的優惠券（只讀：看、複製、匯出未用的；2026-11-25）。身分取自工作階段，不收參數。
+    // 推薦人（含個人治療師單位的帳號）看自己的；只是單位管理者的看本單位推薦人的。全域管理員用上面那幾支。
+    const myCouponScope = (req: AuthedRequest, res: express.Response): { referrerId: number } | { companyId: number } | null => {
+      const identity = req.admin!;
+      if (identity.role === 'referrer') return { referrerId: identity.referrerId };
+      if (identity.role === 'company_member') {
+        return identity.referrerId !== undefined ? { referrerId: identity.referrerId } : { companyId: identity.companyId };
+      }
+      res.status(403).json({ error: '全域管理员请在「兑换码与优惠券」看全部优惠券。', code: 'FORBIDDEN' });
+      return null;
+    };
+
+    router.get('/my/coupons', async (req: AuthedRequest, res) => {
+      const scope = myCouponScope(req, res);
+      if (scope === null) return;
+      try {
+        const [batches, codes] = await Promise.all([store.listCouponBatches(scope), store.listCouponCodesFor(scope)]);
+        res.json({ batches, codes });
+      } catch (err: any) {
+        console.error('[Admin] list my coupons failed:', err.message);
+        res.status(500).json({ error: '读取优惠券失败。' });
+      }
+    });
+
+    router.get('/my/coupons.csv', async (req: AuthedRequest, res) => {
+      const scope = myCouponScope(req, res);
+      if (scope === null) return;
+      try {
+        const codes = await store.listCouponCodesFor(scope);
+        const lines = ['优惠码', ...codes.filter(c => c.status === 'unused').map(c => formatCode(c.code))];
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('未用优惠码.csv')}`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.send('﻿' + lines.join('\r\n') + '\r\n');
+      } catch (err: any) {
+        console.error('[Admin] export my coupons failed:', err.message);
+        res.status(500).json({ error: '导出优惠券失败。' });
       }
     });
   }

@@ -7,7 +7,7 @@
  */
 import { useCallback, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Copy, Download } from 'lucide-react';
-import { adminApi, AdminApiError, type AdminCouponBatch } from '../adminApi';
+import { adminApi, AdminApiError, type AdminCouponBatch, type AdminReferrer } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { formatCode } from '../../redeem/codes';
 import { couponDiscountLabel, DEFAULT_COUPON_DISCOUNT, MAX_COUPON_BATCH, type CouponDiscount, type CouponDiscountKind } from '../../t2/coupon';
@@ -117,6 +117,7 @@ function BatchRow({ batch, onChanged, onError }: { batch: AdminCouponBatch; onCh
           {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           第 {batch.id} 批{batch.note ? ` · ${batch.note}` : ''}
         </button>
+        <span className="rounded-full bg-brand-stone/40 px-2 py-0.5 font-bold text-brand-forest">{batch.referrerName ?? '未指定推荐人（旧批次）'}</span>
         <span className="rounded-full bg-brand-cream px-2 py-0.5 font-bold text-brand-clay">{couponDiscountLabel(batch.discount)}</span>
         <span className="text-brand-charcoal/60">
           共 {batch.quantity} 张 · 未用 {batch.unused} · 已用 {batch.used} · 作废 {batch.void}
@@ -174,6 +175,13 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
     []
   );
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
+  // 2026-11-25 起每一批都要發給一位推薦人（使用者 2026-11-23）：產券前選人，清單可依推薦人篩。
+  const loadReferrers = useCallback(() => adminApi.referrers(), []);
+  const { data: referrerData } = useAsyncData(loadReferrers, [], onError);
+  const referrers: AdminReferrer[] = referrerData?.referrers ?? [];
+  const activeReferrers = referrers.filter(r => r.active);
+  const [referrerId, setReferrerId] = useState('');
+  const [filter, setFilter] = useState('');
   const [kind, setKind] = useState<CouponDiscountKind>(DEFAULT_COUPON_DISCOUNT.kind);
   const [value, setValue] = useState(inputFromDiscount(DEFAULT_COUPON_DISCOUNT));
   const [quantity, setQuantity] = useState('20');
@@ -185,18 +193,20 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
   const qty = Number(quantity);
 
   async function generate() {
-    if (!discount) return;
+    if (!discount || !referrerId) return;
     setBusy(true);
     setNote(null);
     try {
       const r = await adminApi.createCoupons({
+        referrerId: Number(referrerId),
         note: batchNote.trim() || null,
         discountKind: discount.kind,
         discountValue: discount.value,
         quantity: qty,
         expiresOn: expiresOn || null,
       });
-      setNote(`已产生 ${r.codes.length} 张（第 ${r.batchId} 批）。`);
+      const who = referrers.find(x => x.id === Number(referrerId))?.name;
+      setNote(`已产生 ${r.codes.length} 张（第 ${r.batchId} 批${who ? `，发给 ${who}` : ''}）。`);
       reload();
     } catch (err) {
       setNote(err instanceof Error ? err.message : '产生优惠券失败。');
@@ -206,7 +216,8 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
   }
 
   const description =
-    'T1 转 T2 的折扣码：家长在报告上「T2 深度评估」卡的价钱下面输入，之后 T2 照折后价收。预设五折（半价），每位家长只能用一张，不分渠道。' +
+    'T1 转 T2 的折扣码：家长在报告上「T2 深度评估」卡的价钱下面输入，之后 T2 照折后价收。预设五折（半价），每位家长只能用一张。' +
+    '每一批发给一位推荐人：家长用了谁的券，就跟兑换码一样挂到那位推荐人与他的单位（已经由别人服务时先问家长），T2 订单照服务关系清分。' +
     '和上面的兑换码（VIP 兑换，换线上家庭训练的使用时长）是两回事。';
 
   let body: ReactNode;
@@ -214,10 +225,19 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
   else if (failure) body = <ErrorNote message={failure} onRetry={reload} />;
   else if (data?.off) body = <EmptyState title="优惠券还没开启" hint="伺服器开关 T2_COUPON 打开后，这里可以产生与管理优惠券。" />;
   else {
-    const batches = data?.batches ?? [];
+    const all = data?.batches ?? [];
+    const batches = filter === '' ? all : filter === 'none' ? all.filter(b => b.referrerId === null) : all.filter(b => b.referrerId === Number(filter));
     body = (
       <div className="space-y-4">
         <div className="flex flex-wrap items-end gap-2">
+          <Field label="发给哪位推荐人">
+            <Select value={referrerId} onChange={e => setReferrerId(e.target.value)} className="w-auto">
+              <option value="">请选择</option>
+              {activeReferrers.map(r => (
+                <option key={r.id} value={r.id}>{r.name}{r.companyName ? `（${r.companyName}）` : ''}</option>
+              ))}
+            </Select>
+          </Field>
           <DiscountInputs kind={kind} value={value} onKind={setKind} onValue={setValue} />
           <Field label={`张数（1–${MAX_COUPON_BATCH}）`}>
             <TextInput value={quantity} onChange={e => setQuantity(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className="w-24" />
@@ -228,9 +248,20 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
           <Field label="备注（自己认批次用）">
             <TextInput value={batchNote} maxLength={40} onChange={e => setBatchNote(e.target.value)} className="w-40" />
           </Field>
-          <Button busy={busy} disabled={!discount || !(qty >= 1 && qty <= MAX_COUPON_BATCH)} onClick={() => void generate()}>产生优惠券</Button>
+          <Button busy={busy} disabled={!referrerId || !discount || !(qty >= 1 && qty <= MAX_COUPON_BATCH)} onClick={() => void generate()}>产生优惠券</Button>
         </div>
         {note && <p className="text-[11px] font-bold text-brand-forest">{note}</p>}
+        {all.length > 0 && (
+          <Field label="只看">
+            <Select value={filter} onChange={e => setFilter(e.target.value)} className="w-auto">
+              <option value="">全部推荐人</option>
+              {referrers.map(r => (
+                <option key={r.id} value={r.id}>{r.name}{r.active ? '' : '（已停用）'}</option>
+              ))}
+              {all.some(b => b.referrerId === null) && <option value="none">未指定推荐人（旧批次）</option>}
+            </Select>
+          </Field>
+        )}
         {batches.length === 0 ? <EmptyState title="还没有优惠券" /> : (
           <ul className="space-y-2">
             {batches.map(b => <BatchRow key={`${b.id}-${b.discount.kind}-${b.discount.value}-${b.expiresOn}`} batch={b} onChanged={reload} onError={onError} />)}

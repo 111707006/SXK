@@ -150,7 +150,7 @@ const GLOBAL_TABS: AdminTab[] = [
  */
 const REFERRER_TABS: AdminTab[] = [
   { id: 'parents', label: '我的家长' },
-  { id: 'myCodes', label: '我的兑换码' },
+  { id: 'myCodes', label: '我的兑换码与优惠券' },
   { id: 'proxy', label: '代填' },
 ];
 
@@ -199,7 +199,7 @@ export function visibleTabs(
   if (identity.role === 'company_member' && identity.referrer === true) return [...tabs, ...REFERRER_TABS.filter(t => t.id !== 'parents')];
   // 服務關係開關開著（#124）：單位管理者也能代填、用本單位的碼。
   if (identity.role === 'company_member' && shape.serviceRelations) {
-    return [...tabs, { id: 'unitCodes', label: '本单位兑换码' }, ...REFERRER_TABS.filter(t => t.id === 'proxy')];
+    return [...tabs, { id: 'unitCodes', label: '本单位兑换码与优惠券' }, ...REFERRER_TABS.filter(t => t.id === 'proxy')];
   }
   return tabs;
 }

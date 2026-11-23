@@ -12,7 +12,7 @@ describe('單位管理者的分頁', () => {
     const ids = visibleTabs(manager, SR).map(t => t.id);
     expect(ids).toContain('unitCodes');
     expect(ids).toContain('proxy');
-    expect(visibleTabs(manager, SR).find(t => t.id === 'unitCodes')?.label).toBe('本单位兑换码');
+    expect(visibleTabs(manager, SR).find(t => t.id === 'unitCodes')?.label).toBe('本单位兑换码与优惠券');
   });
 
   it('關著：一個都不多', () => {

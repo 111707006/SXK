@@ -18,6 +18,9 @@ const ALLOWED: ReadonlyArray<{ method: string; pattern: RegExp }> = [
   // 我的兑换码（#110）與代填（#112）。
   { method: 'GET', pattern: /^\/referrer\/codes\/?$/ },
   { method: 'GET', pattern: /^\/referrer\/codes\.csv$/ },
+  // 我的优惠券（2026-11-25，`T2_COUPON` 開著才註冊）：只讀。
+  { method: 'GET', pattern: /^\/my\/coupons\/?$/ },
+  { method: 'GET', pattern: /^\/my\/coupons\.csv$/ },
   { method: 'POST', pattern: /^\/referrer\/proxy\/lookup\/?$/ },
   { method: 'POST', pattern: /^\/referrer\/proxy\/?$/ },
 ];

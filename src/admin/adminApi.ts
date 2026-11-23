@@ -81,6 +81,9 @@ export interface AdminProfitSharing {
 /** 一批 T2 優惠券（`src/admin/adminStore.ts` 的 `CouponBatchRecord`）。 */
 export interface AdminCouponBatch {
   id: number;
+  /** 發給哪位推薦人（2026-11-25 起必填）；之前產的批次是 null。 */
+  referrerId: number | null;
+  referrerName: string | null;
   note: string | null;
   discount: CouponDiscount;
   quantity: number;
@@ -577,13 +580,16 @@ export const adminApi = {
   unitCodesCsv: () => download('/unit/codes.csv', { method: 'GET' }, '本单位未用兑换码.csv'),
   /** 兌換碼對帳匯出（#113，只有全域管理員）。 */
   couponBatches: () => request<{ batches: AdminCouponBatch[] }>('/coupons'),
-  createCoupons: (input: { note: string | null; discountKind: CouponDiscount['kind']; discountValue: number; quantity: number; expiresOn: string | null }) =>
+  createCoupons: (input: { referrerId: number; note: string | null; discountKind: CouponDiscount['kind']; discountValue: number; quantity: number; expiresOn: string | null }) =>
     request<{ batchId: number; codes: AdminCouponCode[] }>('/coupons', { method: 'POST', body: JSON.stringify(input) }),
   updateCouponBatch: (id: number, patch: { discountKind?: CouponDiscount['kind']; discountValue?: number; expiresOn?: string | null; note?: string | null }) =>
     request<{ ok: true }>(`/coupons/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   couponCodes: (batchId: number) => request<{ codes: AdminCouponCode[] }>(`/coupons/${batchId}/codes`),
   couponCodesCsv: (batchId: number) => download(`/coupons/${batchId}/codes.csv`, { method: 'GET' }, `未用优惠码-第${batchId}批.csv`),
   voidCoupon: (codeId: number) => request<{ ok: true }>(`/coupon-codes/${codeId}/void`, { method: 'POST', body: '{}' }),
+  /** 推薦人／單位管理者自己的優惠券（只讀；`T2_COUPON` 關著是 404）。 */
+  myCoupons: () => request<{ batches: AdminCouponBatch[]; codes: AdminCouponCode[] }>('/my/coupons'),
+  myCouponsCsv: () => download('/my/coupons.csv', { method: 'GET' }, '未用优惠码.csv'),
   exportRedeemLedger: () => download('/redeem-codes/export', { method: 'POST', body: '{}' }, '兑换码对帐.xlsx'),
 
   // ── 清分（ADR-0016；只有全域管理員、`REVENUE_SPLIT` 開著）──

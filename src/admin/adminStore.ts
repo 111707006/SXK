@@ -1711,9 +1711,14 @@ export async function voidRedeemCode(id: number): Promise<number> {
 // ── T2 優惠券（客戶 11/03，開關 `T2_COUPON`，`src/t2/coupon.ts`）──
 // `coupon_batches`、`coupon_codes` 是森心康發的折扣碼，不是家長資料：只有全域管理員（requireGlobal）。
 // 同兌換碼，**不 JOIN users**：用過的碼只帶家長編號與時間。列在 `test/adminScope.structure.test.ts` 的 `GLOBAL_TABLES`。
+// 2026-11-25 起每一批綁一位推薦人（`coupon_batches.referrer_id`）：推薦人看自己的、單位管理者看本單位推薦人的（只讀）。
+// 之前產的批次（含測試優惠碼那一批）是 NULL。
 
 export interface CouponBatchRecord {
   id: number;
+  /** 發給哪位推薦人；之前產的批次是 null。 */
+  referrerId: number | null;
+  referrerName: string | null;
   note: string | null;
   discount: CouponDiscount;
   quantity: number;
@@ -1735,19 +1740,36 @@ export interface CouponCodeRecord {
 
 const couponStatusOf = (raw: unknown): CouponCodeRecord['status'] => (raw === 'used' ? 'used' : raw === 'void' ? 'void' : 'unused');
 
-/** 全部批次（新的在前），附各狀態張數。 */
-export async function listCouponBatches(): Promise<CouponBatchRecord[]> {
+/**
+ * 批次（新的在前），附各狀態張數與推薦人。不帶條件＝全部（全域管理員）；`referrerId`＝那位推薦人的；
+ * `companyId`＝推薦人隸屬那個單位的（單位管理者）。
+ */
+export async function listCouponBatches(filter: { referrerId?: number; companyId?: number } = {}): Promise<CouponBatchRecord[]> {
   const p = requirePool();
+  const where: string[] = [];
+  const args: number[] = [];
+  if (filter.referrerId !== undefined) {
+    where.push('b.referrer_id = ?');
+    args.push(filter.referrerId);
+  }
+  if (filter.companyId !== undefined) {
+    where.push('r.company_id = ?');
+    args.push(filter.companyId);
+  }
   const [rows] = await p.execute(
-    `SELECT b.id, b.note, b.discount_kind, b.discount_value, b.quantity,
+    `SELECT b.id, b.referrer_id, r.name AS referrer_name, b.note, b.discount_kind, b.discount_value, b.quantity,
             DATE_FORMAT(b.expires_on, '%Y-%m-%d') AS expires_on, b.created_at,
             SUM(c.status = 'unused') AS n_unused, SUM(c.status = 'used') AS n_used, SUM(c.status = 'void') AS n_void
-       FROM coupon_batches b LEFT JOIN coupon_codes c ON c.batch_id = b.id
+       FROM coupon_batches b LEFT JOIN referrers r ON r.id = b.referrer_id LEFT JOIN coupon_codes c ON c.batch_id = b.id
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       GROUP BY b.id
-      ORDER BY b.id DESC`
+      ORDER BY b.id DESC`,
+    args
   );
   return (rows as any[]).map(r => ({
     id: Number(r.id),
+    referrerId: r.referrer_id === null || r.referrer_id === undefined ? null : Number(r.referrer_id),
+    referrerName: r.referrer_name ?? null,
     note: r.note ?? null,
     discount: { kind: r.discount_kind === 'amount' ? 'amount' : 'percent', value: Number(r.discount_value) },
     quantity: Number(r.quantity),
@@ -1779,8 +1801,31 @@ export async function listCouponCodes(batchId: number): Promise<CouponCodeRecord
   }));
 }
 
+/** 某位推薦人（`referrerId`）或某個單位的推薦人（`companyId`）名下每一張（依批次、產生順序）。推薦人與單位管理者看自己的用。 */
+export async function listCouponCodesFor(filter: { referrerId: number } | { companyId: number }): Promise<CouponCodeRecord[]> {
+  const p = requirePool();
+  const byReferrer = 'referrerId' in filter;
+  const [rows] = await p.execute(
+    `SELECT c.id, c.batch_id, c.code, c.status, c.used_by, c.used_at
+       FROM coupon_codes c JOIN coupon_batches b ON b.id = c.batch_id
+       ${byReferrer ? 'WHERE b.referrer_id = ?' : 'JOIN referrers r ON r.id = b.referrer_id WHERE r.company_id = ?'}
+      ORDER BY c.batch_id DESC, c.id ASC`,
+    [byReferrer ? filter.referrerId : filter.companyId]
+  );
+  return (rows as any[]).map(r => ({
+    id: Number(r.id),
+    batchId: Number(r.batch_id),
+    code: r.code,
+    status: couponStatusOf(r.status),
+    usedBy: r.used_by === null || r.used_by === undefined ? null : Number(r.used_by),
+    usedAt: toIso(r.used_at),
+  }));
+}
+
 /** 產一批。同兌換碼：整批在同一個交易裡，撞到既有的碼換一組再試（最多 5 次）。回新批次的編號。 */
 export async function createCouponBatch(input: {
+  /** 發給哪位推薦人（必填；路由先確認存在且啟用）。 */
+  referrerId: number;
   note: string | null;
   discount: CouponDiscount;
   quantity: number;
@@ -1793,8 +1838,8 @@ export async function createCouponBatch(input: {
   try {
     await conn.beginTransaction();
     const [batch] = await conn.execute(
-      'INSERT INTO coupon_batches (note, discount_kind, discount_value, quantity, expires_on, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [input.note, input.discount.kind, input.discount.value, input.quantity, input.expiresOn, input.createdBy]
+      'INSERT INTO coupon_batches (referrer_id, note, discount_kind, discount_value, quantity, expires_on, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [input.referrerId, input.note, input.discount.kind, input.discount.value, input.quantity, input.expiresOn, input.createdBy]
     );
     const batchId = (batch as ResultSetHeader).insertId;
     for (let i = 0; i < input.quantity; i++) {

@@ -16,10 +16,16 @@ import { EmptyState, ErrorNote, Panel, Spinner, useAsyncData } from '../ui';
 export default function SummaryPanel({
   onError,
   unitWord = '公司',
+  unassignedName,
 }: {
   onError: (view: AdminErrorView) => void;
   /** A 開了合作單位叫「单位」（ADR-0020）；B 照舊「公司」。 */
   unitWord?: '公司' | '单位';
+  /**
+   * A 開了合作單位：「未归属」那一列與視野選單用同一個叫法（森心康直属家长），並註明這一頁按進站時的單位算。
+   * 沒給＝照舊（B 一個字不變）。
+   */
+  unassignedName?: string;
 }) {
   const load = useCallback(() => adminApi.summary(), []);
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
@@ -67,7 +73,7 @@ export default function SummaryPanel({
                 >
                   <td className="py-2.5 pr-3">
                     <span className={r.companyId === null ? 'text-brand-charcoal/55' : 'font-bold text-brand-forest'}>
-                      {r.companyName}
+                      {r.companyId === null && unassignedName ? unassignedName : r.companyName}
                     </span>
                   </td>
                   <td className="py-2.5 pr-3 text-right tabular-nums text-brand-charcoal/80">{r.parentCount}</td>
@@ -96,8 +102,17 @@ export default function SummaryPanel({
             </tbody>
           </table>
           <p className="mt-3 text-[10px] leading-relaxed text-brand-charcoal/40">
-            「未归属」是没有从任何合作{unitWord}连结进站的家长。他们只有全域管理员看得到——
-            少了这一列，各{unitWord}加总就对不上全部家长数。
+            {unassignedName ? (
+              <>
+                这一页按家长第一次进站时的{unitWord}（筛查渠道）计算，不是现在由谁服务；切到某个{unitWord}看到的家长列表按服务关系，
+                两边人数可能不同。「{unassignedName}」是没有从任何合作{unitWord}连结进站的家长——少了这一列，各{unitWord}加总就对不上全部家长数。
+              </>
+            ) : (
+              <>
+                「未归属」是没有从任何合作{unitWord}连结进站的家长。他们只有全域管理员看得到——
+                少了这一列，各{unitWord}加总就对不上全部家长数。
+              </>
+            )}
           </p>
         </div>
       )}

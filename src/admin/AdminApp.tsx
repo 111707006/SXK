@@ -369,7 +369,7 @@ function AdminCenter() {
           {activeTab === 'company' && <CompanySettingsPanel onError={handleError} unassignedName={unassignedLabel(shape)} unitWord={unitWord} />}
           {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} units={unitsEnabled(shape)} />}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} />}
-          {activeTab === 'summary' && <SummaryPanel onError={handleError} unitWord={unitWord} />}
+          {activeTab === 'summary' && <SummaryPanel onError={handleError} unitWord={unitWord} unassignedName={unitsEnabled(shape) ? unassignedLabel(shape) : undefined} />}
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}
           {activeTab === 'videos' && <VideoTaggingPanel onError={handleError} />}
           {activeTab === 'homeMedia' && <HomeMediaPanel onError={handleError} />}

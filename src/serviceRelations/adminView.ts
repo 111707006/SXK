@@ -58,7 +58,8 @@ export function targetFromChoice(targets: ServiceTargets, companyId: number | nu
 }
 
 const WHO: Record<ChangeActor, Partial<Record<ChangeReason, string>> & { default: string }> = {
-  admin: { default: '后台改派' },
+  // 後台＋兌換碼只有代填（`proxyFillServed`）會寫：第一次掛上服務關係，不是改派。
+  admin: { code: '后台代填', default: '后台改派' },
   parent: { link: '家长自己（连结）', code: '家长自己（兑换码）', default: '家长自己' },
   system: { migration: '系统（资料转换）', default: '系统' },
 };

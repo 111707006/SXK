@@ -69,6 +69,9 @@ describe('changeLine：一列改派紀錄', () => {
     expect(changeLine(TARGETS, { ...base, actor: 'parent', reason: 'code', fromCompanyId: null, fromReferrerId: null, toCompanyId: 7, toReferrerId: null }).who).toBe('家长自己（兑换码）');
     expect(changeLine(TARGETS, { ...base, actor: 'system', reason: 'migration', fromCompanyId: null, fromReferrerId: null, toCompanyId: 7, toReferrerId: null }).who).toBe('系统（资料转换）');
   });
+  it('後台代填（admin＋code）不叫「后台改派」', () => {
+    expect(changeLine(TARGETS, { ...base, reason: 'code', fromCompanyId: null, fromReferrerId: null, toCompanyId: 7, toReferrerId: 70 }).who).toBe('后台代填');
+  });
   it('伺服器帶了名字就用（推薦人、單位管理者沒有 /service-targets 或只有本單位）', () => {
     const empty: ServiceTargets = { units: [], referrers: [] };
     expect(changeLine(empty, {

@@ -52,7 +52,7 @@ import ReferrersPanel from './panels/ReferrersPanel';
 import { unitsEnabled } from './units';
 import RedeemCodesBlock from './panels/RedeemCodesBlock';
 import MyCouponsBlock from './panels/MyCouponsBlock';
-import CouponsPanel from './panels/CouponsPanel';
+import { LegacyCouponBatches, ReferrerCouponsBlock, useCouponBatches } from './panels/CouponsPanel';
 import RevenueSplitPanel from './panels/RevenueSplitPanel';
 import ProxyPanel from './panels/ProxyPanel';
 
@@ -167,6 +167,10 @@ function AdminCenter() {
     },
     [boot]
   );
+
+  // 「兑换码与优惠券」分頁的優惠券批次（2026-11-24：優惠券併進推薦人清單）：整頁只讀一次，每位推薦人那一列依 referrerId 分。
+  // 只有全域管理員在那一頁時才打網路（hook 要在下面的提早 return 之前）。
+  const couponState = useCouponBatches(identity?.role === 'global_admin' && tab === 'referrers', handleError);
 
   async function switchScope(value: string) {
     const selection = parseSwitcherValue(value);
@@ -380,36 +384,47 @@ function AdminCenter() {
           {activeTab === 'videos' && <VideoTaggingPanel onError={handleError} />}
           {activeTab === 'homeMedia' && <HomeMediaPanel onError={handleError} />}
           {activeTab === 'legal' && <LegalPanel onError={handleError} />}
-          {/* 兌換碼與優惠券（2026-11-10 使用者：合成一個分頁）：上面推薦人與兌換碼、下面 T2 優惠券。 */}
+          {/* 兌換碼與優惠券（2026-11-10 使用者：合成一個分頁；2026-11-24：優惠券併進推薦人清單，每一列各自產兌換碼與優惠券）。 */}
           {activeTab === 'referrers' && (
             <div className="space-y-10">
               <div className="rounded-xl border border-stone-200 bg-stone-50 px-5 py-4 text-sm leading-relaxed text-stone-700">
-                <p className="mb-2 font-bold text-stone-900">这一页有两样东西，用途不同：</p>
+                <p className="mb-2 font-bold text-stone-900">
+                  {unitsMerged
+                    ? `推荐人（治疗师）在「合作单位」那一页建立。这一页在每位推荐人底下产生${couponState.off ? '兑换码：' : '两样东西，用途不同：'}`
+                    : couponState.off ? '推荐人与兑换码：' : '这一页有两样东西，用途不同：'}
+                </p>
                 <ul className="list-disc space-y-1.5 pl-5">
                   <li>
-                    <span className="font-bold text-stone-900">推荐人与兑换码（VIP 兑换）</span>：{unitsMerged
-                      ? '推荐人（治疗师）在「合作单位」那一页开，每位推荐人隶属一个合作单位；这里'
+                    <span className="font-bold text-stone-900">兑换码（VIP 兑换）</span>：{unitsMerged
+                      ? '按推荐人那一列的「兑换码」产生。'
                       : unitsEnabled(shape)
-                        ? '开推荐人（治疗师）帐号，每位推荐人隶属一个合作单位；'
-                        : '开渠道商、治疗师的推荐人帐号；'}在每位推荐人底下产生兑换码。
+                        ? '开推荐人（治疗师）帐号，每位推荐人隶属一个合作单位；在每位推荐人底下产生兑换码。'
+                        : '开渠道商、治疗师的推荐人帐号；在每位推荐人底下产生兑换码。'}
                     家长在「线上家庭个性化训练」方案页点「VIP 兑换」输入，<span className="font-bold">直接开通线上家庭训练</span>（1／3／6／12 个月），不用付钱。
                   </li>
-                  <li>
-                    <span className="font-bold text-stone-900">优惠券</span>：T1 转 T2 的折扣码。家长在报告上「T2 深度评估」价钱下面输入，
-                    <span className="font-bold">T2 照折后价付款</span>（预设半价）；每位家长只能用一张，不开通线上家庭训练。
-                    每一批发给一位推荐人，家长用了谁的券就跟兑换码一样挂到谁名下。
-                  </li>
+                  {!couponState.off && (
+                    <li>
+                      <span className="font-bold text-stone-900">优惠券</span>：按推荐人那一列的「优惠券」产生。T1 转 T2 的折扣码，家长在报告上「T2 深度评估」价钱下面输入，
+                      <span className="font-bold">T2 照折后价付款</span>（预设半价）；每位家长只能用一张，不开通线上家庭训练。
+                      家长用了谁的券，就跟兑换码一样挂到谁名下。
+                    </li>
+                  )}
                 </ul>
               </div>
-              <ReferrersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} serviceRelations={shape.serviceRelations === true} showCreate={!unitsMerged} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
+              <ReferrersPanel
+                onError={handleError}
+                companies={companies}
+                units={unitsEnabled(shape)}
+                serviceRelations={shape.serviceRelations === true}
+                showCreate={!unitsMerged}
+                renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />}
+                renderCoupons={couponState.off ? undefined : r => <ReferrerCouponsBlock referrer={r} state={couponState} onError={handleError} />}
+              />
               {/* 單位層的碼（#124，服務關係開關開著）：不指定推薦人，給單位管理者代填、發給本單位用。 */}
               {shape.serviceRelations && <UnitCodesSection companies={companies.filter(c => c.active)} onError={handleError} />}
-              <div className="border-t border-stone-200 pt-8">
-                <CouponsPanel onError={handleError} />
-              </div>
+              <LegacyCouponBatches state={couponState} onError={handleError} />
             </div>
           )}
-          {activeTab === 'coupons' && <CouponsPanel onError={handleError} />}
           {activeTab === 'revenueSplit' && <RevenueSplitPanel onError={handleError} />}
           {/* 推薦人與單位管理者自己的優惠券（2026-11-25）：放在兌換碼下面，只讀；T2_COUPON 關著整塊不畫。 */}
           {activeTab === 'myCodes' && (

@@ -6,8 +6,9 @@
  * 那一頁連帳號一起建，這裡不能選）、填一個單位內唯一的代號；每位推薦人旁邊有個人連結 `?c=<單位>&t=<代號>` 與二維碼。
  * 不再分渠道商／治療師。B 與沒開合作公司的 A 照舊。
  *
- * 「后台帐号」併進「合作单位」時（`showCreate=false`，使用者 2026-11-23）：開推薦人搬到合作單位那一頁（機構展開後
- * 「新增推荐人」，用同一個 `CreateReferrerForm`），這一頁只剩推薦人清單、兌換碼與優惠券。
+ * 「后台帐号」併進「合作单位」時（`showCreate=false`，使用者 2026-11-23）：開推薦人只在合作單位那一頁（新增单位→个人治疗师、
+ * 機構展開後「新增推荐人」，同一個 `CreateReferrerForm`），這一頁只剩推薦人清單與每位推薦人的兌換碼、優惠券
+ * （`renderCoupons`，使用者 2026-11-24：優惠券併進推薦人清單）。
  */
 import { useCallback, useState } from 'react';
 import { Download, UserPlus } from 'lucide-react';
@@ -25,6 +26,7 @@ export default function ReferrersPanel({
   units = false,
   serviceRelations = false,
   renderCodes,
+  renderCoupons,
   showCreate = true,
 }: {
   onError: (view: AdminErrorView) => void;
@@ -35,6 +37,8 @@ export default function ReferrersPanel({
   serviceRelations?: boolean;
   /** 每位推薦人底下的兌換碼區塊（#110）；沒給就不畫。 */
   renderCodes?: (referrer: AdminReferrer) => React.ReactNode;
+  /** 每位推薦人底下的優惠券區塊（2026-11-24）；沒給（或伺服器沒開優惠券）就不畫那顆按鈕。與兌換碼各自展開。 */
+  renderCoupons?: (referrer: AdminReferrer) => React.ReactNode;
   /** 畫不畫「开设推荐人」（合併進合作單位時 false，在那一頁開）。 */
   showCreate?: boolean;
 }) {
@@ -43,6 +47,7 @@ export default function ReferrersPanel({
   const origin = window.location.origin;
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
+  const [openCouponsId, setOpenCouponsId] = useState<number | null>(null);
 
   // 對帳匯出（#113）：推薦人、碼、方案、狀態、使用家長手機號、使用時間、使用權到期日。每次都記一筆。
   async function exportLedger() {
@@ -100,11 +105,15 @@ export default function ReferrersPanel({
                     {renderCodes && (
                       <Button variant="ghost" onClick={() => setOpenId(openId === r.id ? null : r.id)}>{openId === r.id ? '收起兑换码' : '兑换码'}</Button>
                     )}
+                    {renderCoupons && (
+                      <Button variant="ghost" onClick={() => setOpenCouponsId(openCouponsId === r.id ? null : r.id)}>{openCouponsId === r.id ? '收起优惠券' : '优惠券'}</Button>
+                    )}
                     <Button variant={r.active ? 'danger' : 'ghost'} onClick={() => void toggle(r)}>{r.active ? '停用' : '重新启用'}</Button>
                   </div>
                 </div>
                 {link && <EntryLinkQr url={link} code={r.companyKind === 'therapist' ? (r.companySlug ?? `r${r.id}`) : `${r.companySlug}-${r.code}`} />}
                 {renderCodes && openId === r.id && renderCodes(r)}
+                {renderCoupons && openCouponsId === r.id && renderCoupons(r)}
               </li>
               );
             })}

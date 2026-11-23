@@ -106,7 +106,6 @@ export type AdminTabId =
   | 'homeMedia'
   | 'legal'
   | 'referrers'
-  | 'coupons'
   | 'revenueSplit'
   | 'myCodes'
   | 'proxy'
@@ -155,7 +154,7 @@ const REFERRER_TABS: AdminTab[] = [
 ];
 
 /** 只有專案 A（單一機構）才有的分頁：上傳示範片的端點只在 A 註冊（`activityMediaDir`）。 */
-const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia', 'legal', 'referrers', 'coupons', 'revenueSplit'];
+const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia', 'legal', 'referrers', 'revenueSplit'];
 
 /**
  * 只有多合作公司才有意義的分頁 —— 專案 A 上這三個永遠是空的。

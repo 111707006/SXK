@@ -4,14 +4,18 @@
  * 專案 A 開了合作公司時（`units`，#117，ADR-0020）叫「合作单位」：分機構與個人治療師、可以照類型篩選；
  * 建個人治療師單位時一併開好那個帳號（單位管理者兼推薦人）。B 照舊叫合作公司，一個字都不變。
  *
+ * `mergedAccounts`（`VITE_ADMIN_UNITS_MERGED`，只在 `units` 時才可能是 true）：「后台帐号」分頁併進來 ——
+ * 每一列可以展開看這個單位底下的帳號，最下面多「全域管理员」一塊（`UnitAccounts.tsx`）。關著時畫面一個字都不變。
+ *
  * 進站識別碼（slug）是這裡最要緊的欄位：它就是家長連結上的 `?c=`，
  * 決定一位家長會歸屬到哪一家公司。它在資料庫上是 UNIQUE，重複會被 409 擋下 ——
  * 兩家公司共用一個識別碼等於把家長送給錯的公司，而那件事沒有補救的方法。
  */
 import EntryLinkQr from '../EntryLinkQr';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus, Save, Trash2, Upload } from 'lucide-react';
-import { AdminApiError, adminApi, type WecomQrList } from '../adminApi';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, Plus, Save, Trash2, Upload } from 'lucide-react';
+import { GlobalAccountsSection, UnitAccountsBlock, useAccountGroups, useUnitAccounts } from './UnitAccounts';
+import { AdminApiError, adminApi, type AdminCompany, type WecomQrList } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { UNIT_KIND_LABEL, UNIT_KINDS, type UnitKind } from '../units';
 import {
@@ -27,19 +31,42 @@ import {
   useAsyncData,
 } from '../ui';
 
+/** 單位清單還沒讀到時給分組用的空陣列（固定一個，`useMemo` 才不會每次重算）。 */
+const EMPTY_UNITS: AdminCompany[] = [];
+
 export default function CompaniesPanel({
   onError,
   onChanged,
   units = false,
+  mergedAccounts = false,
 }: {
   onError: (view: AdminErrorView) => void;
   /** 新建一家公司後要讓上層的切換選單也看得到它。 */
   onChanged: () => void;
   /** 專案 A 的合作單位（#117）：改名、類型、篩選、個人治療師帳號。 */
   units?: boolean;
+  /** 「后台帐号」併進來（`VITE_ADMIN_UNITS_MERGED`）。只有 `units` 也是 true 才算數。 */
+  mergedAccounts?: boolean;
 }) {
   const load = useCallback(() => adminApi.companies(), []);
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
+
+  const merged = units && mergedAccounts;
+  const accounts = useUnitAccounts(merged, onError);
+  const groups = useAccountGroups(accounts.data, data?.companies ?? EMPTY_UNITS);
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set());
+  const toggleExpanded = (id: number) =>
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  /** 新增或停用帳號之後：單位與帳號兩份都重讀。 */
+  const reloadAll = () => {
+    reload();
+    accounts.reload();
+  };
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -96,6 +123,8 @@ export default function CompaniesPanel({
       setAccount({ email: '', password: '', phone: '' });
       setCreating(false);
       reload();
+      // 個人治療師單位一併開了帳號：合併畫面要看得到他。
+      if (merged) accounts.reload();
       onChanged();
     } catch (err) {
       const view = toErrorView(err);
@@ -107,11 +136,13 @@ export default function CompaniesPanel({
   }
 
   return (
+    <>
     <Panel
       title={units ? '合作单位' : '合作公司'}
       description={
         units
-          ? '每一个单位有一个进站识别码。机构底下可以有好几位推荐人（在「兑换码与优惠券」开）；个人治疗师单位只有他自己一位，他的帐号同时是单位管理者与推荐人。'
+          ? '每一个单位有一个进站识别码。机构底下可以有好几位推荐人（在「兑换码与优惠券」开）；个人治疗师单位只有他自己一位，他的帐号同时是单位管理者与推荐人。' +
+            (merged ? '点单位名称展开，看这个单位底下能登入的后台帐号。' : '')
           : '每一家公司有一个进站识别码。家长必须从带着这个识别码的连结注册，才会归属到该公司。'
       }
       action={
@@ -250,8 +281,26 @@ export default function CompaniesPanel({
             </thead>
             <tbody>
               {companies.map(c => (
-                <tr key={c.id} className="border-b border-brand-stone/60 last:border-0">
-                  <td className="py-2.5 pr-3 font-bold text-brand-forest">{c.name}</td>
+                <Fragment key={c.id}>
+                <tr className="border-b border-brand-stone/60 last:border-0">
+                  <td className="py-2.5 pr-3 font-bold text-brand-forest">
+                    {merged ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-left font-bold text-brand-forest hover:underline"
+                        aria-expanded={expanded.has(c.id)}
+                        onClick={() => toggleExpanded(c.id)}
+                      >
+                        {expanded.has(c.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        {c.name}
+                        {groups && (
+                          <span className="ml-1 font-normal text-brand-charcoal/45">{groups.byUnit[c.id]?.length ?? 0} 个帐号</span>
+                        )}
+                      </button>
+                    ) : (
+                      c.name
+                    )}
+                  </td>
                   {units && <td className="py-2.5 pr-3 text-brand-charcoal/70">{UNIT_KIND_LABEL[c.kind ?? 'institution']}</td>}
                   <td className="py-2.5 pr-3 font-mono text-brand-charcoal/70">{c.slug}</td>
                   <td className="py-2.5 pr-3">
@@ -277,12 +326,42 @@ export default function CompaniesPanel({
                     </td>
                   )}
                 </tr>
+                {merged && expanded.has(c.id) && (
+                  <tr className="border-b border-brand-stone/60 last:border-0">
+                    <td colSpan={qrs ? 6 : 5} className="pb-3">
+                      <UnitAccountsBlock
+                        unit={c}
+                        accounts={groups?.byUnit[c.id] ?? []}
+                        referrers={accounts.data?.referrers ?? []}
+                        loading={accounts.loading}
+                        failure={accounts.failure}
+                        onRetry={accounts.reload}
+                        onError={onError}
+                        onChanged={reloadAll}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
         </div>
       )}
     </Panel>
+    {merged && (
+      <div className="mt-5">
+        <GlobalAccountsSection
+          groups={groups}
+          loading={accounts.loading}
+          failure={accounts.failure}
+          onRetry={accounts.reload}
+          onError={onError}
+          onChanged={reloadAll}
+        />
+      </div>
+    )}
+    </>
   );
 }
 

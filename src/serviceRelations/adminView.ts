@@ -71,6 +71,11 @@ function labelOf(
   names: { company?: string | null; referrer?: string | null } = {}
 ): string {
   if (companyId === null) return DIRECT_LABEL;
+  // 伺服器帶了名字這一欄卻是 null：那一列已經刪掉了（LEFT JOIN 對不到；使用者 2026-11-23 可以刪單位與推薦人）。
+  if (names.company === null) return `已删除的单位 #${companyId}`;
+  if (referrerId !== null && names.referrer === null) {
+    return `${names.company ?? targets.units.find(u => u.id === companyId)?.name ?? `单位 #${companyId}`} · 已删除的推荐人 #${referrerId}`;
+  }
   return relationLabel({
     companyId,
     companyName: names.company ?? targets.units.find(u => u.id === companyId)?.name ?? null,

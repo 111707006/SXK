@@ -23,13 +23,13 @@ export function redeemLedgerRows(rows: ReadonlyArray<RedeemLedgerRow>, commissio
   if (commissions) {
     return redeemLedgerRows(rows).map((cells, i) => {
       const c = commissions[i] ?? null;
-      return [...cells.slice(0, 2), rows[i].companyName ?? '', ...cells.slice(2), c ? yuan(c.companyFen) : '', c ? yuan(c.referrerFen) : ''];
+      return [...cells.slice(0, 2), rows[i].partyDeleted ? '已删除' : rows[i].companyName ?? '', ...cells.slice(2), c ? yuan(c.companyFen) : '', c ? yuan(c.referrerFen) : ''];
     });
   }
   return rows.map(r => [
-    r.referrerName ?? '',
-    // 單位層的碼（#124）沒有推薦人
-    r.referrerKind === null ? '单位层' : KIND[r.referrerKind],
+    // 刪掉的單位／推薦人（使用者 2026-11-23）：批次已脫鉤，寫「已删除」，不是單位層。
+    r.partyDeleted ? '已删除' : r.referrerName ?? '',
+    r.partyDeleted ? '已删除' : r.referrerKind === null ? '单位层' : KIND[r.referrerKind],
     formatCode(r.code),
     String(r.months),
     STATUS[r.status],

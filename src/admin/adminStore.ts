@@ -2185,6 +2185,11 @@ export interface RedeemLedgerRow {
   usedAt: string | null;
   /** 這一組發出的那段使用權的迄日（兌換或代填；`code:<編號>`／`proxy:<編號>`）。 */
   passEndsOn: string | null;
+  /**
+   * 發這批碼的推薦人／單位已經刪掉了（使用者 2026-11-23）：刪單位時批次與它脫鉤（推薦人、單位都是 NULL），
+   * 用過的碼與使用權留著，對帳寫「已删除」。舊資料沒有這一欄＝false。
+   */
+  partyDeleted?: boolean;
 }
 
 /** @param opts.unitCodes 服務關係開關開著（#124）才讀單位層的碼（`b.company_id`）；關著與以前同一句，遷移沒跑也匯得出來。 */
@@ -2194,6 +2199,7 @@ export async function listRedeemLedger(opts: { unitCodes?: boolean } = {}): Prom
   const [rows] = await p.execute(
     `SELECT r.id AS referrer_id, r.name AS referrer_name, r.kind AS referrer_kind, rc.id AS company_id, rc.name AS company_name,
             c.code, b.months, c.status, u.phone AS used_by_phone, c.used_at,
+            ${opts.unitCodes ? '(b.referrer_id IS NULL AND b.company_id IS NULL)' : '(b.referrer_id IS NULL)'} AS party_deleted,
             (SELECT DATE_FORMAT(MAX(tp.ends_on), '%Y-%m-%d') FROM training_passes tp
               WHERE tp.unique_key IN (CONCAT('code:', c.id), CONCAT('proxy:', c.id))) AS pass_ends_on
        FROM redeem_codes c
@@ -2216,6 +2222,7 @@ export async function listRedeemLedger(opts: { unitCodes?: boolean } = {}): Prom
     usedByPhone: row.used_by_phone ?? null,
     usedAt: toIso(row.used_at),
     passEndsOn: row.pass_ends_on ?? null,
+    partyDeleted: Number(row.party_deleted) === 1,
   }));
 }
 

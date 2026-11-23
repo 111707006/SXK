@@ -418,6 +418,15 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 > `test/handoffSource.http.test.ts`、`test/handoffTarget.http.test.ts`、`test/handoffFrontend.structure.test.ts`、
 > `test/handoffInvites.http.test.ts`（后台邀请）、`test/smsSender.test.ts`（邀请范本）。
 
+> 成人 ADHD（`APP_MODE=adhd`／`VITE_APP_MODE=adhd`，2026-11-24，設計 `docs/specs/adhd-product-design.md`、ADR-0021；**還沒部署**）：
+> 第三個產品，網域 arscreen.cn，資料庫 `sxk_adhd_db`、PM2 `sxk-adhd`、埠 5002。登入（手機驗證碼）、合作單位 `?c=`、後台帳號、合作公司照 B；
+> 作答與報告**直接用客戶的 HTML**（`ADHD/`，建置寫到 `dist/assess/`，伺服器在 `/assess/` 回），只插一行 `src/adhd/bridge.js`。
+> 這個程序只開白名單上的路徑（`src/adhd/routeGate.ts`）：簡訊登入、後台、`/api/company-brand`、`/api/db/status`、`/api/adhd/*`；其他一律 404。
+> 新表 `adhd_assessments`（`deploy/migrations/2026-11-24-adhd-assessments.sql`），沒有 `company_id`，後台經 `users` 帶公司條件。
+> 本機測試站：`deploy/demo/Dockerfile.adhd`（驗證碼 246810、`?c=demo-unit`）。
+> ⚠️ `CSP_MODE=enforce` 會擋掉客戶頁面的內嵌 script。⚠️ 跑 vitest 要加 `--dir test`：不然會把 `.claude/worktrees/` 裡別的 session 的測試一起收進來。
+> 護栏：`test/adhdPage.test.ts`、`test/adhdRoutes.http.test.ts`、`test/adhdAssessments.http.test.ts`、`test/adminScope.structure.test.ts`。
+
 > 新版 T1 报告（`T1_REPORT_REAL`，使用者 2026-10-08：「每份报告都长一样」；**只在专案 A，B 一个字都不变**）。
 > 旧版的几块是编的：四个仪表（模型照 45–98 填、模板用 88−红灯×8）、「居同龄前 X%」（T1 是客户自建、对照年龄题组的清单，**没有常模**）、
 > 三条写死的预测曲线（62→95，每个孩子一样，附「最快8周可回归ASQ」）、每天一张固定的「前额叶神经调适游戏」与设备标签；

@@ -54,6 +54,8 @@ export interface AdminSplitSettings {
   feeBp: number;
   /** 清分改看服務關係（#122）：單位那一層多一個篩查渠道比例可設。沒有這一欄＝關。 */
   screening?: boolean;
+  /** 微信分账開關（`PROFIT_SHARING`）。`false` 時畫面不打 `/profit-sharing`；沒有這一欄（舊伺服器）照舊去打、404 當關著。 */
+  profitSharing?: boolean;
   fallback: { platformBp: number; companyBp: number };
   rates: AdminSplitRate[];
   companies: Array<{ id: number; name: string; active: boolean }>;

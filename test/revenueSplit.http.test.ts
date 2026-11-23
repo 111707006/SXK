@@ -186,6 +186,9 @@ describe('後台「清分」', () => {
     const t = await token('god@sxk.com', 'pw-god-123');
     const body = await (await client.get('/api/admin/revenue-split', h(t))).json();
     expect(body).toMatchObject({ feeBp: 60, fallback: { platformBp: 2000, companyBp: 2000 } });
+    // 沒掛微信分账：明講關著，畫面就不去打 /profit-sharing（那幾支是 404）。
+    expect(body.profitSharing).toBe(false);
+    expect((await client.get('/api/admin/profit-sharing', h(t))).status).toBe(404);
     expect(body.companies).toEqual([{ id: 3, name: '某某康复', active: true }]);
     expect(body.referrers[0]).toMatchObject({ id: 7, companyId: 3 });
   });

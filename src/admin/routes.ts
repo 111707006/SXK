@@ -1162,6 +1162,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
         res.json({
           feeBp,
           ...(screening ? { screening: true } : {}),
+          // 微信分账（ADR-0017）開了沒：關著時畫面不去打 `/profit-sharing`（那幾支沒註冊，只會在主控台留一筆 404）。
+          profitSharing: Boolean(hooks.profitSharing),
           fallback: { platformBp: DEFAULT_PLATFORM_BP, companyBp: DEFAULT_COMPANY_BP },
           rates,
           companies: companies.map(c => ({ id: c.id, name: c.name, active: c.active })),

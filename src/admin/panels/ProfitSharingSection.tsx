@@ -186,9 +186,10 @@ function RecordsTable({ data, partyLabel, onChanged }: { data: AdminProfitSharin
 }
 
 export default function ProfitSharingSection({ settings, onError }: { settings: AdminSplitSettings; onError: (view: AdminErrorView) => void }) {
+  const off = settings.profitSharing === false;
   const load = useCallback(
     () =>
-      adminApi.profitSharing().then(
+      off ? Promise.resolve({ data: null, off: true }) : adminApi.profitSharing().then(
         data => ({ data, off: false }),
         err => {
           // 伺服器開關 PROFIT_SHARING 關著：那幾支不註冊（404）。
@@ -196,9 +197,9 @@ export default function ProfitSharingSection({ settings, onError }: { settings: 
           throw err;
         }
       ),
-    []
+    [off]
   );
-  const { data, loading, failure, reload } = useAsyncData(load, [], onError);
+  const { data, loading, failure, reload } = useAsyncData(load, [off], onError);
 
   let body: ReactNode;
   if (loading) body = <Spinner />;

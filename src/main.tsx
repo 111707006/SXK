@@ -30,6 +30,12 @@ void loadReportLayout();
 const AdminApp = lazy(() => import('./admin/AdminApp.tsx'));
 
 /**
+ * 成人 ADHD（`VITE_APP_MODE=adhd`）：受評者端只有登入外殼，作答與報告是客戶的 HTML（`/assess/`，伺服器回）。
+ * A、B 的建置裡 `PRODUCT.mode === 'adhd'` 摺成 false，這個 lazy import 連同 chunk 一起被移除。
+ */
+const AdhdShell = lazy(() => import('./adhd/AdhdShell.tsx'));
+
+/**
  * 精確比對 `/admin` 與它底下的路徑，不用 `startsWith('/admin')`。
  *
  * 伺服器的 SPA 兜底會把任何未匹配的路徑都回 index.html，所以 `startsWith` 會讓
@@ -56,6 +62,10 @@ createRoot(document.getElementById('root')!).render(
     {isAdmin ? (
       <LazyBoundary>
         <AdminApp />
+      </LazyBoundary>
+    ) : PRODUCT.mode === 'adhd' ? (
+      <LazyBoundary>
+        <AdhdShell />
       </LazyBoundary>
     ) : scanToken !== null ? (
       <ScanReportPage token={scanToken} />

@@ -61,16 +61,31 @@ function Preview({ item, slot }: { item: HomeMediaItem; slot: HomeMediaSlot }) {
   );
 }
 
-function MediaRow({ item, slot, first, last, onChanged, onMove }: {
+function MediaRow({ item, slot, first, last, onChanged, onDeleted, onMove }: {
   item: HomeMediaItem;
   slot: HomeMediaSlot;
   first: boolean;
   last: boolean;
   onChanged: (item: HomeMediaItem) => void;
+  onDeleted: (id: number) => void;
   onMove: (dir: -1 | 1) => void;
 }) {
   const [link, setLink] = useState(item.link ?? '');
   const [busy, setBusy] = useState(false);
+  // 刪除要按兩次：第一次只把按鈕換成「确认删除？」（後台 viewer 不支援 window.confirm）。
+  const [confirming, setConfirming] = useState(false);
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await adminApi.deleteHomeMedia(item.id);
+      onDeleted(item.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除失败。');
+      setConfirming(false);
+      setBusy(false);
+    }
+  };
   const [error, setError] = useState<string | null>(null);
   const linkOk = link === '' || isSafeMediaLink(link);
   const save = async (patch: { link?: string | null; active?: boolean }) => {
@@ -102,7 +117,16 @@ function MediaRow({ item, slot, first, last, onChanged, onMove }: {
           <Button variant={item.active ? 'danger' : 'ghost'} busy={busy} onClick={() => save({ active: !item.active })}>{item.active ? '停用' : '重新启用'}</Button>
           <Button variant="ghost" disabled={first || busy} onClick={() => onMove(-1)} aria-label="往前"><ArrowUp size={12} /></Button>
           <Button variant="ghost" disabled={last || busy} onClick={() => onMove(1)} aria-label="往后"><ArrowDown size={12} /></Button>
+          {confirming ? (
+            <>
+              <Button variant="danger" busy={busy} onClick={() => void remove()}>确认删除？</Button>
+              <Button variant="ghost" disabled={busy} onClick={() => setConfirming(false)}>取消</Button>
+            </>
+          ) : (
+            <Button variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>删除</Button>
+          )}
         </div>
+        {confirming && <p className="text-[11px] text-red-700">删除后首页不再出现这一张，档案也一起删掉，不能复原。只是暂时不想放，用「停用」就好。</p>}
       </div>
     </li>
   );
@@ -216,6 +240,7 @@ export default function HomeMediaPanel({ onError }: { onError: (view: AdminError
                     first={i === 0}
                     last={i === inSlot.length - 1}
                     onChanged={replace}
+                    onDeleted={id => setItems(list.filter(x => x.id !== id))}
                     onMove={dir => void move(slot, i, dir)}
                   />
                 ))}

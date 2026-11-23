@@ -1224,6 +1224,13 @@ export async function findHomeMedia(id: number): Promise<HomeMediaItem | null> {
   return row ? homeMediaFromRow(row) : null;
 }
 
+/** 刪一張素材（只刪那一列；檔案由路由層另外刪）。回有沒有刪到。 */
+export async function deleteHomeMedia(id: number): Promise<boolean> {
+  const p = requirePool();
+  const [result] = await p.execute('DELETE FROM home_media WHERE id = ?', [id]);
+  return (result as ResultSetHeader).affectedRows > 0;
+}
+
 /** 局部更新：帶了才改（連結、排序、啟用、封面、檔案網址）。回整張；不存在回 null。 */
 export async function updateHomeMedia(
   id: number,

@@ -60,6 +60,7 @@ import { readLegalMarkdown } from '../legal/markdown';
 import { isLegalDocKey } from '../legal/shape';
 import { HOME_CARD_SLOTS, isHomeMediaSlot, isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
 import path from 'path';
+import { removeHomeMediaFiles } from '../homeMedia/files';
 import crypto from 'crypto';
 import { listWecomQrs, removeWecomQr, saveWecomQr, type WecomQrKey } from '../wecomQr/store';
 import { buildSummaryTable, channelOf, readSummaryOptions, readSummaryPage, summaryPageOf, type SummarySource } from './parentSummary';
@@ -2027,7 +2028,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
   // ── 首頁素材（客戶 10/22，#87／#88；`src/homeMedia/shape.ts`）──
   //
   // 全域管理員才碰得到（全站一套，不屬於任何一家合作公司）。新增＝上傳一個檔（請求本體就是檔案，同示範片），
-  // 檔名由伺服器決定；連結、排序、啟用走 PATCH；短片的封面另一支（後台瀏覽器抽一格）。沒有刪除：停用就好。
+  // 檔名由伺服器決定；連結、排序、啟用走 PATCH；短片的封面另一支（後台瀏覽器抽一格）。
+  // 刪除（使用者 2026-11-23）：刪那一列，盡力刪檔與封面（`src/homeMedia/files.ts`，只動 `home/` 裡面的檔）。
   const homeDir = hooks.homeMediaDir;
   if (homeDir) {
     const homeFolder = path.join(homeDir, 'home');
@@ -2102,6 +2104,21 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       } catch (err: any) {
         console.error('[Admin] upload home media poster failed:', err.message);
         res.status(500).json({ error: '上传封面失败，请再试一次。' });
+      }
+    });
+
+    router.delete('/home-media/:id', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = /^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : NaN;
+      try {
+        const item = Number.isInteger(id) ? await store.findHomeMedia(id) : null;
+        if (!item || !(await store.deleteHomeMedia(id))) { res.status(404).json({ error: '找不到这一张素材。' }); return; }
+        const failed = await removeHomeMediaFiles(homeFolder, [item.url, item.posterUrl]);
+        if (failed.length > 0) console.warn(`[Admin] home media ${id} deleted but files left behind: ${failed.join('; ')}`);
+        res.json({ ok: true });
+      } catch (err: any) {
+        console.error('[Admin] deleteHomeMedia failed:', err.message);
+        res.status(500).json({ error: '删除素材失败。' });
       }
     });
 

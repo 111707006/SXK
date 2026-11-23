@@ -693,6 +693,9 @@ export const adminApi = {
   updateHomeMedia: (id: number, patch: { link?: string | null; sortOrder?: number; active?: boolean }) =>
     request<{ item: HomeMediaItem }>(`/home-media/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 
+  /** 刪一張素材（連檔案）；停用不想放就好，刪了不能復原。 */
+  deleteHomeMedia: (id: number) => request<{ ok: true }>(`/home-media/${id}`, { method: 'DELETE' }),
+
   // 批量匯入（v2.1 S25）：先 dryRun 試跑、給人看過，再同一份 rows 正式匯入。
   importActivities: (rows: unknown[], dryRun: boolean) =>
     request<ActivityImportReport>('/activities/import', {

@@ -50,6 +50,11 @@ vi.mock('../src/admin/adminStore', async () => {
       db.rows.push(row);
       return item(row);
     },
+    async deleteHomeMedia(id: number) {
+      const before = db.rows.length;
+      db.rows = db.rows.filter(x => x.id !== id);
+      return db.rows.length < before;
+    },
     async updateHomeMedia(id: number, patch: { link?: string | null; sortOrder?: number; active?: boolean; posterUrl?: string }) {
       const r = db.rows.find(x => x.id === id);
       if (!r) return null;
@@ -212,6 +217,56 @@ describe('上傳、公開端點、停用', () => {
     expect(resp.status).toBe(200);
     expect((await resp.json()).item.posterUrl).toMatch(/^\/media\/home\/poster-\d+-[0-9a-f]{8}\.jpg\?v=\d+$/);
     expect((await put(i.id)).status).toBe(404);
+  });
+});
+
+describe('刪除（使用者 2026-11-23）', () => {
+  const del = (id: number, token?: string) => client.request(`/api/admin/home-media/${id}`, { method: 'DELETE', headers: token ? h(token) : {} });
+
+  it('未登入 401、合作公司 403，列與檔都還在', async () => {
+    const god = await login('god@sxk.com', 'pw-god-123');
+    const { item } = await (await upload('slot=banner&kind=image', JPG, 'image/jpeg', god)).json();
+    expect((await del(item.id)).status).toBe(401);
+    expect((await del(item.id, await login('a@jia.com', 'pw-jia-123'))).status).toBe(403);
+    expect(store.__db.rows).toHaveLength(1);
+    expect(homeFiles()).toHaveLength(1);
+  });
+
+  it('刪那一列與它的檔、封面；公開端點不再回它；其他張不動', async () => {
+    const token = await login('god@sxk.com', 'pw-god-123');
+    const v = (await (await upload('slot=banner&kind=video', MP4, 'video/mp4', token)).json()).item;
+    const keep = (await (await upload('slot=banner&kind=image', JPG, 'image/jpeg', token)).json()).item;
+    await client.request(`/api/admin/home-media/${v.id}/poster`, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', ...h(token) }, body: JPG });
+    expect(homeFiles()).toHaveLength(3);
+
+    const resp = await del(v.id, token);
+    expect(resp.status).toBe(200);
+    expect(store.__db.rows.map((r: any) => r.id)).toEqual([keep.id]);
+    const left = homeFiles();
+    expect(left).toHaveLength(1);
+    expect(keep.url).toContain(left[0]);
+    expect((await (await client.get('/api/home/media')).json()).banners.map((x: any) => x.id)).toEqual([keep.id]);
+    expect((await client.get(v.url)).status).toBe(404);
+  });
+
+  it('找不到 404；檔已經不在也照樣刪掉那一列', async () => {
+    const token = await login('god@sxk.com', 'pw-god-123');
+    expect((await del(999, token)).status).toBe(404);
+    const { item } = await (await upload('slot=banner&kind=image', JPG, 'image/jpeg', token)).json();
+    fs.rmSync(path.join(TMP, 'home'), { recursive: true, force: true });
+    expect((await del(item.id, token)).status).toBe(200);
+    expect(store.__db.rows).toEqual([]);
+  });
+
+  it('網址被改成 home/ 外面的檔：列照刪，外面的檔不碰', async () => {
+    const token = await login('god@sxk.com', 'pw-god-123');
+    const { item } = await (await upload('slot=banner&kind=image', JPG, 'image/jpeg', token)).json();
+    const outside = path.join(TMP, 'outside.txt');
+    fs.writeFileSync(outside, 'keep');
+    store.__db.rows[0].url = '/media/home/../outside.txt';
+    store.__db.rows[0].poster_url = '/media/home/..%2Foutside.txt';
+    expect((await del(item.id, token)).status).toBe(200);
+    expect(fs.existsSync(outside)).toBe(true);
   });
 });
 

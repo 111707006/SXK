@@ -317,7 +317,8 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `/api/home/config` | GET | 专案 A：新版首页开了没（开关 `HOME_V2`，issue #72），回 `{enabled}`；**公开，不需登入**。B 是 404 | 无 |
 | `/api/home/media` | GET | 专案 A：首页素材（`HOME_MEDIA`，#87）：回 `{splash, banners, cards: {t1, training}}`（启用中的开屏一张、轮播依排序；`cards` 是首页 T1 卡与「线上家庭个性化训练」卡的图，各取启用中排序最前的一张、没设是 `null`＝用内建的图，11/03 第 7 页；`src/homeMedia/shape.ts`）。开关关着、没有资料库、读失败一律回空。**公开，不需登入**。B 是 404 | 无 |
 | `/api/admin/home-media` | GET／POST | 后台首页素材（全域管理员，`HOME_MEDIA` 开着才注册）：GET 回全部（含停用）；POST `?slot=splash｜banner｜card_t1｜card_training&kind=image｜video`（两个 `card_*` 只收图片，短片 400），本体就是档案（jpg／png ≤2 MB、mp4 ≤30 MB，看档头），存成 `MEDIA_DIR/home/<槽位>-<时间>-<乱数>.<副档名>`、网址带 `?v=`。不对的 415、太大 413，都不写档 | `Authorization: Bearer <后台 token>` |
-| `/api/admin/home-media/:id` | PATCH | 改连结（只收站内路径或 https，`isSafeMediaLink`；`null` 清掉）、排序、启用（带了才改）；没有删除 | 同上 |
+| `/api/admin/home-media/:id` | PATCH | 改连结（只收站内路径或 https，`isSafeMediaLink`；`null` 清掉）、排序、启用（带了才改） | 同上 |
+| `/api/admin/home-media/:id` | DELETE | 删一张素材（使用者 2026-11-23）：删那一列，尽力删 `MEDIA_DIR/home/` 里它的档与封面（`src/homeMedia/files.ts`：只认 `/media/home/<一段档名>`、解出来要在 `home/` 里面；删不掉记一行 log、请求照样成功）。找不到 404。画面按两次（「删除」→「确认删除？」） | 同上 |
 | `/api/admin/home-media/:id/poster` | PUT | 短片的封面（jpg ≤2 MB，后台浏览器抽的一格）；图片 404 | 同上 |
 | `/api/legal` | GET | 专案 A：后台编辑过的两份条款（`LEGAL_DOCS`，11/03 第 14 页）：回 `{service, privacy}`，各是 `{markdown, updatedAt}` 或 `null`（没存过＝家长端画内建条款）。开关关着、没有资料库、读失败都回两份 `null`。**公开，不需登入**。B 是 404 | 无 |
 | `/api/admin/legal` | GET | 后台读两份条款（全域管理员，`LEGAL_DOCS` 开着才注册） | `Authorization: Bearer <后台 token>` |

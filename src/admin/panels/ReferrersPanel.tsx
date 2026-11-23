@@ -81,7 +81,6 @@ export default function ReferrersPanel({
         }
       >
         {error && <p className="mb-3 text-[11px] font-bold text-red-700">{error}</p>}
-        {!showCreate && <p className="mb-3 text-[11px] text-brand-charcoal/60">开设推荐人在「合作单位」那一页：展开机构，按「新增推荐人」。</p>}
         {loading ? <Spinner /> : failure ? <ErrorNote message={failure} onRetry={reload} /> : (data?.referrers.length ?? 0) === 0 ? (
           <EmptyState title="还没有推荐人" />
         ) : (

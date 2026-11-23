@@ -118,6 +118,11 @@ import { readReconcileMinutes, reconcilePendingOnce } from './src/payments/recon
 import { Alerter, readAlertWebhook, wecomSender } from './src/alerts';
 import helmet from 'helmet';
 import { LLMClient, Config } from 'coze-coding-dev-sdk';
+import { adhdRouteVerdict } from './src/adhd/routeGate';
+import { buildAssessFiles, readBuiltAssessFiles } from './src/adhd/pageFiles';
+import { ASSESS_PATH, BRIDGE_PATH } from './src/adhd/page';
+import { createAdhdRouter } from './src/adhd/routes';
+import * as adhdAssessments from './src/db/adhdAssessments';
 
 dotenv.config();
 
@@ -147,17 +152,32 @@ const LISTEN_HOST = (() => {
 // unrecognised value kills the process instead of quietly falling back to
 // 'full'. A typo that fell back would leave the tier-2/3 endpoints serving on
 // the box handed to the partner company, with nothing to signal it.
-type AppMode = 'full' | 't1only';
+//
+// 'adhd' (2026-11-23, docs/specs/adhd-product-design.md) is a third product: adult ADHD screening on
+// arscreen.cn. Login, partner companies and the admin centre behave as in project B; the assessment and
+// report are the client's own HTML page at /assess/ (src/adhd/). Everything else is closed by the
+// allow-list in src/adhd/routeGate.ts.
+type AppMode = 'full' | 't1only' | 'adhd';
 
 function resolveAppMode(raw: string | undefined): AppMode {
   if (raw === undefined || raw === '') return 'full';
-  if (raw === 'full' || raw === 't1only') return raw;
+  if (raw === 'full' || raw === 't1only' || raw === 'adhd') return raw;
   throw new Error(
-    `APP_MODE is not recognised: ${JSON.stringify(raw)}. Only 'full' (project A) or 't1only' (project B) are accepted.`
+    `APP_MODE is not recognised: ${JSON.stringify(raw)}. Only 'full' (project A), 't1only' (project B) or 'adhd' (adult ADHD) are accepted.`
   );
 }
 
 const APP_MODE = resolveAppMode(process.env.APP_MODE);
+
+// Adult ADHD: only the allow-listed paths exist (src/adhd/routeGate.ts). Registered before every other
+// route so nothing below can answer first.
+if (APP_MODE === 'adhd') {
+  app.use((req, res, next) => {
+    if (adhdRouteVerdict(req.path) === 'pass') return next();
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });
+    res.status(404).end();
+  });
+}
 
 /**
  * ICP 備案號 —— 給**伺服器自己吐出的那幾頁 HTML** 用的（家長掃碼帶走的報告頁、
@@ -411,7 +431,7 @@ const paidOnly = APP_MODE === 'full' ? app : express.Router();
 //
 // It lives here rather than being read from src/productConfig.ts because that
 // module reads `import.meta.env`, which only exists in the browser build.
-const COMPANIES_ENABLED = APP_MODE === 't1only' || A_COMPANIES;
+const COMPANIES_ENABLED = APP_MODE === 't1only' || APP_MODE === 'adhd' || A_COMPANIES;
 const ADMIN_MULTI_COMPANY = COMPANIES_ENABLED;
 
 // Per-company branding is a project-B-only idea, so the endpoint that serves it
@@ -538,7 +558,7 @@ const CSP_MODE = readCspMode(process.env.CSP_MODE);
 const ALERT_WEBHOOK = readAlertWebhook(process.env.ALERT_WEBHOOK_URL);
 const alerter = new Alerter(
   ALERT_WEBHOOK ? wecomSender(ALERT_WEBHOOK) : null,
-  `${APP_MODE === 'full' ? 'A' : 'B'} ${(process.env.PUBLIC_BASE_URL || '').replace(/^https?:\/\//, '') || 'server'}`,
+  `${APP_MODE === 'full' ? 'A' : APP_MODE === 'adhd' ? 'ADHD' : 'B'} ${(process.env.PUBLIC_BASE_URL || '').replace(/^https?:\/\//, '') || 'server'}`,
 );
 if (alerter.enabled) {
   app.use((req, res, next) => {
@@ -1003,7 +1023,8 @@ async function callQwenVision(frames: string[], prompt: string): Promise<any> {
 // 舊版 T1 報告的本地模板（開關 `T1_REPORT_REAL` 關著、或專案 B 時用）搬到 `src/t1report/legacy.ts`，
 // 輸出一字不變；比對腳本 `scripts/t1-report-compare.ts` 也呼叫同一支。
 function generateFallbackReport(child: any, scores: any[]) {
-  return generateLegacyFallbackReport(child, scores, APP_MODE);
+  // adhd 走不到這裡（/api/report 在白名單外），型別上當成 B。
+  return generateLegacyFallbackReport(child, scores, APP_MODE === 'adhd' ? 't1only' : APP_MODE);
 }
 
 /**
@@ -4849,6 +4870,56 @@ ${BRAND_FONT_LINK_TAG}
 </html>`;
 }
 
+// ── 成人 ADHD 的作答與報告頁（客戶的 HTML ＋ bridge，src/adhd/page.ts）──
+// 只在 `APP_MODE=adhd`。正式站讀建置時寫好的 `dist/assess/`；開發與測試從 `ADHD/` 原檔現組。啟動時就讀，
+// 讀不到或客戶換版少了探針就讓程序起不來（不要起一個 /assess/ 是 404 的站）。
+// 頁面與 bridge 都不放長快取：換版本後下一次開頁就是新的（bridge 網址另帶內容雜湊）。
+if (APP_MODE === 'adhd') {
+  const assess =
+    process.env.NODE_ENV === 'production'
+      ? readBuiltAssessFiles(path.join(process.cwd(), 'dist'))
+      : buildAssessFiles(process.cwd());
+  // Express 預設不分結尾斜線，`/assess` 與 `/assess/` 會進同一支：沒有斜線的轉一次（頁面裡的相對路徑才對）。
+  app.get([ASSESS_PATH, `${ASSESS_PATH}index.html`], (req, res) => {
+    const [pathname, query] = req.originalUrl.split(/\?(.*)/s, 2);
+    if (pathname === ASSESS_PATH.slice(0, -1)) {
+      return res.redirect(302, ASSESS_PATH + (query ? `?${query}` : ''));
+    }
+    res.setHeader('Cache-Control', 'no-cache');
+    res.type('html').send(assess.html);
+  });
+  app.get(BRIDGE_PATH, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.type('application/javascript').send(assess.bridge);
+  });
+}
+
+// 成人 ADHD 受評者端的三支（src/adhd/routes.ts）。只在 `APP_MODE=adhd`。
+if (APP_MODE === 'adhd') {
+  app.use(
+    createAdhdRouter({
+      requireUser: async (req, res) => {
+        const userId = currentUserId(req);
+        if (!userId) {
+          res.status(401).json({ error: '请先登录。', code: 'UNAUTHENTICATED' });
+          return null;
+        }
+        if (await sessionAccountMissing(userId)) {
+          res.status(401).json({ error: '登录状态已失效，请重新登录。', code: 'UNAUTHENTICATED' });
+          return null;
+        }
+        return userId;
+      },
+      dbUserIdOf: userId => (mysqlDb.isConfigured() ? toDbUserId(userId) : null),
+      store: {
+        upsert: (userId, input) => withTimeout(adhdAssessments.upsertAdhdAssessment(userId, input), 5000),
+        list: userId => withTimeout(adhdAssessments.listAdhdAssessments(userId), 5000),
+        findPayload: (userId, id) => withTimeout(adhdAssessments.findAdhdAssessmentPayload(userId, id), 5000),
+      },
+    }),
+  );
+}
+
 // ── 管理中心 ──
 // 掛在這裡（所有家長端路由之後、404 兜底之前）。路由本身在 src/admin/routes.ts，
 // 那個檔案不得直接碰資料庫 —— 後台的每一句家長查詢都必須經過帶公司條件的
@@ -5020,7 +5091,9 @@ export async function startServer() {
     console.log(
       `[SenXinKang Server] APP_MODE=${APP_MODE} (${APP_MODE === 'full'
         ? 'project A — tier-2/3 endpoints registered'
-        : 'project B — tier-2/3 endpoints NOT registered'}), port from ${portSource}`
+        : APP_MODE === 'adhd'
+          ? 'adult ADHD — only login, admin, company brand and /api/adhd/* are open; assessment page at /assess/'
+          : 'project B — tier-2/3 endpoints NOT registered'}), port from ${portSource}`
     );
     if (T1_REPORT_REAL) {
       console.log('[SenXinKang Server] T1_REPORT_REAL=1: T1 reports use per-item answers, validated AI text or the per-child template; no gauge numbers.');

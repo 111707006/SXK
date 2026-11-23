@@ -22,3 +22,11 @@ export function buildAssessFiles(rootDir: string): AssessFiles {
   const bridgeVersion = createHash('sha256').update(bridge).digest('hex').slice(0, 12);
   return { html: patchAdhdPage(original, bridgeVersion), bridge, bridgeVersion };
 }
+
+/** 正式站：讀建置時寫好的 `dist/assess/`（`vite.config.ts` 的 `adhdAssess()`）。 */
+export function readBuiltAssessFiles(distDir: string): Omit<AssessFiles, 'bridgeVersion'> {
+  return {
+    html: readFileSync(join(distDir, 'assess', 'index.html'), 'utf8'),
+    bridge: readFileSync(join(distDir, 'assess', 'bridge.js'), 'utf8'),
+  };
+}

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ClipboardList, FileText, LogOut, Plus } from 'lucide-react';
 import AuthScreen from '../components/AuthScreen';
 import { BrandMark } from '../components/BrandMark';
+import { BeianFooter } from '../components/BeianFooter';
 import { PRODUCT } from '../productConfig';
 import { ASSESS_PATH } from './page';
 
@@ -102,7 +103,7 @@ export default function AdhdShell() {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-brand-cream/40 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-brand-cream/40 flex flex-col items-center justify-center gap-4 p-4">
         <AuthScreen
           dbConfigured={null}
           onAuthSuccess={(phone, newToken) => {
@@ -122,6 +123,7 @@ export default function AdhdShell() {
             setIdentity(phone);
           }}
         />
+        <BeianFooter />
       </div>
     );
   }
@@ -201,6 +203,7 @@ export default function AdhdShell() {
 
       <footer className="max-w-3xl mx-auto px-4 pb-8 text-center text-[11px] text-brand-charcoal/50">
         {PRODUCT.brand.copyright}
+        <BeianFooter />
       </footer>
     </div>
   );

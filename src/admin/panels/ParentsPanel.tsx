@@ -239,8 +239,12 @@ export default function ParentsPanel({
           <ErrorNote message={failure} onRetry={reload} />
         ) : parents.length === 0 ? (
           <EmptyState
-            title="这个视野里还没有家长"
-            hint={serviceRelations
+            title={readOnly ? '你名下还没有家长' : '这个视野里还没有家长'}
+            hint={readOnly
+              ? serviceRelations
+                ? '家长用了你的连结或兑换码、由你代填，或由单位改派给你，就会出现在这里。'
+                : '家长用了你的兑换码、或由你代填，就会出现在这里。'
+              : serviceRelations
               ? '家长从这个单位的连结进站、用这个单位的兑换码，或由管理者改派过来，就会出现在这里。'
               : '家长要从这家公司的进站连结（带 ?c= 识别码）注册，才会归属到这里。既有家长不会被批次指派。'}
           />

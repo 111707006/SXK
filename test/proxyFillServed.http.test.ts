@@ -42,6 +42,7 @@ vi.mock('../src/admin/adminStore', async () => {
     },
     async proxyFillServed(party: any, adminUserId: number, input: any) {
       db.calls.push({ fn: 'fillServed', party, adminUserId });
+      if (input.phone === '13800000009') return { ok: false, reason: 'no_code' };
       return other(input.phone) ? { ok: false, reason: 'other' } : { ok: true, userId: 1, consumedCodeId: 5, endsOn: null };
     },
     async proxyLookup(referrer: any) {
@@ -115,6 +116,14 @@ describe('開著：代填的人', () => {
     expect((await res.json()).code).toBe('OTHER_REFERRER');
   });
 
+  it('手上沒有同月數的未用碼：409 NO_FREE_CODE，說要先申請兌換碼（使用者 2026-11-23）', async () => {
+    const res = await on.postJson('/api/admin/referrer/proxy', { ...FILL, phone: '13800000009' }, mgr());
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe('NO_FREE_CODE');
+    expect(body.error).toContain('兑换码');
+  });
+
   it('送出：proxyFillServed 拿到代填的人與後台帳號', async () => {
     const res = await on.postJson('/api/admin/referrer/proxy', FILL, mgr());
     expect(await res.json()).toEqual({ ok: true, consumedCode: true });
@@ -141,8 +150,10 @@ describe('資料層（開著那一支）', () => {
     expect(guard).toBeLessThan(fill.indexOf('INSERT INTO users'));
   });
 
-  it('單位層的碼寫 company_id；推薦人才寫推薦綁定', () => {
-    expect(fill).toContain('INSERT INTO redeem_batches (company_id, months, quantity, created_by) VALUES (?, ?, 1, ?)');
+  it('推薦人扣自己的碼、單位管理者扣單位的碼；沒有就退回不產碼；推薦人才寫推薦綁定', () => {
+    expect(fill).toContain("const ownerColumn = party.kind === 'referrer' ? 'b.referrer_id' : 'b.company_id';");
+    expect(fill).not.toContain('INSERT INTO redeem_batches');
+    expect(fill).toMatch(/if \(!\(free as any\[\]\)\[0\]\) \{\s*await conn\.rollback\(\);\s*return \{ ok: false, reason: 'no_code' \};/);
     expect(fill).toMatch(/if \(party\.kind === 'referrer'\) \{\s*await conn\.execute\(\s*"INSERT IGNORE INTO referrer_bindings/);
   });
 

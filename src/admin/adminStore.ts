@@ -1912,11 +1912,13 @@ export async function proxyLookup(referrer: { id: number; companyId: number | nu
 
 export type ProxyFillResult =
   | { ok: true; userId: number; consumedCodeId: number | null; endsOn: string | null }
-  | { ok: false; reason: 'other' };
+  | { ok: false; reason: 'other' }
+  /** 第一次代填這位家長，但代填的人手上沒有同月數的未用碼（使用者 2026-11-23：要有兌換碼才能代填，不再自動產碼）。 */
+  | { ok: false; reason: 'no_code' };
 
 /**
  * 代填，一個交易：找或建家長 → 擋別人名下的 → 寫孩子資料 → 寫一份「代填」快照 → 第一次代填才用掉該推薦人一組同月數的
- * 未用碼（沒有就先為他產一組再用掉，對帳表上一樣是一組）、發一段 `proxy` 使用權、綁定。再代填只覆蓋快照（舊的留著）、不再扣碼。
+ * 未用碼（沒有就整筆退回 `no_code`，不再自動產碼；使用者 2026-11-23）、發一段 `proxy` 使用權、綁定。再代填只覆蓋快照（舊的留著）、不再扣碼。
  * 任何一步失敗整個退回。
  */
 export async function proxyFill(
@@ -1967,16 +1969,11 @@ export async function proxyFill(
           ORDER BY c.id ASC LIMIT 1 FOR UPDATE`,
         [referrer.id, input.months]
       );
-      if ((free as any[])[0]) {
-        consumedCodeId = Number((free as any[])[0].id);
-      } else {
-        const [batch] = await conn.execute(
-          'INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, 1, ?)',
-          [referrer.id, input.months, referrer.adminUserId]
-        );
-        const [code] = await conn.execute('INSERT INTO redeem_codes (batch_id, code) VALUES (?, ?)', [(batch as ResultSetHeader).insertId, input.generateCode()]);
-        consumedCodeId = (code as ResultSetHeader).insertId;
+      if (!(free as any[])[0]) {
+        await conn.rollback();
+        return { ok: false, reason: 'no_code' };
       }
+      consumedCodeId = Number((free as any[])[0].id);
       await useCodeAndIssueProxyPass(conn, userId, consumedCodeId, input);
       await conn.execute(
         "INSERT IGNORE INTO referrer_bindings (user_id, referrer_id, source, ref_id) VALUES (?, ?, 'proxy', ?)",
@@ -2125,18 +2122,11 @@ export async function proxyFillServed(
           ORDER BY c.id ASC LIMIT 1 FOR UPDATE`,
         [ownerId, input.months]
       );
-      if ((free as any[])[0]) {
-        consumedCodeId = Number((free as any[])[0].id);
-      } else {
-        const [batch] = await conn.execute(
-          party.kind === 'referrer'
-            ? 'INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, 1, ?)'
-            : 'INSERT INTO redeem_batches (company_id, months, quantity, created_by) VALUES (?, ?, 1, ?)',
-          [ownerId, input.months, adminUserId]
-        );
-        const [code] = await conn.execute('INSERT INTO redeem_codes (batch_id, code) VALUES (?, ?)', [(batch as ResultSetHeader).insertId, input.generateCode()]);
-        consumedCodeId = (code as ResultSetHeader).insertId;
+      if (!(free as any[])[0]) {
+        await conn.rollback();
+        return { ok: false, reason: 'no_code' };
       }
+      consumedCodeId = Number((free as any[])[0].id);
       await useCodeAndIssueProxyPass(conn, userId, consumedCodeId, input);
       if (party.kind === 'referrer') {
         await conn.execute(

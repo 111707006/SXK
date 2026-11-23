@@ -1709,6 +1709,11 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       return { kind: 'referrer', referrerId: referrer.id, companyId: referrer.companyId };
     };
     const OTHER_SERVED = { error: '这位家长由其他老师或单位服务', code: 'OTHER_REFERRER' };
+    // 使用者 2026-11-23：要有兌換碼才能代填（第一次代填一位家長扣一組同月數的未用碼），沒有就擋下，不再自動產碼。
+    const noFreeCode = (months: number) => ({
+      error: `你手上没有 ${months} 个月的未用兑换码，请先向森心康申请兑换码再代填。`,
+      code: 'NO_FREE_CODE',
+    });
 
     router.post('/referrer/proxy/lookup', async (req: AuthedRequest, res) => {
       try {
@@ -1754,7 +1759,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
             today: calendarDateOf(now),
             generateCode: () => generateCode(max => crypto.randomInt(max)),
           });
-          if (!served.ok) return void res.status(409).json(OTHER_SERVED);
+          if (!served.ok) return void res.status(409).json(served.reason === 'no_code' ? noFreeCode(input.months) : OTHER_SERVED);
           return void res.json({ ok: true, consumedCode: served.consumedCodeId !== null });
         }
         if (!referrer) return;
@@ -1769,7 +1774,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
             generateCode: () => generateCode(max => crypto.randomInt(max)),
           }
         );
-        if (!result.ok) return void res.status(409).json({ error: '这位家长已由其他推荐人服务', code: 'OTHER_REFERRER' });
+        if (!result.ok) return void res.status(409).json(result.reason === 'no_code' ? noFreeCode(input.months) : { error: '这位家长已由其他推荐人服务', code: 'OTHER_REFERRER' });
         res.json({ ok: true, consumedCode: result.consumedCodeId !== null });
       } catch (err: any) {
         console.error('[Admin] proxy fill failed:', err.message);

@@ -50,14 +50,14 @@ export default function AdminUsersPanel({
 
   const users = data?.adminUsers ?? [];
   const companyName = (id: number | null) =>
-    id === null ? '—' : (companies.find(c => c.id === id)?.name ?? `公司 #${id}`);
+    id === null ? '—' : (companies.find(c => c.id === id)?.name ?? `${units ? '单位' : '公司'} #${id}`);
 
   async function create() {
     // 沒選公司時 companyId 是空字串，而 `Number('')` 是 0 —— 送出去後端會回
     // 「找不到该合作公司」，於是管理員跑去懷疑公司清單，而真正的問題是他沒選。
     // 在這裡說清楚。
     if (role === 'company_member' && !companyId) {
-      setSaveFailure('请选择这个帐号所属的合作公司。');
+      setSaveFailure(units ? '请选择这个帐号所属的合作单位。' : '请选择这个帐号所属的合作公司。');
       return;
     }
     setBusy(true);
@@ -109,7 +109,7 @@ export default function AdminUsersPanel({
   return (
     <Panel
       title="后台帐号"
-      description="合作公司无法自行开设帐号。停用会立刻生效，对方下一个动作就会被挡下，不用等登入过期。"
+      description={`合作${units ? '单位' : '公司'}无法自行开设帐号。停用会立刻生效，对方下一个动作就会被挡下，不用等登入过期。`}
       action={
         !creating && (
           <Button onClick={() => setCreating(true)}>
@@ -146,11 +146,11 @@ export default function AdminUsersPanel({
               }}
             >
               <option value="company_member">{units ? '单位管理者（只看得到自己单位）' : '合作公司成员（只看得到自己公司）'}</option>
-              <option value="global_admin">全域管理员（可切换公司，看得到汇总）</option>
+              <option value="global_admin">{units ? '全域管理员（可切换单位，看得到汇总）' : '全域管理员（可切换公司，看得到汇总）'}</option>
             </Select>
           </Field>
           {role === 'company_member' && (
-            <Field label="所属合作公司">
+            <Field label={units ? '所属合作单位' : '所属合作公司'}>
               <Select value={companyId} onChange={e => setCompanyId(e.target.value)}>
                 <option value="">请选择</option>
                 {companies.map(c => (
@@ -201,7 +201,7 @@ export default function AdminUsersPanel({
                 <tr className="border-b border-brand-stone text-[10px] uppercase tracking-wide text-brand-charcoal/45">
                   <th className="py-2 pr-3 font-bold">信箱</th>
                   <th className="py-2 pr-3 font-bold">角色</th>
-                  <th className="py-2 pr-3 font-bold">所属公司</th>
+                  <th className="py-2 pr-3 font-bold">{units ? '所属单位' : '所属公司'}</th>
                   <th className="py-2 pr-3 font-bold">状态</th>
                   <th className="py-2 font-bold" />
                 </tr>

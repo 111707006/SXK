@@ -47,6 +47,7 @@ import OutOfRangeCard from './components/OutOfRangeCard';
 import { useViewHistory } from './utils/viewHistory';
 import SplashScreen from './home/SplashScreen';
 import ServiceSwitchPrompt from './components/ServiceSwitchPrompt';
+import { forgetServiceSwitch } from './serviceRelations/promptStore';
 import CompanyBadge from './components/CompanyBadge';
 import TrainingPlanPage from './components/training/TrainingPlanPage';
 import RedeemCodeForm from './components/training/RedeemCodeForm';
@@ -289,6 +290,7 @@ export default function App() {
     syncBase.current = { revision: null, reportIds: [] };
     setUserIdentity(null);
     setAuthToken(null);
+    forgetServiceSwitch();
 
     localStorage.removeItem('senxinkang_child');
     localStorage.removeItem('senxinkang_scores');

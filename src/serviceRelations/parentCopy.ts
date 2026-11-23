@@ -4,6 +4,8 @@
  */
 export const SERVICE_SWITCH_COPY = {
   title: '要换一位老师吗？',
+  /** 按了「换成」之後：結果那一句已經不是問句，標題也不該還在問。 */
+  resultTitle: '更换老师',
   question: (current: string, to: string) => `你目前由 ${current} 服务，要换成 ${to} 吗？`,
   hint: '换了之后，报告、订单、训练记录都会保留。',
   switchTo: (to: string) => `换成 ${to}`,

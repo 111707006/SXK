@@ -63,7 +63,7 @@ export default function ServiceSwitchPrompt({ loggedIn }: { loggedIn: boolean })
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="service-switch-title">
       <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl">
         <h2 id="service-switch-title" className="text-base font-bold text-brand-forest">
-          {SERVICE_SWITCH_COPY.title}
+          {message ? SERVICE_SWITCH_COPY.resultTitle : SERVICE_SWITCH_COPY.title}
         </h2>
         {message ? (
           <>

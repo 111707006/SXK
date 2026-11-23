@@ -58,6 +58,20 @@ export function clearServiceSwitch(): void {
   notify();
 }
 
+/**
+ * 登出：「本次登入內」到此為止 —— 選過「不換」的來源與打過的連結都忘掉，下一次登入照常問。
+ * 不忘的話，同一個分頁登出再登入，換人提示就再也不出現（2026-11-23 本機畫面測試抓到）。
+ */
+export function forgetServiceSwitch(): void {
+  try {
+    sessionStorage.removeItem(DECLINED_KEY);
+    sessionStorage.removeItem(CHECKED_LINK_KEY);
+  } catch {
+    // 不能用 sessionStorage：本來就沒記，不用忘。
+  }
+  clearServiceSwitch();
+}
+
 export function subscribeServiceSwitch(listener: () => void): () => void {
   listeners.add(listener);
   return () => void listeners.delete(listener);

@@ -252,6 +252,7 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
         </div>
         {note && <p className="text-[11px] font-bold text-brand-forest">{note}</p>}
         {all.length > 0 && (
+          <div className="flex">
           <Field label="只看">
             <Select value={filter} onChange={e => setFilter(e.target.value)} className="w-auto">
               <option value="">全部推荐人</option>
@@ -261,6 +262,7 @@ export default function CouponsPanel({ onError }: { onError: (view: AdminErrorVi
               {all.some(b => b.referrerId === null) && <option value="none">未指定推荐人（旧批次）</option>}
             </Select>
           </Field>
+          </div>
         )}
         {batches.length === 0 ? <EmptyState title="还没有优惠券" /> : (
           <ul className="space-y-2">

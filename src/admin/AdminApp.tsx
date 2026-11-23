@@ -387,9 +387,11 @@ function AdminCenter() {
                 <p className="mb-2 font-bold text-stone-900">这一页有两样东西，用途不同：</p>
                 <ul className="list-disc space-y-1.5 pl-5">
                   <li>
-                    <span className="font-bold text-stone-900">推荐人与兑换码（VIP 兑换）</span>：{unitsEnabled(shape)
-                      ? '开推荐人（治疗师）帐号，每位推荐人隶属一个合作单位；'
-                      : '开渠道商、治疗师的推荐人帐号；'}在每位推荐人底下产生兑换码。
+                    <span className="font-bold text-stone-900">推荐人与兑换码（VIP 兑换）</span>：{unitsMerged
+                      ? '推荐人（治疗师）在「合作单位」那一页开，每位推荐人隶属一个合作单位；这里'
+                      : unitsEnabled(shape)
+                        ? '开推荐人（治疗师）帐号，每位推荐人隶属一个合作单位；'
+                        : '开渠道商、治疗师的推荐人帐号；'}在每位推荐人底下产生兑换码。
                     家长在「线上家庭个性化训练」方案页点「VIP 兑换」输入，<span className="font-bold">直接开通线上家庭训练</span>（1／3／6／12 个月），不用付钱。
                   </li>
                   <li>

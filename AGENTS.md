@@ -90,6 +90,13 @@
 │   │   └── developmentIndex.ts # T1 逐题作答＋篩查月龄 → 100／90／80／75／70（题目独立卷积）；读不到逐题作答回 null
 │   ├── revenueSplit/      # 清分（ADR-0016）：split.ts 对方与比例的快照、金额怎么取整；ledger.ts 对帐列与合计（前端也载）；`.xlsx` 在 src/admin/splitXlsx.ts
 │   ├── profitSharing/     # 微信分账（ADR-0017，`PROFIT_SHARING`）：plan.ts 一笔实际分多少（最高分账比例、线下结）与设定；wechatApi.ts 四支 APIv3（添加接收方、请求分账、解冻、查询）与敏感栏位加密；run.ts 执行一轮；adminRoutes.ts 后台端点；资料层 src/db/profitSharing.ts；画面 src/admin/panels/ProfitSharingSection.tsx
+│   ├── adhd/              # 成人 ADHD（`APP_MODE=adhd`，arscreen.cn，設計 docs/specs/adhd-product-design.md、ADR-0021）
+│   │   ├── page.ts        # 客戶頁面（ADHD/）＋在 </body> 前插 bridge 那一行；探針（bridge 依賴的全域變數）；pageFiles.ts 讀檔組檔（建置與伺服器）
+│   │   ├── bridge.js      # 插進客戶頁面的唯一一支（純 ES5）：擋未登入、走到報告存 casePayload()、?view=／?admin-view= 只讀；換人清本機草稿
+│   │   ├── routeGate.ts   # adhd 這個程序只開哪些路徑（白名單，fail-closed）
+│   │   ├── payload.ts     # 存檔前的形狀檢查（不重算分數）；routes.ts 受評者三支；adminRoutes.ts／adminRows.ts／adminXlsx.ts 後台
+│   │   ├── AdhdShell.tsx  # 受評者端外殼：登入（B 的 AuthScreen、?c=）、歷次結果、開始新的評估
+│   │   └── AdhdPeoplePanel.tsx # 後台「受评者列表」：列表、iframe 只讀報告、導出
 │   ├── handoff/           # B→A 交接（ADR-0009、docs/specs/b-to-a-handoff.md）
 │   │   ├── core.ts        # 产码、杂凑、设定（HANDOFF_*）、两端之间那一包的形状（伺服器专用）
 │   │   ├── routes.ts      # 发出端三支（B）＋接收端一支（A）；server.ts 只注册、注入依赖
@@ -145,6 +152,7 @@
 │       ├── activitySteps.ts # 分解步骤怎么读：指令必填、图选填（ADR-0008）、最多 20 步
 │       ├── activityGuide.ts # 影片导引脚本（ActivityGuide）怎么读：后台送的 readGuide、资料库读回的 guideFromStored、编辑画面的草稿
 │       └── reportLayout.ts # 报告版面的伺服器开关（`T1_NO_WEEKLY_PLAN`，#71）：`GET /api/report-config`，整个分页问一次；逾时或失败照关画、下次再问
+├── ADHD/                  # 成人 ADHD 客戶單頁原檔（取自正式站 /var/www/arscreen/，一個位元組不改；.gitattributes 不轉換行）
 ├── NEWT2/                 # 客户 2026-09-08 评估工具包 zip 与 09-10 纸本版 zip（题库的来源）；
 │                          # 09-23 活动内容包里的两份 docx（手册总册、模组一脚本，原封不动取出；zip 与 mp4 不进 git）；
 │                          # 10-06 的《影片导引脚本·总册·300 支》（取代模组一单册当抽取来源）
@@ -338,6 +346,10 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 | `/api/admin/coupons/:id` | PATCH | 改一批的折法、到期日、备注（带了才改；之后开的订单照新的收） | 同上 |
 | `/api/admin/coupons/:id/codes`（`.csv`） | GET | 一批的每一张（状态、家长编号、用的时间；不 JOIN users）；`.csv` 只给未用的 | 同上 |
 | `/api/admin/coupon-codes/:id/void` | POST | 作废一张未用的（其他 409） | 同上 |
+| `/api/adhd/assessments` | POST | **只在 `APP_MODE=adhd`**：存一次評估 `{clientCaseId, payload}`（payload 是客戶頁面的 `casePayload()`），以（帳號, clientCaseId）upsert，回 `{id}`；伺服器只檢查形狀（`src/adhd/payload.ts`），不重算分數（ADR-0021）。形狀不符 400 不落表 | `Authorization: Bearer <token>` |
+| `/api/adhd/assessments` | GET | 同上：自己的歷次（`id, subjectName, conclusionStatus, conclusionTitle, createdAt, updatedAt`） | `Authorization: Bearer <token>` |
+| `/api/adhd/assessments/:id` | GET | 同上：自己的一筆 `{payload}`；別人的 404 | `Authorization: Bearer <token>` |
+| `/api/admin/adhd/assessments` | GET／`/:id` GET／`/export` POST | 同上，後台：列表（一頁 100）、單筆 payload（`/assess/?admin-view=` 用）、導出 `.xlsx`（記 `admin_exports`，kind `adhd_assessments`）；都走 `withScope` | `Authorization: Bearer <後台 token>` |
 | `/api/handoff/config` | GET | 专案 B：交接开了没（`{enabled, targetName}`／`{enabled: false}`）；B 报告页据此画不画那张卡 | 无 |
 | `/api/handoff/start` | POST | 专案 B：家长按「到森心康做深度评估」。回 `{url: "<A>/handoff#code=…", expiresInSec: 120}`（`no-store`）。没同意 400 `CONSENT_REQUIRED`、没手机号或没做 T1 409、没开 404 | `consent: true`；`Authorization: Bearer <token>` |
 | `/internal/handoff/redeem` | POST | 专案 B，**只给 A 的伺服器**：兑换交接码（**不过期、可重复**，每次记一次使用），交出手机、来源公司、孩子、T1 成绩、对得上的那份 T1 报告。任何失败都是同一个 404 | `code`；`Authorization: Bearer <HANDOFF_SECRET>` |

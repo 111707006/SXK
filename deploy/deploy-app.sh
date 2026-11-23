@@ -29,10 +29,12 @@ case "$PRODUCT" in
   # A 的目录与进程名照现场（它在双产品拆分之前就上线了），不是笔误。
   a) APP_DIR="/var/www/sxk";   PM2_NAME="sxk-app"; VITE_MODE="full"   ;;
   b) APP_DIR="/var/www/sxk-b"; PM2_NAME="sxk-b";   VITE_MODE="t1only" ;;
+  adhd) APP_DIR="/var/www/sxk-adhd"; PM2_NAME="sxk-adhd"; VITE_MODE="adhd" ;;
   *)
-    echo "用法: bash deploy-app.sh <a|b> [--build]"
-    echo "  a = 专案 A（APP_MODE=full,   :5000）"
-    echo "  b = 专案 B（APP_MODE=t1only, :5001）"
+    echo "用法: bash deploy-app.sh <a|b|adhd> [--build]"
+    echo "  a    = 专案 A（APP_MODE=full,   :5000）"
+    echo "  b    = 专案 B（APP_MODE=t1only, :5001）"
+    echo "  adhd = 成人 ADHD（APP_MODE=adhd, :5002，arscreen.cn）"
     exit 2
     ;;
 esac

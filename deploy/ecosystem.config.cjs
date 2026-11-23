@@ -88,5 +88,19 @@ module.exports = {
       error_file: '/var/log/sxk/b-error.log',
       out_file: '/var/log/sxk/b-out.log',
     },
+    {
+      // 成人 ADHD（arscreen.cn，2026-11-24，docs/specs/adhd-product-design.md）：登入與後台照 B，
+      // 作答與報告是客戶的頁面（dist/assess/）。資料庫 sxk_adhd_db，與 B 不共用。
+      ...base,
+      name: 'sxk-adhd',
+      cwd: '/var/www/sxk-adhd',
+      env: {
+        NODE_ENV: 'production',
+        DEPLOY_RUN_PORT: 5002,
+        APP_MODE: 'adhd',
+      },
+      error_file: '/var/log/sxk/adhd-error.log',
+      out_file: '/var/log/sxk/adhd-out.log',
+    },
   ],
 };

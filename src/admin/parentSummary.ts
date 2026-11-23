@@ -98,12 +98,25 @@ export function ageLabelOf(ageMonth: number | null): string | null {
 
 const STATUSES: ReadonlyArray<string> = ['normal', 'borderline', 'delay'];
 
-/** 每個維度最新的那一格 T1（同一個維度存了兩格時取 `completedAt` 晚的）。 */
+/**
+ * 2026-07-29 九維正名（2a1f4d8）之前存下的成績用的是舊 id：當時 id 與顯示名稱錯位
+ * （`fine_motor` 叫「感觉处理」、`sensory` 叫「情绪与行为」、`family_env` 叫「学习能力」），改名沒有遷移舊資料。
+ * 家長列表讀的是存下來的 `dimensionName`，所以照樣列得出；這裡照 id 對格，不換回來那三格就是空的。
+ */
+export const LEGACY_T1_DIMENSION_IDS: Readonly<Record<string, string>> = {
+  fine_motor: 'sensory_processing',
+  sensory: 'emotion_behavior',
+  family_env: 'learning_ability',
+};
+
+/** 每個維度最新的那一格 T1（同一個維度存了兩格時取 `completedAt` 晚的）；舊 id 先換成現在的。 */
 function latestT1ByDimension(scores: DimensionScore[]): Map<string, DimensionScore> {
   const out = new Map<string, DimensionScore>();
-  for (const s of scores) {
-    if (s?.tierId !== 'T1' || !STATUSES.includes(s.status)) continue;
-    if (!Number.isFinite(Number(s.score)) || !Number.isFinite(Number(s.maxScore))) continue;
+  for (const raw of scores) {
+    if (raw?.tierId !== 'T1' || !STATUSES.includes(raw.status)) continue;
+    if (!Number.isFinite(Number(raw.score)) || !Number.isFinite(Number(raw.maxScore))) continue;
+    const current = LEGACY_T1_DIMENSION_IDS[raw.dimensionId];
+    const s = current ? { ...raw, dimensionId: current } : raw;
     const prev = out.get(s.dimensionId);
     if (!prev || String(s.completedAt ?? '') >= String(prev.completedAt ?? '')) out.set(s.dimensionId, s);
   }

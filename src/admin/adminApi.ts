@@ -241,7 +241,8 @@ export interface AdminSpecialist {
 export interface AdminUser {
   id: number;
   email: string;
-  role: 'global_admin' | 'company_member';
+  /** 推薦人帳號（#93）也在這張表裡：伺服器回 `referrer`，`companyId` 一律 null（他的單位記在 `referrers`）。 */
+  role: 'global_admin' | 'company_member' | 'referrer';
   companyId: number | null;
   active: boolean;
 }

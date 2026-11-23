@@ -6,23 +6,15 @@
  *
  * 停用要立刻生效 —— 後端每一次請求都回查資料庫的啟用狀態，不等 token 過期。
  * 「對方有人離職」是這個功能存在的理由。
+ *
+ * 列表、表單、停用按鈕在 `AdminUserBlocks.tsx`（與合併後的「合作单位」分頁共用）。
  */
 import { useCallback, useState } from 'react';
-import { Plus, Save } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { adminApi, type AdminCompany } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
-import {
-  Button,
-  EmptyState,
-  ErrorNote,
-  Field,
-  Panel,
-  Select,
-  Spinner,
-  TextInput,
-  toErrorView,
-  useAsyncData,
-} from '../ui';
+import { Button, EmptyState, ErrorNote, Field, Panel, Select, Spinner, useAsyncData } from '../ui';
+import { AdminUserForm, AdminUserTable, SelfDeactivateNote, adminRoleLabel, useAdminUserToggle } from './AdminUserBlocks';
 
 type Role = 'global_admin' | 'company_member';
 
@@ -40,70 +32,31 @@ export default function AdminUsersPanel({
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
 
   const [creating, setCreating] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [role, setRole] = useState<Role>('company_member');
   const [companyId, setCompanyId] = useState<string>('');
-  const [busy, setBusy] = useState(false);
-  const [togglingId, setTogglingId] = useState<number | null>(null);
-  const [saveFailure, setSaveFailure] = useState<string | null>(null);
+  const toggler = useAdminUserToggle({ onError, onDone: reload });
 
   const users = data?.adminUsers ?? [];
   const companyName = (id: number | null) =>
     id === null ? '—' : (companies.find(c => c.id === id)?.name ?? `${units ? '单位' : '公司'} #${id}`);
 
-  async function create() {
+  async function create({ email, password }: { email: string; password: string }) {
     // 沒選公司時 companyId 是空字串，而 `Number('')` 是 0 —— 送出去後端會回
     // 「找不到该合作公司」，於是管理員跑去懷疑公司清單，而真正的問題是他沒選。
     // 在這裡說清楚。
     if (role === 'company_member' && !companyId) {
-      setSaveFailure(units ? '请选择这个帐号所属的合作单位。' : '请选择这个帐号所属的合作公司。');
-      return;
+      return units ? '请选择这个帐号所属的合作单位。' : '请选择这个帐号所属的合作公司。';
     }
-    setBusy(true);
-    setSaveFailure(null);
-    try {
-      await adminApi.createAdminUser({
-        email: email.trim(),
-        password,
-        role,
-        companyId: role === 'company_member' ? Number(companyId) : null,
-      });
-      setEmail('');
-      setPassword('');
-      setCompanyId('');
-      setCreating(false);
-      reload();
-    } catch (err) {
-      const view = toErrorView(err);
-      if (view.action === 'none') setSaveFailure(view.message);
-      else onError(view);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /**
-   * 停用／重新啟用。
-   *
-   * `togglingId` 不只是為了轉圈 —— 沒有它，慢速連線上使用者按了沒有任何回饋，
-   * 會再按一次，於是兩個請求各自 reload()，後回來的那個覆蓋先回來的，畫面顯示
-   * 的可能是中間某個狀態。變更權限的按鈕不該有這種模糊地帶。
-   */
-  async function toggleActive(id: number, active: boolean) {
-    if (togglingId !== null) return;
-    setTogglingId(id);
-    setSaveFailure(null);
-    try {
-      await adminApi.setAdminUserActive(id, active);
-      reload();
-    } catch (err) {
-      const view = toErrorView(err);
-      if (view.action === 'none') setSaveFailure(view.message);
-      else onError(view);
-    } finally {
-      setTogglingId(null);
-    }
+    toggler.setFailure(null);
+    await adminApi.createAdminUser({
+      email,
+      password,
+      role,
+      companyId: role === 'company_member' ? Number(companyId) : null,
+    });
+    setCompanyId('');
+    setCreating(false);
+    reload();
   }
 
   return (
@@ -120,23 +73,7 @@ export default function AdminUsersPanel({
       }
     >
       {creating && (
-        <div className="mb-5 max-w-xl space-y-3 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4">
-          <Field label="信箱">
-            <TextInput
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              autoComplete="off"
-            />
-          </Field>
-          <Field label="初始密码" hint="至少 8 个字元。请用另一个管道交给对方，并请对方尽快自行更换。">
-            <TextInput
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </Field>
+        <AdminUserForm onSubmit={create} onCancel={() => setCreating(false)} onError={onError}>
           <Field label="角色">
             <Select
               value={role}
@@ -161,25 +98,7 @@ export default function AdminUsersPanel({
               </Select>
             </Field>
           )}
-
-          {saveFailure && <ErrorNote message={saveFailure} />}
-
-          <div className="flex gap-2">
-            <Button onClick={() => void create()} busy={busy}>
-              <Save size={12} />
-              开设
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setCreating(false);
-                setSaveFailure(null);
-              }}
-            >
-              取消
-            </Button>
-          </div>
-        </div>
+        </AdminUserForm>
       )}
 
       {loading ? (
@@ -190,55 +109,19 @@ export default function AdminUsersPanel({
         <EmptyState title="还没有后台帐号" />
       ) : (
         <>
-          {saveFailure && !creating && (
+          {toggler.failure && !creating && (
             <div className="mb-3">
-              <ErrorNote message={saveFailure} />
+              <ErrorNote message={toggler.failure} />
             </div>
           )}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-brand-stone text-[10px] uppercase tracking-wide text-brand-charcoal/45">
-                  <th className="py-2 pr-3 font-bold">信箱</th>
-                  <th className="py-2 pr-3 font-bold">角色</th>
-                  <th className="py-2 pr-3 font-bold">{units ? '所属单位' : '所属公司'}</th>
-                  <th className="py-2 pr-3 font-bold">状态</th>
-                  <th className="py-2 font-bold" />
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id} className="border-b border-brand-stone/60 last:border-0">
-                    <td className="py-2.5 pr-3 text-brand-forest">{u.email}</td>
-                    <td className="py-2.5 pr-3 text-brand-charcoal/70">
-                      {u.role === 'global_admin' ? '全域管理员' : (u.role as string) === 'referrer' ? '推荐人' : units ? '单位管理者' : '公司成员'}
-                    </td>
-                    <td className="py-2.5 pr-3 text-brand-charcoal/70">{companyName(u.companyId)}</td>
-                    <td className="py-2.5 pr-3">
-                      {u.active ? (
-                        <span className="font-bold text-brand-moss">启用中</span>
-                      ) : (
-                        <span className="text-brand-charcoal/40">已停用</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 text-right">
-                      <Button
-                        variant={u.active ? 'danger' : 'ghost'}
-                        busy={togglingId === u.id}
-                        disabled={togglingId !== null}
-                        onClick={() => void toggleActive(u.id, !u.active)}
-                      >
-                        {u.active ? '停用' : '重新启用'}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-[10px] text-brand-charcoal/40">
-            不能停用自己的帐号——那会把自己锁在门外，而且没有第二个人能救。
-          </p>
+          <AdminUserTable
+            users={users}
+            roleLabel={u => adminRoleLabel(u.role, units)}
+            unitColumn={{ title: units ? '所属单位' : '所属公司', name: u => companyName(u.companyId) }}
+            togglingId={toggler.togglingId}
+            onToggle={(id, active) => void toggler.toggle(id, active)}
+          />
+          <SelfDeactivateNote />
         </>
       )}
     </Panel>

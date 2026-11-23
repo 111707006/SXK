@@ -118,8 +118,10 @@ describe('A 後台的「来源」欄', () => {
     // 推薦人（#93）的「我的家长」不列來源。
     expect(adminApp).toContain("showSource={PRODUCT.features.handoff === 'receive' && current.role !== 'referrer'}");
     const panel = stripComments(read('src/admin/panels/ParentsPanel.tsx'));
-    expect(panel).toMatch(/\{showSource && <th[^>]*>来源<\/th>\}/);
-    expect(panel).toContain('<SourceCell source={parent.handoffSource} />');
+    // 服務關係開著（只在 A）時欄名改「筛查系统转入」、沒轉入寫「—」；關著照舊「来源」／「直接注册」。
+    expect(panel).toMatch(/\{showSource && <th[^>]*>\{serviceRelations \? '筛查系统转入' : '来源'\}<\/th>\}/);
+    expect(panel).toContain('<SourceCell source={parent.handoffSource} plain={serviceRelations} />');
+    expect(panel).toContain("{plain ? '—' : '直接注册'}");
   });
 
   it('列表與詳情都讀第一次轉入那一筆（時間取最早、公司取最早那一列的快照）', () => {

@@ -418,7 +418,7 @@ npx tsx scripts/t1-report-compare.ts --all --writing 1022 --out <路径>   # 现
 > `test/handoffSource.http.test.ts`、`test/handoffTarget.http.test.ts`、`test/handoffFrontend.structure.test.ts`、
 > `test/handoffInvites.http.test.ts`（后台邀请）、`test/smsSender.test.ts`（邀请范本）。
 
-> 成人 ADHD（`APP_MODE=adhd`／`VITE_APP_MODE=adhd`，2026-11-24，設計 `docs/specs/adhd-product-design.md`、ADR-0021；**還沒部署**）：
+> 成人 ADHD（`APP_MODE=adhd`／`VITE_APP_MODE=adhd`，2026-11-24，設計 `docs/specs/adhd-product-design.md`、ADR-0021；2026-11-24 起在 `adhd.sxkscreen.com`）：
 > 第三個產品，網域 arscreen.cn，資料庫 `sxk_adhd_db`、PM2 `sxk-adhd`、埠 5002。登入（手機驗證碼）、合作單位 `?c=`、後台帳號、合作公司照 B；
 > 作答與報告**直接用客戶的 HTML**（`ADHD/`，建置寫到 `dist/assess/`，伺服器在 `/assess/` 回），只插一行 `src/adhd/bridge.js`。
 > 這個程序只開白名單上的路徑（`src/adhd/routeGate.ts`）：簡訊登入、後台、`/api/company-brand`、`/api/db/status`、`/api/adhd/*`；其他一律 404。

@@ -31,13 +31,13 @@ sudo bash setup-server.sh
 |---|---|---|---|---|---|---|
 | `/var/www/sxk` | 专案 A | `sxk-app` | `full` | `sxk_db` | 5000 | `sxkscreen.com` |
 | `/var/www/sxk-b` | 专案 B | `sxk-b` | `t1only` | `sxk_t1_db` | 5001 | `t1.sxkscreen.com` |
-| `/var/www/sxk-adhd` | 成人 ADHD | `sxk-adhd` | `adhd` | `sxk_adhd_db` | 5002 | `arscreen.cn`（备案通过后） |
+| `/var/www/sxk-adhd` | 成人 ADHD | `sxk-adhd` | `adhd` | `sxk_adhd_db` | 5002 | `adhd.sxkscreen.com`（`arscreen.cn` 备案通过后） |
 
-> 成人 ADHD（2026-11-24，`docs/specs/adhd-product-design.md`）**还没部署**。要上的时候：新建 `sxk_adhd_db`、
-> 套整份 `deploy/schema.sql`、跑 `node deploy/migrate.mjs`（含 `2026-11-24-adhd-assessments.sql`）；`.env` 同 B
-> （`MYSQL_DATABASE=sxk_adhd_db`、`ALI_SMS_*`、自己的 `SESSION_SECRET`）；本机 `VITE_APP_MODE=adhd pnpm run build`
-> 会多出 `dist/assess/`（客户页面），整包传到 `/var/www/sxk-adhd/`；`bash deploy/deploy-app.sh adhd`；nginx 用
-> `deploy/nginx.conf` 的「成人 ADHD」那一段。现在 `/var/www/arscreen/`（纯静态的客户页面）在新站上线前不要动。
+> 成人 ADHD（2026-11-24 已部署，临时网址 `https://adhd.sxkscreen.com`，后台 `/admin`，`docs/specs/adhd-product-design.md`）：
+> nginx 在 `/etc/nginx/sites-available/sxk-adhd`，证书 certbot webroot 自动续期。更新：本机
+> `VITE_APP_MODE=adhd VITE_ICP_BEIAN=... pnpm run build`，整个 `dist/`（含 `dist/assess/`）传到 `/var/www/sxk-adhd/`（不是 git repo），
+> 有新迁移先跑 `node deploy/migrate.mjs --confirm`，再 `bash deploy/deploy-app.sh adhd`。
+> `/var/www/arscreen/` 与 `sxkscreen.com/adhd/`（纯静态的客户页面）照旧。
 
 **A 已经在服务了**（2026-08-11 实测：`https://sxkscreen.com` 回 200）。它的目录与
 进程名不对称，是因为它在双产品拆分之前就上线了。这里照实记录，不改成好看的

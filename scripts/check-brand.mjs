@@ -4,6 +4,7 @@
  * 用法（要先建置）：
  *   VITE_APP_MODE=t1only pnpm build && node scripts/check-brand.mjs t1only
  *   VITE_APP_MODE=full   pnpm build && node scripts/check-brand.mjs full
+ *   VITE_APP_MODE=adhd   pnpm build && node scripts/check-brand.mjs adhd
  *
  * 【為什麼需要這個檢查】
  * `productConfig.ts` 同時定義兩個 profile。2026-07-31 一度寫成 `PROFILES[MODE]`
@@ -17,12 +18,12 @@
  * 那一類殘留另外記在 `實作計畫.md`，是已知且已文件化的限制。
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const mode = process.argv[2];
-if (mode !== 'full' && mode !== 't1only') {
-  console.error('用法: node scripts/check-brand.mjs <full|t1only>');
+if (mode !== 'full' && mode !== 't1only' && mode !== 'adhd') {
+  console.error('用法: node scripts/check-brand.mjs <full|t1only|adhd>');
   process.exit(2);
 }
 
@@ -49,6 +50,9 @@ const PROJECT_A_BRAND = [
 /** 專案 B 的中性設定值，用來確認 B 真的建到了自己那一份。 */
 const PROJECT_B_BRAND = ['儿童发育评估系统', 'AI 神经网络分层评估报告生成器', '本系统运营方'];
 
+/** 成人 ADHD 的設定值（productConfig.ts 的 adhd profile）。 */
+const ADHD_BRAND = ['成人 ADHD 筛查', '本成人 ADHD 筛查系统'];
+
 const problems = [];
 
 if (mode === 't1only') {
@@ -58,10 +62,26 @@ if (mode === 't1only') {
   for (const s of PROJECT_B_BRAND) {
     if (!js.includes(s)) problems.push(`B 的主 chunk 缺少自己的品牌字串：「${s}」`);
   }
+  for (const s of ADHD_BRAND) {
+    if (js.includes(s)) problems.push(`B 的主 chunk 含有成人 ADHD 的品牌字串：「${s}」`);
+  }
+} else if (mode === 'adhd') {
+  for (const s of PROJECT_A_BRAND) {
+    if (js.includes(s)) problems.push(`ADHD 的主 chunk 含有專案 A 的品牌字串：「${s}」`);
+  }
+  for (const s of ADHD_BRAND) {
+    if (!js.includes(s)) problems.push(`ADHD 的主 chunk 缺少自己的品牌字串：「${s}」`);
+  }
+  for (const f of ['assess/index.html', 'assess/bridge.js']) {
+    if (!existsSync(join(process.cwd(), 'dist', f))) problems.push(`dist/ 裡少了 ${f}（客戶頁面沒建進去）`);
+  }
 } else {
   // 反向確認：別在拿掉 B 的品牌時把 A 的一起弄丟了。
   for (const s of PROJECT_A_BRAND) {
     if (!js.includes(s)) problems.push(`A 的主 chunk 缺少品牌字串：「${s}」`);
+  }
+  for (const s of ADHD_BRAND) {
+    if (js.includes(s)) problems.push(`A 的主 chunk 含有成人 ADHD 的品牌字串：「${s}」`);
   }
 }
 

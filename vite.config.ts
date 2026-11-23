@@ -16,10 +16,10 @@ import {WORDING_1022} from './src/wording1022';
  */
 function assertValidAppMode() {
   const raw = process.env.VITE_APP_MODE;
-  if (raw === undefined || raw === '' || raw === 'full' || raw === 't1only') return;
+  if (raw === undefined || raw === '' || raw === 'full' || raw === 't1only' || raw === 'adhd') return;
   throw new Error(
     `VITE_APP_MODE 的值無法辨識: ${JSON.stringify(raw)}。\n` +
-    `只接受 'full'（專案 A，含深度評估與付費）或 't1only'（專案 B，止於聯繫專家）。\n` +
+    `只接受 'full'（專案 A，含深度評估與付費）、't1only'（專案 B，止於聯繫專家）或 'adhd'（成人 ADHD）。\n` +
     `未設定時視為 'full'。`
   );
 }
@@ -79,8 +79,8 @@ export function shareCardHtml1022(html: string, name: string = WORDING_1022.plat
 export const B_SYSTEM_NAME = '儿少综合发展评估系统';
 
 function shareCard1022(): Plugin {
-  // A、B 都寫；B 寫自己的系統名（2026-11-19 使用者：B 的名字改回「儿少综合发展评估系统」，其他維持）。
-  const on = process.env.VITE_UI_1022 === '1';
+  // A、B 都寫；B 寫自己的系統名（2026-11-19 使用者：B 的名字改回「儿少综合发展评估系统」，其他維持）。成人 ADHD 不寫。
+  const on = process.env.VITE_UI_1022 === '1' && process.env.VITE_APP_MODE !== 'adhd';
   const name = process.env.VITE_APP_MODE === 't1only' ? B_SYSTEM_NAME : WORDING_1022.platformName;
   return {
     name: 'sxk-share-card-1022',
@@ -144,6 +144,29 @@ function brandFont(): Plugin {
   };
 }
 
+/**
+ * 成人 ADHD（`VITE_APP_MODE=adhd`，`docs/specs/adhd-product-design.md`）：
+ * - 建置時把客戶頁面（插好 bridge 那一行）與 bridge.js 寫到 `dist/assess/`，伺服器在 `/assess/` 回它們；
+ * - 首頁標題換成 ADHD 的系統名（同 `src/productConfig.ts` 的 adhd brand）。
+ * 其他模式這個外掛什麼都不做。開發時 `/assess/` 由伺服器現組（`server.ts`）。
+ */
+export const ADHD_DOCUMENT_TITLE = '成人 ADHD 筛查';
+
+function adhdAssess(): Plugin {
+  const on = process.env.VITE_APP_MODE === 'adhd';
+  return {
+    name: 'sxk-adhd-assess',
+    transformIndexHtml: html => (on ? html.replace(/<title>[^<]*<\/title>/, `<title>${ADHD_DOCUMENT_TITLE}</title>`) : html),
+    async generateBundle() {
+      if (!on) return;
+      const { buildAssessFiles } = await import('./src/adhd/pageFiles');
+      const files = buildAssessFiles(__dirname);
+      this.emitFile({ type: 'asset', fileName: 'assess/index.html', source: files.html });
+      this.emitFile({ type: 'asset', fileName: 'assess/bridge.js', source: files.bridge });
+    },
+  };
+}
+
 export default defineConfig(() => {
   assertValidAppMode();
   assertValidUiLedo();
@@ -152,7 +175,7 @@ export default defineConfig(() => {
   assertValidDesktopLayout();
 
   return {
-    plugins: [react(), tailwindcss(), brandFont(), shareCard1022()],
+    plugins: [react(), tailwindcss(), brandFont(), shareCard1022(), adhdAssess()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

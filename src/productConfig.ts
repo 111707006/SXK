@@ -5,6 +5,8 @@
  *
  *   VITE_APP_MODE=full   → 專案 A：篩查 → 報告 → 深度評估（付費）→ 商城
  *   VITE_APP_MODE=t1only → 專案 B：篩查 → 報告 → 聯繫專家 → 結束
+ *   VITE_APP_MODE=adhd   → 成人 ADHD（arscreen.cn）：登入與後台照 B，作答與報告是客戶的單頁 HTML
+ *                           （`src/adhd/`，設計 `docs/specs/adhd-product-design.md`）
  *
  * 【維護原則】新增分歧時請加在這裡，不要在元件裡散落 `if (mode === ...)`。
  * 分歧只有一個入口，才不會半年後沒人知道總共有幾處。
@@ -15,7 +17,7 @@
 import type { AdminCenterShape } from './admin/companyScope';
 import { WORDING_1022 } from './wording1022';
 
-export type ProductMode = 'full' | 't1only';
+export type ProductMode = 'full' | 't1only' | 'adhd';
 
 /** 篩查報告中，一個維度被標記為需關注時，「下一步」該引導使用者去哪裡 */
 export type NextStepAction = 'goto_tier2' | 'contact_expert';
@@ -439,6 +441,72 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       desktopLayout: import.meta.env.VITE_DESKTOP_LAYOUT === '1',
     },
   },
+
+  /**
+   * 成人 ADHD（2026-11-23，`docs/specs/adhd-product-design.md`）。家長端只有登入外殼（`src/adhd/AdhdShell.tsx`），
+   * 作答與報告是客戶的 HTML（`/assess/`），所以 `nextStep`／`dashboard` 這兩組用不到，照 B 的填（型別要）。
+   * 品牌：客戶頁面自己寫「禾新」，外殼暫採中性名稱（設計第 8 節 Q1），營運主體照 B 的不指名講法。
+   */
+  adhd: {
+    mode: 'adhd',
+    brand: {
+      documentTitle: '成人 ADHD 筛查',
+      headerTitle: '成人 ADHD 筛查',
+      welcomeName: null,
+      reportTitle: '成人 ADHD 筛查结果',
+      systemName: '本成人 ADHD 筛查系统',
+      legalEntity: '本系统运营方',
+      operatorClause: '及其运营方（以下简称“运营方”）',
+      ipHolder: '本系统运营方',
+      copyright: '© 2026 成人 ADHD 筛查',
+      logoSource: 'company',
+      logoMark: '筛',
+      bioClause: null,
+      promptName: '本系统',
+    },
+    buildBadge: {
+      label: 'ADHD 版',
+      title: '当前为成人 ADHD 版：手机登录、作答与报告（客户页面）、后台受评者列表。',
+      className: 'bg-sky-400 text-brand-forest border-sky-500',
+    },
+    nextStep: {
+      actionLabelHigh: '建议优先安排专业咨询',
+      actionLabelMedium: '建议进一步了解',
+      alertText: '建议近期联系专家进行一对一说明。',
+      legendAttentionHint: '建议进一步了解',
+      legendConcernHint: '建议优先安排专业咨询',
+      finishButtonLabel: '查看结果',
+      screeningResultWithFindings: '',
+      screeningResultAllClear: '',
+      action: 'contact_expert',
+    },
+    dashboard: {
+      stepTwoHint: '',
+      stepTwoIsPaid: false,
+      screeningIntro: '',
+      gridHintCompleted: '',
+      dimensionCardSubLabel: null,
+      dimensionCardHint: '',
+      dimensionCardCta: '',
+    },
+    expertBooking: {
+      wechatId: null,
+      wechatQrSrc: null,
+      specialistSource: 'company',
+    },
+    // 合作單位 `?c=` 照 B（ADR-0001）。
+    adminCenter: { multiCompany: true },
+    features: {
+      tier2And3: false,
+      paywall: false,
+      mall: false,
+      handoff: 'send',
+      home: false,
+      ledo: false,
+      ui1022: false,
+      desktopLayout: false,
+    },
+  },
 };
 
 /**
@@ -450,9 +518,9 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
  */
 function resolveMode(raw: string | undefined): ProductMode {
   if (raw === undefined || raw === '') return 'full';
-  if (raw === 'full' || raw === 't1only') return raw;
+  if (raw === 'full' || raw === 't1only' || raw === 'adhd') return raw;
   throw new Error(
-    `VITE_APP_MODE 的值無法辨識: ${JSON.stringify(raw)}。只接受 'full'（專案 A）或 't1only'（專案 B）。`
+    `VITE_APP_MODE 的值無法辨識: ${JSON.stringify(raw)}。只接受 'full'（專案 A）、't1only'（專案 B）或 'adhd'（成人 ADHD）。`
   );
 }
 
@@ -472,7 +540,11 @@ const MODE: ProductMode = resolveMode(import.meta.env.VITE_APP_MODE);
  * `test/brandIsolation.test.ts` 會擋住這一點被改回去。
  */
 export const PRODUCT: ProductProfile =
-  import.meta.env.VITE_APP_MODE === 't1only' ? PROFILES.t1only : PROFILES.full;
+  import.meta.env.VITE_APP_MODE === 't1only'
+    ? PROFILES.t1only
+    : import.meta.env.VITE_APP_MODE === 'adhd'
+      ? PROFILES.adhd
+      : PROFILES.full;
 
 /**
  * 建置期常數與執行期解析出來的模式必須一致 —— 上面那行若被改錯

@@ -366,7 +366,7 @@ function AdminCenter() {
             />
           )}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
-          {activeTab === 'company' && <CompanySettingsPanel onError={handleError} unassignedName={unassignedLabel(shape)} />}
+          {activeTab === 'company' && <CompanySettingsPanel onError={handleError} unassignedName={unassignedLabel(shape)} unitWord={unitWord} />}
           {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} units={unitsEnabled(shape)} />}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} />}
           {activeTab === 'summary' && <SummaryPanel onError={handleError} unitWord={unitWord} />}

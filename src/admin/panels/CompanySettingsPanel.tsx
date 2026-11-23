@@ -18,7 +18,16 @@ import { adminApi } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { Button, ErrorNote, Field, Panel, Spinner, TextInput, toErrorView, useAsyncData } from '../ui';
 
-export default function CompanySettingsPanel({ onError, unassignedName = '未归属的家长' }: { onError: (view: AdminErrorView) => void; unassignedName?: string }) {
+export default function CompanySettingsPanel({
+  onError,
+  unassignedName = '未归属的家长',
+  unitWord = '公司',
+}: {
+  onError: (view: AdminErrorView) => void;
+  unassignedName?: string;
+  /** A 開了合作單位叫「单位」（ADR-0020）；B 照舊「公司」。 */
+  unitWord?: '公司' | '单位';
+}) {
   const load = useCallback(() => adminApi.company(), []);
   const { data, loading, failure, reload } = useAsyncData(load, [], onError);
 
@@ -77,7 +86,7 @@ export default function CompanySettingsPanel({ onError, unassignedName = '未归
   return (
     <Panel
       title="本机构设定"
-      description="家长送出专家预约后，通知会送到这里。留空则退回系统的全域通知位置，并在伺服器日誌记录这件事。"
+      description="家长送出专家预约后，通知会送到这里。留空则退回系统的全域通知位置，并在伺服器日志记录这件事。"
     >
       {loading ? (
         <Spinner />
@@ -87,15 +96,15 @@ export default function CompanySettingsPanel({ onError, unassignedName = '未归
         // 全域管理員選到「未歸屬」時會走到這裡。那不是一家公司，
         // 沒有通知位置可以設定 —— 說清楚，不要显示一个存不进去的空表单。
         <p className="py-8 text-center text-xs leading-relaxed text-brand-charcoal/55">
-          「{unassignedName}」不是一家合作公司，因此没有机构设定可以调整。
+          「{unassignedName}」不是一{unitWord === '单位' ? '个' : '家'}合作{unitWord}，因此没有机构设定可以调整。
           <br />
-          请从右上角切换到一家合作公司。
+          请从右上角切换到一{unitWord === '单位' ? '个' : '家'}合作{unitWord}。
         </p>
       ) : (
         <div className="max-w-xl space-y-4">
           <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
             <div className="flex gap-2">
-              <dt className="text-brand-charcoal/45">机构名称</dt>
+              <dt className="text-brand-charcoal/45">{unitWord === '单位' ? '单位名称' : '机构名称'}</dt>
               <dd className="font-bold text-brand-forest">{company.name}</dd>
             </div>
             <div className="flex gap-2">

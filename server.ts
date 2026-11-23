@@ -4984,6 +4984,8 @@ app.use(
       t2Reports: APP_MODE === 'full',
       // 發育指數的算法（`DEV_INDEX_BASIS`）。
       developmentIndexOf: developmentIndexFor(DEV_INDEX_BASIS),
+      // 成人 ADHD 的受評者評估（src/adhd/adminRoutes.ts）。
+      adhd: APP_MODE === 'adhd',
     }
   )
 );

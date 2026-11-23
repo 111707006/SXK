@@ -105,6 +105,11 @@ export interface AdminCenterShape {
    * 不再是同一件事。沒給＝照舊由 `multiCompany` 推（單一機構就是 A）。
    */
   projectA?: boolean;
+  /**
+   * 成人 ADHD（`VITE_APP_MODE=adhd`，2026-11-24）：多合作公司照 B，但分頁只有受評者列表、本機構設定、
+   * 合作公司、後台帳號（`visibleTabs`）。建置期的值（`PRODUCT.adminCenter`），不從伺服器讀。
+   */
+  adhd?: boolean;
 }
 
 /** 是不是專案 A（見 `AdminCenterShape.projectA`）。 */

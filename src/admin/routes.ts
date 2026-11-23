@@ -61,6 +61,7 @@ import { buildSummaryTable, readSummaryOptions, readSummaryPage, summaryPageOf }
 import { developmentIndex } from '../developmentIndex/developmentIndex';
 import type { DevelopmentIndexOf } from './parentSummary';
 import { summaryFileName, summaryWorkbook } from './summaryXlsx';
+import { registerAdhdAdminRoutes } from '../adhd/adminRoutes';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -165,6 +166,8 @@ export interface AdminRouterHooks {
    * 沒傳就是同齡估算（#68 的預設）。
    */
   developmentIndexOf?: DevelopmentIndexOf;
+  /** 成人 ADHD（`APP_MODE=adhd`）：受評者評估的列表、單筆、導出（`src/adhd/adminRoutes.ts`）。其他模式不傳＝不註冊。 */
+  adhd?: boolean;
 }
 
 export interface HandoffInviteReport {
@@ -353,6 +356,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
     }
     return result.condition;
   }
+
+  if (hooks.adhd) registerAdhdAdminRoutes(router, withScope);
 
   // ── 家長列表 ──
   router.get('/parents', async (req: AuthedRequest, res) => {

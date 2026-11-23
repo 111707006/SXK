@@ -494,8 +494,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       wechatQrSrc: null,
       specialistSource: 'company',
     },
-    // 合作單位 `?c=` 照 B（ADR-0001）。
-    adminCenter: { multiCompany: true },
+    // 合作單位 `?c=` 照 B（ADR-0001）；分頁只留受評者列表與合作單位那一套。
+    adminCenter: { multiCompany: true, adhd: true },
     features: {
       tier2And3: false,
       paywall: false,

@@ -167,7 +167,15 @@ const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia', 
  */
 const MULTI_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['company', 'companies', 'summary'];
 
+/** 成人 ADHD 的分頁（設計第 2.3 節）：家長列表換成受評者列表，其餘只留合作單位那一套。 */
+const ADHD_TABS: readonly AdminTabId[] = ['parents', 'company', 'companies', 'adminUsers'];
+
 export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape): AdminTab[] {
+  if (shape.adhd) {
+    return visibleTabs(identity, { ...shape, adhd: false })
+      .filter(t => ADHD_TABS.includes(t.id))
+      .map(t => (t.id === 'parents' ? { ...t, label: '受评者列表' } : t));
+  }
   if (identity.role === 'referrer') return REFERRER_TABS;
   const all = identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
   // 2026-10-23（#89）：A 也可以有合作公司 —— 「A 才有的分頁」看是不是 A，「多公司才有的分頁」看有沒有合作公司。

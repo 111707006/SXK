@@ -49,6 +49,8 @@ const SCOPED_TABLES = [
   't2_findings',
   // 2026-10-24（#112 代填）：居家訓練使用權與推薦綁定都是家長資料。目前只有代填那兩支碰（見例外清單）。
   'training_passes', 'referrer_bindings',
+  // 2026-11-24（成人 ADHD，APP_MODE=adhd）：評估紀錄。沒有 company_id，一律 JOIN users 帶條件。
+  'adhd_assessments',
 ];
 
 /**

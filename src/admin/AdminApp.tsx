@@ -52,6 +52,8 @@ import RedeemCodesBlock from './panels/RedeemCodesBlock';
 import CouponsPanel from './panels/CouponsPanel';
 import RevenueSplitPanel from './panels/RevenueSplitPanel';
 import ProxyPanel from './panels/ProxyPanel';
+// 成人 ADHD 的受評者列表：只有 adhd 的建置用得到，lazy 讓 A、B 的後台不多載一份。
+const AdhdPeoplePanel = lazy(() => import('../adhd/AdhdPeoplePanel'));
 
 /**
  * 列印頁連同整份報告本體（雷達圖、儀表、軌跡圖）另外切一包。
@@ -79,7 +81,12 @@ function shapeFrom(raw: unknown): AdminCenterShape {
   if (typeof raw !== 'object' || raw === null) return BUILD_SHAPE;
   const r = raw as Record<string, unknown>;
   if (typeof r.multiCompany !== 'boolean') return BUILD_SHAPE;
-  return { multiCompany: r.multiCompany, ...(typeof r.projectA === 'boolean' ? { projectA: r.projectA } : {}) };
+  return {
+    multiCompany: r.multiCompany,
+    ...(typeof r.projectA === 'boolean' ? { projectA: r.projectA } : {}),
+    // 成人 ADHD 是建置期決定的，伺服器不回這一欄。
+    ...(BUILD_SHAPE.adhd ? { adhd: true } : {}),
+  };
 }
 
 /**
@@ -343,7 +350,12 @@ function AdminCenter() {
         // key 讓分頁在切換視野時整個重掛。沿用舊 state 會把上一家公司的家長
         // 留在畫面上直到新請求回來，而那不是閃爍，是外洩。
         <div key={scopeKey(current, shape)}>
-          {activeTab === 'parents' && (
+          {activeTab === 'parents' && shape.adhd && (
+            <LazyBoundary>
+              <AdhdPeoplePanel onError={handleError} />
+            </LazyBoundary>
+          )}
+          {activeTab === 'parents' && !shape.adhd && (
             // B→A 交接的邀請簡訊（ADR-0009）只有專案 B 的全域管理員發得了，合作公司帳號看不到。
             <ParentsPanel
               onError={handleError}

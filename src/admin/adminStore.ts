@@ -29,6 +29,7 @@ import type { Activity } from '../t2/types';
 import { nextPassRange } from '../t2/trainingPass';
 import { homeMediaFromRow, type HomeMediaItem, type HomeMediaKind, type HomeMediaSlot } from '../homeMedia/shape';
 import type { SummarySource } from './parentSummary';
+import { ADHD_PAGE_SIZE, type AdhdAdminListItem, type AdhdAdminPage } from '../adhd/adminRows';
 
 // ── 對外型別 ──
 
@@ -324,6 +325,81 @@ function rowToAdminUser(row: any): AdminUserRecord {
 // 家長資料 —— 每一句都必須帶公司條件
 // ══════════════════════════════════════════════════════════════
 
+// ── 成人 ADHD（`APP_MODE=adhd`，設計第 2.3 節）：一筆評估一行。`adhd_assessments` 沒有 company_id，
+// 一律 JOIN `users u` 帶公司條件。找不到與不在視野裡是同一個 null（同 `getParentDetail`）。
+
+const ADHD_LIST_COLUMNS = `a.id, a.user_id, a.subject_name, a.conclusion_status, a.conclusion_title, a.created_at, a.updated_at,
+            u.phone, c.name AS company_name`;
+
+function adhdRowOf(row: any): AdhdAdminListItem {
+  return {
+    id: Number(row.id),
+    userId: Number(row.user_id),
+    subjectName: String(row.subject_name),
+    phone: row.phone ?? null,
+    companyName: row.company_name ?? null,
+    conclusionStatus: String(row.conclusion_status),
+    conclusionTitle: String(row.conclusion_title),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+export async function listAdhdAssessmentsPage(condition: CompanyCondition, page: number): Promise<AdhdAdminPage> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const [countRows] = await p.execute(
+    `SELECT COUNT(*) AS n FROM adhd_assessments a JOIN users u ON u.id = a.user_id WHERE ${scope.sql}`,
+    scope.params
+  );
+  const total = Number((countRows as any[])[0]?.n ?? 0);
+  const last = Math.max(1, Math.ceil(total / ADHD_PAGE_SIZE));
+  const at = Math.min(Math.max(1, Math.floor(page) || 1), last);
+  // LIMIT／OFFSET 是算出來的整數，不是請求裡的字。
+  const [rows] = await p.execute(
+    `SELECT ${ADHD_LIST_COLUMNS}
+       FROM adhd_assessments a
+       JOIN users u ON u.id = a.user_id
+       LEFT JOIN companies c ON c.id = u.company_id
+      WHERE ${scope.sql}
+      ORDER BY a.created_at DESC, a.id DESC
+      LIMIT ${ADHD_PAGE_SIZE} OFFSET ${(at - 1) * ADHD_PAGE_SIZE}`,
+    scope.params
+  );
+  return { rows: (rows as any[]).map(adhdRowOf), total, page: at, pageSize: ADHD_PAGE_SIZE };
+}
+
+/** 導出用：連 payload 一起，最多 `ADHD_EXPORT_MAX` 筆（新到舊）。 */
+export const ADHD_EXPORT_MAX = 5000;
+export async function listAdhdAssessmentsForExport(
+  condition: CompanyCondition
+): Promise<Array<AdhdAdminListItem & { payload: unknown }>> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const [rows] = await p.execute(
+    `SELECT ${ADHD_LIST_COLUMNS}, a.payload
+       FROM adhd_assessments a
+       JOIN users u ON u.id = a.user_id
+       LEFT JOIN companies c ON c.id = u.company_id
+      WHERE ${scope.sql}
+      ORDER BY a.created_at DESC, a.id DESC
+      LIMIT ${ADHD_EXPORT_MAX}`,
+    scope.params
+  );
+  return (rows as any[]).map(r => ({ ...adhdRowOf(r), payload: parseJson<unknown>(r.payload, null) }));
+}
+
+export async function getAdhdAssessmentPayload(condition: CompanyCondition, id: number): Promise<unknown | null> {
+  const p = requirePool();
+  const scope = companyWhereSql(condition);
+  const [rows] = await p.execute(
+    `SELECT a.payload FROM adhd_assessments a JOIN users u ON u.id = a.user_id WHERE a.id = ? AND ${scope.sql}`,
+    [id, ...scope.params]
+  );
+  const row = (rows as any[])[0];
+  return row ? parseJson<unknown>(row.payload, null) : null;
+}
+
 export async function listParents(
   condition: CompanyCondition,
   options: ParentListOptions
@@ -546,7 +622,7 @@ export interface AdminExportEntry {
   /** `all`：兌換碼對帳匯出（#113），跨所有推薦人、只有全域管理員。 */
   condition: CompanyCondition | { kind: 'all' };
   /** `parent_summary` 是導出 .xlsx；`parent_summary_view` 是看了畫面上的彙總（一樣是整批電話）；`redeem_codes` 是兌換碼對帳（#113）。 */
-  kind: 'parent_summary' | 'parent_summary_view' | 'redeem_codes' | 'revenue_split';
+  kind: 'parent_summary' | 'parent_summary_view' | 'redeem_codes' | 'revenue_split' | 'adhd_assessments';
   rowCount: number;
   filters: string;
   requestIp: string | null;

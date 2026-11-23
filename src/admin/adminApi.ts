@@ -25,6 +25,7 @@ import type { Activity } from '../t2/types';
 import type { ScreeningTotal } from './adminView';
 import type { T2ReportEntry } from '../components/T2Report';
 import type { SummaryOptions, SummaryPage } from './parentSummary';
+import type { AdhdAdminPage } from '../adhd/adminRows';
 
 const TOKEN_KEY = 'sxk_admin_token';
 
@@ -400,6 +401,12 @@ export const adminApi = {
    * 後者是「找得到但不准刪」，而使用者的下一步完全不同。
    */
   deleteParent: (id: number) => request<{ ok: true }>(`/parents/${id}`, { method: 'DELETE' }),
+
+  /** 成人 ADHD（`APP_MODE=adhd`）：受評者評估列表，一頁 `ADHD_PAGE_SIZE` 筆。 */
+  adhdAssessments: (page: number) => request<AdhdAdminPage>(`/adhd/assessments?page=${page}`),
+
+  /** 成人 ADHD：導出 `.xlsx`，每按一次伺服器記一筆導出紀錄。 */
+  exportAdhdAssessments: () => download('/adhd/assessments/export', { method: 'POST', body: '{}' }, '成人ADHD评估.xlsx'),
 
   /** B→A 交接的邀請簡訊（ADR-0009）：只有專案 B 的全域管理員叫得到。 */
   inviteConfig: () => request<AdminInviteConfig>('/handoff-invites/config'),

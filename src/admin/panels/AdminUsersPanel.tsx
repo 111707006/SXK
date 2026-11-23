@@ -23,6 +23,7 @@ import {
   toErrorView,
   useAsyncData,
 } from '../ui';
+import { TwoStepDelete } from './DeleteControls';
 
 type Role = 'global_admin' | 'company_member';
 
@@ -222,14 +223,24 @@ export default function AdminUsersPanel({
                       )}
                     </td>
                     <td className="py-2.5 text-right">
-                      <Button
-                        variant={u.active ? 'danger' : 'ghost'}
-                        busy={togglingId === u.id}
-                        disabled={togglingId !== null}
-                        onClick={() => void toggleActive(u.id, !u.active)}
-                      >
-                        {u.active ? '停用' : '重新启用'}
-                      </Button>
+                      <span className="inline-flex flex-wrap items-start justify-end gap-1.5">
+                        <Button
+                          variant={u.active ? 'danger' : 'ghost'}
+                          busy={togglingId === u.id}
+                          disabled={togglingId !== null}
+                          onClick={() => void toggleActive(u.id, !u.active)}
+                        >
+                          {u.active ? '停用' : '重新启用'}
+                        </Button>
+                        {/* 使用者 2026-11-23：停用的單位管理者可以完全刪除（只在 A 開了合作單位時）；推薦人的帳號到推薦人列表刪。 */}
+                        {units && !u.active && u.role === 'company_member' && (
+                          <TwoStepDelete
+                            onDelete={() => adminApi.deleteAdminUser(u.id)}
+                            onDeleted={reload}
+                            hint="帐号会完全删除，不能复原。"
+                          />
+                        )}
+                      </span>
                     </td>
                   </tr>
                 ))}

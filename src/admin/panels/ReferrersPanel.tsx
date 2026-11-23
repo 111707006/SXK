@@ -12,6 +12,7 @@ import { adminApi, type AdminCompany, type AdminReferrer } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import EntryLinkQr from '../EntryLinkQr';
 import { referrerEntryUrl } from '../units';
+import { TwoStepDelete } from './DeleteControls';
 import { Button, EmptyState, ErrorNote, Field, Panel, Select, Spinner, StatusBadge, TextInput, useAsyncData } from '../ui';
 
 const KIND_LABEL = { channel: '渠道商', therapist: '治疗师' } as const;
@@ -169,6 +170,11 @@ export default function ReferrersPanel({
                       <Button variant="ghost" onClick={() => setOpenId(openId === r.id ? null : r.id)}>{openId === r.id ? '收起兑换码' : '兑换码'}</Button>
                     )}
                     <Button variant={r.active ? 'danger' : 'ghost'} onClick={() => void toggle(r)}>{r.active ? '停用' : '重新启用'}</Button>
+                    {/* 使用者 2026-11-23：停用、沒有家長、沒有碼、沒有訂單的推薦人可以連帳號刪掉；擋下時伺服器說原因。
+                        個人治療師單位的那一位就是單位本身，到合作單位分頁刪。 */}
+                    {units && !r.active && r.companyKind !== 'therapist' && (
+                      <TwoStepDelete onDelete={() => adminApi.deleteReferrer(r.id)} onDeleted={reload} hint="推荐人与他的后台帐号会完全删除，不能复原。" />
+                    )}
                   </div>
                 </div>
                 {link && <EntryLinkQr url={link} code={r.companyKind === 'therapist' ? (r.companySlug ?? `r${r.id}`) : `${r.companySlug}-${r.code}`} />}

@@ -26,6 +26,7 @@ import {
   toErrorView,
   useAsyncData,
 } from '../ui';
+import { UnitStatusCell } from './DeleteControls';
 
 export default function CompaniesPanel({
   onError,
@@ -246,6 +247,7 @@ export default function CompaniesPanel({
                 <th className="py-2 pr-3 font-bold">进站连结</th>
                 <th className="py-2 pr-3 font-bold">通知位置</th>
                 {qrs && <th className="py-2 font-bold">客服二维码</th>}
+                {units && <th className="py-2 pl-3 font-bold">状态</th>}
               </tr>
             </thead>
             <tbody>
@@ -274,6 +276,11 @@ export default function CompaniesPanel({
                         onChanged={setQrs}
                         onFailure={setQrFailure}
                       />
+                    </td>
+                  )}
+                  {units && (
+                    <td className="py-2.5 pl-3 align-top">
+                      <UnitStatusCell company={c} onChanged={() => { reload(); onChanged(); }} />
                     </td>
                   )}
                 </tr>

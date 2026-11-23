@@ -7,7 +7,8 @@
  * 列表、表單、停用按鈕與「后台帐号」分頁共用 `AdminUserBlocks.tsx`。
  */
 import { useCallback, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, UserPlus } from 'lucide-react';
+import { CreateReferrerForm } from './ReferrersPanel';
 import { AdminApiError, adminApi, type AdminCompany, type AdminUser } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { groupAdminUsers, unitAccountRoleLabel, type AccountGroups, type ReferrerLink } from '../unitAccounts';
@@ -56,8 +57,11 @@ export function UnitAccountsBlock({
   onRetry,
   onError,
   onChanged,
+  serviceRelations = false,
 }: {
   unit: AdminCompany;
+  /** 服務關係開關（說明文字用）。 */
+  serviceRelations?: boolean;
   accounts: AdminUser[];
   referrers: ReferrerLink[];
   loading: boolean;
@@ -68,6 +72,8 @@ export function UnitAccountsBlock({
   onChanged: () => void;
 }) {
   const [creating, setCreating] = useState(false);
+  // 開推薦人（使用者 2026-11-23：從「兑换码与优惠券」搬來）：只有機構；個人治療師單位恰好一位推薦人，建單位時就建好了。
+  const [creatingReferrer, setCreatingReferrer] = useState(false);
   const toggler = useAdminUserToggle({ onError, onDone: onChanged });
   // 個人治療師單位只有他自己一位（#117），不出「新增管理者」。
   const canAdd = (unit.kind ?? 'institution') === 'institution';
@@ -83,14 +89,33 @@ export function UnitAccountsBlock({
     <div className="space-y-3 rounded-2xl border border-brand-stone bg-brand-cream/40 p-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-bold text-brand-forest">这个单位的后台帐号</p>
-        {canAdd && !creating && (
-          <Button variant="ghost" onClick={() => setCreating(true)}>
-            <Plus size={12} />
-            新增管理者
-          </Button>
+        {canAdd && !creating && !creatingReferrer && (
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setCreatingReferrer(true)}>
+              <UserPlus size={12} />
+              新增推荐人
+            </Button>
+            <Button variant="ghost" onClick={() => setCreating(true)}>
+              <Plus size={12} />
+              新增管理者
+            </Button>
+          </div>
         )}
       </div>
       {creating && <AdminUserForm onSubmit={create} onCancel={() => setCreating(false)} onError={onError} />}
+      {creatingReferrer && (
+        <CreateReferrerForm
+          companies={[unit]}
+          units
+          serviceRelations={serviceRelations}
+          fixedUnit={unit}
+          onCancel={() => setCreatingReferrer(false)}
+          onCreated={() => {
+            setCreatingReferrer(false);
+            onChanged();
+          }}
+        />
+      )}
 
       {loading ? (
         <Spinner />

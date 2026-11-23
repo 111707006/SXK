@@ -39,7 +39,10 @@ export default function CompaniesPanel({
   onChanged,
   units = false,
   mergedAccounts = false,
+  serviceRelations = false,
 }: {
+  /** 服務關係開關（展開機構「新增推荐人」的說明文字用）。 */
+  serviceRelations?: boolean;
   onError: (view: AdminErrorView) => void;
   /** 新建一家公司後要讓上層的切換選單也看得到它。 */
   onChanged: () => void;
@@ -141,8 +144,10 @@ export default function CompaniesPanel({
       title={units ? '合作单位' : '合作公司'}
       description={
         units
-          ? '每一个单位有一个进站识别码。机构底下可以有好几位推荐人（在「兑换码与优惠券」开）；个人治疗师单位只有他自己一位，他的帐号同时是单位管理者与推荐人。' +
-            (merged ? '点单位名称展开，看这个单位底下能登入的后台帐号。' : '')
+          ? merged
+            ? '每一个单位有一个进站识别码。机构底下可以有好几位推荐人；个人治疗师单位只有他自己一位，他的帐号同时是单位管理者与推荐人。' +
+              '点单位名称展开，看这个单位底下能登入的后台帐号；机构可以在那里新增推荐人与管理者。推荐人的兑换码与优惠券在「兑换码与优惠券」产生。'
+            : '每一个单位有一个进站识别码。机构底下可以有好几位推荐人（在「兑换码与优惠券」开）；个人治疗师单位只有他自己一位，他的帐号同时是单位管理者与推荐人。'
           : '每一家公司有一个进站识别码。家长必须从带着这个识别码的连结注册，才会归属到该公司。'
       }
       action={
@@ -331,6 +336,7 @@ export default function CompaniesPanel({
                     <td colSpan={qrs ? 6 : 5} className="pb-3">
                       <UnitAccountsBlock
                         unit={c}
+                        serviceRelations={serviceRelations}
                         accounts={groups?.byUnit[c.id] ?? []}
                         referrers={accounts.data?.referrers ?? []}
                         loading={accounts.loading}

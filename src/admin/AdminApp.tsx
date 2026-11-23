@@ -51,6 +51,7 @@ import LegalPanel from './panels/LegalPanel';
 import ReferrersPanel from './panels/ReferrersPanel';
 import { unitsEnabled } from './units';
 import RedeemCodesBlock from './panels/RedeemCodesBlock';
+import MyCouponsBlock from './panels/MyCouponsBlock';
 import CouponsPanel from './panels/CouponsPanel';
 import RevenueSplitPanel from './panels/RevenueSplitPanel';
 import ProxyPanel from './panels/ProxyPanel';
@@ -371,7 +372,7 @@ function AdminCenter() {
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
           {activeTab === 'company' && <CompanySettingsPanel onError={handleError} unassignedName={unassignedLabel(shape)} unitWord={unitWord} />}
           {activeTab === 'companies' && (
-            <CompaniesPanel onError={handleError} onChanged={boot} units={unitsEnabled(shape)} mergedAccounts={unitsMerged} />
+            <CompaniesPanel onError={handleError} onChanged={boot} units={unitsEnabled(shape)} mergedAccounts={unitsMerged} serviceRelations={shape.serviceRelations === true} />
           )}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} />}
           {activeTab === 'summary' && <SummaryPanel onError={handleError} unitWord={unitWord} unassignedName={unitsEnabled(shape) ? unassignedLabel(shape) : undefined} />}
@@ -394,10 +395,11 @@ function AdminCenter() {
                   <li>
                     <span className="font-bold text-stone-900">优惠券</span>：T1 转 T2 的折扣码。家长在报告上「T2 深度评估」价钱下面输入，
                     <span className="font-bold">T2 照折后价付款</span>（预设半价）；每位家长只能用一张，不开通线上家庭训练。
+                    每一批发给一位推荐人，家长用了谁的券就跟兑换码一样挂到谁名下。
                   </li>
                 </ul>
               </div>
-              <ReferrersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} serviceRelations={shape.serviceRelations === true} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
+              <ReferrersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} serviceRelations={shape.serviceRelations === true} showCreate={!unitsMerged} renderCodes={r => <RedeemCodesBlock referrerId={r.id} onError={handleError} />} />
               {/* 單位層的碼（#124，服務關係開關開著）：不指定推薦人，給單位管理者代填、發給本單位用。 */}
               {shape.serviceRelations && <UnitCodesSection companies={companies.filter(c => c.active)} onError={handleError} />}
               <div className="border-t border-stone-200 pt-8">
@@ -407,8 +409,19 @@ function AdminCenter() {
           )}
           {activeTab === 'coupons' && <CouponsPanel onError={handleError} />}
           {activeTab === 'revenueSplit' && <RevenueSplitPanel onError={handleError} />}
-          {activeTab === 'myCodes' && <RedeemCodesBlock referrerId={null} onError={handleError} />}
-          {activeTab === 'unitCodes' && <RedeemCodesBlock referrerId={null} unitId="mine" onError={handleError} />}
+          {/* 推薦人與單位管理者自己的優惠券（2026-11-25）：放在兌換碼下面，只讀；T2_COUPON 關著整塊不畫。 */}
+          {activeTab === 'myCodes' && (
+            <div className="space-y-8">
+              <RedeemCodesBlock referrerId={null} onError={handleError} />
+              <MyCouponsBlock unit={false} onError={handleError} />
+            </div>
+          )}
+          {activeTab === 'unitCodes' && (
+            <div className="space-y-8">
+              <RedeemCodesBlock referrerId={null} unitId="mine" onError={handleError} />
+              <MyCouponsBlock unit onError={handleError} />
+            </div>
+          )}
           {activeTab === 'proxy' && <ProxyPanel onError={handleError} />}
         </div>
       )}

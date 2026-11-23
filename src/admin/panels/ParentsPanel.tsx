@@ -15,7 +15,7 @@
  * 列表的燈號來自篩查結果（現況），詳情的報告是快照。家長重測而沒有再生成報告時
  * 兩者分岔，此時詳情頂端會說出來，底下的「九维筛查结果」表就是現況那一份。
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Calendar, FileText, Layers, MessageSquare, Phone, Printer, Trash2, User, X } from 'lucide-react';
 import {
   adminApi,
@@ -112,6 +112,10 @@ export default function ParentsPanel({
   // 改派之後（ADR-0020）：家長改到別的單位或推薦人，就不在這個視野裡了。抽屜還開著的話，下一個請求（改派紀錄）
   // 會撞上「找不到该家长」—— 列表重讀回來、裡面沒有他，就把抽屜關掉，說一句他去哪了。
   // 記下按保存那一刻的列表物件：要等**重讀回來的那一份**（物件換了）才判斷，否則會拿舊列表判成「還在」。
+  // `before` 取 ref 裡**當下**的列表，不取 onChanged 那個閉包的 `data`：改派是非同步的，閉包是按「保存」那一刻的，
+  // 送出期間列表若重讀過一次，拿舊閉包當基準會把那一份（他還在）當成「重讀回來的」而判成「還在」。
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const [movedCheck, setMovedCheck] = useState<{ id: number; before: typeof data } | null>(null);
   const [movedNotice, setMovedNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -309,7 +313,7 @@ export default function ParentsPanel({
                   canRemove: canRemoveRelation,
                   onChanged: () => {
                     setMovedNotice(null);
-                    if (openId !== null) setMovedCheck({ id: openId, before: data });
+                    if (openId !== null) setMovedCheck({ id: openId, before: dataRef.current });
                     reload();
                   },
                 }

@@ -1,0 +1,47 @@
+# 成人 ADHD（APP_MODE=adhd，2026-11-24）的本機測試站：同 Dockerfile.b，只換產品模式與假資料（seed-adhd.ts）。
+# 本機：docker build -f deploy/demo/Dockerfile.adhd -t sxk-adhd-local .；docker run -p 8082:5000 -e SESSION_SECRET=… sxk-adhd-local
+# 登入碼 246810（DEMO_LOGIN_CODE，只在資料庫是本機時收）；後台 demo@sxkscreen.com／sxk-demo-2026；合作單位 ?c=demo-unit。
+# 本機演練時可以換底（例如加了公司代理憑證的 mysql:8.0）。
+ARG MYSQL_BASE=mysql:8.0
+
+FROM node:22-bookworm-slim AS node
+
+FROM ${MYSQL_BASE}
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+  && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+  && ln -s ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack \
+  && node --version \
+  && corepack enable \
+  && corepack prepare pnpm@10.33.0 --activate
+
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+ENV NODE_ENV=production \
+    APP_MODE=adhd \
+    VITE_APP_MODE=adhd \
+    MYSQL_HOST=127.0.0.1 \
+    MYSQL_PORT=3306 \
+    MYSQL_USER=sxk \
+    MYSQL_PASSWORD=sxk-demo-local-only \
+    MYSQL_DATABASE=sxk_demo \
+    DEMO_LOGIN_CODE=246810 \
+    DEMO_ADMIN_EMAIL=demo@sxkscreen.com \
+    DEMO_ADMIN_PASSWORD=sxk-demo-2026 \
+    SMS_PROVIDER=console \
+    SESSION_SECRET=bake-only-replaced-at-runtime
+
+# Windows 簽出的 .sh 是 CRLF（bake.sh 會死在 set -o pipefail），先轉成 LF。bake.sh 灌的假資料換成 seed-adhd.ts。
+RUN find deploy -name "*.sh" -exec sed -i 's/\r$//' {} + \
+  && pnpm run build \
+  && sed 's#deploy/demo/seed.ts#deploy/demo/seed-adhd.ts#' deploy/demo/bake.sh > deploy/demo/bake-adhd.sh \
+  && bash deploy/demo/bake-adhd.sh
+
+# 官方 mysql 映像檔自己的 entrypoint 會去初始化 /var/lib/mysql，這裡不要它。
+ENTRYPOINT []
+CMD ["bash", "deploy/demo/start.sh"]

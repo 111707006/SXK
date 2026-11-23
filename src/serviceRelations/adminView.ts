@@ -28,6 +28,11 @@ export interface ServiceChange {
   reason: ChangeReason;
   adminUserId: number | null;
   createdAt: string | null;
+  /** 伺服器帶的名字；沒有（舊伺服器）就從 `targets` 找，再找不到寫編號。 */
+  fromCompanyName?: string | null;
+  fromReferrerName?: string | null;
+  toCompanyName?: string | null;
+  toReferrerName?: string | null;
 }
 
 export const DIRECT_LABEL = '森心康直属';
@@ -53,18 +58,24 @@ export function targetFromChoice(targets: ServiceTargets, companyId: number | nu
 }
 
 const WHO: Record<ChangeActor, Partial<Record<ChangeReason, string>> & { default: string }> = {
-  admin: { default: '后台改派' },
+  // 後台＋兌換碼只有代填（`proxyFillServed`）會寫：第一次掛上服務關係，不是改派。
+  admin: { code: '后台代填', default: '后台改派' },
   parent: { link: '家长自己（连结）', code: '家长自己（兑换码）', default: '家长自己' },
   system: { migration: '系统（资料转换）', default: '系统' },
 };
 
-function labelOf(targets: ServiceTargets, companyId: number | null, referrerId: number | null): string {
+function labelOf(
+  targets: ServiceTargets,
+  companyId: number | null,
+  referrerId: number | null,
+  names: { company?: string | null; referrer?: string | null } = {}
+): string {
   if (companyId === null) return DIRECT_LABEL;
   return relationLabel({
     companyId,
-    companyName: targets.units.find(u => u.id === companyId)?.name ?? null,
+    companyName: names.company ?? targets.units.find(u => u.id === companyId)?.name ?? null,
     referrerId,
-    referrerName: referrerId === null ? null : targets.referrers.find(r => r.id === referrerId)?.name ?? null,
+    referrerName: referrerId === null ? null : names.referrer ?? targets.referrers.find(r => r.id === referrerId)?.name ?? null,
   });
 }
 
@@ -72,8 +83,8 @@ function labelOf(targets: ServiceTargets, companyId: number | null, referrerId: 
 export function changeLine(targets: ServiceTargets, change: ServiceChange): { from: string; to: string; who: string } {
   const who = WHO[change.actor] ?? { default: '—' };
   return {
-    from: labelOf(targets, change.fromCompanyId, change.fromReferrerId),
-    to: labelOf(targets, change.toCompanyId, change.toReferrerId),
+    from: labelOf(targets, change.fromCompanyId, change.fromReferrerId, { company: change.fromCompanyName, referrer: change.fromReferrerName }),
+    to: labelOf(targets, change.toCompanyId, change.toReferrerId, { company: change.toCompanyName, referrer: change.toReferrerName }),
     who: who[change.reason] ?? who.default,
   };
 }

@@ -14,6 +14,7 @@
  */
 import type { AdminCompany, AdminErrorCode, AdminIdentityView } from './adminApi';
 import { isProjectA, type AdminCenterShape } from './companyScope';
+import { unitsEnabled } from './units';
 
 // 形狀的型別與伺服器端共用同一份定義（`companyScope.ts`）。那一檔沒有任何 import（純函式），
 // 帶進來的只有 `isProjectA` —— 這個模組仍然不匯入任何會碰資料庫的程式碼。
@@ -168,13 +169,29 @@ const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia', 
  */
 const MULTI_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['company', 'companies', 'summary'];
 
-export function visibleTabs(identity: AdminIdentityView, shape: AdminCenterShape): AdminTab[] {
+/**
+ * 「后台帐号」併進「合作单位」（建置期開關 `VITE_ADMIN_UNITS_MERGED`）：開關開著、專案 A、而且開了合作單位，三個都成立才算。
+ * 其他情況（B、A 沒開合作單位、開關關著）兩個分頁照舊分開。
+ */
+export function unitsMergedView(flag: boolean, shape: AdminCenterShape): boolean {
+  return flag && unitsEnabled(shape);
+}
+
+export function visibleTabs(
+  identity: AdminIdentityView,
+  shape: AdminCenterShape,
+  /** `unitsMerged`：建置期開關 `VITE_ADMIN_UNITS_MERGED` 的值（`PRODUCT.features.adminUnitsMerged`）；不給＝關。 */
+  options: { unitsMerged?: boolean } = {}
+): AdminTab[] {
   if (identity.role === 'referrer') return REFERRER_TABS;
   const all = identity.role === 'global_admin' ? [...SCOPED_TABS, ...GLOBAL_TABS] : SCOPED_TABS;
+  const merged = unitsMergedView(options.unitsMerged === true, shape);
   // 2026-10-23（#89）：A 也可以有合作公司 —— 「A 才有的分頁」看是不是 A，「多公司才有的分頁」看有沒有合作公司。
   const tabs = all
     .filter(t => isProjectA(shape) || !SINGLE_COMPANY_ONLY_TABS.includes(t.id))
     .filter(t => shape.multiCompany || !MULTI_COMPANY_ONLY_TABS.includes(t.id))
+    // 合併之後帳號在「合作单位」那一頁裡管。
+    .filter(t => !(merged && t.id === 'adminUsers'))
     // ADR-0020（#117）：A 的「合作公司」改叫「合作单位」；B 一個字都不變。
     .map(t => (t.id === 'companies' && isProjectA(shape) ? { ...t, label: '合作单位' } : t))
     .map(t => (t.id === 'summary' && isProjectA(shape) ? { ...t, label: '跨单位汇总' } : t));

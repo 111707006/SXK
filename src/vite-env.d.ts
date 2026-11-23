@@ -20,6 +20,8 @@ interface ImportMetaEnv {
   readonly VITE_MALL_OPEN?: string;
   /** 電腦版側欄工作台（`1`／`0`；不設＝關，只在專案 A）。見 `src/productConfig.ts` 的 `features.desktopLayout`。 */
   readonly VITE_DESKTOP_LAYOUT?: string;
+  /** 後台「后台帐号」併進「合作单位」（`1`／`0`；不設＝關，只在專案 A 開了合作單位時）。見 `src/productConfig.ts` 的 `features.adminUnitsMerged`。 */
+  readonly VITE_ADMIN_UNITS_MERGED?: string;
 
   /**
    * ICP 備案號，顯示在頁面底部並連回工信部查詢頁（`src/components/BeianFooter.tsx`）。

@@ -275,6 +275,12 @@ export interface ProductProfile {
      * 1024px 以下一行不動。只換版面，內容與手機同一份。B 的建置不讀它（永遠 false）。後台不吃這個開關。
      */
     desktopLayout: boolean;
+    /**
+     * 後台「后台帐号」分頁併進「合作单位」：**建置期**開關 `VITE_ADMIN_UNITS_MERGED`，只在專案 A、預設關、只有明講 `1` 才開。
+     * 還要伺服器開了合作單位（`unitsEnabled(shape)`）才換畫面（`src/admin/adminView.ts` 的 `unitsMergedView`）。
+     * B 的建置不讀它（永遠 false）。家長端不吃這個開關。
+     */
+    adminUnitsMerged: boolean;
   };
 }
 
@@ -357,6 +363,7 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       ledo: import.meta.env.VITE_UI_LEDO !== '0',
       ui1022: UI_1022_A,
       desktopLayout: import.meta.env.VITE_DESKTOP_LAYOUT === '1',
+      adminUnitsMerged: import.meta.env.VITE_ADMIN_UNITS_MERGED === '1',
     },
   },
 
@@ -437,6 +444,8 @@ const PROFILES: Record<ProductMode, ProductProfile> = {
       // 2026-11-19 起 B 也照建置期開關（原本寫死 false）：版面、預約改二維碼、電腦版外框。
       ui1022: UI_1022_B,
       desktopLayout: import.meta.env.VITE_DESKTOP_LAYOUT === '1',
+      // B 不讀（合作公司照舊兩個分頁）。
+      adminUnitsMerged: false,
     },
   },
 };

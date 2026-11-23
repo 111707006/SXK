@@ -28,6 +28,7 @@ import {
   switcherOptions,
   tabNeedsCompany,
   unassignedLabel,
+  unitsMergedView,
   visibleTabs,
   type AdminErrorView,
   type AdminTabId,
@@ -249,7 +250,9 @@ function AdminCenter() {
 
   // screen 是 needs_company 或 ready，兩者都已經有身分。
   const current = identity!;
-  const tabs = visibleTabs(current, shape);
+  // 「后台帐号」併進「合作单位」（建置期 `VITE_ADMIN_UNITS_MERGED`，只在 A 開了合作單位時）。
+  const unitsMerged = unitsMergedView(PRODUCT.features.adminUnitsMerged, shape);
+  const tabs = visibleTabs(current, shape, { unitsMerged });
   const activeTab = tabs.some(t => t.id === tab) ? tab : 'parents';
   // ADR-0020：A 開了合作單位就叫「单位」；B 一個字都不變。
   const unitWord = unitsEnabled(shape) ? '单位' : '公司';
@@ -367,7 +370,9 @@ function AdminCenter() {
           )}
           {activeTab === 'specialists' && <SpecialistsPanel onError={handleError} />}
           {activeTab === 'company' && <CompanySettingsPanel onError={handleError} unassignedName={unassignedLabel(shape)} unitWord={unitWord} />}
-          {activeTab === 'companies' && <CompaniesPanel onError={handleError} onChanged={boot} units={unitsEnabled(shape)} />}
+          {activeTab === 'companies' && (
+            <CompaniesPanel onError={handleError} onChanged={boot} units={unitsEnabled(shape)} mergedAccounts={unitsMerged} />
+          )}
           {activeTab === 'adminUsers' && <AdminUsersPanel onError={handleError} companies={companies} units={unitsEnabled(shape)} />}
           {activeTab === 'summary' && <SummaryPanel onError={handleError} unitWord={unitWord} unassignedName={unitsEnabled(shape) ? unassignedLabel(shape) : undefined} />}
           {activeTab === 'activities' && <ActivitiesPanel onError={handleError} />}

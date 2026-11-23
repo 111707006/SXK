@@ -111,16 +111,18 @@ export default function ParentsPanel({
 
   // 改派之後（ADR-0020）：家長改到別的單位或推薦人，就不在這個視野裡了。抽屜還開著的話，下一個請求（改派紀錄）
   // 會撞上「找不到该家长」—— 列表重讀回來、裡面沒有他，就把抽屜關掉，說一句他去哪了。
-  const [movedCheckId, setMovedCheckId] = useState<number | null>(null);
+  // 記下按保存那一刻的列表物件：要等**重讀回來的那一份**（物件換了）才判斷，否則會拿舊列表判成「還在」。
+  const [movedCheck, setMovedCheck] = useState<{ id: number; before: typeof data } | null>(null);
   const [movedNotice, setMovedNotice] = useState<string | null>(null);
   useEffect(() => {
-    if (movedCheckId === null || loading) return;
-    if (!loaded.some(p => p.id === movedCheckId)) {
+    if (movedCheck === null || loading || data === movedCheck.before) return;
+    // 重讀失敗（`data` 變 null）不是「他不在了」：抽屜照開，列表那邊自己會顯示錯誤。
+    if (data !== null && !loaded.some(p => p.id === movedCheck.id)) {
       setOpenId(null);
       setMovedNotice('已改派。这位家长现在不在这个视野里，所以列表上看不到他了。');
     }
-    setMovedCheckId(null);
-  }, [movedCheckId, loading, loaded]);
+    setMovedCheck(null);
+  }, [movedCheck, loading, data, loaded]);
 
   const [inviteConfig, setInviteConfig] = useState<AdminInviteConfig | null>(null);
   useEffect(() => {
@@ -307,7 +309,7 @@ export default function ParentsPanel({
                   canRemove: canRemoveRelation,
                   onChanged: () => {
                     setMovedNotice(null);
-                    setMovedCheckId(openId);
+                    if (openId !== null) setMovedCheck({ id: openId, before: data });
                     reload();
                   },
                 }

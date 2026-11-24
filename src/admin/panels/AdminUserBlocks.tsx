@@ -9,6 +9,7 @@ import { Save } from 'lucide-react';
 import { adminApi, type AdminUser } from '../adminApi';
 import type { AdminErrorView } from '../adminView';
 import { Button, ErrorNote, Field, TextInput, toErrorView } from '../ui';
+import { TwoStepDelete } from './DeleteControls';
 
 /** 角色怎麼寫。`units`：專案 A 的合作單位（#117），「公司成员」改叫「单位管理者」。 */
 export function adminRoleLabel(role: AdminUser['role'], units: boolean): string {
@@ -61,6 +62,7 @@ export function AdminUserTable({
   unitColumn,
   togglingId,
   onToggle,
+  onDeleted,
   minWidthClass = 'min-w-[560px]',
 }: {
   users: AdminUser[];
@@ -69,6 +71,11 @@ export function AdminUserTable({
   unitColumn?: { title: string; name: (user: AdminUser) => string };
   togglingId: number | null;
   onToggle: (id: number, active: boolean) => void;
+  /**
+   * 給了才畫「删除」（使用者 2026-11-23：停用的單位管理者可以完全刪除，只在 A 開了合作單位時）；刪完呼叫它重讀。
+   * 推薦人的帳號到推薦人列表刪、個人治療師單位到單位那一列刪，伺服器會擋並說原因。
+   */
+  onDeleted?: () => void;
   minWidthClass?: string;
 }) {
   return (
@@ -97,14 +104,19 @@ export function AdminUserTable({
                 )}
               </td>
               <td className="py-2.5 text-right">
-                <Button
-                  variant={u.active ? 'danger' : 'ghost'}
-                  busy={togglingId === u.id}
-                  disabled={togglingId !== null}
-                  onClick={() => onToggle(u.id, !u.active)}
-                >
-                  {u.active ? '停用' : '重新启用'}
-                </Button>
+                <span className="inline-flex flex-wrap items-start justify-end gap-1.5">
+                  <Button
+                    variant={u.active ? 'danger' : 'ghost'}
+                    busy={togglingId === u.id}
+                    disabled={togglingId !== null}
+                    onClick={() => onToggle(u.id, !u.active)}
+                  >
+                    {u.active ? '停用' : '重新启用'}
+                  </Button>
+                  {onDeleted && !u.active && u.role === 'company_member' && (
+                    <TwoStepDelete onDelete={() => adminApi.deleteAdminUser(u.id)} onDeleted={onDeleted} hint="帐号会完全删除，不能复原。" />
+                  )}
+                </span>
               </td>
             </tr>
           ))}

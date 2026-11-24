@@ -11,7 +11,7 @@ import { CalendarDays, ChevronRight, Loader2, MessageCircle, UserRound } from 'l
 import { ServiceNote, serviceChoices } from '../serviceChoices';
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { PREPARING_SENTENCE, ageBandLabel, weekRangeLabel } from '../../t2/weeklyCopy';
-import { ENTRY, ENTRY_1103, LEDO_ENTRY, PLAN_HERO, practicedTimes, swapCount, swapHeading, swapSub, weekAgeLine } from '../../t2/trainingCopy';
+import { ENTRY, ENTRY_1103, LEDO_ENTRY, PLAN_HERO, PLAN_PAGE, practicedTimes, swapCount, swapHeading, swapSub, weekAgeLine } from '../../t2/trainingCopy';
 import type { Activity, DimensionCode } from '../../t2/types';
 import { Avatar, Chip, Greeting, LEDO_ART, ListRow, PlayButton, RoundArrow, SectionHead } from '../ledo/ui';
 import { useTraining } from './TrainingContext';
@@ -94,7 +94,6 @@ export default function LedoEntry() {
  */
 function Entry1103() {
   const { data, nav, childName, onBookService } = useTraining();
-  const [faq, setFaq] = useState<number | null>(null);
   const desk = useDesktopLayout();
   // 第一期第 1 週一定沒有上一週：不去問，免得每次打開都在 console 留一條 404（2026-11-10 清單第 29 條）。
   // 換期後的第 1 週照問（上一週是舊一期的最後一週）。
@@ -162,19 +161,27 @@ function Entry1103() {
   );
   const entryFaq = (
     <>
-      {/* 家長常問（會議：「以按钮形式置于显眼位置并展示解释」） */}
-      <section id="training-faq" className="space-y-2">
-        <h3 className="text-sm font-black text-ledo-ink">{ENTRY_1103.faqTitle}</h3>
-        <div className="flex flex-wrap gap-1.5">
-          {ENTRY_1103.faq.map((f, i) => (
-            <button key={f.q} type="button" aria-expanded={faq === i} onClick={() => setFaq(o => (o === i ? null : i))} className="cursor-pointer">
-              <Chip on={faq === i}>{f.q}</Chip>
+      {/* 家长最常问的四件事（使用者 2026-11-23：入口改用計劃頁那四張卡，點了答案從底部抽屜出來，取代原本一排問題按鈕） */}
+      <section id="training-faq" className="space-y-3">
+        <div className="text-center">
+          <p className="text-xs font-semibold tracking-[0.08em] text-ledo-ink-2">{PLAN_PAGE.faqKicker}</p>
+          <h3 className="mt-0.5 text-[22px] font-black text-ledo-ink">{PLAN_PAGE.faqTitle}</h3>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          {PLAN_PAGE.faq.map((q, i) => (
+            <button
+              key={q.main}
+              type="button"
+              id={`training-faq-${i}`}
+              onClick={() => nav.openSheet({ kind: 'faq', index: i })}
+              className="flex min-h-[88px] flex-col rounded-2xl bg-white p-3.5 text-left cursor-pointer transition active:scale-[0.98]"
+            >
+              <span className="text-xs text-ledo-ink-2">{q.sub}</span>
+              <span className="mt-0.5 text-base font-bold leading-snug text-ledo-ink">{q.main}</span>
+              <ChevronRight size={18} aria-hidden="true" className="mt-auto self-end text-ledo-ink-2" />
             </button>
           ))}
         </div>
-        {faq !== null && (
-          <p id="training-faq-answer" className="rounded-2xl bg-ledo-field px-3.5 py-2.5 text-xs leading-relaxed text-ledo-ink">{ENTRY_1103.faq[faq].a}</p>
-        )}
       </section>
     </>
   );

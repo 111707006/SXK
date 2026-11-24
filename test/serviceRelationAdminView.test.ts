@@ -80,6 +80,19 @@ describe('changeLine：一列改派紀錄', () => {
     })).toEqual({ from: '森心康直属', to: '测试机构 · 测试推荐人', who: '后台改派' });
     expect(changeLine(empty, { ...base, fromCompanyId: 8, fromReferrerId: null, toCompanyId: 4, toReferrerId: null }).from).toBe('单位 #8 · 还没标注');
   });
+  it('伺服器帶了名字這一欄卻是 null：那個單位／推薦人已刪除（使用者 2026-11-23）', () => {
+    const empty: ServiceTargets = { units: [], referrers: [] };
+    const line = changeLine(empty, {
+      ...base, fromCompanyId: 4, fromReferrerId: 40, toCompanyId: null, toReferrerId: null,
+      fromCompanyName: null, fromReferrerName: null, toCompanyName: null, toReferrerName: null,
+    });
+    expect(line.from).toBe('已删除的单位 #4');
+    expect(line.to).toBe('森心康直属');
+    expect(changeLine(empty, {
+      ...base, fromCompanyId: 4, fromReferrerId: 41, toCompanyId: 4, toReferrerId: null,
+      fromCompanyName: '测试机构', fromReferrerName: null, toCompanyName: '测试机构', toReferrerName: null,
+    }).from).toBe('测试机构 · 已删除的推荐人 #41');
+  });
   it('名單裡找不到的（停用、刪掉）：寫編號', () => {
     expect(changeLine(TARGETS, { ...base, fromCompanyId: 8, fromReferrerId: 72, toCompanyId: null, toReferrerId: null }))
       .toEqual({ from: '单位 #8 · 推荐人 #72', to: '森心康直属', who: '后台改派' });

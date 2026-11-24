@@ -131,6 +131,7 @@ export function UnitAccountsBlock({
             roleLabel={u => unitAccountRoleLabel(u, referrers)}
             togglingId={toggler.togglingId}
             onToggle={(id, active) => void toggler.toggle(id, active)}
+            onDeleted={canAdd ? onChanged : undefined}
             minWidthClass="min-w-[440px]"
           />
         </>

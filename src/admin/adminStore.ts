@@ -31,6 +31,7 @@ import { homeMediaFromRow, type HomeMediaItem, type HomeMediaKind, type HomeMedi
 import type { SummarySource } from './parentSummary';
 import { proxyAccess, proxyTarget, type ChangeActor, type ChangeReason, type ProxyParty, type ServiceRelation } from '../serviceRelations/rules';
 import { isUnitKind, type UnitKind } from './units';
+import { blocker, blockersOf, type DeleteBlocker, type UnitDeletePreview } from './unitDeletion';
 
 // ── 對外型別 ──
 
@@ -169,6 +170,11 @@ export interface AdminUserRecord {
   /** 推薦人帳號對到的 `referrers.id` 與那一列啟用沒（#93）；別的角色是 null／false。 */
   referrerId?: number | null;
   referrerActive?: boolean;
+  /**
+   * 所屬單位（單位管理者看帳號上的、推薦人看推薦人那一列的）啟用沒（使用者 2026-11-23：停用單位）。
+   * 沒有單位是 undefined。登入時只在專案 A 開了合作單位才看它（`src/admin/routes.ts`）。
+   */
+  companyActive?: boolean;
 }
 
 export interface CompanySummaryRow {
@@ -362,6 +368,7 @@ function rowToAdminUser(row: any): AdminUserRecord {
     createdAt: toIso(row.created_at),
     referrerId: row.referrer_id === null || row.referrer_id === undefined ? null : Number(row.referrer_id),
     referrerActive: Number(row.referrer_active) === 1,
+    ...(row.company_active === null || row.company_active === undefined ? {} : { companyActive: Number(row.company_active) === 1 }),
   };
 }
 
@@ -1030,8 +1037,9 @@ export async function findAdminUserByEmail(
 ): Promise<(AdminUserRecord & { passwordHash: string }) | null> {
   const p = requirePool();
   const [rows] = await p.execute(
-    `SELECT a.*, r.id AS referrer_id, r.active AS referrer_active
+    `SELECT a.*, r.id AS referrer_id, r.active AS referrer_active, c.active AS company_active
        FROM admin_users a LEFT JOIN referrers r ON r.admin_user_id = a.id
+       LEFT JOIN companies c ON c.id = COALESCE(a.company_id, r.company_id)
       WHERE a.email = ? LIMIT 1`,
     [email]
   );
@@ -1042,8 +1050,10 @@ export async function findAdminUserByEmail(
 export async function findAdminUserById(id: number): Promise<AdminUserRecord | null> {
   const p = requirePool();
   const [rows] = await p.execute(
-    `SELECT a.id, a.email, a.role, a.company_id, a.active, a.created_at, r.id AS referrer_id, r.active AS referrer_active
+    `SELECT a.id, a.email, a.role, a.company_id, a.active, a.created_at, r.id AS referrer_id, r.active AS referrer_active,
+            c.active AS company_active
        FROM admin_users a LEFT JOIN referrers r ON r.admin_user_id = a.id
+       LEFT JOIN companies c ON c.id = COALESCE(a.company_id, r.company_id)
       WHERE a.id = ? LIMIT 1`,
     [id]
   );
@@ -1222,6 +1232,13 @@ export async function findHomeMedia(id: number): Promise<HomeMediaItem | null> {
   const [rows] = await p.execute('SELECT * FROM home_media WHERE id = ? LIMIT 1', [id]);
   const row = (rows as Record<string, unknown>[])[0];
   return row ? homeMediaFromRow(row) : null;
+}
+
+/** 刪一張素材（只刪那一列；檔案由路由層另外刪）。回有沒有刪到。 */
+export async function deleteHomeMedia(id: number): Promise<boolean> {
+  const p = requirePool();
+  const [result] = await p.execute('DELETE FROM home_media WHERE id = ?', [id]);
+  return (result as ResultSetHeader).affectedRows > 0;
 }
 
 /** 局部更新：帶了才改（連結、排序、啟用、封面、檔案網址）。回整張；不存在回 null。 */
@@ -1940,11 +1957,13 @@ export async function proxyLookup(referrer: { id: number; companyId: number | nu
 
 export type ProxyFillResult =
   | { ok: true; userId: number; consumedCodeId: number | null; endsOn: string | null }
-  | { ok: false; reason: 'other' };
+  | { ok: false; reason: 'other' }
+  /** 第一次代填這位家長，但代填的人手上沒有同月數的未用碼（使用者 2026-11-23：要有兌換碼才能代填，不再自動產碼）。 */
+  | { ok: false; reason: 'no_code' };
 
 /**
  * 代填，一個交易：找或建家長 → 擋別人名下的 → 寫孩子資料 → 寫一份「代填」快照 → 第一次代填才用掉該推薦人一組同月數的
- * 未用碼（沒有就先為他產一組再用掉，對帳表上一樣是一組）、發一段 `proxy` 使用權、綁定。再代填只覆蓋快照（舊的留著）、不再扣碼。
+ * 未用碼（沒有就整筆退回 `no_code`，不再自動產碼；使用者 2026-11-23）、發一段 `proxy` 使用權、綁定。再代填只覆蓋快照（舊的留著）、不再扣碼。
  * 任何一步失敗整個退回。
  */
 export async function proxyFill(
@@ -1995,16 +2014,11 @@ export async function proxyFill(
           ORDER BY c.id ASC LIMIT 1 FOR UPDATE`,
         [referrer.id, input.months]
       );
-      if ((free as any[])[0]) {
-        consumedCodeId = Number((free as any[])[0].id);
-      } else {
-        const [batch] = await conn.execute(
-          'INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, 1, ?)',
-          [referrer.id, input.months, referrer.adminUserId]
-        );
-        const [code] = await conn.execute('INSERT INTO redeem_codes (batch_id, code) VALUES (?, ?)', [(batch as ResultSetHeader).insertId, input.generateCode()]);
-        consumedCodeId = (code as ResultSetHeader).insertId;
+      if (!(free as any[])[0]) {
+        await conn.rollback();
+        return { ok: false, reason: 'no_code' };
       }
+      consumedCodeId = Number((free as any[])[0].id);
       await useCodeAndIssueProxyPass(conn, userId, consumedCodeId, input);
       await conn.execute(
         "INSERT IGNORE INTO referrer_bindings (user_id, referrer_id, source, ref_id) VALUES (?, ?, 'proxy', ?)",
@@ -2153,18 +2167,11 @@ export async function proxyFillServed(
           ORDER BY c.id ASC LIMIT 1 FOR UPDATE`,
         [ownerId, input.months]
       );
-      if ((free as any[])[0]) {
-        consumedCodeId = Number((free as any[])[0].id);
-      } else {
-        const [batch] = await conn.execute(
-          party.kind === 'referrer'
-            ? 'INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, 1, ?)'
-            : 'INSERT INTO redeem_batches (company_id, months, quantity, created_by) VALUES (?, ?, 1, ?)',
-          [ownerId, input.months, adminUserId]
-        );
-        const [code] = await conn.execute('INSERT INTO redeem_codes (batch_id, code) VALUES (?, ?)', [(batch as ResultSetHeader).insertId, input.generateCode()]);
-        consumedCodeId = (code as ResultSetHeader).insertId;
+      if (!(free as any[])[0]) {
+        await conn.rollback();
+        return { ok: false, reason: 'no_code' };
       }
+      consumedCodeId = Number((free as any[])[0].id);
       await useCodeAndIssueProxyPass(conn, userId, consumedCodeId, input);
       if (party.kind === 'referrer') {
         await conn.execute(
@@ -2213,6 +2220,11 @@ export interface RedeemLedgerRow {
   usedAt: string | null;
   /** 這一組發出的那段使用權的迄日（兌換或代填；`code:<編號>`／`proxy:<編號>`）。 */
   passEndsOn: string | null;
+  /**
+   * 發這批碼的推薦人／單位已經刪掉了（使用者 2026-11-23）：刪單位時批次與它脫鉤（推薦人、單位都是 NULL），
+   * 用過的碼與使用權留著，對帳寫「已删除」。舊資料沒有這一欄＝false。
+   */
+  partyDeleted?: boolean;
 }
 
 /** @param opts.unitCodes 服務關係開關開著（#124）才讀單位層的碼（`b.company_id`）；關著與以前同一句，遷移沒跑也匯得出來。 */
@@ -2222,6 +2234,7 @@ export async function listRedeemLedger(opts: { unitCodes?: boolean } = {}): Prom
   const [rows] = await p.execute(
     `SELECT r.id AS referrer_id, r.name AS referrer_name, r.kind AS referrer_kind, rc.id AS company_id, rc.name AS company_name,
             c.code, b.months, c.status, u.phone AS used_by_phone, c.used_at,
+            ${opts.unitCodes ? '(b.referrer_id IS NULL AND b.company_id IS NULL)' : '(b.referrer_id IS NULL)'} AS party_deleted,
             (SELECT DATE_FORMAT(MAX(tp.ends_on), '%Y-%m-%d') FROM training_passes tp
               WHERE tp.unique_key IN (CONCAT('code:', c.id), CONCAT('proxy:', c.id))) AS pass_ends_on
        FROM redeem_codes c
@@ -2244,6 +2257,7 @@ export async function listRedeemLedger(opts: { unitCodes?: boolean } = {}): Prom
     usedByPhone: row.used_by_phone ?? null,
     usedAt: toIso(row.used_at),
     passEndsOn: row.pass_ends_on ?? null,
+    partyDeleted: Number(row.party_deleted) === 1,
   }));
 }
 
@@ -2350,4 +2364,222 @@ export async function listSplitOrders(from: string, to: string): Promise<SplitOr
     paidAt: toIso(r.paid_at),
     snapshot: r.split_snapshot ?? null,
   }));
+}
+
+// ── 合作單位停用與刪除、後台帳號與推薦人刪除（使用者 2026-11-23，ADR-0020 第 11 點；只在專案 A 開了合作單位時）──
+//
+// 路由層限全域管理員（requireGlobal）。刪單位要碰家長的服務關係、篩查渠道、付款快照，所以列在
+// `test/adminScope.structure.test.ts` 的例外清單：範圍不是某個視野，而是「這個單位」本身。
+// 擋下的條件與畫面上的字在 `src/admin/unitDeletion.ts`。
+
+type Exec = Pick<Pool, 'execute'>;
+
+const placeholders = (n: number) => Array.from({ length: n }, () => '?').join(', ');
+
+export async function setCompanyActive(id: number, active: boolean): Promise<number> {
+  const p = requirePool();
+  const [result] = await p.execute('UPDATE companies SET active = ? WHERE id = ?', [active ? 1 : 0, id]);
+  return (result as ResultSetHeader).affectedRows;
+}
+
+/**
+ * 付款快照裡記到這個單位（對方或篩查渠道）或這幾位推薦人的訂單（失敗的不算）。
+ * 匯出只為了讓結構測試（adminScope）認得出這句屬於誰；只給下面刪除用。
+ */
+export async function countUnitOrders(q: Exec, companyId: number | null, referrerIds: number[]): Promise<number> {
+  const conds: string[] = [];
+  const args: number[] = [];
+  if (companyId !== null) {
+    conds.push("JSON_EXTRACT(split_snapshot, '$.party.companyId') = ?", "JSON_EXTRACT(split_snapshot, '$.screening.companyId') = ?");
+    args.push(companyId, companyId);
+  }
+  if (referrerIds.length > 0) {
+    conds.push(`JSON_EXTRACT(split_snapshot, '$.party.referrerId') IN (${placeholders(referrerIds.length)})`);
+    args.push(...referrerIds);
+  }
+  if (conds.length === 0) return 0;
+  const [rows] = await q.execute(
+    `SELECT COUNT(*) AS n FROM payments WHERE status <> 'failed' AND split_snapshot IS NOT NULL AND (${conds.join(' OR ')})`,
+    args
+  );
+  return Number((rows as any[])[0]?.n ?? 0);
+}
+
+export async function countExports(q: Exec, adminUserIds: number[]): Promise<number> {
+  if (adminUserIds.length === 0) return 0;
+  const [rows] = await q.execute(`SELECT COUNT(*) AS n FROM admin_exports WHERE admin_user_id IN (${placeholders(adminUserIds.length)})`, adminUserIds);
+  return Number((rows as any[])[0]?.n ?? 0);
+}
+
+interface UnitFacts {
+  preview: UnitDeletePreview;
+  referrerIds: number[];
+  accountIds: number[];
+}
+
+/** 刪單位要看的數字（預覽與刪除共用；刪除時鎖住單位那一列）。 */
+export async function unitDeleteFacts(q: Exec, companyId: number, lock: boolean): Promise<UnitFacts | null> {
+  const [companies] = await q.execute(`SELECT id, name, kind, active FROM companies WHERE id = ? LIMIT 1${lock ? ' FOR UPDATE' : ''}`, [companyId]);
+  const c = (companies as any[])[0];
+  if (!c) return null;
+  const [refRows] = await q.execute('SELECT id, admin_user_id FROM referrers WHERE company_id = ?', [companyId]);
+  const referrerIds = (refRows as any[]).map(r => Number(r.id));
+  const [memberRows] = await q.execute('SELECT id FROM admin_users WHERE company_id = ?', [companyId]);
+  const accountIds = [...new Set([...(memberRows as any[]).map(r => Number(r.id)), ...(refRows as any[]).map(r => Number(r.admin_user_id))])];
+
+  const [served] = await q.execute('SELECT COUNT(*) AS n FROM service_relations WHERE company_id = ?', [companyId]);
+  const [screening] = await q.execute('SELECT COUNT(*) AS n FROM users WHERE company_id = ?', [companyId]);
+  const batchWhere = referrerIds.length > 0 ? `b.company_id = ? OR b.referrer_id IN (${placeholders(referrerIds.length)})` : 'b.company_id = ?';
+  const [codes] = await q.execute(
+    `SELECT c.status, COUNT(*) AS n FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE ${batchWhere} GROUP BY c.status`,
+    [companyId, ...referrerIds]
+  );
+  const codeCount = (status: string) => Number((codes as any[]).find(r => r.status === status)?.n ?? 0);
+  const [conflicts] = await q.execute(
+    `SELECT COUNT(*) AS n FROM users u
+      WHERE u.company_id = ? AND u.phone IS NOT NULL
+        AND EXISTS (SELECT 1 FROM users d WHERE d.company_id IS NULL AND d.phone = u.phone)`,
+    [companyId]
+  );
+  const orders = await countUnitOrders(q, companyId, referrerIds);
+  const exports = await countExports(q, accountIds);
+
+  const active = Number(c.active) === 1;
+  return {
+    referrerIds,
+    accountIds,
+    preview: {
+      company: { id: Number(c.id), name: c.name, kind: isUnitKind(c.kind) ? c.kind : 'institution', active },
+      servedParents: Number((served as any[])[0]?.n ?? 0),
+      screeningParents: Number((screening as any[])[0]?.n ?? 0),
+      unusedCodes: codeCount('unused'),
+      usedCodes: codeCount('used'),
+      accounts: accountIds.length,
+      referrers: referrerIds.length,
+      blockers: blockersOf([
+        ['active', active ? 1 : 0],
+        ['orders', orders],
+        ['exports', exports],
+        ['phone_conflict', Number((conflicts as any[])[0]?.n ?? 0)],
+      ]),
+    },
+  };
+}
+
+/** 刪單位之前給人看的數字與擋下的原因（不寫任何東西）。找不到回 null。 */
+export async function companyDeletePreview(companyId: number): Promise<UnitDeletePreview | null> {
+  return (await unitDeleteFacts(requirePool(), companyId, false))?.preview ?? null;
+}
+
+export type DeleteCompanyResult =
+  | { ok: true; preview: UnitDeletePreview }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'blocked'; preview: UnitDeletePreview };
+
+/**
+ * 刪一個已停用的合作單位（一個交易）：先鎖住單位、重算一次擋下的條件（畫面上的預覽可能已經過時），
+ * 服務關係全部拿掉並各寫一筆改派紀錄（後台、回直屬）、篩查渠道改成直屬、未用的碼作廢、
+ * 碼的批次與單位脫鉤（已用的碼與使用權留著；對帳寫「已删除」）、刪推薦人與帳號、最後刪單位。
+ */
+export async function deleteCompany(companyId: number, adminUserId: number): Promise<DeleteCompanyResult> {
+  const p = requirePool();
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    const q = conn as unknown as Exec;
+    const facts = await unitDeleteFacts(q, companyId, true);
+    if (!facts) {
+      await conn.rollback();
+      return { ok: false, reason: 'not_found' };
+    }
+    if (facts.preview.blockers.length > 0) {
+      await conn.rollback();
+      return { ok: false, reason: 'blocked', preview: facts.preview };
+    }
+    const { referrerIds, accountIds } = facts;
+    await conn.execute(
+      `INSERT INTO service_relation_changes
+         (user_id, from_company_id, from_referrer_id, to_company_id, to_referrer_id, actor, reason, admin_user_id)
+       SELECT user_id, company_id, referrer_id, NULL, NULL, 'admin', 'admin', ? FROM service_relations WHERE company_id = ?`,
+      [adminUserId, companyId]
+    );
+    await conn.execute('DELETE FROM service_relations WHERE company_id = ?', [companyId]);
+    await conn.execute('UPDATE users SET company_id = NULL WHERE company_id = ?', [companyId]);
+    const refIn = referrerIds.length > 0 ? ` OR referrer_id IN (${placeholders(referrerIds.length)})` : '';
+    const batchWhere = `company_id = ?${refIn}`;
+    await conn.execute(
+      `UPDATE redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id SET c.status = 'void', c.voided_at = NOW()
+        WHERE c.status = 'unused' AND (b.company_id = ?${refIn.replace('referrer_id', 'b.referrer_id')})`,
+      [companyId, ...referrerIds]
+    );
+    // 外鍵是 ON DELETE CASCADE：不先脫鉤，刪單位／推薦人會連用過的碼一起刪掉。
+    await conn.execute(`UPDATE redeem_batches SET referrer_id = NULL, company_id = NULL WHERE ${batchWhere}`, [companyId, ...referrerIds]);
+    await conn.execute('DELETE FROM referrers WHERE company_id = ?', [companyId]);
+    if (accountIds.length > 0) {
+      await conn.execute(`DELETE FROM admin_users WHERE id IN (${placeholders(accountIds.length)}) AND role <> 'global_admin'`, accountIds);
+    }
+    await conn.execute('DELETE FROM companies WHERE id = ?', [companyId]);
+    await conn.commit();
+    return { ok: true, preview: facts.preview };
+  } catch (err) {
+    await conn.rollback().catch(() => {});
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+export type DeleteAccountResult = { ok: true } | { ok: false; reason: 'not_found' } | { ok: false; reason: 'blocked'; blockers: DeleteBlocker[] };
+
+/** 刪一個已停用的單位管理者帳號（`company_member`）。全域管理員、自己、推薦人與個人治療師單位的帳號都不行。 */
+export async function deleteAdminUser(id: number, selfId: number): Promise<DeleteAccountResult> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT a.id, a.role, a.active, r.id AS referrer_id FROM admin_users a LEFT JOIN referrers r ON r.admin_user_id = a.id WHERE a.id = ? LIMIT 1`,
+    [id]
+  );
+  const a = (rows as any[])[0];
+  if (!a) return { ok: false, reason: 'not_found' };
+  const identity = blockersOf([
+    ['self', id === selfId ? 1 : 0],
+    ['global_admin', a.role === 'global_admin' ? 1 : 0],
+    ['referrer_account', a.role === 'referrer' ? 1 : 0],
+    ['therapist_unit', a.role === 'company_member' && a.referrer_id !== null && a.referrer_id !== undefined ? 1 : 0],
+  ]);
+  if (identity.length > 0) return { ok: false, reason: 'blocked', blockers: identity };
+  const blockers = blockersOf([['active', Number(a.active) === 1 ? 1 : 0], ['exports', await countExports(p, [id])]]);
+  if (blockers.length > 0) return { ok: false, reason: 'blocked', blockers };
+  const [result] = await p.execute("DELETE FROM admin_users WHERE id = ? AND role = 'company_member' AND active = 0", [id]);
+  return (result as ResultSetHeader).affectedRows > 0 ? { ok: true } : { ok: false, reason: 'not_found' };
+}
+
+/**
+ * 刪一位已停用的推薦人（連帳號）：沒有綁定或由他服務的家長、沒有任何兌換碼（含已用）、沒有訂單、帳號沒有導出紀錄。
+ * 個人治療師單位的那位推薦人就是單位本身，走刪單位。
+ */
+export async function deleteReferrer(id: number): Promise<DeleteAccountResult> {
+  const p = requirePool();
+  const [rows] = await p.execute(
+    `SELECT r.id, r.admin_user_id, r.active, c.kind AS company_kind FROM referrers r LEFT JOIN companies c ON c.id = r.company_id WHERE r.id = ? LIMIT 1`,
+    [id]
+  );
+  const r = (rows as any[])[0];
+  if (!r) return { ok: false, reason: 'not_found' };
+  if (r.company_kind === 'therapist') return { ok: false, reason: 'blocked', blockers: [blocker('therapist_unit')] };
+  const [bound] = await p.execute(
+    `SELECT (SELECT COUNT(*) FROM referrer_bindings WHERE referrer_id = ?) + (SELECT COUNT(*) FROM service_relations WHERE referrer_id = ?) AS n`,
+    [id, id]
+  );
+  const [codes] = await p.execute('SELECT COUNT(*) AS n FROM redeem_codes c JOIN redeem_batches b ON b.id = c.batch_id WHERE b.referrer_id = ?', [id]);
+  const blockers = blockersOf([
+    ['active', Number(r.active) === 1 ? 1 : 0],
+    ['served_parents', Number((bound as any[])[0]?.n ?? 0)],
+    ['codes', Number((codes as any[])[0]?.n ?? 0)],
+    ['orders', await countUnitOrders(p, null, [id])],
+    ['exports', await countExports(p, [Number(r.admin_user_id)])],
+  ]);
+  if (blockers.length > 0) return { ok: false, reason: 'blocked', blockers };
+  // 刪帳號：`referrers` 那一列跟著外鍵刪掉（ON DELETE CASCADE），空的批次也是。
+  const [result] = await p.execute("DELETE FROM admin_users WHERE id = ? AND role = 'referrer'", [Number(r.admin_user_id)]);
+  return (result as ResultSetHeader).affectedRows > 0 ? { ok: true } : { ok: false, reason: 'not_found' };
 }

@@ -88,9 +88,10 @@ describe('資料層的交易', () => {
     expect(fill).toMatch(/Number\(boundTo\) !== referrer\.id\) \{\s*await conn\.rollback\(\);\s*return \{ ok: false, reason: 'other' \};/);
   });
 
-  it('只有第一次代填才扣碼、發使用權、綁定；沒有碼先產一組再用', () => {
+  it('只有第一次代填才扣碼、發使用權、綁定；手上沒有同月數的未用碼就整筆退回、不自動產碼（使用者 2026-11-23）', () => {
     expect(fill).toContain("SELECT 1 FROM training_passes WHERE user_id = ? AND source = 'proxy' LIMIT 1");
-    expect(fill).toContain('INSERT INTO redeem_batches (referrer_id, months, quantity, created_by) VALUES (?, ?, 1, ?)');
+    expect(fill).not.toContain('INSERT INTO redeem_batches');
+    expect(fill).toMatch(/if \(!\(free as any\[\]\)\[0\]\) \{\s*await conn\.rollback\(\);\s*return \{ ok: false, reason: 'no_code' \};/);
     expect(fill).toContain("INSERT IGNORE INTO referrer_bindings (user_id, referrer_id, source, ref_id) VALUES (?, ?, 'proxy', ?)");
   });
 

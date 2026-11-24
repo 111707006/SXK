@@ -76,3 +76,15 @@ describe('對帳表的單位層那一列（#124）', () => {
     expect(cells.slice(0, 2)).toEqual(['', '单位层']);
   });
 });
+
+describe('對帳表：發碼的單位／推薦人已刪除（使用者 2026-11-23）', () => {
+  it('推薦人、類型、單位三格寫「已删除」，不是「单位层」；碼與使用權照列', async () => {
+    const { redeemLedgerRows } = await import('../src/admin/redeemXlsx');
+    const row = { referrerId: null, referrerName: null, referrerKind: null, companyId: null, companyName: null, code: 'AAAAAAAAA3', months: 3, status: 'used' as const, usedByPhone: '13700000001', usedAt: '2026-11-23T02:00:00.000Z', passEndsOn: '2027-02-20', partyDeleted: true };
+    const [plain] = redeemLedgerRows([row]);
+    expect(plain.slice(0, 2)).toEqual(['已删除', '已删除']);
+    expect(plain).toContain('2027-02-20');
+    const [withCommission] = redeemLedgerRows([row], [null]);
+    expect(withCommission.slice(0, 3)).toEqual(['已删除', '已删除', '已删除']);
+  });
+});

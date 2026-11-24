@@ -20,6 +20,7 @@ export interface WecomQrList {
 import type { HomeMediaItem, HomeMediaKind, HomeMediaSlot } from '../homeMedia/shape';
 import type { LegalDoc, LegalDocKey, LegalDocs } from '../legal/shape';
 import type { UnitKind } from './units';
+import type { UnitDeletePreview } from './unitDeletion';
 import type { AdminCenterShape } from './companyScope';
 import type { AssessmentRecord } from '../types';
 import type { ActivityImportReport, ActivityPatch } from '../utils/activityAdmin';
@@ -469,6 +470,14 @@ export const adminApi = {
 
   companies: () => request<{ companies: AdminCompany[] }>('/companies'),
 
+  // ── 停用／刪除（使用者 2026-11-23；只在 A 開了合作單位時有，B 是 404）──
+  setCompanyActive: (id: number, active: boolean) =>
+    request<{ ok: true }>(`/companies/${id}/active`, { method: 'POST', body: JSON.stringify({ active }) }),
+  companyDeletePreview: (id: number) => request<{ preview: UnitDeletePreview }>(`/companies/${id}/delete-preview`),
+  deleteCompany: (id: number) => request<{ ok: true; preview: UnitDeletePreview }>(`/companies/${id}`, { method: 'DELETE' }),
+  deleteAdminUser: (id: number) => request<{ ok: true }>(`/admin-users/${id}`, { method: 'DELETE' }),
+  deleteReferrer: (id: number) => request<{ ok: true }>(`/referrers/${id}`, { method: 'DELETE' }),
+
   /**
    * 建公司（B）／合作單位（A，#117）。`unit` 只有 A 傳：類型必選；個人治療師一次帶上那個帳號的信箱、密碼、手機號，
    * 伺服器同時建好單位管理者兼推薦人的帳號。
@@ -699,6 +708,9 @@ export const adminApi = {
 
   updateHomeMedia: (id: number, patch: { link?: string | null; sortOrder?: number; active?: boolean }) =>
     request<{ item: HomeMediaItem }>(`/home-media/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  /** 刪一張素材（連檔案）；停用不想放就好，刪了不能復原。 */
+  deleteHomeMedia: (id: number) => request<{ ok: true }>(`/home-media/${id}`, { method: 'DELETE' }),
 
   // 批量匯入（v2.1 S25）：先 dryRun 試跑、給人看過，再同一份 rows 正式匯入。
   importActivities: (rows: unknown[], dryRun: boolean) =>

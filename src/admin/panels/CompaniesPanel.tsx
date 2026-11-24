@@ -30,6 +30,7 @@ import {
   toErrorView,
   useAsyncData,
 } from '../ui';
+import { UnitStatusCell } from './DeleteControls';
 
 /** 單位清單還沒讀到時給分組用的空陣列（固定一個，`useMemo` 才不會每次重算）。 */
 const EMPTY_UNITS: AdminCompany[] = [];
@@ -282,6 +283,7 @@ export default function CompaniesPanel({
                 <th className="py-2 pr-3 font-bold">进站连结</th>
                 <th className="py-2 pr-3 font-bold">通知位置</th>
                 {qrs && <th className="py-2 font-bold">客服二维码</th>}
+                {units && <th className="py-2 pl-3 font-bold">状态</th>}
               </tr>
             </thead>
             <tbody>
@@ -330,10 +332,15 @@ export default function CompaniesPanel({
                       />
                     </td>
                   )}
+                  {units && (
+                    <td className="py-2.5 pl-3 align-top">
+                      <UnitStatusCell company={c} onChanged={() => { reload(); onChanged(); }} />
+                    </td>
+                  )}
                 </tr>
                 {merged && expanded.has(c.id) && (
                   <tr className="border-b border-brand-stone/60 last:border-0">
-                    <td colSpan={qrs ? 6 : 5} className="pb-3">
+                    <td colSpan={qrs ? 7 : 6} className="pb-3">
                       <UnitAccountsBlock
                         unit={c}
                         serviceRelations={serviceRelations}

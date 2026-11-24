@@ -120,6 +120,7 @@ export default function AdminUsersPanel({
             unitColumn={{ title: units ? '所属单位' : '所属公司', name: u => companyName(u.companyId) }}
             togglingId={toggler.togglingId}
             onToggle={(id, active) => void toggler.toggle(id, active)}
+            onDeleted={units ? reload : undefined}
           />
           <SelfDeactivateNote />
         </>

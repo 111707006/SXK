@@ -60,6 +60,7 @@ import { readLegalMarkdown } from '../legal/markdown';
 import { isLegalDocKey } from '../legal/shape';
 import { HOME_CARD_SLOTS, isHomeMediaSlot, isSafeMediaLink, MAX_HOME_IMAGE_BYTES, MAX_HOME_VIDEO_BYTES, type HomeMediaKind } from '../homeMedia/shape';
 import path from 'path';
+import { removeHomeMediaFiles } from '../homeMedia/files';
 import crypto from 'crypto';
 import { listWecomQrs, removeWecomQr, saveWecomQr, type WecomQrKey } from '../wecomQr/store';
 import { buildSummaryTable, channelOf, readSummaryOptions, readSummaryPage, summaryPageOf, type SummarySource } from './parentSummary';
@@ -242,6 +243,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
    * 新建的推薦人一定要屬於某個單位、有代號。B 一個字都不變；A 沒開合作公司時也照舊（沒有單位可選）。
    */
   const unitsOn = unitsEnabled(shape);
+  /** 單位停用（使用者 2026-11-23）：單位管理者與旗下推薦人登不進來、既有工作階段下一個請求就失效。B 不看。 */
+  const unitStopped = (account: { companyActive?: boolean }) => unitsOn && account.companyActive === false;
 
   // ── 資料庫閘門 ──
   // 後台刻意沒有記憶體模式。家長端的記憶體降級是為了讓展示站跑得起來；
@@ -282,7 +285,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       // 帳號不存在、密碼錯誤、帳號已停用，回的是同一句話。
       // 分開講等於免費送出一份「這個信箱是不是後台帳號」的查詢服務。
       const ok = account ? await bcrypt.compare(password, account.passwordHash) : false;
-      if (!account || !ok || !account.active) {
+      // 所屬單位停用了（使用者 2026-11-23，只在專案 A 開了合作單位時）：同一句話，不另外說是單位停了。
+      if (!account || !ok || !account.active || unitStopped(account)) {
         res.status(401).json({ error: '帐号或密码错误，或该帐号已停用。' });
         return;
       }
@@ -314,7 +318,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       // 角色與啟用狀態一律以資料庫為準。停用一個帳號要立刻生效，
       // 不是等 token 過期 —— 「對方有人離職」是這個功能存在的理由。
       const account = await store.findAdminUserById(payload.aid);
-      const identity = account ? buildIdentity(payload, account) : null;
+      const identity = account && !unitStopped(account) ? buildIdentity(payload, account) : null;
       if (!identity) {
         res.status(401).json({ error: '登入状态已失效，请重新登入。', code: 'ADMIN_UNAUTHENTICATED' });
         return;
@@ -907,6 +911,88 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       res.status(500).json({ error: '建立合作公司失败。' });
     }
   });
+
+  // ── 停用／啟用單位、刪單位、刪帳號與推薦人（使用者 2026-11-23，ADR-0020 第 11 點）──
+  //
+  // 只在專案 A 開了合作單位時註冊（B 與 A 沒開合作單位時這幾支是 404，一行不動）；只有全域管理員；推薦人不在白名單上。
+  // 刪單位先停用；有訂單記到它就不刪（409，附預覽）。擋下的條件與字在 `src/admin/unitDeletion.ts`，做法在 adminStore。
+  if (unitsOn) {
+    const idOf = (raw: unknown) => (/^\d{1,9}$/.test(String(raw)) ? Number(raw) : NaN);
+
+    router.post('/companies/:id/active', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idOf(req.params.id);
+      if (typeof req.body?.active !== 'boolean') { res.status(400).json({ error: 'active 要是 true 或 false。' }); return; }
+      try {
+        const affected = Number.isInteger(id) ? await store.setCompanyActive(id, req.body.active) : 0;
+        if (affected === 0) { res.status(404).json({ error: '找不到这个合作单位。' }); return; }
+        res.json({ ok: true });
+      } catch (err: any) {
+        console.error('[Admin] setCompanyActive failed:', err.message);
+        res.status(500).json({ error: '更新合作单位失败。' });
+      }
+    });
+
+    router.get('/companies/:id/delete-preview', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idOf(req.params.id);
+      try {
+        const preview = Number.isInteger(id) ? await store.companyDeletePreview(id) : null;
+        if (!preview) { res.status(404).json({ error: '找不到这个合作单位。' }); return; }
+        res.json({ preview });
+      } catch (err: any) {
+        console.error('[Admin] companyDeletePreview failed:', err.message);
+        res.status(500).json({ error: '读取删除预览失败。' });
+      }
+    });
+
+    router.delete('/companies/:id', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idOf(req.params.id);
+      try {
+        const result = Number.isInteger(id) ? await store.deleteCompany(id, req.admin!.adminUserId) : ({ ok: false, reason: 'not_found' } as const);
+        if (!result.ok && result.reason === 'not_found') { res.status(404).json({ error: '找不到这个合作单位。' }); return; }
+        if (!result.ok) {
+          res.status(409).json({ error: result.preview.blockers.map(b => b.message).join(' '), code: 'DELETE_BLOCKED', preview: result.preview });
+          return;
+        }
+        res.json({ ok: true, preview: result.preview });
+      } catch (err: any) {
+        console.error('[Admin] deleteCompany failed:', err.message);
+        res.status(500).json({ error: '删除合作单位失败，什么都没有改。' });
+      }
+    });
+
+    const accountDeleted = (res: express.Response, result: store.DeleteAccountResult, notFound: string) => {
+      if (result.ok) { res.json({ ok: true }); return; }
+      if (result.reason === 'not_found') { res.status(404).json({ error: notFound }); return; }
+      res.status(409).json({ error: result.blockers.map(b => b.message).join(' '), code: 'DELETE_BLOCKED', blockers: result.blockers });
+    };
+
+    router.delete('/admin-users/:id', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idOf(req.params.id);
+      try {
+        if (!Number.isInteger(id)) { res.status(404).json({ error: '找不到该后台帐号。' }); return; }
+        accountDeleted(res, await store.deleteAdminUser(id, req.admin!.adminUserId), '找不到该后台帐号。');
+      } catch (err: any) {
+        console.error('[Admin] deleteAdminUser failed:', err.message);
+        res.status(500).json({ error: '删除后台帐号失败。' });
+      }
+    });
+
+    router.delete('/referrers/:id', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = idOf(req.params.id);
+      try {
+        if (!Number.isInteger(id)) { res.status(404).json({ error: '找不到该推荐人。' }); return; }
+        accountDeleted(res, await store.deleteReferrer(id), '找不到该推荐人。');
+      } catch (err: any) {
+        console.error('[Admin] deleteReferrer failed:', err.message);
+        res.status(500).json({ error: '删除推荐人失败。' });
+      }
+    });
+  }
 
   /**
    * A 的合作單位（#117）：類型必選。個人治療師一次建好單位、帳號（單位管理者）與推薦人那一列；帳號的信箱、密碼、
@@ -1669,6 +1755,11 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       return { kind: 'referrer', referrerId: referrer.id, companyId: referrer.companyId };
     };
     const OTHER_SERVED = { error: '这位家长由其他老师或单位服务', code: 'OTHER_REFERRER' };
+    // 使用者 2026-11-23：要有兌換碼才能代填（第一次代填一位家長扣一組同月數的未用碼），沒有就擋下，不再自動產碼。
+    const noFreeCode = (months: number) => ({
+      error: `你手上没有 ${months} 个月的未用兑换码，请先向森心康申请兑换码再代填。`,
+      code: 'NO_FREE_CODE',
+    });
 
     router.post('/referrer/proxy/lookup', async (req: AuthedRequest, res) => {
       try {
@@ -1714,7 +1805,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
             today: calendarDateOf(now),
             generateCode: () => generateCode(max => crypto.randomInt(max)),
           });
-          if (!served.ok) return void res.status(409).json(OTHER_SERVED);
+          if (!served.ok) return void res.status(409).json(served.reason === 'no_code' ? noFreeCode(input.months) : OTHER_SERVED);
           return void res.json({ ok: true, consumedCode: served.consumedCodeId !== null });
         }
         if (!referrer) return;
@@ -1729,7 +1820,7 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
             generateCode: () => generateCode(max => crypto.randomInt(max)),
           }
         );
-        if (!result.ok) return void res.status(409).json({ error: '这位家长已由其他推荐人服务', code: 'OTHER_REFERRER' });
+        if (!result.ok) return void res.status(409).json(result.reason === 'no_code' ? noFreeCode(input.months) : { error: '这位家长已由其他推荐人服务', code: 'OTHER_REFERRER' });
         res.json({ ok: true, consumedCode: result.consumedCodeId !== null });
       } catch (err: any) {
         console.error('[Admin] proxy fill failed:', err.message);
@@ -2073,7 +2164,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
   // ── 首頁素材（客戶 10/22，#87／#88；`src/homeMedia/shape.ts`）──
   //
   // 全域管理員才碰得到（全站一套，不屬於任何一家合作公司）。新增＝上傳一個檔（請求本體就是檔案，同示範片），
-  // 檔名由伺服器決定；連結、排序、啟用走 PATCH；短片的封面另一支（後台瀏覽器抽一格）。沒有刪除：停用就好。
+  // 檔名由伺服器決定；連結、排序、啟用走 PATCH；短片的封面另一支（後台瀏覽器抽一格）。
+  // 刪除（使用者 2026-11-23）：刪那一列，盡力刪檔與封面（`src/homeMedia/files.ts`，只動 `home/` 裡面的檔）。
   const homeDir = hooks.homeMediaDir;
   if (homeDir) {
     const homeFolder = path.join(homeDir, 'home');
@@ -2148,6 +2240,21 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       } catch (err: any) {
         console.error('[Admin] upload home media poster failed:', err.message);
         res.status(500).json({ error: '上传封面失败，请再试一次。' });
+      }
+    });
+
+    router.delete('/home-media/:id', async (req: AuthedRequest, res) => {
+      if (!requireGlobal(req, res)) return;
+      const id = /^\d{1,9}$/.test(String(req.params.id)) ? Number(req.params.id) : NaN;
+      try {
+        const item = Number.isInteger(id) ? await store.findHomeMedia(id) : null;
+        if (!item || !(await store.deleteHomeMedia(id))) { res.status(404).json({ error: '找不到这一张素材。' }); return; }
+        const failed = await removeHomeMediaFiles(homeFolder, [item.url, item.posterUrl]);
+        if (failed.length > 0) console.warn(`[Admin] home media ${id} deleted but files left behind: ${failed.join('; ')}`);
+        res.json({ ok: true });
+      } catch (err: any) {
+        console.error('[Admin] deleteHomeMedia failed:', err.message);
+        res.status(500).json({ error: '删除素材失败。' });
       }
     });
 

@@ -2101,6 +2101,19 @@ function servedRelationOf(row: any): ServiceRelation | null {
     : { companyId: Number(row.cur_company_id), referrerId: row.cur_referrer_id === null ? null : Number(row.cur_referrer_id) };
 }
 
+/**
+ * 代填簡訊要寄給誰（`PROXY_SMS`）：這支手機號在代填人名下（`proxyAccess` 是 mine）、而且被代填過的帳號 id；其他回 null。
+ * 只回 id，不回任何家長資料。
+ */
+export async function proxySmsTarget(party: ProxyParty, phone: string): Promise<number | null> {
+  const p = requirePool();
+  const [rows] = await p.execute(SERVED_LOOKUP_SQL, servedLookupParams(party, phone));
+  const row = (rows as any[])[0];
+  if (!row || proxyAccess(party, servedRelationOf(row), nullableId(row.screening_company_id)) !== 'mine') return null;
+  const [filled] = await p.execute("SELECT 1 FROM t2_findings WHERE user_id = ? AND ai_engine = 'proxy' LIMIT 1", [Number(row.id)]);
+  return (filled as any[]).length > 0 ? Number(row.id) : null;
+}
+
 /** 代填之前用手機號找家長（服務關係開關開著）。 */
 export async function proxyLookupServed(party: ProxyParty, phone: string): Promise<ProxyLookup> {
   const p = requirePool();

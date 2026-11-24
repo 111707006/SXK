@@ -11,6 +11,7 @@ import { ACTIVITY_TAGS, tagDimension, type ActivityTag } from '../../t2/findingT
 import { SITE_DIMENSION_NAME } from '../../t2/dimensionMap';
 import { TAG_PREFIX_OF, type ProxyColor } from '../../t2/proxySnapshot';
 import { DIMENSION_CODES, type DimensionCode } from '../../t2/types';
+import { PROXY_SMS_TEXT, type ProxySmsInfo } from '../../serviceRelations/proxySms';
 import { Button, Field, Panel, Select, TextInput } from '../ui';
 
 const COLOR_LABEL: Record<ProxyColor, string> = { red: '红', yellow: '黄', green: '绿' };
@@ -41,6 +42,7 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [doneNote, setDoneNote] = useState<string | null>(null);
+  const [sms, setSms] = useState<ProxySmsInfo | null>(null);
 
   async function lookup(e: React.FormEvent) {
     e.preventDefault();
@@ -51,6 +53,7 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
       if (found.status === 'new') setLookupNote('这支手机号还没有帐号，送出时会为家长建一个。');
       else setLookupNote(found.status === 'mine' ? '这位家长已在你名下，再代填会覆盖成新的结果，不再扣码。' : '这位家长还没有推荐人，代填后会绑到你名下。');
       if ('child' in found && found.child) setChild({ name: found.child.name, birthDate: found.child.birthDate, gender: found.child.gender === 'girl' ? 'girl' : 'boy' });
+      setSms('sms' in found ? found.sms ?? null : null);
       setStage('form');
     } catch (err) {
       if (err instanceof AdminApiError && err.status === 409) setError(err.message);
@@ -67,6 +70,7 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
     try {
       const result = await adminApi.proxyFill({ phone: phone.trim(), child, colors, tags: [...tags], months });
       setDoneNote(result.consumedCode ? '已代填，用掉你一组兑换码。家长用这支手机号登入就能开始居家训练。' : '已更新代填的结果（没有再扣码）。');
+      setSms(result.sms ?? null);
       setStage('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : '代填失败。');
@@ -87,7 +91,8 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
     return (
       <Panel title="代填">
         <p className="text-xs font-bold text-brand-forest">{doneNote}</p>
-        <Button className="mt-3" variant="ghost" onClick={() => { setStage('lookup'); setPhone(''); setColors({}); setTags(new Set()); setChild({ name: '', birthDate: '', gender: 'boy' }); setLookupNote(null); }}>再代填一位</Button>
+        {sms && <ProxySmsBlock key={phone} phone={phone.trim()} initial={sms} />}
+        <Button className="mt-3" variant="ghost" onClick={() => { setSms(null); setStage('lookup'); setPhone(''); setColors({}); setTags(new Set()); setChild({ name: '', birthDate: '', gender: 'boy' }); setLookupNote(null); }}>再代填一位</Button>
       </Panel>
     );
   }
@@ -102,6 +107,7 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
       {stage === 'form' && (
         <div className="mt-4 space-y-4">
           {lookupNote && <p className="text-[11px] text-brand-charcoal/70">{lookupNote}</p>}
+          {sms && <ProxySmsBlock key={phone} phone={phone.trim()} initial={sms} />}
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="孩子姓名"><TextInput value={child.name} onChange={e => setChild({ ...child, name: e.target.value })} maxLength={20} /></Field>
             <Field label="出生日期">
@@ -152,5 +158,50 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
         </div>
       )}
     </Panel>
+  );
+}
+
+/** 代填簡訊的狀態、重發與複製連結（`PROXY_SMS` 開著、伺服器帶 `sms` 才畫）。 */
+function ProxySmsBlock({ phone, initial }: { phone: string; initial: ProxySmsInfo }) {
+  const [sms, setSms] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const link = `${window.location.origin}${sms.entryPath}`;
+
+  async function send() {
+    setBusy(true);
+    setError(null);
+    try {
+      setSms((await adminApi.proxySms(phone)).sms);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '发送失败。');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+    } catch {
+      // 複製不了（權限、非 https）：連結就寫在旁邊，可以手動選取。
+      setError('复制不了，请手动选取上面的连结。');
+    }
+  }
+
+  return (
+    <div id="proxy-sms" className="mt-3 space-y-1.5 rounded-2xl border border-brand-stone/60 p-3">
+      <p className={`text-[11px] font-bold ${sms.status === 'failed' ? 'text-red-700' : 'text-brand-forest'}`} role="status">{PROXY_SMS_TEXT[sms.status]}</p>
+      <code className="block break-all text-[10px] text-brand-charcoal/55">{link}</code>
+      <div className="flex flex-wrap gap-1.5">
+        {(sms.status === 'failed' || sms.status === 'not_sent') && (
+          <Button variant="ghost" busy={busy} onClick={() => void send()}>{sms.status === 'failed' ? '重发短信' : '发送短信'}</Button>
+        )}
+        <Button variant="ghost" onClick={() => void copy()}>{copied ? '已复制' : '复制连结'}</Button>
+      </div>
+      {error && <p className="text-[11px] font-bold text-red-700">{error}</p>}
+    </div>
   );
 }

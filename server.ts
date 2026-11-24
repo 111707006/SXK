@@ -45,7 +45,11 @@ import {
 } from './src/serviceRelations/switchSource';
 import { developmentIndexFor, resolveDevIndexBasis } from './src/developmentIndex/basis';
 import { notifyExpertBooking } from './src/notify';
-import { inviteChannelStatus, sendHandoffInvite, sendVerificationCode } from './src/sms';
+import { inviteChannelStatus, proxySmsChannelReady, sendHandoffInvite, sendProxySms, sendVerificationCode } from './src/sms';
+import { finishProxySms, reserveProxySms } from './src/db/proxySms';
+import { parseEntryCode, resolveProxySms } from './src/serviceRelations/proxySms';
+import { referrerEntryUrl } from './src/admin/units';
+import { findCompanyById, findReferrer } from './src/admin/adminStore';
 import { generateOutTradeNo, isValidOutTradeNo } from './src/utils/outTradeNo';
 import {
   generateReportLinkToken,
@@ -348,6 +352,11 @@ if (TRAINING_PLAN_REQUESTED && APP_MODE === 'full' && !TRAINING_PUSH_V3) {
   throw new Error('TRAINING_PLAN=1 需要同時設 TRAINING_PUSH_V3=1（使用權的長度對齊 v3 推送規則的一期 12 週）');
 }
 const TRAINING_PLAN = TRAINING_PLAN_REQUESTED && APP_MODE === 'full';
+
+// 代填之後寄登入簡訊給家長（使用者 2026-11-24，`src/serviceRelations/proxySms.ts`）：預設關；要先跑 2026-11-26-proxy-sms.sql。
+const PROXY_SMS = resolveProxySms(resolvePaywallSwitch('PROXY_SMS', process.env.PROXY_SMS), {
+  projectA: APP_MODE === 'full', serviceRelations: SERVICE_RELATIONS, trainingPlan: TRAINING_PLAN,
+});
 // T1 → T2 優惠券（客戶 11/03 簡報第 21、29 頁，規格 docs/specs/client-changes-2026-11-03.md〈優惠券〉，`src/t2/coupon.ts`）：
 // 開著時後台「优惠券」分頁（全域管理員）批量產碼、改折法、看使用狀況，家長在 T2 卡價錢下兌一張（`/api/coupon`），
 // 之後 T2 的訂單照折後價開（`/api/payment/create`）。每位家長只能用一張、不綁渠道。關著＝那幾支不註冊（404）、價錢照舊。
@@ -4950,6 +4959,31 @@ if (REPORT_SCAN_SPA) {
 }
 
 /**
+ * 代填簡訊的短連結（`PROXY_SMS`）：`t<推薦人>`／`u<單位>` 轉到既有的進站連結。公開、不是登入憑據。
+ * 認不得、停用、查不到或資料庫慢都轉到首頁：家長照樣能用手機號登入，帳號只認手機號。
+ */
+if (PROXY_SMS) {
+  app.get('/g/:code', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    let target = '/';
+    const entry = parseEntryCode(req.params.code);
+    try {
+      if (entry?.kind === 'referrer') {
+        const r = await withTimeout(findReferrer(entry.id), 2000);
+        const unit = r?.active && r.companyId !== null ? await withTimeout(findCompanyById(r.companyId), 2000) : null;
+        if (r && unit?.active) target = referrerEntryUrl('', r) ?? `/?c=${encodeURIComponent(unit.slug)}`;
+      } else if (entry) {
+        const unit = await withTimeout(findCompanyById(entry.id), 2000);
+        if (unit?.active) target = `/?c=${encodeURIComponent(unit.slug)}`;
+      }
+    } catch (err: any) {
+      console.warn('[ProxySms] short link lookup failed:', err.message);
+    }
+    res.redirect(302, target);
+  });
+}
+
+/**
  * 掃碼之後打開的那一頁。**公開，不需要登入** —— 那正是這個功能存在的理由。
  *
  * 走的是伺服器端渲染的 HTML，不是 SPA：手機上打開就是一頁純文件，
@@ -5102,6 +5136,8 @@ app.use(
       wecomQrDir: MEDIA_DIR,
       // 兌換碼（#110）：只在專案 A、`TRAINING_PLAN` 開著。
       redeemCodes: TRAINING_PLAN,
+      // 代填簡訊（使用者 2026-11-24）：只在專案 A、`PROXY_SMS` 開著。
+      proxySms: PROXY_SMS ? { ready: proxySmsChannelReady, reserve: reserveProxySms, send: sendProxySms, finish: finishProxySms } : undefined,
       // 條款（11/03 第 14 頁）：只在專案 A、`LEGAL_DOCS` 開著。
       legalDocs: LEGAL_DOCS,
       // T2 優惠券（客戶 11/03）：只在專案 A、`T2_COUPON` 開著。

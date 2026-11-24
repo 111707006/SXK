@@ -23,6 +23,8 @@ const ALLOWED: ReadonlyArray<{ method: string; pattern: RegExp }> = [
   { method: 'GET', pattern: /^\/my\/coupons\.csv$/ },
   { method: 'POST', pattern: /^\/referrer\/proxy\/lookup\/?$/ },
   { method: 'POST', pattern: /^\/referrer\/proxy\/?$/ },
+  // 代填簡訊重發（2026-11-24，`PROXY_SMS` 開著才註冊）。
+  { method: 'POST', pattern: /^\/referrer\/proxy\/sms\/?$/ },
 ];
 
 export function referrerMayCall(method: string, path: string): boolean {

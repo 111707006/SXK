@@ -6,6 +6,7 @@
  * 對方登入狀態的 bug，而那種 bug 在後台最不該出現。
  */
 
+import type { ProxySmsInfo } from '../serviceRelations/proxySms';
 import type { CouponDiscount } from '../t2/coupon';
 import type { ServiceChange, ServiceTargets, ServiceView } from '../serviceRelations/adminView';
 import type { LedgerPartyTotal, LedgerRow, LedgerTotals } from '../revenueSplit/ledger';
@@ -632,10 +633,12 @@ export const adminApi = {
 
   // ── 代填（客戶 10/22，#112；只有推薦人）──
   proxyLookup: (phone: string) =>
-    request<{ status: 'new' } | { status: 'mine' | 'unbound'; child: { name: string; birthDate: string; gender: string } | null }>(
+    request<{ status: 'new' } | { status: 'mine' | 'unbound'; child: { name: string; birthDate: string; gender: string } | null; sms?: ProxySmsInfo }>(
       '/referrer/proxy/lookup', { method: 'POST', body: JSON.stringify({ phone }) }),
   proxyFill: (input: { phone: string; child: { name: string; birthDate: string; gender: 'boy' | 'girl' }; colors: Record<string, string>; tags: string[]; months: 1 | 3 | 6 | 12 }) =>
-    request<{ ok: true; consumedCode: boolean }>('/referrer/proxy', { method: 'POST', body: JSON.stringify(input) }),
+    request<{ ok: true; consumedCode: boolean; sms?: ProxySmsInfo }>('/referrer/proxy', { method: 'POST', body: JSON.stringify(input) }),
+  /** 重發代填簡訊（`PROXY_SMS` 開著才有）。 */
+  proxySms: (phone: string) => request<{ sms: ProxySmsInfo }>('/referrer/proxy/sms', { method: 'POST', body: JSON.stringify({ phone }) }),
 
   // ── 首頁素材（客戶 10/22，#87；伺服器開關 HOME_MEDIA 關著時這幾支是 404）──
   homeMedia: () => request<{ items: HomeMediaItem[] }>('/home-media'),

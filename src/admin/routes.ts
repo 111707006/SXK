@@ -28,6 +28,7 @@ import {
 import { SLUG_PATTERN } from '../utils/companySlug';
 import { isAllowedAssetUrl, assetUrlError } from '../utils/assetUrl';
 import { generateHandoffCode } from '../handoff/core';
+import { entryCodeOf, entryPathOf, type ProxySmsInfo, type ProxySmsStatus } from '../serviceRelations/proxySms';
 import { INVITE_BATCH_MAX, inviteStatus, type InviteStatus } from '../handoff/invite';
 import { referrerMayCall } from './referrerAccess';
 import { canReassign, type ProxyParty, type ReassignActor, type ServiceRelation } from '../serviceRelations/rules';
@@ -186,6 +187,16 @@ export interface AdminRouterHooks {
    * 只有專案 A 傳（`/media` 只在 A 掛）；沒有就那幾支不註冊（404），後台「合作公司」分頁就不畫那一塊。
    */
   wecomQrDir?: string;
+  /**
+   * 代填之後寄給家長的登入簡訊（使用者 2026-11-24，`src/serviceRelations/proxySms.ts`）：只有專案 A、`PROXY_SMS` 開著才傳；
+   * 沒有就不寄、回應不帶 `sms`、重發那一支不註冊。`send` **永不丟例外**。
+   */
+  proxySms?: {
+    ready: () => boolean;
+    reserve: (userId: number, adminUserId: number) => Promise<number | null>;
+    send: (phone: string, entryCode: string) => Promise<{ ok: boolean; detail: string }>;
+    finish: (id: number, ok: boolean, detail: string) => Promise<void>;
+  };
   /** 兌換碼（#110）：只有專案 A、`TRAINING_PLAN` 開著才傳 `true`；沒有就那幾支不註冊。 */
   redeemCodes?: boolean;
   /** 後台可編輯的條款（11/03 第 14 頁）：只有專案 A、`LEGAL_DOCS` 開著才傳 `true`；沒有就那兩支不註冊（404）。 */
@@ -1761,6 +1772,41 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
       code: 'NO_FREE_CODE',
     });
 
+    // 代填簡訊（使用者 2026-11-24，`PROXY_SMS`）：先佔一列紀錄再送。任何錯都收成 failed。
+    const smsInfo = (party: ProxyParty, status: ProxySmsStatus): ProxySmsInfo => ({ status, entryPath: entryPathOf(entryCodeOf(party)) });
+    const deliverProxySms = async (party: ProxyParty, userId: number, phone: string, adminUserId: number): Promise<ProxySmsInfo> => {
+      const sms = hooks.proxySms!;
+      try {
+        if (!sms.ready()) return smsInfo(party, 'not_ready');
+        const id = await sms.reserve(userId, adminUserId);
+        if (id === null) return smsInfo(party, 'cooldown');
+        const result = await sms.send(phone, entryCodeOf(party));
+        await sms.finish(id, result.ok, result.detail).catch(err => console.error('[Admin] proxy sms log failed:', err.message));
+        return smsInfo(party, result.ok ? 'sent' : 'failed');
+      } catch (err: any) {
+        console.error('[Admin] proxy sms failed:', err.message);
+        return smsInfo(party, 'failed');
+      }
+    };
+
+    if (hooks.proxySms && shape.serviceRelations) {
+      // 重發：只能寄給自己名下、被代填過的家長。
+      router.post('/referrer/proxy/sms', async (req: AuthedRequest, res) => {
+        try {
+          const party = await myProxyParty(req, res);
+          if (!party) return;
+          const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+          if (!/^1\d{10}$/.test(phone)) return void res.status(400).json({ error: '请填写 11 位手机号。' });
+          const userId = await store.proxySmsTarget(party, phone);
+          if (userId === null) return void res.status(404).json({ error: '找不到由你代填过的这位家长。' });
+          res.json({ sms: await deliverProxySms(party, userId, phone, req.admin!.adminUserId) });
+        } catch (err: any) {
+          console.error('[Admin] proxy sms resend failed:', err.message);
+          res.status(500).json({ error: '发送失败，请再试一次。' });
+        }
+      });
+    }
+
     router.post('/referrer/proxy/lookup', async (req: AuthedRequest, res) => {
       try {
         if (shape.serviceRelations) {
@@ -1770,7 +1816,8 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
           if (!/^1\d{10}$/.test(phone)) return void res.status(400).json({ error: '请填写 11 位手机号。' });
           const found = await store.proxyLookupServed(party, phone);
           if (found.status === 'other') return void res.status(409).json(OTHER_SERVED);
-          return void res.json(found);
+          const canSend = found.status === 'mine' && hooks.proxySms && (await store.proxySmsTarget(party, phone)) !== null;
+          return void res.json({ ...found, ...(canSend ? { sms: smsInfo(party, 'not_sent') } : {}) });
         }
         const referrer = await myReferrer(req, res);
         if (!referrer) return;
@@ -1806,7 +1853,13 @@ export function createAdminRouter(shape: AdminCenterShape, hooks: AdminRouterHoo
             generateCode: () => generateCode(max => crypto.randomInt(max)),
           });
           if (!served.ok) return void res.status(409).json(served.reason === 'no_code' ? noFreeCode(input.months) : OTHER_SERVED);
-          return void res.json({ ok: true, consumedCode: served.consumedCodeId !== null });
+          // 代填已經寫好：簡訊怎樣都不讓它變成失敗。再代填（沒扣碼）不自動寄。
+          const sms = !hooks.proxySms
+            ? null
+            : served.consumedCodeId !== null
+              ? await deliverProxySms(party, served.userId, input.phone, req.admin!.adminUserId)
+              : smsInfo(party, 'not_sent');
+          return void res.json({ ok: true, consumedCode: served.consumedCodeId !== null, ...(sms ? { sms } : {}) });
         }
         if (!referrer) return;
         const result = await store.proxyFill(

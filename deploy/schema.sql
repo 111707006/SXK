@@ -1016,3 +1016,17 @@ CREATE TABLE IF NOT EXISTS `service_relation_changes` (
   INDEX `idx_service_relation_changes_user` (`user_id`, `created_at`),
   CONSTRAINT `fk_service_relation_changes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 代填短信的发送纪录（只有专案 A；迁移 deploy/migrations/2026-11-26-proxy-sms.sql）
+CREATE TABLE IF NOT EXISTS `proxy_sms` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  -- 谁送出的代填（或按了重发）。不设外键：后台帐号删掉，纪录照样留着。
+  `admin_user_id` INT UNSIGNED NOT NULL,
+  -- pending＝占位还没有结果（程序中断会留下，当作送过）。手机号不另存，看 users。
+  `status` ENUM('pending','sent','failed') NOT NULL,
+  `detail` VARCHAR(200) NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_proxy_sms_user` (`user_id`, `created_at`),
+  CONSTRAINT `fk_proxy_sms_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

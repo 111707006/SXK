@@ -250,3 +250,33 @@ export async function sendHandoffInvite(phone: string, code: string, linkForCons
   if (!result.ok) console.error(`[SMS] 邀请未送达 ${phone}（${result.provider}/${result.reason}）：${result.detail}`);
   return result;
 }
+
+// ── 代填之後寄給家長的登入簡訊（使用者 2026-11-24，`src/serviceRelations/proxySms.ts`） ──
+
+/** 範本另外審；網址寫死在範本裡，只有短碼是變數 `${code}`（例：`…https://sxkscreen.com/g/${code}`）。 */
+const PROXY_TEMPLATE_ENV = 'ALI_SMS_PROXY_TEMPLATE_CODE';
+
+export function proxySmsChannelReady(): boolean {
+  try {
+    return resolveSmsProvider() === 'console' || missingAliyunConfig(PROXY_TEMPLATE_ENV).length === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** 送一則代填登入簡訊。**永不丟例外。** */
+export async function sendProxySms(phone: string, code: string): Promise<SmsResult> {
+  let provider: SmsProvider;
+  try {
+    provider = resolveSmsProvider();
+  } catch (err: any) {
+    return { ok: false, provider: 'unknown', reason: 'not_configured', detail: err.message };
+  }
+  if (provider === 'console') {
+    console.warn(`[SMS/console] 代填简讯为本机模式，未送出真实短信。${phone} 的连结：/g/${code}`);
+    return { ok: true, provider: 'console', detail: 'logged to console (SMS_PROVIDER=console)' };
+  }
+  const result = await sendViaAliyun(phone, code, PROXY_TEMPLATE_ENV);
+  if (!result.ok) console.error(`[SMS] 代填简讯未送达 ${phone}（${result.provider}/${result.reason}）：${result.detail}`);
+  return result;
+}

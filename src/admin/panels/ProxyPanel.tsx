@@ -38,7 +38,8 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
   const [child, setChild] = useState({ name: '', birthDate: '', gender: 'boy' as 'boy' | 'girl' });
   const [colors, setColors] = useState<Partial<Record<DimensionCode, ProxyColor>>>({});
   const [tags, setTags] = useState<Set<ActivityTag>>(new Set());
-  const [months, setMonths] = useState<1 | 3 | 6 | 12>(3);
+  // 不預設：治療師自己選（使用者 2026-11-24），手上有哪個月數的碼就選哪個。
+  const [months, setMonths] = useState<1 | 3 | 6 | 12 | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [doneNote, setDoneNote] = useState<string | null>(null);
@@ -65,6 +66,7 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
   }
 
   async function submit() {
+    if (months === null) return;
     setBusy(true);
     setError(null);
     try {
@@ -92,7 +94,7 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
       <Panel title="代填">
         <p className="text-xs font-bold text-brand-forest">{doneNote}</p>
         {sms && <ProxySmsBlock key={phone} phone={phone.trim()} initial={sms} />}
-        <Button className="mt-3" variant="ghost" onClick={() => { setSms(null); setStage('lookup'); setPhone(''); setColors({}); setTags(new Set()); setChild({ name: '', birthDate: '', gender: 'boy' }); setLookupNote(null); }}>再代填一位</Button>
+        <Button className="mt-3" variant="ghost" onClick={() => { setSms(null); setMonths(null); setStage('lookup'); setPhone(''); setColors({}); setTags(new Set()); setChild({ name: '', birthDate: '', gender: 'boy' }); setLookupNote(null); }}>再代填一位</Button>
       </Panel>
     );
   }
@@ -100,7 +102,7 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
   return (
     <Panel title="代填" description="不让家长重做评估：你给的红黄绿与勾的标签，就是安排每周家庭活动的依据。家长看到的结果会标「由治疗师填写」。">
       <form onSubmit={lookup} className="flex flex-wrap items-end gap-2">
-        <Field label="家长手机号"><TextInput value={phone} onChange={e => { setPhone(e.target.value); setStage('lookup'); }} inputMode="numeric" maxLength={11} /></Field>
+        <Field label="家长手机号"><TextInput value={phone} onChange={e => { setPhone(e.target.value); setMonths(null); setStage('lookup'); }} inputMode="numeric" maxLength={11} /></Field>
         <Button type="submit" busy={busy && stage === 'lookup'} disabled={!/^1\d{10}$/.test(phone.trim())}>查找家长</Button>
       </form>
       {error && <p className="mt-2 text-xs font-bold text-red-700">{error}</p>}
@@ -145,15 +147,17 @@ export default function ProxyPanel({ onError }: { onError: (view: AdminErrorView
           </ul>
           <div className="flex flex-wrap items-end gap-3">
             <Field label="方案">
-              <Select value={months} onChange={e => setMonths(Number(e.target.value) as 1 | 3 | 6 | 12)} className="w-auto">
+              <Select value={months ?? ''} onChange={e => setMonths(e.target.value ? (Number(e.target.value) as 1 | 3 | 6 | 12) : null)} className="w-auto">
+                <option value="">请选择方案</option>
                 <option value={1}>一个月</option>
                 <option value={3}>三个月</option>
                 <option value={6}>六个月</option>
                 <option value={12}>十二个月</option>
               </Select>
             </Field>
-            <Button busy={busy} disabled={!allColored || !child.name.trim() || !child.birthDate} onClick={() => void submit()}>送出代填</Button>
+            <Button busy={busy} disabled={!allColored || months === null || !child.name.trim() || !child.birthDate} onClick={() => void submit()}>送出代填</Button>
             {!allColored && <span className="text-[11px] text-brand-charcoal/60">九个方面都要选红、黄或绿。</span>}
+            {allColored && months === null && <span className="text-[11px] text-brand-charcoal/60">请选择方案（要有同月数的未用兑换码）。</span>}
           </div>
         </div>
       )}

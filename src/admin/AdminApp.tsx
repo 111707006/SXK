@@ -52,7 +52,7 @@ import ReferrersPanel from './panels/ReferrersPanel';
 import { unitsEnabled } from './units';
 import RedeemCodesBlock from './panels/RedeemCodesBlock';
 import MyCouponsBlock from './panels/MyCouponsBlock';
-import { LegacyCouponBatches, ReferrerCouponsBlock, useCouponBatches } from './panels/CouponsPanel';
+import { ReferrerCouponsBlock, useCouponBatches } from './panels/CouponsPanel';
 import RevenueSplitPanel from './panels/RevenueSplitPanel';
 import ProxyPanel from './panels/ProxyPanel';
 
@@ -422,7 +422,6 @@ function AdminCenter() {
               />
               {/* 單位層的碼（#124，服務關係開關開著）：不指定推薦人，給單位管理者代填、發給本單位用。 */}
               {shape.serviceRelations && <UnitCodesSection companies={companies.filter(c => c.active)} onError={handleError} />}
-              <LegacyCouponBatches state={couponState} onError={handleError} />
             </div>
           )}
           {activeTab === 'revenueSplit' && <RevenueSplitPanel onError={handleError} />}

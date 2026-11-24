@@ -6,7 +6,7 @@
  * 每一批看得到未用／已用／作廢幾張，展開看每一張是誰（家長編號）、哪天用的（付款看對帳；這裡不讀訂單）。
  *
  * 2026-11-24（使用者）：不再是獨立一塊面板。「兑换码与优惠券」分頁的推薦人清單每一列有「优惠券」按鈕，展開
- * `ReferrerCouponsBlock`（產券直接用那一列的推薦人）；沒有推薦人的舊批次另外一小塊 `LegacyCouponBatches`。
+ * `ReferrerCouponsBlock`（產券直接用那一列的推薦人）；沒有推薦人的舊批次（2026-11-25 之前產的）不再顯示，資料還在。
  * 全部批次由 `useCouponBatches` 整頁讀一次。伺服器開關 `T2_COUPON` 關著（404）時按鈕與區塊都不畫。
  */
 import { useCallback, useState, type ReactNode } from 'react';
@@ -15,7 +15,7 @@ import { adminApi, AdminApiError, type AdminCouponBatch, type AdminReferrer } fr
 import type { AdminErrorView } from '../adminView';
 import { formatCode } from '../../redeem/codes';
 import { couponDiscountLabel, DEFAULT_COUPON_DISCOUNT, MAX_COUPON_BATCH, type CouponDiscount, type CouponDiscountKind } from '../../t2/coupon';
-import { Button, EmptyState, ErrorNote, Field, Panel, Select, Spinner, TextInput, dateBounds, useAsyncData } from '../ui';
+import { Button, EmptyState, ErrorNote, Field, Select, Spinner, TextInput, dateBounds, useAsyncData } from '../ui';
 
 const STATUS_LABEL = { unused: '未用', used: '已用', void: '已作废' } as const;
 
@@ -52,7 +52,7 @@ function DiscountInputs({ kind, value, onKind, onValue }: { kind: CouponDiscount
   );
 }
 
-function BatchRow({ batch, canVoid, onChanged, onError }: { batch: AdminCouponBatch; canVoid: boolean; onChanged: () => void; onError: (v: AdminErrorView) => void }) {
+function BatchRow({ batch, onChanged, onError }: { batch: AdminCouponBatch; onChanged: () => void; onError: (v: AdminErrorView) => void }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [kind, setKind] = useState<CouponDiscountKind>(batch.discount.kind);
@@ -154,7 +154,7 @@ function BatchRow({ batch, canVoid, onChanged, onError }: { batch: AdminCouponBa
                   {c.usedBy !== null ? ` · 家长编号 ${c.usedBy}` : ''}
                   {c.usedAt ? ` · ${c.usedAt.slice(0, 10)}` : ''}
                 </span>
-                {canVoid && c.status === 'unused' && <Button variant="ghost" onClick={() => void voidOne(c.id)}>作废</Button>}
+                {c.status === 'unused' && <Button variant="ghost" onClick={() => void voidOne(c.id)}>作废</Button>}
               </li>
             ))}
           </ul>
@@ -197,10 +197,10 @@ export function useCouponBatches(enabled: boolean, onError: (view: AdminErrorVie
   return { off: data?.off ?? failure === null, batches: data?.batches ?? [], loading, failure, reload };
 }
 
-function BatchList({ batches, canVoid = true, onChanged, onError }: { batches: AdminCouponBatch[]; canVoid?: boolean; onChanged: () => void; onError: (v: AdminErrorView) => void }) {
+function BatchList({ batches, onChanged, onError }: { batches: AdminCouponBatch[]; onChanged: () => void; onError: (v: AdminErrorView) => void }) {
   return (
     <ul className="space-y-2">
-      {batches.map(b => <BatchRow key={`${b.id}-${b.discount.kind}-${b.discount.value}-${b.expiresOn}`} batch={b} canVoid={canVoid} onChanged={onChanged} onError={onError} />)}
+      {batches.map(b => <BatchRow key={`${b.id}-${b.discount.kind}-${b.discount.value}-${b.expiresOn}`} batch={b} onChanged={onChanged} onError={onError} />)}
     </ul>
   );
 }
@@ -282,16 +282,5 @@ export function ReferrerCouponsBlock({
       {note && <p className="text-[11px] font-bold text-brand-forest">{note}</p>}
       {list}
     </div>
-  );
-}
-
-/** 沒有推薦人的舊批次（2026-11-25 之前產的、測試優惠碼那一批）：有才畫；只能看與改折扣／到期日，不能產新的。 */
-export function LegacyCouponBatches({ state, onError }: { state: CouponBatchesState; onError: (view: AdminErrorView) => void }) {
-  const legacy = state.batches.filter(b => b.referrerId === null);
-  if (state.off || legacy.length === 0) return null;
-  return (
-    <Panel title="未指定推荐人的旧批次" description="优惠券改成每一批发给一位推荐人之前产的批次。这里只能看与改折扣、到期日；新的优惠券在上面每位推荐人那一列产生。">
-      <BatchList batches={legacy} canVoid={false} onChanged={state.reload} onError={onError} />
-    </Panel>
   );
 }

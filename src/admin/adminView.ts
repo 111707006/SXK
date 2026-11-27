@@ -168,6 +168,9 @@ const SINGLE_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['videos', 'homeMedia', 
  */
 const MULTI_COMPANY_ONLY_TABS: readonly AdminTabId[] = ['company', 'companies', 'summary'];
 
+/** 專案 A 的合作單位帳號（含個人治療師單位）先不顯示的分頁（使用者 2026-11-27）。 */
+const MEMBER_HIDDEN_TABS_A: readonly AdminTabId[] = ['specialists', 'company'];
+
 /**
  * 「后台帐号」併進「合作单位」（建置期開關 `VITE_ADMIN_UNITS_MERGED`）：開關開著、專案 A、而且開了合作單位，三個都成立才算。
  * 其他情況（B、A 沒開合作單位、開關關著）兩個分頁照舊分開。
@@ -193,7 +196,10 @@ export function visibleTabs(
     .filter(t => !(merged && t.id === 'adminUsers'))
     // ADR-0020（#117）：A 的「合作公司」改叫「合作单位」；B 一個字都不變。
     .map(t => (t.id === 'companies' && isProjectA(shape) ? { ...t, label: '合作单位' } : t))
-    .map(t => (t.id === 'summary' && isProjectA(shape) ? { ...t, label: '跨单位汇总' } : t));
+    .map(t => (t.id === 'summary' && isProjectA(shape) ? { ...t, label: '跨单位汇总' } : t))
+    // 2026-11-27 使用者：A 的合作單位與康復師帳號先不給「专家名单」「本机构设定」（怕亂改）。
+    // 只拿掉畫面上的分頁，伺服器端點照舊；全域管理員照舊看得到；B 不變。
+    .filter(t => !(identity.role === 'company_member' && isProjectA(shape) && MEMBER_HIDDEN_TABS_A.includes(t.id)));
   // 個人治療師單位的那個帳號（#117）：單位管理者，同時是推薦人 —— 多推薦人自己的兩頁（家長列表已經是全單位）。
   if (identity.role === 'company_member' && identity.referrer === true) return [...tabs, ...REFERRER_TABS.filter(t => t.id !== 'parents')];
   // 服務關係開關開著（#124）：單位管理者也能代填、用本單位的碼。

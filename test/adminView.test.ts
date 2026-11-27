@@ -222,6 +222,23 @@ describe('分頁可見性', () => {
     }
   });
 
+  // 使用者 2026-11-27：A 的合作單位與康復師帳號先不給這兩頁；B 照舊、全域管理員照舊。
+  it('A 有合作單位時，單位帳號看不到专家名单與本机构设定', () => {
+    const A_UNITS: AdminCenterShape = { multiCompany: true, projectA: true };
+    const ids = (i: AdminIdentityView) => visibleTabs(i, A_UNITS).map(t => t.id);
+    const therapistUnit = { ...member, referrer: true } as AdminIdentityView;
+    for (const identity of [member, therapistUnit]) {
+      expect(ids(identity)).not.toContain('specialists');
+      expect(ids(identity)).not.toContain('company');
+      expect(ids(identity)).toContain('parents');
+    }
+    expect(visibleTabs(member, { ...A_UNITS, serviceRelations: true }).map(t => t.id)).toEqual(['parents', 'unitCodes', 'proxy']);
+    expect(ids(globalOnCompany)).toContain('specialists');
+    expect(ids(globalOnCompany)).toContain('company');
+    // B 的合作公司不變。
+    expect(idsOf(member)).toEqual(['parents', 'specialists', 'company']);
+  });
+
   it('每個分頁都有可顯示的名稱', () => {
     for (const tab of visibleTabs(globalOnCompany, MULTI)) {
       expect(tab.label.length).toBeGreaterThan(0);
